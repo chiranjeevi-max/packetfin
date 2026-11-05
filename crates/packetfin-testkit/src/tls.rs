@@ -21,9 +21,9 @@
 
 use aes::Aes128;
 use aes::Aes256;
-use aes_gcm::aead::{AeadInPlace, KeyInit};
+use aes_gcm::aead::{AeadInOut, KeyInit};
 use aes_gcm::{Aes128Gcm, Aes256Gcm};
-use cbc::cipher::{BlockEncryptMut, KeyIvInit};
+use cbc::cipher::{BlockModeEncrypt, KeyIvInit};
 use chacha20poly1305::ChaCha20Poly1305;
 use hkdf::Hkdf;
 use hmac::{Hmac, Mac};
@@ -137,21 +137,21 @@ pub fn hex(bytes: &[u8]) -> String {
 fn hmac(hash: Hash, key: &[u8], parts: &[&[u8]]) -> Vec<u8> {
     match hash {
         Hash::Sha1 => {
-            let mut mac = <Hmac<Sha1> as Mac>::new_from_slice(key).expect("hmac key");
+            let mut mac = Hmac::<Sha1>::new_from_slice(key).expect("hmac key");
             for part in parts {
                 mac.update(part);
             }
             mac.finalize().into_bytes().to_vec()
         }
         Hash::Sha256 => {
-            let mut mac = <Hmac<Sha256> as Mac>::new_from_slice(key).expect("hmac key");
+            let mut mac = Hmac::<Sha256>::new_from_slice(key).expect("hmac key");
             for part in parts {
                 mac.update(part);
             }
             mac.finalize().into_bytes().to_vec()
         }
         Hash::Sha384 => {
-            let mut mac = <Hmac<Sha384> as Mac>::new_from_slice(key).expect("hmac key");
+            let mut mac = Hmac::<Sha384>::new_from_slice(key).expect("hmac key");
             for part in parts {
                 mac.update(part);
             }
@@ -487,19 +487,19 @@ impl Tls12Writer {
                 let tag = if self.suite.bulk == Bulk::Aes128Gcm {
                     let cipher = Aes128Gcm::new_from_slice(key).expect("key");
                     cipher
-                        .encrypt_in_place_detached(
-                            nonce.as_ref().into(),
+                        .encrypt_inout_detached(
+                            (&nonce).into(),
                             &aad,
-                            &mut fragment[start..],
+                            (&mut fragment[start..]).into(),
                         )
                         .expect("encrypt")
                 } else {
                     let cipher = Aes256Gcm::new_from_slice(key).expect("key");
                     cipher
-                        .encrypt_in_place_detached(
-                            nonce.as_ref().into(),
+                        .encrypt_inout_detached(
+                            (&nonce).into(),
                             &aad,
-                            &mut fragment[start..],
+                            (&mut fragment[start..]).into(),
                         )
                         .expect("encrypt")
                 };
@@ -511,7 +511,7 @@ impl Tls12Writer {
                 let mut fragment = plaintext.to_vec();
                 let cipher = ChaCha20Poly1305::new_from_slice(key).expect("key");
                 let tag = cipher
-                    .encrypt_in_place_detached(nonce.as_ref().into(), &aad, &mut fragment)
+                    .encrypt_inout_detached((&nonce).into(), &aad, fragment.as_mut_slice().into())
                     .expect("encrypt");
                 fragment.extend_from_slice(&tag);
                 fragment
@@ -560,13 +560,13 @@ impl Tls12Writer {
         let ciphertext = if self.suite.bulk == Bulk::Aes128Cbc {
             let cipher = cbc::Encryptor::<Aes128>::new_from_slices(key, &iv).expect("cipher");
             cipher
-                .encrypt_padded_mut::<cbc::cipher::block_padding::NoPadding>(&mut buffer, length)
+                .encrypt_padded::<cbc::cipher::block_padding::NoPadding>(&mut buffer, length)
                 .expect("encrypt")
                 .to_vec()
         } else {
             let cipher = cbc::Encryptor::<Aes256>::new_from_slices(key, &iv).expect("cipher");
             cipher
-                .encrypt_padded_mut::<cbc::cipher::block_padding::NoPadding>(&mut buffer, length)
+                .encrypt_padded::<cbc::cipher::block_padding::NoPadding>(&mut buffer, length)
                 .expect("encrypt")
                 .to_vec()
         };
@@ -773,15 +773,15 @@ impl Tls13Writer {
         let tag = match suite.bulk {
             Bulk::Aes128Gcm => Aes128Gcm::new_from_slice(&keys.key)
                 .expect("key")
-                .encrypt_in_place_detached(nonce.as_ref().into(), &header, &mut fragment)
+                .encrypt_inout_detached((&nonce).into(), &header, fragment.as_mut_slice().into())
                 .expect("encrypt"),
             Bulk::Aes256Gcm => Aes256Gcm::new_from_slice(&keys.key)
                 .expect("key")
-                .encrypt_in_place_detached(nonce.as_ref().into(), &header, &mut fragment)
+                .encrypt_inout_detached((&nonce).into(), &header, fragment.as_mut_slice().into())
                 .expect("encrypt"),
             Bulk::ChaCha20 => ChaCha20Poly1305::new_from_slice(&keys.key)
                 .expect("key")
-                .encrypt_in_place_detached(nonce.as_ref().into(), &header, &mut fragment)
+                .encrypt_inout_detached((&nonce).into(), &header, fragment.as_mut_slice().into())
                 .expect("encrypt"),
             _ => unreachable!("TLS 1.3 AEAD"),
         };

@@ -1,0 +1,40 @@
+name: Fuzz
+
+on:
+  schedule:
+    - cron: "17 3 * * 1"
+  workflow_dispatch:
+    inputs:
+      minutes:
+        description: Minutes per fuzz target
+        required: true
+        default: "2"
+
+permissions:
+  contents: read
+
+jobs:
+  fuzz:
+    name: Fuzz every target
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install the fuzzing toolchain
+        run: |
+          nightly=$(sed -n 's/^FUZZ_NIGHTLY="\${FUZZ_NIGHTLY:-\(nightly-[0-9-]*\)}"$/\1/p' tools/fuzz)
+          rustup toolchain install "$nightly" --profile minimal
+          cargo "+$nightly" install cargo-fuzz --version 0.13.2 --locked
+      - name: Fuzz
+        env:
+          MINUTES: ${{ inputs.minutes || '2' }}
+        run: tools/fuzz "$MINUTES"
+      - name: Upload crash inputs
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: fuzz-artifacts
+          path: fuzz/artifacts/
+          if-no-files-found: ignore

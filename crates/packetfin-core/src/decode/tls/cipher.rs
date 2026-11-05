@@ -24,14 +24,13 @@
 
 use aes::Aes128;
 use aes::Aes256;
-use aes_gcm::aead::AeadInPlace;
-use aes_gcm::aead::generic_array::GenericArray;
-use aes_gcm::{Aes128Gcm, Aes256Gcm, KeyInit as AeadKeyInit};
+use aes_gcm::aead::AeadInOut;
+use aes_gcm::{Aes128Gcm, Aes256Gcm};
 use cbc::Decryptor;
-use cbc::cipher::{BlockDecryptMut, KeyIvInit};
+use cbc::cipher::{BlockModeDecrypt, KeyIvInit};
 use chacha20poly1305::ChaCha20Poly1305;
 use hkdf::Hkdf;
-use hmac::{Hmac, Mac};
+use hmac::{Hmac, KeyInit, Mac};
 use sha1::Sha1;
 use sha2::{Sha256, Sha384};
 use subtle::ConstantTimeEq as _;
@@ -414,28 +413,17 @@ impl RecordKeys {
     }
 
     fn open_in_place_aad(&self, nonce: &[u8; 12], aad: &[u8], buffer: &mut [u8]) -> bool {
-        if buffer.len() < 16 {
-            return false;
-        }
-        let split = match buffer.len().checked_sub(16) {
-            Some(split) => split,
-            None => return false,
-        };
-        let Some((ciphertext, tag)) = buffer.split_at_mut_checked(split) else {
+        let Some((ciphertext, tag)) = buffer.split_last_chunk_mut::<16>() else {
             return false;
         };
+        let tag: &[u8; 16] = tag;
         match self.suite.bulk {
             BulkCipher::Aes128Gcm => {
                 let Ok(cipher) = Aes128Gcm::new_from_slice(self.key.as_bytes()) else {
                     return false;
                 };
                 cipher
-                    .decrypt_in_place_detached(
-                        nonce.as_ref().into(),
-                        aad,
-                        ciphertext,
-                        GenericArray::from_slice(tag),
-                    )
+                    .decrypt_inout_detached(nonce.into(), aad, ciphertext.into(), tag.into())
                     .is_ok()
             }
             BulkCipher::Aes256Gcm => {
@@ -443,12 +431,7 @@ impl RecordKeys {
                     return false;
                 };
                 cipher
-                    .decrypt_in_place_detached(
-                        nonce.as_ref().into(),
-                        aad,
-                        ciphertext,
-                        GenericArray::from_slice(tag),
-                    )
+                    .decrypt_inout_detached(nonce.into(), aad, ciphertext.into(), tag.into())
                     .is_ok()
             }
             BulkCipher::Chacha20Poly1305 => {
@@ -456,12 +439,7 @@ impl RecordKeys {
                     return false;
                 };
                 cipher
-                    .decrypt_in_place_detached(
-                        nonce.as_ref().into(),
-                        aad,
-                        ciphertext,
-                        GenericArray::from_slice(tag),
-                    )
+                    .decrypt_inout_detached(nonce.into(), aad, ciphertext.into(), tag.into())
                     .is_ok()
             }
             BulkCipher::Aes128Cbc | BulkCipher::Aes256Cbc => false,
@@ -501,13 +479,13 @@ impl RecordKeys {
             BulkCipher::Aes128Cbc => {
                 let cipher = Decryptor::<Aes128>::new_from_slices(self.key.as_bytes(), iv).ok()?;
                 cipher
-                    .decrypt_padded_mut::<cbc::cipher::block_padding::NoPadding>(&mut buffer)
+                    .decrypt_padded::<cbc::cipher::block_padding::NoPadding>(&mut buffer)
                     .is_ok()
             }
             BulkCipher::Aes256Cbc => {
                 let cipher = Decryptor::<Aes256>::new_from_slices(self.key.as_bytes(), iv).ok()?;
                 cipher
-                    .decrypt_padded_mut::<cbc::cipher::block_padding::NoPadding>(&mut buffer)
+                    .decrypt_padded::<cbc::cipher::block_padding::NoPadding>(&mut buffer)
                     .is_ok()
             }
             _ => false,
@@ -804,7 +782,7 @@ fn hmac_parts(
 ) -> Option<usize> {
     match hash {
         HashAlgorithm::Sha1 => {
-            let mut mac = <Hmac<Sha1> as Mac>::new_from_slice(key).ok()?;
+            let mut mac = Hmac::<Sha1>::new_from_slice(key).ok()?;
             for part in parts {
                 mac.update(part);
             }
@@ -814,7 +792,7 @@ fn hmac_parts(
             Some(tag.len())
         }
         HashAlgorithm::Sha256 => {
-            let mut mac = <Hmac<Sha256> as Mac>::new_from_slice(key).ok()?;
+            let mut mac = Hmac::<Sha256>::new_from_slice(key).ok()?;
             for part in parts {
                 mac.update(part);
             }
@@ -824,7 +802,7 @@ fn hmac_parts(
             Some(tag.len())
         }
         HashAlgorithm::Sha384 => {
-            let mut mac = <Hmac<Sha384> as Mac>::new_from_slice(key).ok()?;
+            let mut mac = Hmac::<Sha384>::new_from_slice(key).ok()?;
             for part in parts {
                 mac.update(part);
             }
@@ -848,8 +826,8 @@ fn verify_hmac(hash: HashAlgorithm, key: &[u8], aad: &[u8], content: &[u8], tag:
     }
 }
 
-fn verify_mac<M: Mac + AeadKeyInit>(key: &[u8], aad: &[u8], content: &[u8], tag: &[u8]) -> bool {
-    let Ok(mut mac) = <M as Mac>::new_from_slice(key) else {
+fn verify_mac<M: Mac + KeyInit>(key: &[u8], aad: &[u8], content: &[u8], tag: &[u8]) -> bool {
+    let Ok(mut mac) = M::new_from_slice(key) else {
         return false;
     };
     mac.update(aad);
@@ -930,7 +908,7 @@ use zeroize::Zeroize;
 )]
 mod tests {
     use super::*;
-    use cbc::cipher::{BlockEncryptMut, KeyIvInit};
+    use cbc::cipher::{BlockModeEncrypt, KeyIvInit};
 
     fn hex(text: &str) -> Vec<u8> {
         let mut out = Vec::new();
@@ -965,17 +943,17 @@ mod tests {
         let cipher = Aes128Gcm::new_from_slice(&key).expect("key");
         let mut buffer = plaintext;
         let tag = cipher
-            .encrypt_in_place_detached(nonce.as_ref().into(), &[], &mut buffer)
+            .encrypt_inout_detached((&nonce).into(), &[], buffer.as_mut_slice().into())
             .expect("encrypt");
         assert_eq!(buffer, expected_ciphertext.as_slice());
         assert_eq!(tag.as_slice(), expected_tag.as_slice());
         let mut opened = expected_ciphertext;
         cipher
-            .decrypt_in_place_detached(
-                nonce.as_ref().into(),
+            .decrypt_inout_detached(
+                (&nonce).into(),
                 &[],
-                &mut opened,
-                expected_tag.as_slice().into(),
+                opened.as_mut_slice().into(),
+                expected_tag.as_slice().try_into().expect("tag"),
             )
             .expect("decrypt");
         assert_eq!(opened, plaintext);
@@ -992,7 +970,11 @@ mod tests {
         xor_sequence(&mut nonce, keys.sequence());
         let mut fragment = plaintext.to_vec();
         let tag = cipher
-            .encrypt_in_place_detached(nonce.as_ref().into(), &[23, 3, 3, 0, 22], &mut fragment)
+            .encrypt_inout_detached(
+                (&nonce).into(),
+                &[23, 3, 3, 0, 22],
+                fragment.as_mut_slice().into(),
+            )
             .expect("encrypt");
         fragment.extend_from_slice(&tag);
         let header = [23, 3, 3, 0, u8::try_from(fragment.len()).unwrap()];
@@ -1020,7 +1002,12 @@ mod tests {
         let (ciphertext, tag) = expected.split_at(expected.len() - 16);
         let mut buffer = ciphertext.to_vec();
         cipher
-            .decrypt_in_place_detached(nonce.as_slice().into(), &aad, &mut buffer, tag.into())
+            .decrypt_inout_detached(
+                nonce.as_slice().try_into().expect("nonce"),
+                &aad,
+                buffer.as_mut_slice().into(),
+                tag.try_into().expect("tag"),
+            )
             .expect("decrypt");
         assert_eq!(buffer, plaintext);
     }
@@ -1035,7 +1022,7 @@ mod tests {
         let mut buffer = ciphertext;
         let cipher = Decryptor::<Aes128>::new_from_slices(&key, &iv).expect("cipher");
         let plaintext = cipher
-            .decrypt_padded_mut::<cbc::cipher::block_padding::NoPadding>(&mut buffer)
+            .decrypt_padded::<cbc::cipher::block_padding::NoPadding>(&mut buffer)
             .expect("decrypt");
         assert_eq!(plaintext, expected.as_slice());
     }
@@ -1145,7 +1132,7 @@ mod tests {
         let mut fragment = explicit.to_vec();
         fragment.extend_from_slice(plaintext);
         let tag = cipher
-            .encrypt_in_place_detached(nonce.as_ref().into(), &aad, &mut fragment[8..])
+            .encrypt_inout_detached((&nonce).into(), &aad, (&mut fragment[8..]).into())
             .expect("encrypt");
         fragment.extend_from_slice(&tag);
         let opened = keys
@@ -1199,7 +1186,7 @@ mod tests {
         mac_input[8] = content_type;
         mac_input[9..11].copy_from_slice(&version.to_be_bytes());
         mac_input[11..].copy_from_slice(&u16::try_from(content.len()).unwrap().to_be_bytes());
-        let mut mac = <Hmac<Sha1> as Mac>::new_from_slice(mac_key.as_bytes()).expect("hmac");
+        let mut mac = Hmac::<Sha1>::new_from_slice(mac_key.as_bytes()).expect("hmac");
         mac.update(&mac_input);
         mac.update(content);
         let tag = mac.finalize().into_bytes();
@@ -1218,7 +1205,7 @@ mod tests {
         let mut buffer = plaintext;
         let length = buffer.len();
         let ciphertext = cipher
-            .encrypt_padded_mut::<cbc::cipher::block_padding::NoPadding>(&mut buffer, length)
+            .encrypt_padded::<cbc::cipher::block_padding::NoPadding>(&mut buffer, length)
             .expect("encrypt")
             .to_vec();
         let mut fragment = iv.to_vec();
@@ -1267,7 +1254,7 @@ mod tests {
         let mut buffer = plaintext;
         let length = buffer.len();
         let ciphertext = cipher
-            .encrypt_padded_mut::<cbc::cipher::block_padding::NoPadding>(&mut buffer, length)
+            .encrypt_padded::<cbc::cipher::block_padding::NoPadding>(&mut buffer, length)
             .expect("encrypt")
             .to_vec();
         let mut fragment = iv.to_vec();
@@ -1278,7 +1265,7 @@ mod tests {
         mac_input[9..11].copy_from_slice(&version.to_be_bytes());
         mac_input[11..]
             .copy_from_slice(&u16::try_from(fragment.len()).expect("length").to_be_bytes());
-        let mut mac = <Hmac<Sha1> as Mac>::new_from_slice(mac_key.as_bytes()).expect("hmac");
+        let mut mac = Hmac::<Sha1>::new_from_slice(mac_key.as_bytes()).expect("hmac");
         mac.update(&mac_input);
         mac.update(&fragment);
         fragment.extend_from_slice(&mac.finalize().into_bytes());

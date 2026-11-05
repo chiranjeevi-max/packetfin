@@ -8,6 +8,20 @@ updates:
       prefix: build
       include: scope
     groups:
+      # These crates share the digest, cipher and aead trait crates, so they
+      # upgrade together. A dependency joins the first group it matches.
+      rustcrypto:
+        patterns:
+          - aes
+          - aes-gcm
+          - cbc
+          - chacha20poly1305
+          - hkdf
+          - hmac
+          - md-5
+          - sha1
+          - sha2
+        update-types: [major, minor, patch]
       cargo:
         update-types: [minor, patch]
   - package-ecosystem: cargo

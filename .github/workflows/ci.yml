@@ -83,7 +83,13 @@ jobs:
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           workspaces: fuzz
-      - run: cargo check --manifest-path fuzz/Cargo.toml --bins --locked
+      # Dependabot updates only the root Cargo.lock, so fuzz/Cargo.lock may be
+      # stale here: let Cargo refresh it, as tools/check does, and warn.
+      - run: cargo check --manifest-path fuzz/Cargo.toml --bins
+      - name: Warn if fuzz/Cargo.lock is out of date
+        run: |
+          git diff --quiet -- fuzz/Cargo.lock ||
+            echo "::warning file=fuzz/Cargo.lock::fuzz/Cargo.lock is out of date; run tools/check and commit the refreshed lockfile"
 
   commits:
     name: Commit messages

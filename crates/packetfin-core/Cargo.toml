@@ -14,7 +14,7 @@ fuzzing = []
 
 [dependencies]
 aes = { version = "0.8.4", features = ["zeroize"] }
-aes-gcm = "0.10.3"
+aes-gcm = "0.11.1"
 cbc = "0.1.2"
 chacha20poly1305 = "0.10.1"
 flate2 = { version = "1.1.10", default-features = false, features = ["rust_backend"] }

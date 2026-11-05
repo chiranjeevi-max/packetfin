@@ -1,0 +1,33 @@
+[package]
+name = "packetfin-pcap"
+description = "Live packet capture for packetfin over libpcap on macOS and Linux and over Npcap on Windows."
+version = "0.1.0"
+edition = "2024"
+publish = false
+license = "MIT"
+
+[lints.rust]
+# This crate deliberately does not inherit `workspace.lints` (there is no
+# `workspace = true`): it is the only place allowed to contain `unsafe`,
+# for libpcap/Npcap, SystemConfiguration and the Unix signal self-pipe. The
+# workspace keeps `unsafe_code = "forbid"` for every other crate.
+unsafe_code = "allow"
+
+[lints.clippy]
+unwrap_used = { level = "deny" }
+expect_used = { level = "deny" }
+panic = { level = "deny" }
+indexing_slicing = { level = "deny" }
+todo = { level = "deny" }
+unimplemented = { level = "deny" }
+dbg_macro = { level = "deny" }
+
+[dependencies]
+packetfin-core = { path = "../packetfin-core" }
+pcap = "2.5"
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+[target.'cfg(windows)'.dependencies]
+libc = "0.2"

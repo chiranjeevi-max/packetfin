@@ -1,0 +1,8 @@
+1	29	0x1234	False						
+2	29	0x1234	False				True	1	
+3	45	0x1234	True	1		0.000002000			
+4	27,29	0x1235,0x1234	False,False						
+5	43	0x1235	True	4		0.000001000			
+6	27,4,27	0x1235,0x0002,0x1236	False,False,False						
+7									
+8									

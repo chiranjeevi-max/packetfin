@@ -1,0 +1,2 @@
+packetfin: The file "tests/fixtures/compressed-gzip-bad-crc-frames.gz" cannot be decompressed; it may be damaged or corrupt.
+(bad CRC)

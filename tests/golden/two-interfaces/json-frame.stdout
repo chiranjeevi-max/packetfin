@@ -1,0 +1,87 @@
+[
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "frame": {
+          "frame.section_number": "1",
+          "frame.interface_id": "0",
+          "frame.interface_id_tree": {
+            "filtered": "frame.interface_id"
+          },
+          "frame.encap_type": "1",
+          "frame.time": "2023-11-14T22:13:20.100000000Z",
+          "frame.time_utc": "2023-11-14T22:13:20.100000000Z",
+          "frame.time_epoch": "2023-11-14T22:13:20.100000000Z",
+          "frame.offset_shift": "0.000000000",
+          "frame.time_relative": "0.000000000",
+          "frame.number": "1",
+          "frame.len": "51",
+          "frame.cap_len": "51",
+          "frame.marked": "0",
+          "frame.ignored": "0",
+          "frame.protocols": "eth:ethertype:ip:udp:data",
+          "frame.encoding": "0"
+        },
+        "eth": {
+          "filtered": "eth"
+        },
+        "ip": {
+          "filtered": "ip"
+        },
+        "udp": {
+          "filtered": "udp"
+        },
+        "data": {
+          "filtered": "data"
+        }
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "pkt_comment": {
+          "filtered": "pkt_comment"
+        },
+        "frame": {
+          "frame.section_number": "1",
+          "frame.interface_id": "1",
+          "frame.interface_id_tree": {
+            "filtered": "frame.interface_id"
+          },
+          "frame.encap_type": "1",
+          "frame.time": "2023-11-14T22:13:20.200000001Z",
+          "frame.time_utc": "2023-11-14T22:13:20.200000001Z",
+          "frame.time_epoch": "2023-11-14T22:13:20.200000001Z",
+          "frame.offset_shift": "0.000000000",
+          "frame.time_delta": "0.100000001",
+          "frame.time_delta_displayed": "0.100000001",
+          "frame.time_relative": "0.100000001",
+          "frame.number": "2",
+          "frame.len": "51",
+          "frame.cap_len": "51",
+          "frame.marked": "0",
+          "frame.ignored": "0",
+          "frame.protocols": "eth:ethertype:ip:udp:data",
+          "frame.encoding": "0"
+        },
+        "eth": {
+          "filtered": "eth"
+        },
+        "ip": {
+          "filtered": "ip"
+        },
+        "udp": {
+          "filtered": "udp"
+        },
+        "data": {
+          "filtered": "data"
+        }
+      }
+    }
+  }
+]

@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="utf-8"?>
+<?xml-stylesheet type="text/xsl" href="pdml2html.xsl"?>
+<!-- normalized -->
+<pdml version="0" creator="creator" time="time" capture_file="tests/fixtures/dns-pairs.pcap">
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="70">
+    <field name="num" pos="0" show="1" showname="Number" value="1" size="70"/>
+    <field name="len" pos="0" show="70" showname="Frame Length" value="46" size="70"/>
+    <field name="caplen" pos="0" show="70" showname="Captured Length" value="46" size="70"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:20.000000000 UTC" showname="Captured Time" value="1700000000.000000000" size="70"/>
+  </proto>
+  <field name="dns.response_in" value="2"/>
+</packet>
+
+
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="86">
+    <field name="num" pos="0" show="2" showname="Number" value="2" size="86"/>
+    <field name="len" pos="0" show="86" showname="Frame Length" value="56" size="86"/>
+    <field name="caplen" pos="0" show="86" showname="Captured Length" value="56" size="86"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:20.000000000 UTC" showname="Captured Time" value="1700000000.000000000" size="86"/>
+  </proto>
+  <field name="dns.response_to" value="1"/>
+  <field name="dns.time" value="0.000000000"/>
+</packet>
+
+
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="71">
+    <field name="num" pos="0" show="3" showname="Number" value="3" size="71"/>
+    <field name="len" pos="0" show="71" showname="Frame Length" value="47" size="71"/>
+    <field name="caplen" pos="0" show="71" showname="Captured Length" value="47" size="71"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:21.000000000 UTC" showname="Captured Time" value="1700000001.000000000" size="71"/>
+  </proto>
+  <field name="dns.response_in" value="4"/>
+</packet>
+
+
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="87">
+    <field name="num" pos="0" show="4" showname="Number" value="4" size="87"/>
+    <field name="len" pos="0" show="87" showname="Frame Length" value="57" size="87"/>
+    <field name="caplen" pos="0" show="87" showname="Captured Length" value="57" size="87"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:21.010000000 UTC" showname="Captured Time" value="1700000001.010000000" size="87"/>
+  </proto>
+  <field name="dns.response_to" value="3"/>
+  <field name="dns.time" value="0.010000000"/>
+</packet>
+
+
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="70">
+    <field name="num" pos="0" show="5" showname="Number" value="5" size="70"/>
+    <field name="len" pos="0" show="70" showname="Frame Length" value="46" size="70"/>
+    <field name="caplen" pos="0" show="70" showname="Captured Length" value="46" size="70"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:22.000000000 UTC" showname="Captured Time" value="1700000002.000000000" size="70"/>
+  </proto>
+  <field name="dns.response_in" value="6"/>
+</packet>
+
+
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="86">
+    <field name="num" pos="0" show="6" showname="Number" value="6" size="86"/>
+    <field name="len" pos="0" show="86" showname="Frame Length" value="56" size="86"/>
+    <field name="caplen" pos="0" show="86" showname="Captured Length" value="56" size="86"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:22.010000000 UTC" showname="Captured Time" value="1700000002.010000000" size="86"/>
+  </proto>
+  <field name="dns.response_to" value="5"/>
+  <field name="dns.time" value="0.010000000"/>
+</packet>
+
+
+</pdml>

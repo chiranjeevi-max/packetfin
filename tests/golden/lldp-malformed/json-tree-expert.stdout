@@ -1,0 +1,32 @@
+[
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "frame": {
+          "filtered": "frame"
+        },
+        "eth": {
+          "filtered": "eth"
+        },
+        "lldp": {
+          "Chassis Subtype = MAC address": {
+            "lldp.tlv.type": "1",
+            "lldp.tlv.len": "5",
+            "lldp.tlv.len_tree": {
+              "_ws.expert": {
+                "lldp.incorrect_length": "",
+                "_ws.expert.message": "Invalid Chassis ID Length (5) for Type (MAC address), expected (7)",
+                "_ws.expert.severity": "6291456",
+                "_ws.expert.group": "117440512"
+              },
+              "_ws.malformed": "Malformed Packet"
+            },
+            "lldp.chassis.subtype": "4"
+          }
+        }
+      }
+    }
+  }
+]

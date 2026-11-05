@@ -1,0 +1,18 @@
+Frame 1: Packet, 70 bytes on wire (560 bits), 70 bytes captured (560 bits)
+    Encapsulation type: Ethernet (1)
+    Arrival Time: Nov 14, 2023 22:13:20.123456000 UTC
+    UTC Arrival Time: Nov 14, 2023 22:13:20.123456000 UTC
+    Epoch Arrival Time: 1700000000.123456000
+    [Time shift for this packet: 0.000000000 seconds]
+    [Time since reference or first frame: 0.000000000 seconds]
+    Frame Number: 1
+    Frame Length: 70 bytes (560 bits)
+    Capture Length: 70 bytes (560 bits)
+    [Frame is marked: False]
+    [Frame is ignored: False]
+    [Protocols in frame: eth:ethertype:ipv6:ipv6.hopopts:udp]
+    Character encoding: ASCII (0)
+Ethernet II, Src: 02:00:00:00:00:01, Dst: 02:00:00:00:00:02
+Internet Protocol Version 6, Src: 2001:db8::1, Dst: 2001:db8::2
+User Datagram Protocol, Src Port: 12345, Dst Port: 9999
+

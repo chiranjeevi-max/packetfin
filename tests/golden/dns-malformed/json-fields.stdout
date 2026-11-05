@@ -1,0 +1,510 @@
+[
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "dns.id": [
+          "0x0001"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {}
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "dns.id": [
+          "0x0002"
+        ],
+        "dns.count.answers": [
+          "0"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "dns.id": [
+          "0x0003"
+        ],
+        "dns.count.answers": [
+          "0"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "dns.id": [
+          "0x0004"
+        ],
+        "dns.count.answers": [
+          "0"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "dns.id": [
+          "0x0005"
+        ],
+        "dns.qry.name": [
+          "<Name contains a pointer that loops>"
+        ],
+        "dns.count.answers": [
+          "0"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "dns.id": [
+          "0x0006"
+        ],
+        "dns.qry.name": [
+          "<Name too long>"
+        ],
+        "dns.count.answers": [
+          "0"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "dns.id": [
+          "0x0007"
+        ],
+        "dns.count.answers": [
+          "1"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "dns.id": [
+          "0x0008"
+        ],
+        "dns.count.answers": [
+          "1"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "dns.id": [
+          "0x0009"
+        ],
+        "dns.count.answers": [
+          "1"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "dns.id": [
+          "0x000a"
+        ],
+        "dns.count.answers": [
+          "1"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "dns.id": [
+          "0x000b"
+        ],
+        "dns.count.answers": [
+          "1"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "dns.id": [
+          "0x000c"
+        ],
+        "dns.count.answers": [
+          "0"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "dns.id": [
+          "0x000d"
+        ],
+        "dns.count.answers": [
+          "1"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "dns.id": [
+          "0x000e"
+        ],
+        "dns.count.answers": [
+          "1"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "dns.id": [
+          "0x000f"
+        ],
+        "dns.count.answers": [
+          "1"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "dns.id": [
+          "0x0010"
+        ],
+        "dns.qry.name": [
+          "\\n\\033"
+        ],
+        "dns.count.answers": [
+          "0"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "dns.id": [
+          "0x0011"
+        ],
+        "dns.qry.name": [
+          "\\001"
+        ],
+        "dns.count.answers": [
+          "0"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "dns.id": [
+          "0x0012"
+        ],
+        "dns.count.answers": [
+          "1"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "dns.id": [
+          "0x0013"
+        ],
+        "dns.count.answers": [
+          "1"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "dns.id": [
+          "0x0020"
+        ],
+        "dns.qry.name": [
+          "café"
+        ],
+        "dns.count.answers": [
+          "0"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "dns.id": [
+          "0x0021"
+        ],
+        "dns.qry.name": [
+          "é"
+        ],
+        "dns.count.answers": [
+          "0"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "dns.id": [
+          "0x0022"
+        ],
+        "dns.qry.name": [
+          "😀"
+        ],
+        "dns.count.answers": [
+          "0"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "dns.id": [
+          "0x0023"
+        ],
+        "dns.qry.name": [
+          "caf�"
+        ],
+        "dns.count.answers": [
+          "0"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "dns.id": [
+          "0x0024"
+        ],
+        "dns.qry.name": [
+          "a�b"
+        ],
+        "dns.count.answers": [
+          "0"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "dns.id": [
+          "0x0030"
+        ],
+        "dns.qry.name": [
+          "\\a"
+        ],
+        "dns.count.answers": [
+          "0"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "dns.id": [
+          "0x0031"
+        ],
+        "dns.qry.name": [
+          "\\b"
+        ],
+        "dns.count.answers": [
+          "0"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "dns.id": [
+          "0x0032"
+        ],
+        "dns.qry.name": [
+          "\\v"
+        ],
+        "dns.count.answers": [
+          "0"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "dns.id": [
+          "0x0033"
+        ],
+        "dns.qry.name": [
+          "\\f"
+        ],
+        "dns.count.answers": [
+          "0"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "dns.id": [
+          "0x0040"
+        ],
+        "dns.qry.name": [
+          "a\\000b"
+        ],
+        "dns.count.answers": [
+          "0"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "dns.id": [
+          "0x0052"
+        ],
+        "dns.count.answers": [
+          "1"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "dns.id": [
+          "0x0053"
+        ],
+        "dns.count.answers": [
+          "1"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "dns.id": [
+          "0x0054"
+        ],
+        "dns.count.answers": [
+          "1"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "dns.id": [
+          "0x0055"
+        ],
+        "dns.count.answers": [
+          "1"
+        ]
+      }
+    }
+  }
+]

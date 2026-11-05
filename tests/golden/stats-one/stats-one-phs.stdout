@@ -1,0 +1,9 @@
+
+===================================================================
+Protocol Hierarchy Statistics
+Filter: 
+
+frame                                    frames:1 bytes:42
+  eth                                    frames:1 bytes:42
+    arp                                  frames:1 bytes:42
+===================================================================

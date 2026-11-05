@@ -1,0 +1,164 @@
+<?xml version="1.0" encoding="utf-8"?>
+<?xml-stylesheet type="text/xsl" href="pdml2html.xsl"?>
+<!-- normalized -->
+<pdml version="0" creator="creator" time="time" capture_file="tests/fixtures/dhcp-hardware.pcap">
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="286">
+    <field name="num" pos="0" show="1" showname="Number" value="1" size="286"/>
+    <field name="len" pos="0" show="286" showname="Frame Length" value="11e" size="286"/>
+    <field name="caplen" pos="0" show="286" showname="Captured Length" value="11e" size="286"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:20.123456000 UTC" showname="Captured Time" value="1700000000.123456000" size="286"/>
+  </proto>
+  <proto name="frame" showname="Frame 1: Packet, 286 bytes on wire (2288 bits), 286 bytes captured (2288 bits)" size="286" pos="0">
+    <field name="filtered" value="frame" />
+  </proto>
+  <proto name="eth" showname="Ethernet II, Src: 02:00:00:00:00:01, Dst: 02:00:00:00:00:02" size="14" pos="0">
+    <field name="filtered" value="eth" />
+  </proto>
+  <proto name="ip" showname="Internet Protocol Version 4, Src: 192.0.2.1, Dst: 198.51.100.2" size="20" pos="14">
+    <field name="filtered" value="ip" />
+  </proto>
+  <proto name="udp" showname="User Datagram Protocol, Src Port: 68, Dst Port: 67" size="8" pos="34">
+    <field name="filtered" value="udp" />
+  </proto>
+  <proto name="dhcp" showname="Dynamic Host Configuration Protocol (Discover)" size="244" pos="42">
+    <field name="dhcp.type" showname="Message type: Boot Request (1)" size="1" pos="42" show="1" value="01"/>
+    <field name="dhcp.hw.type" showname="Hardware type: Ethernet (0x01)" size="1" pos="43" show="0x01" value="01"/>
+    <field name="dhcp.hw.len" showname="Hardware address length: 1" size="1" pos="44" show="1" value="01"/>
+    <field name="dhcp.hops" showname="Hops: 0" size="1" pos="45" show="0" value="00"/>
+    <field name="dhcp.id" showname="Transaction ID: 0x12345678" size="4" pos="46" show="0x12345678" value="12345678"/>
+    <field name="dhcp.secs" showname="Seconds elapsed: 0" size="2" pos="50" show="0" value="0000"/>
+    <field name="dhcp.flags" showname="Bootp flags: 0x8000, Broadcast flag (Broadcast)" size="2" pos="52" show="0x8000" value="8000">
+      <field name="dhcp.flags.bc" showname="1... .... .... .... = Broadcast flag: Broadcast" size="2" pos="52" show="True" value="1" unmaskedvalue="8000"/>
+      <field name="dhcp.flags.reserved" showname=".000 0000 0000 0000 = Reserved flags: 0x0000" size="2" pos="52" show="0x0000" value="0" unmaskedvalue="8000"/>
+    </field>
+    <field name="dhcp.ip.client" showname="Client IP address: 0.0.0.0" size="4" pos="54" show="0.0.0.0" value="00000000"/>
+    <field name="dhcp.ip.your" showname="Your (client) IP address: 0.0.0.0" size="4" pos="58" show="0.0.0.0" value="00000000"/>
+    <field name="dhcp.ip.server" showname="Next server IP address: 0.0.0.0" size="4" pos="62" show="0.0.0.0" value="00000000"/>
+    <field name="dhcp.ip.relay" showname="Relay agent IP address: 0.0.0.0" size="4" pos="66" show="0.0.0.0" value="00000000"/>
+    <field name="dhcp.hw.addr" showname="Client hardware address: 00" size="16" pos="70" show="00:01:02:03:04:05:06:07:08:09:0a:0b:0c:0d:0e:0f" value="000102030405060708090a0b0c0d0e0f"/>
+    <field name="dhcp.hw.addr_padding" showname="Client hardware address padding: 0102030405060708090a0b0c0d0e0f" size="15" pos="71" show="01:02:03:04:05:06:07:08:09:0a:0b:0c:0d:0e:0f" value="0102030405060708090a0b0c0d0e0f"/>
+    <field name="dhcp.server" showname="Server host name not given" size="64" pos="86" show="" value="00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"/>
+    <field name="dhcp.file" showname="Boot file name not given" size="128" pos="150" show="" value="0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"/>
+    <field name="dhcp.cookie" showname="Magic cookie: DHCP" size="4" pos="278" show="99.130.83.99" value="63825363"/>
+    <field name="dhcp.option.type" showname="Option: (53) DHCP Message Type (Discover)" size="3" pos="282" show="53" value="350101">
+      <field name="dhcp.option.length" showname="Length: 1" size="1" pos="283" show="1" value="01"/>
+      <field name="dhcp.option.value" showname="Value: 01" hide="yes" size="1" pos="284" show="01" value="01"/>
+      <field name="dhcp.option.dhcp" showname="DHCP: Discover (1)" size="1" pos="284" show="1" value="01"/>
+    </field>
+    <field name="dhcp.option.type" showname="Option: (255) End" size="1" pos="285" show="0" value="ff">
+      <field name="dhcp.option.end" showname="Option End: 255" size="1" pos="285" show="255" value="ff"/>
+    </field>
+  </proto>
+</packet>
+
+
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="286">
+    <field name="num" pos="0" show="2" showname="Number" value="2" size="286"/>
+    <field name="len" pos="0" show="286" showname="Frame Length" value="11e" size="286"/>
+    <field name="caplen" pos="0" show="286" showname="Captured Length" value="11e" size="286"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:20.123457000 UTC" showname="Captured Time" value="1700000000.123457000" size="286"/>
+  </proto>
+  <proto name="frame" showname="Frame 2: Packet, 286 bytes on wire (2288 bits), 286 bytes captured (2288 bits)" size="286" pos="0">
+    <field name="filtered" value="frame" />
+  </proto>
+  <proto name="eth" showname="Ethernet II, Src: 02:00:00:00:00:01, Dst: 02:00:00:00:00:02" size="14" pos="0">
+    <field name="filtered" value="eth" />
+  </proto>
+  <proto name="ip" showname="Internet Protocol Version 4, Src: 192.0.2.1, Dst: 198.51.100.2" size="20" pos="14">
+    <field name="filtered" value="ip" />
+  </proto>
+  <proto name="udp" showname="User Datagram Protocol, Src Port: 68, Dst Port: 67" size="8" pos="34">
+    <field name="filtered" value="udp" />
+  </proto>
+  <proto name="dhcp" showname="Dynamic Host Configuration Protocol (Discover)" size="244" pos="42">
+    <field name="dhcp.type" showname="Message type: Boot Request (1)" size="1" pos="42" show="1" value="01"/>
+    <field name="dhcp.hw.type" showname="Hardware type: Ethernet (0x01)" size="1" pos="43" show="0x01" value="01"/>
+    <field name="dhcp.hw.len" showname="Hardware address length: 15" size="1" pos="44" show="15" value="0f"/>
+    <field name="dhcp.hops" showname="Hops: 0" size="1" pos="45" show="0" value="00"/>
+    <field name="dhcp.id" showname="Transaction ID: 0x12345678" size="4" pos="46" show="0x12345678" value="12345678"/>
+    <field name="dhcp.secs" showname="Seconds elapsed: 0" size="2" pos="50" show="0" value="0000"/>
+    <field name="dhcp.flags" showname="Bootp flags: 0x8000, Broadcast flag (Broadcast)" size="2" pos="52" show="0x8000" value="8000">
+      <field name="dhcp.flags.bc" showname="1... .... .... .... = Broadcast flag: Broadcast" size="2" pos="52" show="True" value="1" unmaskedvalue="8000"/>
+      <field name="dhcp.flags.reserved" showname=".000 0000 0000 0000 = Reserved flags: 0x0000" size="2" pos="52" show="0x0000" value="0" unmaskedvalue="8000"/>
+    </field>
+    <field name="dhcp.ip.client" showname="Client IP address: 0.0.0.0" size="4" pos="54" show="0.0.0.0" value="00000000"/>
+    <field name="dhcp.ip.your" showname="Your (client) IP address: 0.0.0.0" size="4" pos="58" show="0.0.0.0" value="00000000"/>
+    <field name="dhcp.ip.server" showname="Next server IP address: 0.0.0.0" size="4" pos="62" show="0.0.0.0" value="00000000"/>
+    <field name="dhcp.ip.relay" showname="Relay agent IP address: 0.0.0.0" size="4" pos="66" show="0.0.0.0" value="00000000"/>
+    <field name="dhcp.hw.addr" showname="Client hardware address: 000102030405060708090a0b0c0d0e" size="16" pos="70" show="00:01:02:03:04:05:06:07:08:09:0a:0b:0c:0d:0e:0f" value="000102030405060708090a0b0c0d0e0f"/>
+    <field name="dhcp.hw.addr_padding" showname="Client hardware address padding: 0f" size="1" pos="85" show="0f" value="0f"/>
+    <field name="dhcp.server" showname="Server host name not given" size="64" pos="86" show="" value="00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"/>
+    <field name="dhcp.file" showname="Boot file name not given" size="128" pos="150" show="" value="0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"/>
+    <field name="dhcp.cookie" showname="Magic cookie: DHCP" size="4" pos="278" show="99.130.83.99" value="63825363"/>
+    <field name="dhcp.option.type" showname="Option: (53) DHCP Message Type (Discover)" size="3" pos="282" show="53" value="350101">
+      <field name="dhcp.option.length" showname="Length: 1" size="1" pos="283" show="1" value="01"/>
+      <field name="dhcp.option.value" showname="Value: 01" hide="yes" size="1" pos="284" show="01" value="01"/>
+      <field name="dhcp.option.dhcp" showname="DHCP: Discover (1)" size="1" pos="284" show="1" value="01"/>
+    </field>
+    <field name="dhcp.option.type" showname="Option: (255) End" size="1" pos="285" show="0" value="ff">
+      <field name="dhcp.option.end" showname="Option End: 255" size="1" pos="285" show="255" value="ff"/>
+    </field>
+  </proto>
+</packet>
+
+
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="286">
+    <field name="num" pos="0" show="3" showname="Number" value="3" size="286"/>
+    <field name="len" pos="0" show="286" showname="Frame Length" value="11e" size="286"/>
+    <field name="caplen" pos="0" show="286" showname="Captured Length" value="11e" size="286"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:20.123458000 UTC" showname="Captured Time" value="1700000000.123458000" size="286"/>
+  </proto>
+  <proto name="frame" showname="Frame 3: Packet, 286 bytes on wire (2288 bits), 286 bytes captured (2288 bits)" size="286" pos="0">
+    <field name="filtered" value="frame" />
+  </proto>
+  <proto name="eth" showname="Ethernet II, Src: 02:00:00:00:00:01, Dst: 02:00:00:00:00:02" size="14" pos="0">
+    <field name="filtered" value="eth" />
+  </proto>
+  <proto name="ip" showname="Internet Protocol Version 4, Src: 192.0.2.1, Dst: 198.51.100.2" size="20" pos="14">
+    <field name="filtered" value="ip" />
+  </proto>
+  <proto name="udp" showname="User Datagram Protocol, Src Port: 68, Dst Port: 67" size="8" pos="34">
+    <field name="filtered" value="udp" />
+  </proto>
+  <proto name="dhcp" showname="Dynamic Host Configuration Protocol (Discover)" size="244" pos="42">
+    <field name="dhcp.type" showname="Message type: Boot Request (1)" size="1" pos="42" show="1" value="01"/>
+    <field name="dhcp.hw.type" showname="Hardware type: Ethernet (0x01)" size="1" pos="43" show="0x01" value="01"/>
+    <field name="dhcp.hw.len" showname="Hardware address length: 17" size="1" pos="44" show="17" value="11"/>
+    <field name="dhcp.hops" showname="Hops: 0" size="1" pos="45" show="0" value="00"/>
+    <field name="dhcp.id" showname="Transaction ID: 0x12345678" size="4" pos="46" show="0x12345678" value="12345678"/>
+    <field name="dhcp.secs" showname="Seconds elapsed: 0" size="2" pos="50" show="0" value="0000"/>
+    <field name="dhcp.flags" showname="Bootp flags: 0x8000, Broadcast flag (Broadcast)" size="2" pos="52" show="0x8000" value="8000">
+      <field name="dhcp.flags.bc" showname="1... .... .... .... = Broadcast flag: Broadcast" size="2" pos="52" show="True" value="1" unmaskedvalue="8000"/>
+      <field name="dhcp.flags.reserved" showname=".000 0000 0000 0000 = Reserved flags: 0x0000" size="2" pos="52" show="0x0000" value="0" unmaskedvalue="8000"/>
+    </field>
+    <field name="dhcp.ip.client" showname="Client IP address: 0.0.0.0" size="4" pos="54" show="0.0.0.0" value="00000000"/>
+    <field name="dhcp.ip.your" showname="Your (client) IP address: 0.0.0.0" size="4" pos="58" show="0.0.0.0" value="00000000"/>
+    <field name="dhcp.ip.server" showname="Next server IP address: 0.0.0.0" size="4" pos="62" show="0.0.0.0" value="00000000"/>
+    <field name="dhcp.ip.relay" showname="Relay agent IP address: 0.0.0.0" size="4" pos="66" show="0.0.0.0" value="00000000"/>
+    <field name="" show="Client address not given" size="16" pos="70" value="000102030405060708090a0b0c0d0e0f">
+      <field name="_ws.expert" showname="Expert Info (Note/Protocol): Client address not given" size="0" pos="70">
+        <field name="dhcp.client_address_not_given" showname="Client address not given" size="0" pos="0" show="" value=""/>
+        <field name="_ws.expert.message" showname="Message: Client address not given" hide="yes" size="0" pos="0" show="Client address not given"/>
+        <field name="_ws.expert.severity" showname="Severity level: Note" size="0" pos="0" show="4194304"/>
+        <field name="_ws.expert.group" showname="Group: Protocol" size="0" pos="0" show="150994944"/>
+      </field>
+    </field>
+    <field name="dhcp.server" showname="Server host name not given" size="64" pos="86" show="" value="00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"/>
+    <field name="dhcp.file" showname="Boot file name not given" size="128" pos="150" show="" value="0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"/>
+    <field name="dhcp.cookie" showname="Magic cookie: DHCP" size="4" pos="278" show="99.130.83.99" value="63825363"/>
+    <field name="dhcp.option.type" showname="Option: (53) DHCP Message Type (Discover)" size="3" pos="282" show="53" value="350101">
+      <field name="dhcp.option.length" showname="Length: 1" size="1" pos="283" show="1" value="01"/>
+      <field name="dhcp.option.value" showname="Value: 01" hide="yes" size="1" pos="284" show="01" value="01"/>
+      <field name="dhcp.option.dhcp" showname="DHCP: Discover (1)" size="1" pos="284" show="1" value="01"/>
+    </field>
+    <field name="dhcp.option.type" showname="Option: (255) End" size="1" pos="285" show="0" value="ff">
+      <field name="dhcp.option.end" showname="Option End: 255" size="1" pos="285" show="255" value="ff"/>
+    </field>
+  </proto>
+</packet>
+
+
+</pdml>

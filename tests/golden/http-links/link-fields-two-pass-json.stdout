@@ -1,0 +1,182 @@
+[
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "http.response_in": [
+          "2"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "http.request_in": [
+          "1"
+        ],
+        "http.time": [
+          "0.000001000"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tcp.reassembled_in": [
+          "4"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "http.response_in": [
+          "5"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "http.request_in": [
+          "4"
+        ],
+        "http.time": [
+          "0.000001000"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "http.response_in": [
+          "7",
+          "7"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "http.request_in": [
+          "6"
+        ],
+        "http.time": [
+          "0.000001000"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {}
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {}
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {}
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "http.response_in": [
+          "13"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tcp.reassembled_in": [
+          "13"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "http.request_in": [
+          "11"
+        ],
+        "http.time": [
+          "0.000002000"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tcp.reassembled_in": [
+          "15"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "http.response_in": [
+          "16"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "http.request_in": [
+          "15"
+        ],
+        "http.time": [
+          "0.000001000"
+        ]
+      }
+    }
+  }
+]

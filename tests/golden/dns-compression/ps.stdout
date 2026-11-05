@@ -1,0 +1,1 @@
+0 (    1   0.000000    192.0.2.1 → 198.51.100.2 DNS 125 Standard query response 0x0002 A example.com A 192.0.2.10 CNAME example.com NS ns1.example.com) putline

@@ -1,0 +1,19 @@
+    1   0.000000    192.0.2.1 → 192.0.2.2    TCP 57 40400 → 443 [PSH, ACK] Seq=1 Ack=1 Win=65535 Len=3 [TCP PDU reassembled in 2]
+    2   0.000001    192.0.2.1 → 192.0.2.2    TLSv1.2 213 Client Hello (SNI=example.com)
+    3   0.000002    192.0.2.1 → 192.0.2.2    TCP 135 40401 → 443 [PSH, ACK] Seq=1 Ack=1 Win=65535 Len=81 [TCP PDU reassembled in 4]
+    4   0.000003    192.0.2.1 → 192.0.2.2    TLSv1.2 135 Client Hello (SNI=example.com)
+    5   0.000004    192.0.2.1 → 192.0.2.2    TLSv1.2 223 Client Hello (SNI=example.com), Alert (Level: Fatal, Description: Handshake Failure)
+    6   0.000005    192.0.2.1 → 192.0.2.2    TLSv1.3 221 Client Hello (SNI=example.com)
+    7   0.000006    192.0.2.1 → 192.0.2.2    TLSv1.3 176 Server Hello
+    8   0.000007    192.0.2.1 → 192.0.2.2    TLSv1.2 221 [Client Hello Fragment], Client Hello (SNI=example.com)
+    9   0.000008    192.0.2.1 → 192.0.2.2    TLSv1 137 [Client Hello Fragment]
+   10   0.000009    192.0.2.1 → 192.0.2.2    TLSv1.2 138 Client Hello (SNI=example.com)
+   11   0.000010    192.0.2.2 → 192.0.2.1    TLSv1.3 120 [Server Hello Fragment]
+   12   0.000011    192.0.2.2 → 192.0.2.1    TLSv1.3 120 Server Hello
+   13   0.000012    192.0.2.1 → 192.0.2.2    TLSv1.3 137 [Client Hello Fragment]
+   14   0.000013    192.0.2.2 → 192.0.2.1    TLSv1.3 181 Server Hello
+   15   0.000014    192.0.2.1 → 192.0.2.2    TLSv1.3 138 Client Hello (SNI=example.com)
+   16   0.000015    192.0.2.1 → 192.0.2.2    TLSv1.3 137 [Client Hello Fragment]
+   17   0.000016    192.0.2.2 → 192.0.2.1    TLSv1.3 120 [Server Hello Fragment]
+   18   0.000017    192.0.2.1 → 192.0.2.2    TLSv1.3 138 Client Hello (SNI=example.com)
+   19   0.000018    192.0.2.2 → 192.0.2.1    TLSv1.3 120 Server Hello

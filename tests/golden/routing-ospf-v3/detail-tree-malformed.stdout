@@ -1,0 +1,32 @@
+Frame 8: Packet, 102 bytes on wire (816 bits), 102 bytes captured (816 bits)
+Ethernet II, Src: 02:00:00:00:00:01, Dst: 02:00:00:00:00:02
+Internet Protocol Version 6, Src: 2001:db8::1, Dst: 2001:db8::2
+Open Shortest Path First
+    OSPF Header
+        Version: 3
+        Message Type: LS Update (4)
+        Packet Length: 48
+        Source OSPF Router: 1.1.1.1
+        Area ID: 0.0.0.0 (Backbone)
+        Checksum: 0x0564 [correct]
+        Instance ID: Base IPv6 Unicast AF (0)
+        Reserved: 00
+    LS Update Packet
+        Number of LSAs: 1
+        LSA-type 9 (Intra-Area-Prefix-LSA), len 28
+            .000 0000 0000 0000 = LS Age (seconds): 0
+            0... .... .... .... = Do Not Age: False
+            LS Type: 0x2009
+                0... .... .... .... = LSA Handling: Store and flood the LSA as if the type is understood
+                .01. .... .... .... = Flooding Scope: Area Scoping - Flooded only in originating area (0x1)
+                ...0 0000 0000 1001 = Function Code: Intra-Area-Prefix-LSA (9)
+            Link State ID: 0.0.0.9
+            Advertising Router: 1.1.1.1
+            Sequence Number: 0x80000001
+            Checksum: 0xd72a
+            Length: 28
+            # prefixes: 0
+            Referenced LS type: Unknown (0x2001)
+            Referenced Link State ID: 0.0.0.9
+[Malformed Packet: OSPF]
+

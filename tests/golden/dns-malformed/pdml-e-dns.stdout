@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<?xml-stylesheet type="text/xsl" href="pdml2html.xsl"?>
+<!-- normalized -->
+<pdml version="0" creator="creator" time="time" capture_file="tests/fixtures/dns-malformed.pcap">
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="48">
+    <field name="num" pos="0" show="1" showname="Number" value="1" size="48"/>
+    <field name="len" pos="0" show="48" showname="Frame Length" value="30" size="48"/>
+    <field name="caplen" pos="0" show="48" showname="Captured Length" value="30" size="48"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:20.000000000 UTC" showname="Captured Time" value="1700000000.000000000" size="48"/>
+  </proto>
+</packet>
+
+
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="45">
+    <field name="num" pos="0" show="2" showname="Number" value="2" size="45"/>
+    <field name="len" pos="0" show="45" showname="Frame Length" value="2d" size="45"/>
+    <field name="caplen" pos="0" show="45" showname="Captured Length" value="2d" size="45"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:21.000000000 UTC" showname="Captured Time" value="1700000001.000000000" size="45"/>
+  </proto>
+</packet>
+
+
+</pdml>

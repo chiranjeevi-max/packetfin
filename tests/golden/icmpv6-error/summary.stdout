@@ -1,0 +1,5 @@
+    1   0.000000  2001:db8::1 → 2001:db8::2  ICMPv6 113 Destination Unreachable (Address unreachable)
+    2   0.000001  2001:db8::1 → 2001:db8::2  ICMPv6 125 Packet Too Big
+    3   0.000002  2001:db8::1 → 2001:db8::2  ICMPv6 113 Time Exceeded (Hop limit exceeded in transit)
+    4   0.000003  2001:db8::1 → 2001:db8::2  ICMPv6 113 Parameter Problem (Erroneous header field encountered)
+    5   0.000004  2001:db8::1 → 2001:db8::2  ICMPv6 161 Destination Unreachable (No route to destination)

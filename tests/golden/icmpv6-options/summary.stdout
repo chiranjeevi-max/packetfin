@@ -1,0 +1,15 @@
+    1   0.000000  2001:db8::1 → 2001:db8::2  ICMPv6 80 Neighbor Solicitation for fe80::1
+    2   0.000001  2001:db8::1 → 2001:db8::2  ICMPv6 86 Neighbor Solicitation for fe80::1 from 02:00:00:00:00:01
+    3   0.000002  2001:db8::1 → 2001:db8::2  ICMPv6 94 Neighbor Solicitation for fe80::1
+    4   0.000003  2001:db8::1 → 2001:db8::2  ICMPv6 94 Neighbor Solicitation for fe80::1 from 02:00:00:00:00:01:02:03
+    5   0.000004  2001:db8::1 → 2001:db8::2  ICMPv6 102 Neighbor Solicitation for fe80::1
+    6   0.000005  2001:db8::1 → 2001:db8::2  ICMPv6 86 Neighbor Advertisement fe80::1 (sol) is at 02:00:00:00:00:01
+    7   0.000006  2001:db8::1 → 2001:db8::2  ICMPv6 94 Neighbor Advertisement fe80::1 (sol) from 02:00:00:00:00:01:02:03
+    8   0.000007  2001:db8::1 → 2001:db8::2  ICMPv6 102 Router Advertisement
+    9   0.000008  2001:db8::1 → 2001:db8::2  ICMPv6 94 Router Advertisement[Malformed Packet]
+   10   0.000009  2001:db8::1 → 2001:db8::2  ICMPv6 78 Router Advertisement
+   11   0.000010  2001:db8::1 → 2001:db8::2  ICMPv6 77 Router Advertisement[Malformed Packet]
+   12   0.000011  2001:db8::1 → 2001:db8::2  ICMPv6 100 Router Advertisement[Malformed Packet]
+   13   0.000012  2001:db8::1 → 2001:db8::2  ICMPv6 158 Redirect
+   14   0.000013  2001:db8::1 → 2001:db8::2  ICMPv6 87 Neighbor Solicitation for fe80::1 from 02:00:00:00:00:01[Malformed Packet]
+   15   0.000014  2001:db8::1 → 2001:db8::2  ICMPv6 94 Neighbor Solicitation for fe80::1

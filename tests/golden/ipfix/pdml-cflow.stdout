@@ -1,0 +1,152 @@
+<?xml version="1.0" encoding="utf-8"?>
+<?xml-stylesheet type="text/xsl" href="pdml2html.xsl"?>
+<!-- normalized -->
+<pdml version="0" creator="creator" time="time" capture_file="tests/fixtures/ipfix.pcap">
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="110">
+    <field name="num" pos="0" show="1" showname="Number" value="1" size="110"/>
+    <field name="len" pos="0" show="110" showname="Frame Length" value="6e" size="110"/>
+    <field name="caplen" pos="0" show="110" showname="Captured Length" value="6e" size="110"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:20.123456000 UTC" showname="Captured Time" value="1700000000.123456000" size="110"/>
+  </proto>
+  <field name="cflow.version" value="10"/>
+  <field name="cflow.flowset_id" value="2"/>
+  <field name="cflow.flowset_id" value="256"/>
+  <field name="cflow.flowset_length" value="24"/>
+  <field name="cflow.flowset_length" value="28"/>
+  <field name="cflow.template_id" value="256"/>
+  <field name="cflow.srcaddr" value="192.0.2.5"/>
+  <field name="cflow.dstaddr" value="198.51.100.6"/>
+  <field name="cflow.octets" value="1000"/>
+  <field name="cflow.template_frame" value="1"/>
+</packet>
+
+
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="86">
+    <field name="num" pos="0" show="2" showname="Number" value="2" size="86"/>
+    <field name="len" pos="0" show="86" showname="Frame Length" value="56" size="86"/>
+    <field name="caplen" pos="0" show="86" showname="Captured Length" value="56" size="86"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:20.123457000 UTC" showname="Captured Time" value="1700000000.123457000" size="86"/>
+  </proto>
+  <field name="cflow.version" value="10"/>
+  <field name="cflow.flowset_id" value="256"/>
+  <field name="cflow.flowset_length" value="28"/>
+  <field name="cflow.srcaddr" value="192.0.2.7"/>
+  <field name="cflow.dstaddr" value="198.51.100.8"/>
+  <field name="cflow.octets" value="2000"/>
+  <field name="cflow.template_frame" value="1"/>
+</packet>
+
+
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="86">
+    <field name="num" pos="0" show="3" showname="Number" value="3" size="86"/>
+    <field name="len" pos="0" show="86" showname="Frame Length" value="56" size="86"/>
+    <field name="caplen" pos="0" show="86" showname="Captured Length" value="56" size="86"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:20.123458000 UTC" showname="Captured Time" value="1700000000.123458000" size="86"/>
+  </proto>
+  <field name="cflow.version" value="10"/>
+  <field name="cflow.flowset_id" value="256"/>
+  <field name="cflow.flowset_length" value="28"/>
+  <field name="cflow.srcaddr" value="192.0.2.9"/>
+  <field name="cflow.dstaddr" value="198.51.100.10"/>
+  <field name="cflow.octets" value="3000"/>
+  <field name="cflow.template_frame" value="1"/>
+</packet>
+
+
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="102">
+    <field name="num" pos="0" show="4" showname="Number" value="4" size="102"/>
+    <field name="len" pos="0" show="102" showname="Frame Length" value="66" size="102"/>
+    <field name="caplen" pos="0" show="102" showname="Captured Length" value="66" size="102"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:20.123459000 UTC" showname="Captured Time" value="1700000000.123459000" size="102"/>
+  </proto>
+  <field name="cflow.version" value="10"/>
+  <field name="cflow.flowset_id" value="3"/>
+  <field name="cflow.flowset_id" value="258"/>
+  <field name="cflow.flowset_length" value="24"/>
+  <field name="cflow.flowset_length" value="20"/>
+  <field name="cflow.template_id" value="258"/>
+  <field name="cflow.srcaddr" value="192.0.2.7"/>
+  <field name="cflow.octets" value="42"/>
+  <field name="cflow.octets" value="999"/>
+  <field name="cflow.template_frame" value="4"/>
+</packet>
+
+
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="78">
+    <field name="num" pos="0" show="5" showname="Number" value="5" size="78"/>
+    <field name="len" pos="0" show="78" showname="Frame Length" value="4e" size="78"/>
+    <field name="caplen" pos="0" show="78" showname="Captured Length" value="4e" size="78"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:20.123460000 UTC" showname="Captured Time" value="1700000000.123460000" size="78"/>
+  </proto>
+  <field name="cflow.version" value="10"/>
+  <field name="cflow.flowset_id" value="258"/>
+  <field name="cflow.flowset_length" value="20"/>
+  <field name="cflow.srcaddr" value="192.0.2.8"/>
+  <field name="cflow.octets" value="43"/>
+  <field name="cflow.octets" value="1000"/>
+  <field name="cflow.template_frame" value="4"/>
+</packet>
+
+
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="86">
+    <field name="num" pos="0" show="6" showname="Number" value="6" size="86"/>
+    <field name="len" pos="0" show="86" showname="Frame Length" value="56" size="86"/>
+    <field name="caplen" pos="0" show="86" showname="Captured Length" value="56" size="86"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:20.123461000 UTC" showname="Captured Time" value="1700000000.123461000" size="86"/>
+  </proto>
+  <field name="cflow.version" value="10"/>
+  <field name="cflow.flowset_id" value="256"/>
+  <field name="cflow.flowset_length" value="28"/>
+  <field name="cflow.srcaddr" value="192.0.2.11"/>
+  <field name="cflow.dstaddr" value="198.51.100.12"/>
+  <field name="cflow.octets" value="4000"/>
+  <field name="cflow.template_frame" value="1"/>
+</packet>
+
+
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="70">
+    <field name="num" pos="0" show="7" showname="Number" value="7" size="70"/>
+    <field name="len" pos="0" show="70" showname="Frame Length" value="46" size="70"/>
+    <field name="caplen" pos="0" show="70" showname="Captured Length" value="46" size="70"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:20.123462000 UTC" showname="Captured Time" value="1700000000.123462000" size="70"/>
+  </proto>
+  <field name="cflow.version" value="10"/>
+  <field name="cflow.flowset_id" value="300"/>
+  <field name="cflow.flowset_length" value="12"/>
+</packet>
+
+
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="86">
+    <field name="num" pos="0" show="8" showname="Number" value="8" size="86"/>
+    <field name="len" pos="0" show="86" showname="Frame Length" value="56" size="86"/>
+    <field name="caplen" pos="0" show="86" showname="Captured Length" value="56" size="86"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:20.123463000 UTC" showname="Captured Time" value="1700000000.123463000" size="86"/>
+  </proto>
+  <field name="cflow.version" value="10"/>
+  <field name="cflow.flowset_id" value="256"/>
+  <field name="cflow.flowset_length" value="28"/>
+</packet>
+
+
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="86">
+    <field name="num" pos="0" show="9" showname="Number" value="9" size="86"/>
+    <field name="len" pos="0" show="86" showname="Frame Length" value="56" size="86"/>
+    <field name="caplen" pos="0" show="86" showname="Captured Length" value="56" size="86"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:20.123464000 UTC" showname="Captured Time" value="1700000000.123464000" size="86"/>
+  </proto>
+  <field name="cflow.version" value="10"/>
+  <field name="cflow.flowset_id" value="256"/>
+  <field name="cflow.flowset_length" value="28"/>
+</packet>
+
+
+</pdml>

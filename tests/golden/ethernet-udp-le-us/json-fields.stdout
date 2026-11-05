@@ -1,0 +1,19 @@
+[
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "udp.srcport": [
+          "12345"
+        ],
+        "udp.dstport": [
+          "9999"
+        ],
+        "udp.length": [
+          "17"
+        ]
+      }
+    }
+  }
+]

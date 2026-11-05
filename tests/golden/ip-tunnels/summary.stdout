@@ -1,0 +1,9 @@
+    1   0.000000    192.0.2.1 → 198.51.100.2 ICMP 68 Echo (ping) request  id=0x1234, seq=1/256, ttl=64
+    2   0.000001  2001:db8::1 → 2001:db8::2  ICMPv6 82 Echo (ping) request id=0x1234, seq=1, hop limit=64
+    3   0.000002    192.0.2.1 → 198.51.100.2 ICMP 88 Echo (ping) request  id=0x1234, seq=1/256, ttl=64
+    4   0.000003    192.0.2.1 → 198.51.100.2 IPv4 44 [Malformed Packet]
+    5   0.000004    192.0.2.1 → 198.51.100.2 ICMP 108 Echo (ping) request  id=0x1234, seq=1/256, ttl=64
+    6   0.000005    192.0.2.1 → 198.51.100.2 IPv4 34 
+    7   0.000006    192.0.2.1 → 198.51.100.2 IPv4 34 
+    8   0.000007  2001:db8::1 → 2001:db8::2  IPv6 54 [Malformed Packet]
+    9   0.000008    192.0.2.1 → 198.51.100.2 ICMP 72 Echo (ping) request  id=0x1234, seq=1/256, ttl=64

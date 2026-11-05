@@ -1,0 +1,6 @@
+    1   0.000000    192.0.2.1 → 192.0.2.2    BGP 91 OPEN Message
+    2   0.000001    192.0.2.1 → 192.0.2.2    BGP 73 KEEPALIVE Message
+    3   0.000002    192.0.2.1 → 192.0.2.2    BGP 118 UPDATE Message
+    4   0.000003    192.0.2.1 → 192.0.2.2    BGP 75 NOTIFICATION Message
+    5   0.000004    192.0.2.1 → 192.0.2.2    BGP 77 ROUTE-REFRESH Message
+    6   0.000005    192.0.2.1 → 192.0.2.2    BGP 92 KEEPALIVE Message, KEEPALIVE Message

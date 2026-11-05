@@ -1,0 +1,90 @@
+Frame 1: Packet, 286 bytes on wire (2288 bits), 286 bytes captured (2288 bits)
+Ethernet II, Src: 02:00:00:00:00:01, Dst: 02:00:00:00:00:02
+Internet Protocol Version 4, Src: 192.0.2.1, Dst: 198.51.100.2
+User Datagram Protocol, Src Port: 68, Dst Port: 67
+Dynamic Host Configuration Protocol (Discover)
+    Message type: Boot Request (1)
+    Hardware type: Ethernet (0x01)
+    Hardware address length: 1
+    Hops: 0
+    Transaction ID: 0x12345678
+    Seconds elapsed: 0
+    Bootp flags: 0x8000, Broadcast flag (Broadcast)
+        1... .... .... .... = Broadcast flag: Broadcast
+        .000 0000 0000 0000 = Reserved flags: 0x0000
+    Client IP address: 0.0.0.0
+    Your (client) IP address: 0.0.0.0
+    Next server IP address: 0.0.0.0
+    Relay agent IP address: 0.0.0.0
+    Client hardware address: 00
+    Client hardware address padding: 0102030405060708090a0b0c0d0e0f
+    Server host name not given
+    Boot file name not given
+    Magic cookie: DHCP
+    Option: (53) DHCP Message Type (Discover)
+        Length: 1
+        DHCP: Discover (1)
+    Option: (255) End
+        Option End: 255
+
+Frame 2: Packet, 286 bytes on wire (2288 bits), 286 bytes captured (2288 bits)
+Ethernet II, Src: 02:00:00:00:00:01, Dst: 02:00:00:00:00:02
+Internet Protocol Version 4, Src: 192.0.2.1, Dst: 198.51.100.2
+User Datagram Protocol, Src Port: 68, Dst Port: 67
+Dynamic Host Configuration Protocol (Discover)
+    Message type: Boot Request (1)
+    Hardware type: Ethernet (0x01)
+    Hardware address length: 15
+    Hops: 0
+    Transaction ID: 0x12345678
+    Seconds elapsed: 0
+    Bootp flags: 0x8000, Broadcast flag (Broadcast)
+        1... .... .... .... = Broadcast flag: Broadcast
+        .000 0000 0000 0000 = Reserved flags: 0x0000
+    Client IP address: 0.0.0.0
+    Your (client) IP address: 0.0.0.0
+    Next server IP address: 0.0.0.0
+    Relay agent IP address: 0.0.0.0
+    Client hardware address: 000102030405060708090a0b0c0d0e
+    Client hardware address padding: 0f
+    Server host name not given
+    Boot file name not given
+    Magic cookie: DHCP
+    Option: (53) DHCP Message Type (Discover)
+        Length: 1
+        DHCP: Discover (1)
+    Option: (255) End
+        Option End: 255
+
+Frame 3: Packet, 286 bytes on wire (2288 bits), 286 bytes captured (2288 bits)
+Ethernet II, Src: 02:00:00:00:00:01, Dst: 02:00:00:00:00:02
+Internet Protocol Version 4, Src: 192.0.2.1, Dst: 198.51.100.2
+User Datagram Protocol, Src Port: 68, Dst Port: 67
+Dynamic Host Configuration Protocol (Discover)
+    Message type: Boot Request (1)
+    Hardware type: Ethernet (0x01)
+    Hardware address length: 17
+    Hops: 0
+    Transaction ID: 0x12345678
+    Seconds elapsed: 0
+    Bootp flags: 0x8000, Broadcast flag (Broadcast)
+        1... .... .... .... = Broadcast flag: Broadcast
+        .000 0000 0000 0000 = Reserved flags: 0x0000
+    Client IP address: 0.0.0.0
+    Your (client) IP address: 0.0.0.0
+    Next server IP address: 0.0.0.0
+    Relay agent IP address: 0.0.0.0
+    Client address not given
+        [Expert Info (Note/Protocol): Client address not given]
+            [Client address not given]
+            [Severity level: Note]
+            [Group: Protocol]
+    Server host name not given
+    Boot file name not given
+    Magic cookie: DHCP
+    Option: (53) DHCP Message Type (Discover)
+        Length: 1
+        DHCP: Discover (1)
+    Option: (255) End
+        Option End: 255
+

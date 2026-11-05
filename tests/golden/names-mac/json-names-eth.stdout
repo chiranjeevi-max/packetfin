@@ -1,0 +1,25 @@
+[
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "eth.src_resolved": [
+          "Cisco_11:22:33"
+        ],
+        "eth.dst_resolved": [
+          "Broadcast"
+        ],
+        "eth.src.oui_resolved": [
+          "Cisco Systems, Inc"
+        ],
+        "ip.src_host": [
+          "10.0.0.1"
+        ],
+        "ip.dst_host": [
+          "10.0.0.2"
+        ]
+      }
+    }
+  }
+]

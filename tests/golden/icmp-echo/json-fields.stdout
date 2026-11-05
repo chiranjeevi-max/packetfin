@@ -1,0 +1,92 @@
+[
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "icmp.type": [
+          "8"
+        ],
+        "icmp.ident": [
+          "4660"
+        ],
+        "icmp.seq": [
+          "1"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "icmp.type": [
+          "0"
+        ],
+        "icmp.ident": [
+          "4660"
+        ],
+        "icmp.seq": [
+          "1"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "icmp.type": [
+          "13"
+        ],
+        "icmp.ident": [
+          "7"
+        ],
+        "icmp.seq": [
+          "9"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "icmp.type": [
+          "9"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "icmp.type": [
+          "10"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "icmp.type": [
+          "8"
+        ],
+        "icmp.ident": [
+          "4660"
+        ],
+        "icmp.seq": [
+          "1"
+        ]
+      }
+    }
+  }
+]

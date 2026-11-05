@@ -1,0 +1,19 @@
+[
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "arp.opcode": [
+          "1"
+        ],
+        "arp.src.hw_mac": [
+          "02:00:00:00:00:01"
+        ],
+        "arp.dst.proto_ipv4": [
+          "198.51.100.2"
+        ]
+      }
+    }
+  }
+]

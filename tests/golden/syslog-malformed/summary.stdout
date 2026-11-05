@@ -1,0 +1,8 @@
+    1   0.000000    192.0.2.1 → 198.51.100.2 Syslog 43 [Malformed Packet]
+    2   0.000001    192.0.2.1 → 198.51.100.2 Syslog 46 [Malformed Packet]
+    3   0.000002    192.0.2.1 → 198.51.100.2 Syslog 50 34>hello
+    4   0.000003    192.0.2.1 → 198.51.100.2 Syslog 58 AUTH.CRIT: not a syslog
+    5   0.000004    192.0.2.1 → 198.51.100.2 Syslog 70 AUTH.CRIT: Oct 11 22:14:15 host app[Malformed Packet]
+    6   0.000005    192.0.2.1 → 198.51.100.2 Syslog 72 AUTH.CRIT: 1 2023-11-14T22:13:20Z h a
+    7   0.000006    192.0.2.1 → 198.51.100.2 Syslog 91 AUTH.CRIT: 1 2023-11-14T22:13:20Z h a p m [x@1 k="v"]msg
+    8   0.000007    192.0.2.1 → 198.51.100.2 UDP 42 40000 → 514 Len=0

@@ -1,0 +1,20 @@
+# packetfin dependency license / advisory policy.
+# Only these licenses are permitted. crates.io is the only registry.
+# Run: cargo deny check
+
+[licenses]
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Zlib",
+    "Unicode-3.0",
+    "Unicode-DFS-2016",
+]
+exceptions = []
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"

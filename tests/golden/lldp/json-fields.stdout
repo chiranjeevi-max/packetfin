@@ -1,0 +1,79 @@
+[
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "lldp.chassis.id.mac": [
+          "00:11:22:33:44:55"
+        ],
+        "lldp.port.id": [
+          "eth0"
+        ],
+        "lldp.time_to_live": [
+          "120"
+        ],
+        "lldp.tlv.system.name": [
+          "switch-a"
+        ],
+        "lldp.ieee.802_1.port_vlan.id": [
+          "100"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "lldp.chassis.id.mac": [
+          "00:11:22:33:44:55"
+        ],
+        "lldp.port.id": [
+          "eth0"
+        ],
+        "lldp.time_to_live": [
+          "120"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "lldp.chassis.id.mac": [
+          "00:11:22:33:44:55"
+        ],
+        "lldp.port.id": [
+          "eth0"
+        ],
+        "lldp.time_to_live": [
+          "120"
+        ],
+        "lldp.tlv.system.name": [
+          "switch-b"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "lldp.chassis.id.mac": [
+          "00:11:22:33:44:55"
+        ],
+        "lldp.port.id": [
+          "eth0"
+        ],
+        "lldp.time_to_live": [
+          "120"
+        ]
+      }
+    }
+  }
+]

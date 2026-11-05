@@ -1,0 +1,53 @@
+[
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "ntp.flags": [
+          "0x23"
+        ],
+        "ntp.flags.mode": [
+          "3"
+        ],
+        "ntp.xmt": [
+          "NULL"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "ntp.flags": [
+          "0x24"
+        ],
+        "ntp.flags.mode": [
+          "4"
+        ],
+        "ntp.xmt": [
+          "2023-11-16T02:42:08.671111047Z"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "ntp.flags": [
+          "0x25"
+        ],
+        "ntp.flags.mode": [
+          "5"
+        ],
+        "ntp.xmt": [
+          "2023-11-16T02:42:08.999999999Z"
+        ]
+      }
+    }
+  }
+]

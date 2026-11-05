@@ -1,0 +1,275 @@
+<?xml version="1.0" encoding="utf-8"?>
+<?xml-stylesheet type="text/xsl" href="pdml2html.xsl"?>
+<!-- normalized -->
+<pdml version="0" creator="creator" time="time" capture_file="tests/fixtures/routing-ospf-v3.pcap">
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="386">
+    <field name="num" pos="0" show="4" showname="Number" value="4" size="386"/>
+    <field name="len" pos="0" show="386" showname="Frame Length" value="182" size="386"/>
+    <field name="caplen" pos="0" show="386" showname="Captured Length" value="182" size="386"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:20.123459000 UTC" showname="Captured Time" value="1700000000.123459000" size="386"/>
+  </proto>
+  <proto name="frame" showname="Frame 4: Packet, 386 bytes on wire (3088 bits), 386 bytes captured (3088 bits)" size="386" pos="0">
+    <field name="filtered" value="frame" />
+  </proto>
+  <proto name="eth" showname="Ethernet II, Src: 02:00:00:00:00:01, Dst: 02:00:00:00:00:02" size="14" pos="0">
+    <field name="filtered" value="eth" />
+  </proto>
+  <proto name="ipv6" showname="Internet Protocol Version 6, Src: 2001:db8::1, Dst: 2001:db8::2" size="40" pos="14">
+    <field name="filtered" value="ipv6" />
+  </proto>
+  <proto name="ospf" showname="Open Shortest Path First" size="332" pos="54">
+    <field name="ospf.header" showname="OSPF Header" size="16" pos="54" show="" value="">
+      <field name="ospf.version" showname="Version: 3" size="1" pos="54" show="3" value="03"/>
+      <field name="ospf.msg" showname="Message Type: LS Update (4)" size="1" pos="55" show="4" value="04"/>
+      <field name="ospf.msg.lsupdate" showname="Link State Adv Update: True" hide="yes" size="1" pos="55" show="True" value="04"/>
+      <field name="ospf.packet_length" showname="Packet Length: 332" size="2" pos="56" show="332" value="014c"/>
+      <field name="ospf.srcrouter" showname="Source OSPF Router: 1.1.1.1" size="4" pos="58" show="1.1.1.1" value="01010101"/>
+      <field name="ospf.area_id" showname="Area ID: 0.0.0.0 (Backbone)" size="4" pos="62" show="0.0.0.0" value="00000000"/>
+      <field name="ospf.checksum" showname="Checksum: 0xb573 [correct]" size="2" pos="66" show="0xb573" value="b573"/>
+      <field name="ospf.v3.instance_id" showname="Instance ID: Base IPv6 Unicast AF (0)" size="1" pos="68" show="0" value="00"/>
+      <field name="ospf.reserved" showname="Reserved: 00" size="1" pos="69" show="00" value="00"/>
+    </field>
+    <field name="" show="LS Update Packet" size="316" pos="70" value="000000070000200100000000010101018000000137980028030020220100000a000000040000000502020202000020020400000001010101800000019352002000002022010101010202020200002003000000010101010180000001abf80024000000644001000020010db80001000000002004000000020101010180000001c7ef0020000020220000003202020202000040050000000301010101800000018407003c070000144000200120010db80001000020010db80000000000000000000000011234567800000009000000080400000001010101800000019ea8003801002022fe800000000000000000000000000001000000014001000020010db80002000000002009000000040101010180000001870200380002200100000000010101014001000a20010db8000300003000001420010db800040000">
+      <field name="ospf.ls.number_of_lsas" showname="Number of LSAs: 7" size="4" pos="70" show="7" value="00000007"/>
+      <field name="" show="LSA-type 1 (Router-LSA), len 40" size="40" pos="74" value="0000200100000000010101018000000137980028030020220100000a000000040000000502020202">
+        <field name="ospf.lsa.age" showname=".000 0000 0000 0000 = LS Age (seconds): 0" size="2" pos="74" show="0" value="0" unmaskedvalue="0000"/>
+        <field name="ospf.v3.lsa.do_not_age" showname="0... .... .... .... = Do Not Age: False" size="2" pos="74" show="False" value="0" unmaskedvalue="0000"/>
+        <field name="ospf.v3.lsa" showname="LS Type: 0x2001" size="2" pos="76" show="0x2001" value="2001">
+          <field name="ospf.v3.lsa.u" showname="0... .... .... .... = LSA Handling: Store and flood the LSA as if the type is understood" size="2" pos="76" show="False" value="0" unmaskedvalue="2001"/>
+          <field name="ospf.v3.lsa.s12" showname=".01. .... .... .... = Flooding Scope: Area Scoping - Flooded only in originating area (0x1)" size="2" pos="76" show="0x0001" value="1" unmaskedvalue="2001"/>
+          <field name="ospf.v3.lsa.fc" showname="...0 0000 0000 0001 = Function Code: Router-LSA (1)" size="2" pos="76" show="1" value="1" unmaskedvalue="2001"/>
+        </field>
+        <field name="ospf.v3.lsa.router" showname="Router-LSA: True" hide="yes" size="2" pos="76" show="True" value="2001"/>
+        <field name="ospf.link_state_id" showname="Link State ID: 0.0.0.0" size="4" pos="78" show="0.0.0.0" value="00000000"/>
+        <field name="ospf.advrouter" showname="Advertising Router: 1.1.1.1" size="4" pos="82" show="1.1.1.1" value="01010101"/>
+        <field name="ospf.lsa.seqnum" showname="Sequence Number: 0x80000001" size="4" pos="86" show="0x80000001" value="80000001"/>
+        <field name="ospf.lsa.chksum" showname="Checksum: 0x3798" size="2" pos="90" show="0x3798" value="3798"/>
+        <field name="ospf.lsa.length" showname="Length: 40" size="2" pos="92" show="40" value="0028"/>
+        <field name="ospf.v3.router.lsa.flags" showname="Flags: 0x03, (E) AS boundary router, (B) Area border router" size="1" pos="94" show="0x03" value="03">
+          <field name="ospf.v3.router.lsa.flags.w" showname=".... 0... = (W) Wild-card multicast receiver: No" size="1" pos="94" show="False" value="0" unmaskedvalue="03"/>
+          <field name="ospf.v3.router.lsa.flags.v" showname=".... .0.. = (V) Virtual link endpoint: No" size="1" pos="94" show="False" value="0" unmaskedvalue="03"/>
+          <field name="ospf.v3.router.lsa.flags.e" showname=".... ..1. = (E) AS boundary router: Yes" size="1" pos="94" show="True" value="1" unmaskedvalue="03"/>
+          <field name="ospf.v3.router.lsa.flags.b" showname=".... ...1 = (B) Area border router: Yes" size="1" pos="94" show="True" value="1" unmaskedvalue="03"/>
+        </field>
+        <field name="ospf.v3.options" showname="Options: 0x002022, DC, E" size="3" pos="95" show="0x002022" value="002022">
+          <field name="ospf.v3.options.at" showname=".... .... .... .0.. .... .... = AT: Not set" size="3" pos="95" show="False" value="0" unmaskedvalue="002022"/>
+          <field name="ospf.v3.options.l" showname=".... .... .... ..0. .... .... = L: Not set" size="3" pos="95" show="False" value="0" unmaskedvalue="002022"/>
+          <field name="ospf.v3.options.af" showname=".... .... .... ...0 .... .... = AF: Not set" size="3" pos="95" show="False" value="0" unmaskedvalue="002022"/>
+          <field name="ospf.v3.options.dc" showname=".... .... .... .... ..1. .... = DC: Set" size="3" pos="95" show="True" value="1" unmaskedvalue="002022"/>
+          <field name="ospf.v3.options.r" showname=".... .... .... .... ...0 .... = R: Not set" size="3" pos="95" show="False" value="0" unmaskedvalue="002022"/>
+          <field name="ospf.v3.options.n" showname=".... .... .... .... .... 0... = N: Not set" size="3" pos="95" show="False" value="0" unmaskedvalue="002022"/>
+          <field name="ospf.v3.options.mc" showname=".... .... .... .... .... .0.. = MC: Not set" size="3" pos="95" show="False" value="0" unmaskedvalue="002022"/>
+          <field name="ospf.v3.options.e" showname=".... .... .... .... .... ..1. = E: Set" size="3" pos="95" show="True" value="1" unmaskedvalue="002022"/>
+          <field name="ospf.v3.options.v6" showname=".... .... .... .... .... ...0 = V6: Not set" size="3" pos="95" show="False" value="0" unmaskedvalue="002022"/>
+        </field>
+        <field name="" show="Router Interfaces" size="16" pos="98" value="0100000a000000040000000502020202">
+          <field name="" show="Entry #1" size="16" pos="98" value="0100000a000000040000000502020202">
+            <field name="ospf.v3.lsa.type" showname="Type: Point-to-point connection to another router (1)" size="1" pos="98" show="1" value="01"/>
+            <field name="ospf.reserved" showname="Reserved: 00" size="1" pos="99" show="00" value="00"/>
+            <field name="ospf.metric" showname="Metric: 10" size="2" pos="100" show="10" value="000a"/>
+            <field name="ospf.v3.lsa.interface_id" showname="Interface ID: 4" size="4" pos="102" show="4" value="00000004"/>
+            <field name="ospf.v3.lsa.neighbor_interface_id" showname="Neighbor Interface ID: 5" size="4" pos="106" show="5" value="00000005"/>
+            <field name="ospf.v3.lsa.neighbor_router_id" showname="Neighbor Router ID: 2.2.2.2" size="4" pos="110" show="2.2.2.2" value="02020202"/>
+          </field>
+        </field>
+      </field>
+      <field name="" show="LSA-type 2 (Network-LSA), len 32" size="32" pos="114" value="0000200204000000010101018000000193520020000020220101010102020202">
+        <field name="ospf.lsa.age" showname=".000 0000 0000 0000 = LS Age (seconds): 0" size="2" pos="114" show="0" value="0" unmaskedvalue="0000"/>
+        <field name="ospf.v3.lsa.do_not_age" showname="0... .... .... .... = Do Not Age: False" size="2" pos="114" show="False" value="0" unmaskedvalue="0000"/>
+        <field name="ospf.v3.lsa" showname="LS Type: 0x2002" size="2" pos="116" show="0x2002" value="2002">
+          <field name="ospf.v3.lsa.u" showname="0... .... .... .... = LSA Handling: Store and flood the LSA as if the type is understood" size="2" pos="116" show="False" value="0" unmaskedvalue="2002"/>
+          <field name="ospf.v3.lsa.s12" showname=".01. .... .... .... = Flooding Scope: Area Scoping - Flooded only in originating area (0x1)" size="2" pos="116" show="0x0001" value="1" unmaskedvalue="2002"/>
+          <field name="ospf.v3.lsa.fc" showname="...0 0000 0000 0010 = Function Code: Network-LSA (2)" size="2" pos="116" show="2" value="2" unmaskedvalue="2002"/>
+        </field>
+        <field name="ospf.v3.lsa.network" showname="Network-LSA: True" hide="yes" size="2" pos="116" show="True" value="2002"/>
+        <field name="ospf.link_state_id" showname="Link State ID: 4.0.0.0" size="4" pos="118" show="4.0.0.0" value="04000000"/>
+        <field name="ospf.advrouter" showname="Advertising Router: 1.1.1.1" size="4" pos="122" show="1.1.1.1" value="01010101"/>
+        <field name="ospf.lsa.seqnum" showname="Sequence Number: 0x80000001" size="4" pos="126" show="0x80000001" value="80000001"/>
+        <field name="ospf.lsa.chksum" showname="Checksum: 0x9352" size="2" pos="130" show="0x9352" value="9352"/>
+        <field name="ospf.lsa.length" showname="Length: 32" size="2" pos="132" show="32" value="0020"/>
+        <field name="ospf.reserved" showname="Reserved: 00" size="1" pos="134" show="00" value="00"/>
+        <field name="ospf.v3.options" showname="Options: 0x002022, DC, E" size="3" pos="135" show="0x002022" value="002022">
+          <field name="ospf.v3.options.at" showname=".... .... .... .0.. .... .... = AT: Not set" size="3" pos="135" show="False" value="0" unmaskedvalue="002022"/>
+          <field name="ospf.v3.options.l" showname=".... .... .... ..0. .... .... = L: Not set" size="3" pos="135" show="False" value="0" unmaskedvalue="002022"/>
+          <field name="ospf.v3.options.af" showname=".... .... .... ...0 .... .... = AF: Not set" size="3" pos="135" show="False" value="0" unmaskedvalue="002022"/>
+          <field name="ospf.v3.options.dc" showname=".... .... .... .... ..1. .... = DC: Set" size="3" pos="135" show="True" value="1" unmaskedvalue="002022"/>
+          <field name="ospf.v3.options.r" showname=".... .... .... .... ...0 .... = R: Not set" size="3" pos="135" show="False" value="0" unmaskedvalue="002022"/>
+          <field name="ospf.v3.options.n" showname=".... .... .... .... .... 0... = N: Not set" size="3" pos="135" show="False" value="0" unmaskedvalue="002022"/>
+          <field name="ospf.v3.options.mc" showname=".... .... .... .... .... .0.. = MC: Not set" size="3" pos="135" show="False" value="0" unmaskedvalue="002022"/>
+          <field name="ospf.v3.options.e" showname=".... .... .... .... .... ..1. = E: Set" size="3" pos="135" show="True" value="1" unmaskedvalue="002022"/>
+          <field name="ospf.v3.options.v6" showname=".... .... .... .... .... ...0 = V6: Not set" size="3" pos="135" show="False" value="0" unmaskedvalue="002022"/>
+        </field>
+        <field name="ospf.v3.lsa.attached_router" showname="Attached Router: 1.1.1.1" size="4" pos="138" show="1.1.1.1" value="01010101"/>
+        <field name="ospf.v3.lsa.attached_router" showname="Attached Router: 2.2.2.2" size="4" pos="142" show="2.2.2.2" value="02020202"/>
+      </field>
+      <field name="" show="LSA-type 3 (Inter-Area-Prefix-LSA), len 36" size="36" pos="146" value="00002003000000010101010180000001abf80024000000644001000020010db800010000">
+        <field name="ospf.lsa.age" showname=".000 0000 0000 0000 = LS Age (seconds): 0" size="2" pos="146" show="0" value="0" unmaskedvalue="0000"/>
+        <field name="ospf.v3.lsa.do_not_age" showname="0... .... .... .... = Do Not Age: False" size="2" pos="146" show="False" value="0" unmaskedvalue="0000"/>
+        <field name="ospf.v3.lsa" showname="LS Type: 0x2003" size="2" pos="148" show="0x2003" value="2003">
+          <field name="ospf.v3.lsa.u" showname="0... .... .... .... = LSA Handling: Store and flood the LSA as if the type is understood" size="2" pos="148" show="False" value="0" unmaskedvalue="2003"/>
+          <field name="ospf.v3.lsa.s12" showname=".01. .... .... .... = Flooding Scope: Area Scoping - Flooded only in originating area (0x1)" size="2" pos="148" show="0x0001" value="1" unmaskedvalue="2003"/>
+          <field name="ospf.v3.lsa.fc" showname="...0 0000 0000 0011 = Function Code: Inter-Area-Prefix-LSA (3)" size="2" pos="148" show="3" value="3" unmaskedvalue="2003"/>
+        </field>
+        <field name="ospf.v3.lsa.interprefix" showname="Inter-Area-Prefix-LSA: True" hide="yes" size="2" pos="148" show="True" value="2003"/>
+        <field name="ospf.link_state_id" showname="Link State ID: 0.0.0.1" size="4" pos="150" show="0.0.0.1" value="00000001"/>
+        <field name="ospf.advrouter" showname="Advertising Router: 1.1.1.1" size="4" pos="154" show="1.1.1.1" value="01010101"/>
+        <field name="ospf.lsa.seqnum" showname="Sequence Number: 0x80000001" size="4" pos="158" show="0x80000001" value="80000001"/>
+        <field name="ospf.lsa.chksum" showname="Checksum: 0xabf8" size="2" pos="162" show="0xabf8" value="abf8"/>
+        <field name="ospf.lsa.length" showname="Length: 36" size="2" pos="164" show="36" value="0024"/>
+        <field name="ospf.reserved" showname="Reserved: 00" size="1" pos="166" show="00" value="00"/>
+        <field name="ospf.metric" showname="Metric: 100" size="3" pos="167" show="100" value="000064"/>
+        <field name="ospf.prefix_length" showname="PrefixLength: 64" size="1" pos="170" show="64" value="40"/>
+        <field name="ospf.v3.prefix.options" showname="PrefixOptions: 0x01, (NU) NoUnicast" size="1" pos="171" show="0x01" value="01">
+          <field name="ospf.v3.prefix.options.p" showname=".... 0... = (P) Propagate: Not set" size="1" pos="171" show="False" value="0" unmaskedvalue="01"/>
+          <field name="ospf.v3.prefix.options.mc" showname=".... .0.. = (MC) Multicast: Not set" size="1" pos="171" show="False" value="0" unmaskedvalue="01"/>
+          <field name="ospf.v3.prefix.options.la" showname=".... ..0. = (LA) Local Address: Not set" size="1" pos="171" show="False" value="0" unmaskedvalue="01"/>
+          <field name="ospf.v3.prefix.options.nu" showname=".... ...1 = (NU) NoUnicast: Set" size="1" pos="171" show="True" value="1" unmaskedvalue="01"/>
+        </field>
+        <field name="ospf.reserved" showname="Reserved: 0000" size="2" pos="172" show="00:00" value="0000"/>
+        <field name="ospf.v3.address_prefix.ipv6" showname="Address Prefix: 2001:db8:1::" size="8" pos="174" show="2001:db8:1::" value="20010db800010000"/>
+      </field>
+      <field name="" show="LSA-type 4 (Inter-Area-Router-LSA), len 32" size="32" pos="182" value="00002004000000020101010180000001c7ef0020000020220000003202020202">
+        <field name="ospf.lsa.age" showname=".000 0000 0000 0000 = LS Age (seconds): 0" size="2" pos="182" show="0" value="0" unmaskedvalue="0000"/>
+        <field name="ospf.v3.lsa.do_not_age" showname="0... .... .... .... = Do Not Age: False" size="2" pos="182" show="False" value="0" unmaskedvalue="0000"/>
+        <field name="ospf.v3.lsa" showname="LS Type: 0x2004" size="2" pos="184" show="0x2004" value="2004">
+          <field name="ospf.v3.lsa.u" showname="0... .... .... .... = LSA Handling: Store and flood the LSA as if the type is understood" size="2" pos="184" show="False" value="0" unmaskedvalue="2004"/>
+          <field name="ospf.v3.lsa.s12" showname=".01. .... .... .... = Flooding Scope: Area Scoping - Flooded only in originating area (0x1)" size="2" pos="184" show="0x0001" value="1" unmaskedvalue="2004"/>
+          <field name="ospf.v3.lsa.fc" showname="...0 0000 0000 0100 = Function Code: Inter-Area-Router-LSA (4)" size="2" pos="184" show="4" value="4" unmaskedvalue="2004"/>
+        </field>
+        <field name="ospf.v3.lsa.interrouter" showname="Inter-Area-Router-LSA: True" hide="yes" size="2" pos="184" show="True" value="2004"/>
+        <field name="ospf.link_state_id" showname="Link State ID: 0.0.0.2" size="4" pos="186" show="0.0.0.2" value="00000002"/>
+        <field name="ospf.advrouter" showname="Advertising Router: 1.1.1.1" size="4" pos="190" show="1.1.1.1" value="01010101"/>
+        <field name="ospf.lsa.seqnum" showname="Sequence Number: 0x80000001" size="4" pos="194" show="0x80000001" value="80000001"/>
+        <field name="ospf.lsa.chksum" showname="Checksum: 0xc7ef" size="2" pos="198" show="0xc7ef" value="c7ef"/>
+        <field name="ospf.lsa.length" showname="Length: 32" size="2" pos="200" show="32" value="0020"/>
+        <field name="ospf.reserved" showname="Reserved: 00" size="1" pos="202" show="00" value="00"/>
+        <field name="ospf.v3.options" showname="Options: 0x002022, DC, E" size="3" pos="203" show="0x002022" value="002022">
+          <field name="ospf.v3.options.at" showname=".... .... .... .0.. .... .... = AT: Not set" size="3" pos="203" show="False" value="0" unmaskedvalue="002022"/>
+          <field name="ospf.v3.options.l" showname=".... .... .... ..0. .... .... = L: Not set" size="3" pos="203" show="False" value="0" unmaskedvalue="002022"/>
+          <field name="ospf.v3.options.af" showname=".... .... .... ...0 .... .... = AF: Not set" size="3" pos="203" show="False" value="0" unmaskedvalue="002022"/>
+          <field name="ospf.v3.options.dc" showname=".... .... .... .... ..1. .... = DC: Set" size="3" pos="203" show="True" value="1" unmaskedvalue="002022"/>
+          <field name="ospf.v3.options.r" showname=".... .... .... .... ...0 .... = R: Not set" size="3" pos="203" show="False" value="0" unmaskedvalue="002022"/>
+          <field name="ospf.v3.options.n" showname=".... .... .... .... .... 0... = N: Not set" size="3" pos="203" show="False" value="0" unmaskedvalue="002022"/>
+          <field name="ospf.v3.options.mc" showname=".... .... .... .... .... .0.. = MC: Not set" size="3" pos="203" show="False" value="0" unmaskedvalue="002022"/>
+          <field name="ospf.v3.options.e" showname=".... .... .... .... .... ..1. = E: Set" size="3" pos="203" show="True" value="1" unmaskedvalue="002022"/>
+          <field name="ospf.v3.options.v6" showname=".... .... .... .... .... ...0 = V6: Not set" size="3" pos="203" show="False" value="0" unmaskedvalue="002022"/>
+        </field>
+        <field name="ospf.reserved" showname="Reserved: 00" size="1" pos="206" show="00" value="00"/>
+        <field name="ospf.metric" showname="Metric: 50" size="3" pos="207" show="50" value="000032"/>
+        <field name="ospf.v3.lsa.destination_router_id" showname="Destination Router ID: 2.2.2.2" size="4" pos="210" show="2.2.2.2" value="02020202"/>
+      </field>
+      <field name="" show="LSA-type 5 (AS-External-LSA), len 60" size="60" pos="214" value="000040050000000301010101800000018407003c070000144000200120010db80001000020010db80000000000000000000000011234567800000009">
+        <field name="ospf.lsa.age" showname=".000 0000 0000 0000 = LS Age (seconds): 0" size="2" pos="214" show="0" value="0" unmaskedvalue="0000"/>
+        <field name="ospf.v3.lsa.do_not_age" showname="0... .... .... .... = Do Not Age: False" size="2" pos="214" show="False" value="0" unmaskedvalue="0000"/>
+        <field name="ospf.v3.lsa" showname="LS Type: 0x4005" size="2" pos="216" show="0x4005" value="4005">
+          <field name="ospf.v3.lsa.u" showname="0... .... .... .... = LSA Handling: Store and flood the LSA as if the type is understood" size="2" pos="216" show="False" value="0" unmaskedvalue="4005"/>
+          <field name="ospf.v3.lsa.s12" showname=".10. .... .... .... = Flooding Scope: AS Scoping - Flooded throughout AS (0x2)" size="2" pos="216" show="0x0002" value="2" unmaskedvalue="4005"/>
+          <field name="ospf.v3.lsa.fc" showname="...0 0000 0000 0101 = Function Code: AS-External-LSA (5)" size="2" pos="216" show="5" value="5" unmaskedvalue="4005"/>
+        </field>
+        <field name="ospf.v3.lsa.asext" showname="AS-External-LSA: True" hide="yes" size="2" pos="216" show="True" value="4005"/>
+        <field name="ospf.link_state_id" showname="Link State ID: 0.0.0.3" size="4" pos="218" show="0.0.0.3" value="00000003"/>
+        <field name="ospf.advrouter" showname="Advertising Router: 1.1.1.1" size="4" pos="222" show="1.1.1.1" value="01010101"/>
+        <field name="ospf.lsa.seqnum" showname="Sequence Number: 0x80000001" size="4" pos="226" show="0x80000001" value="80000001"/>
+        <field name="ospf.lsa.chksum" showname="Checksum: 0x8407" size="2" pos="230" show="0x8407" value="8407"/>
+        <field name="ospf.lsa.length" showname="Length: 60" size="2" pos="232" show="60" value="003c"/>
+        <field name="ospf.v3.as.external.flags" showname="Flags: 0x07, (E) External Metric, (F) Forwarding Address, (T) External Route Tag" size="1" pos="234" show="0x07" value="07">
+          <field name="ospf.v3.as.external.flags.e" showname=".... .1.. = (E) External Metric: Type 2" size="1" pos="234" show="True" value="1" unmaskedvalue="07"/>
+          <field name="ospf.v3.as.external.flags.f" showname=".... ..1. = (F) Forwarding Address: Present" size="1" pos="234" show="True" value="1" unmaskedvalue="07"/>
+          <field name="ospf.v3.as.external.flags.t" showname=".... ...1 = (T) External Route Tag: Present" size="1" pos="234" show="True" value="1" unmaskedvalue="07"/>
+        </field>
+        <field name="ospf.metric" showname="Metric: 20" size="3" pos="235" show="20" value="000014"/>
+        <field name="ospf.prefix_length" showname="PrefixLength: 64" size="1" pos="238" show="64" value="40"/>
+        <field name="ospf.v3.prefix.options" showname="PrefixOptions: 0x00" size="1" pos="239" show="0x00" value="00">
+          <field name="ospf.v3.prefix.options.p" showname=".... 0... = (P) Propagate: Not set" size="1" pos="239" show="False" value="0" unmaskedvalue="00"/>
+          <field name="ospf.v3.prefix.options.mc" showname=".... .0.. = (MC) Multicast: Not set" size="1" pos="239" show="False" value="0" unmaskedvalue="00"/>
+          <field name="ospf.v3.prefix.options.la" showname=".... ..0. = (LA) Local Address: Not set" size="1" pos="239" show="False" value="0" unmaskedvalue="00"/>
+          <field name="ospf.v3.prefix.options.nu" showname=".... ...0 = (NU) NoUnicast: Not set" size="1" pos="239" show="False" value="0" unmaskedvalue="00"/>
+        </field>
+        <field name="ospf.v3.lsa.referenced_ls_type" showname="Referenced LS type: Unknown (0x2001)" size="2" pos="240" show="0x2001" value="2001"/>
+        <field name="ospf.v3.address_prefix.ipv6" showname="Address Prefix: 2001:db8:1::" size="8" pos="242" show="2001:db8:1::" value="20010db800010000"/>
+        <field name="ospf.v3.lsa.forwarding_address.ipv6" showname="Forwarding Address: 2001:db8::1" size="16" pos="250" show="2001:db8::1" value="20010db8000000000000000000000001"/>
+        <field name="ospf.v3.lsa.external_route_tag" showname="External Route Tag: 305419896" size="4" pos="266" show="305419896" value="12345678"/>
+        <field name="ospf.v3.lsa.referenced_link_state_id" showname="Referenced Link State ID: 0.0.0.9" size="4" pos="270" show="0.0.0.9" value="00000009"/>
+      </field>
+      <field name="" show="LSA-type 8 (Link-LSA), len 56" size="56" pos="274" value="000000080400000001010101800000019ea8003801002022fe800000000000000000000000000001000000014001000020010db800020000">
+        <field name="ospf.lsa.age" showname=".000 0000 0000 0000 = LS Age (seconds): 0" size="2" pos="274" show="0" value="0" unmaskedvalue="0000"/>
+        <field name="ospf.v3.lsa.do_not_age" showname="0... .... .... .... = Do Not Age: False" size="2" pos="274" show="False" value="0" unmaskedvalue="0000"/>
+        <field name="ospf.v3.lsa" showname="LS Type: 0x0008" size="2" pos="276" show="0x0008" value="0008">
+          <field name="ospf.v3.lsa.u" showname="0... .... .... .... = LSA Handling: Store and flood the LSA as if the type is understood" size="2" pos="276" show="False" value="0" unmaskedvalue="0008"/>
+          <field name="ospf.v3.lsa.s12" showname=".00. .... .... .... = Flooding Scope: Link-Local Scoping - Flooded only on originating link (0x0)" size="2" pos="276" show="0x0000" value="0" unmaskedvalue="0008"/>
+          <field name="ospf.v3.lsa.fc" showname="...0 0000 0000 1000 = Function Code: Link-LSA (8)" size="2" pos="276" show="8" value="8" unmaskedvalue="0008"/>
+        </field>
+        <field name="ospf.v3.lsa.link" showname="Link-LSA: True" hide="yes" size="2" pos="276" show="True" value="0008"/>
+        <field name="ospf.link_state_id" showname="Link State ID: 4.0.0.0" size="4" pos="278" show="4.0.0.0" value="04000000"/>
+        <field name="ospf.advrouter" showname="Advertising Router: 1.1.1.1" size="4" pos="282" show="1.1.1.1" value="01010101"/>
+        <field name="ospf.lsa.seqnum" showname="Sequence Number: 0x80000001" size="4" pos="286" show="0x80000001" value="80000001"/>
+        <field name="ospf.lsa.chksum" showname="Checksum: 0x9ea8" size="2" pos="290" show="0x9ea8" value="9ea8"/>
+        <field name="ospf.lsa.length" showname="Length: 56" size="2" pos="292" show="56" value="0038"/>
+        <field name="ospf.v3.lsa.router_priority" showname="Router Priority: 1" size="1" pos="294" show="1" value="01"/>
+        <field name="ospf.v3.options" showname="Options: 0x002022, DC, E" size="3" pos="295" show="0x002022" value="002022">
+          <field name="ospf.v3.options.at" showname=".... .... .... .0.. .... .... = AT: Not set" size="3" pos="295" show="False" value="0" unmaskedvalue="002022"/>
+          <field name="ospf.v3.options.l" showname=".... .... .... ..0. .... .... = L: Not set" size="3" pos="295" show="False" value="0" unmaskedvalue="002022"/>
+          <field name="ospf.v3.options.af" showname=".... .... .... ...0 .... .... = AF: Not set" size="3" pos="295" show="False" value="0" unmaskedvalue="002022"/>
+          <field name="ospf.v3.options.dc" showname=".... .... .... .... ..1. .... = DC: Set" size="3" pos="295" show="True" value="1" unmaskedvalue="002022"/>
+          <field name="ospf.v3.options.r" showname=".... .... .... .... ...0 .... = R: Not set" size="3" pos="295" show="False" value="0" unmaskedvalue="002022"/>
+          <field name="ospf.v3.options.n" showname=".... .... .... .... .... 0... = N: Not set" size="3" pos="295" show="False" value="0" unmaskedvalue="002022"/>
+          <field name="ospf.v3.options.mc" showname=".... .... .... .... .... .0.. = MC: Not set" size="3" pos="295" show="False" value="0" unmaskedvalue="002022"/>
+          <field name="ospf.v3.options.e" showname=".... .... .... .... .... ..1. = E: Set" size="3" pos="295" show="True" value="1" unmaskedvalue="002022"/>
+          <field name="ospf.v3.options.v6" showname=".... .... .... .... .... ...0 = V6: Not set" size="3" pos="295" show="False" value="0" unmaskedvalue="002022"/>
+        </field>
+        <field name="ospf.v3.lsa.link_local_interface_address.ipv6" showname="Link-local Interface Address: fe80::1" size="16" pos="298" show="fe80::1" value="fe800000000000000000000000000001"/>
+        <field name="ospf.v3.lsa.num_prefixes" showname="# prefixes: 1" size="4" pos="314" show="1" value="00000001"/>
+        <field name="ospf.prefix_length" showname="PrefixLength: 64" size="1" pos="318" show="64" value="40"/>
+        <field name="ospf.v3.prefix.options" showname="PrefixOptions: 0x01, (NU) NoUnicast" size="1" pos="319" show="0x01" value="01">
+          <field name="ospf.v3.prefix.options.p" showname=".... 0... = (P) Propagate: Not set" size="1" pos="319" show="False" value="0" unmaskedvalue="01"/>
+          <field name="ospf.v3.prefix.options.mc" showname=".... .0.. = (MC) Multicast: Not set" size="1" pos="319" show="False" value="0" unmaskedvalue="01"/>
+          <field name="ospf.v3.prefix.options.la" showname=".... ..0. = (LA) Local Address: Not set" size="1" pos="319" show="False" value="0" unmaskedvalue="01"/>
+          <field name="ospf.v3.prefix.options.nu" showname=".... ...1 = (NU) NoUnicast: Set" size="1" pos="319" show="True" value="1" unmaskedvalue="01"/>
+        </field>
+        <field name="ospf.reserved" showname="Reserved: 0000" size="2" pos="320" show="00:00" value="0000"/>
+        <field name="ospf.v3.address_prefix.ipv6" showname="Address Prefix: 2001:db8:2::" size="8" pos="322" show="2001:db8:2::" value="20010db800020000"/>
+      </field>
+      <field name="" show="LSA-type 9 (Intra-Area-Prefix-LSA), len 56" size="56" pos="330" value="00002009000000040101010180000001870200380002200100000000010101014001000a20010db8000300003000001420010db800040000">
+        <field name="ospf.lsa.age" showname=".000 0000 0000 0000 = LS Age (seconds): 0" size="2" pos="330" show="0" value="0" unmaskedvalue="0000"/>
+        <field name="ospf.v3.lsa.do_not_age" showname="0... .... .... .... = Do Not Age: False" size="2" pos="330" show="False" value="0" unmaskedvalue="0000"/>
+        <field name="ospf.v3.lsa" showname="LS Type: 0x2009" size="2" pos="332" show="0x2009" value="2009">
+          <field name="ospf.v3.lsa.u" showname="0... .... .... .... = LSA Handling: Store and flood the LSA as if the type is understood" size="2" pos="332" show="False" value="0" unmaskedvalue="2009"/>
+          <field name="ospf.v3.lsa.s12" showname=".01. .... .... .... = Flooding Scope: Area Scoping - Flooded only in originating area (0x1)" size="2" pos="332" show="0x0001" value="1" unmaskedvalue="2009"/>
+          <field name="ospf.v3.lsa.fc" showname="...0 0000 0000 1001 = Function Code: Intra-Area-Prefix-LSA (9)" size="2" pos="332" show="9" value="9" unmaskedvalue="2009"/>
+        </field>
+        <field name="ospf.v3.lsa.intraprefix" showname="Intra-Area-Prefix-LSA: True" hide="yes" size="2" pos="332" show="True" value="2009"/>
+        <field name="ospf.link_state_id" showname="Link State ID: 0.0.0.4" size="4" pos="334" show="0.0.0.4" value="00000004"/>
+        <field name="ospf.advrouter" showname="Advertising Router: 1.1.1.1" size="4" pos="338" show="1.1.1.1" value="01010101"/>
+        <field name="ospf.lsa.seqnum" showname="Sequence Number: 0x80000001" size="4" pos="342" show="0x80000001" value="80000001"/>
+        <field name="ospf.lsa.chksum" showname="Checksum: 0x8702" size="2" pos="346" show="0x8702" value="8702"/>
+        <field name="ospf.lsa.length" showname="Length: 56" size="2" pos="348" show="56" value="0038"/>
+        <field name="ospf.v3.lsa.num_prefixes" showname="# prefixes: 2" size="2" pos="350" show="2" value="0002"/>
+        <field name="ospf.v3.lsa.referenced_ls_type" showname="Referenced LS type: Unknown (0x2001)" size="2" pos="352" show="0x2001" value="2001"/>
+        <field name="ospf.v3.lsa.referenced_link_state_id" showname="Referenced Link State ID: 0.0.0.0" size="4" pos="354" show="0.0.0.0" value="00000000"/>
+        <field name="ospf.v3.lsa.referenced_advertising_router" showname="Referenced Advertising Router: 1.1.1.1" size="4" pos="358" show="1.1.1.1" value="01010101"/>
+        <field name="ospf.prefix_length" showname="PrefixLength: 64" size="1" pos="362" show="64" value="40"/>
+        <field name="ospf.v3.prefix.options" showname="PrefixOptions: 0x01, (NU) NoUnicast" size="1" pos="363" show="0x01" value="01">
+          <field name="ospf.v3.prefix.options.p" showname=".... 0... = (P) Propagate: Not set" size="1" pos="363" show="False" value="0" unmaskedvalue="01"/>
+          <field name="ospf.v3.prefix.options.mc" showname=".... .0.. = (MC) Multicast: Not set" size="1" pos="363" show="False" value="0" unmaskedvalue="01"/>
+          <field name="ospf.v3.prefix.options.la" showname=".... ..0. = (LA) Local Address: Not set" size="1" pos="363" show="False" value="0" unmaskedvalue="01"/>
+          <field name="ospf.v3.prefix.options.nu" showname=".... ...1 = (NU) NoUnicast: Set" size="1" pos="363" show="True" value="1" unmaskedvalue="01"/>
+        </field>
+        <field name="ospf.metric" showname="Metric: 10" size="2" pos="364" show="10" value="000a"/>
+        <field name="ospf.v3.address_prefix.ipv6" showname="Address Prefix: 2001:db8:3::" size="8" pos="366" show="2001:db8:3::" value="20010db800030000"/>
+        <field name="ospf.prefix_length" showname="PrefixLength: 48" size="1" pos="374" show="48" value="30"/>
+        <field name="ospf.v3.prefix.options" showname="PrefixOptions: 0x00" size="1" pos="375" show="0x00" value="00">
+          <field name="ospf.v3.prefix.options.p" showname=".... 0... = (P) Propagate: Not set" size="1" pos="375" show="False" value="0" unmaskedvalue="00"/>
+          <field name="ospf.v3.prefix.options.mc" showname=".... .0.. = (MC) Multicast: Not set" size="1" pos="375" show="False" value="0" unmaskedvalue="00"/>
+          <field name="ospf.v3.prefix.options.la" showname=".... ..0. = (LA) Local Address: Not set" size="1" pos="375" show="False" value="0" unmaskedvalue="00"/>
+          <field name="ospf.v3.prefix.options.nu" showname=".... ...0 = (NU) NoUnicast: Not set" size="1" pos="375" show="False" value="0" unmaskedvalue="00"/>
+        </field>
+        <field name="ospf.metric" showname="Metric: 20" size="2" pos="376" show="20" value="0014"/>
+        <field name="ospf.v3.address_prefix.ipv6" showname="Address Prefix: 2001:db8:4::" size="8" pos="378" show="2001:db8:4::" value="20010db800040000"/>
+      </field>
+    </field>
+  </proto>
+</packet>
+
+
+</pdml>

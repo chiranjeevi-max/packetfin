@@ -1,0 +1,56 @@
+[
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "frame": {
+          "filtered": "frame"
+        },
+        "eth": {
+          "filtered": "eth"
+        },
+        "ipv6": {
+          "filtered": "ipv6"
+        },
+        "ospf": {
+          "ospf.header": {
+            "ospf.version": "3",
+            "ospf.msg": "4",
+            "ospf.msg.lsupdate": "1",
+            "ospf.packet_length": "44",
+            "ospf.srcrouter": "1.1.1.1",
+            "ospf.area_id": "0.0.0.0",
+            "ospf.checksum": "0x80f0",
+            "ospf.v3.instance_id": "0",
+            "ospf.reserved": "00"
+          },
+          "LS Update Packet": {
+            "ospf.ls.number_of_lsas": "1",
+            "LSA-type 9 (Intra-Area-Prefix-LSA), len 24": {
+              "ospf.lsa.age": "0",
+              "ospf.v3.lsa.do_not_age": "0",
+              "ospf.v3.lsa": "0x2009",
+              "ospf.v3.lsa_tree": {
+                "ospf.v3.lsa.u": "0",
+                "ospf.v3.lsa.s12": "0x0001",
+                "ospf.v3.lsa.fc": "9"
+              },
+              "ospf.v3.lsa.intraprefix": "1",
+              "ospf.link_state_id": "0.0.0.9",
+              "ospf.advrouter": "1.1.1.1",
+              "ospf.lsa.seqnum": "0x80000001",
+              "ospf.lsa.chksum": "0x5bb3",
+              "ospf.lsa.length": "24",
+              "ospf.v3.lsa.num_prefixes": "0",
+              "ospf.v3.lsa.referenced_ls_type": "0x2001"
+            }
+          }
+        },
+        "_ws.malformed": {
+          "filtered": "_ws.malformed"
+        }
+      }
+    }
+  }
+]

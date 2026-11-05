@@ -1,0 +1,4 @@
+{"index":{"_index":"packets-2023-11-14"}}
+{"timestamp":"1700000000123","layers":{"ip_src":["192.0.2.1"],"ip_dst":["198.51.100.2"],"ip_ttl":["64"]}}
+{"index":{"_index":"packets-2023-11-14"}}
+{"timestamp":"1700000000123","layers":{"ip_src":["192.0.2.1"],"ip_dst":["198.51.100.2"],"ip_ttl":["1"]}}

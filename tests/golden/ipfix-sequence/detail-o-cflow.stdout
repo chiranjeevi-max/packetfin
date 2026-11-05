@@ -1,0 +1,455 @@
+Frame 1: Packet, 70 bytes on wire (560 bits), 70 bytes captured (560 bits)
+Ethernet II, Src: 02:00:00:00:00:01, Dst: 02:00:00:00:00:02
+Internet Protocol Version 4, Src: 192.0.2.1, Dst: 198.51.100.2
+User Datagram Protocol, Src Port: 40000, Dst Port: 4739
+Cisco NetFlow/IPFIX
+    Version: 10
+    Length: 28
+    Timestamp: Nov 14, 2023 22:13:20.000000000 UTC
+        ExportTime: 1700000000
+    FlowSequence: 1
+    Observation Domain Id: 42
+    Set 1 [id=2] (Data Template): 256
+        FlowSet Id: Data Template (V10 [IPFIX]) (2)
+        FlowSet Length: 12
+        Template (Id = 256, Count = 1)
+            Template Id: 256
+            Field Count: 1
+            Field (1/1): IP_SRC_ADDR
+                0... .... .... .... = Pen provided: No
+                .000 0000 0000 1000 = Type: IP_SRC_ADDR (8)
+                Length: 4
+
+Frame 2: Packet, 66 bytes on wire (528 bits), 66 bytes captured (528 bits)
+Ethernet II, Src: 02:00:00:00:00:01, Dst: 02:00:00:00:00:02
+Internet Protocol Version 4, Src: 192.0.2.1, Dst: 198.51.100.2
+User Datagram Protocol, Src Port: 40000, Dst Port: 4739
+Cisco NetFlow/IPFIX
+    Version: 10
+    Length: 24
+    Timestamp: Nov 14, 2023 22:13:21.000000000 UTC
+        ExportTime: 1700000001
+    FlowSequence: 9 (expected 1)
+        [Expert Info (Warning/Sequence): Unexpected flow sequence for domain ID 42 (expected 1, got 9)]
+            [Unexpected flow sequence for domain ID 42 (expected 1, got 9)]
+            [Severity level: Warning]
+            [Group: Sequence]
+    Observation Domain Id: 42
+    Set 1 [id=256] (1 flows)
+        FlowSet Id: (Data) (256)
+        FlowSet Length: 8
+        [Template Frame: 1]
+        Flow 1
+            SrcAddr: 10.0.0.1
+    [Expected Sequence Number: 1]
+    [Previous Frame in Sequence: 1]
+
+Frame 3: Packet, 58 bytes on wire (464 bits), 58 bytes captured (464 bits)
+Ethernet II, Src: 02:00:00:00:00:01, Dst: 02:00:00:00:00:02
+Internet Protocol Version 4, Src: 192.0.2.1, Dst: 198.51.100.2
+User Datagram Protocol, Src Port: 40000, Dst Port: 4739
+Cisco NetFlow/IPFIX
+    Version: 10
+    Length: 16
+    Timestamp: Nov 14, 2023 22:13:22.000000000 UTC
+        ExportTime: 1700000002
+    FlowSequence: 10
+    Observation Domain Id: 42
+
+Frame 4: Packet, 62 bytes on wire (496 bits), 62 bytes captured (496 bits)
+Ethernet II, Src: 02:00:00:00:00:01, Dst: 02:00:00:00:00:02
+Internet Protocol Version 4, Src: 192.0.2.1, Dst: 198.51.100.2
+User Datagram Protocol, Src Port: 40000, Dst Port: 4739
+Cisco NetFlow/IPFIX
+    Version: 10
+    Length: 20
+    Timestamp: Nov 14, 2023 22:13:23.000000000 UTC
+        ExportTime: 1700000003
+    FlowSequence: 11 (expected 10)
+        [Expert Info (Warning/Sequence): Unexpected flow sequence for domain ID 42 (expected 10, got 11)]
+            [Unexpected flow sequence for domain ID 42 (expected 10, got 11)]
+            [Severity level: Warning]
+            [Group: Sequence]
+    Observation Domain Id: 42
+    Set 1 [id=2]
+        FlowSet Id: Data Template (V10 [IPFIX]) (2)
+        FlowSet Length: 3
+            [Expert Info (Warning/Malformed): Flowset Length (3) too short]
+                [Flowset Length (3) too short]
+                [Severity level: Warning]
+                [Group: Malformed]
+    [Expected Sequence Number: 10]
+    [Previous Frame in Sequence: 3]
+
+Frame 5: Packet, 66 bytes on wire (528 bits), 66 bytes captured (528 bits)
+Ethernet II, Src: 02:00:00:00:00:01, Dst: 02:00:00:00:00:02
+Internet Protocol Version 4, Src: 192.0.2.1, Dst: 198.51.100.2
+User Datagram Protocol, Src Port: 40000, Dst Port: 4739
+Cisco NetFlow/IPFIX
+    Version: 10
+    Length: 24
+    Timestamp: Nov 14, 2023 22:13:24.000000000 UTC
+        ExportTime: 1700000004
+    FlowSequence: 12 (expected 11)
+        [Expert Info (Warning/Sequence): Unexpected flow sequence for domain ID 42 (expected 11, got 12)]
+            [Unexpected flow sequence for domain ID 42 (expected 11, got 12)]
+            [Severity level: Warning]
+            [Group: Sequence]
+    Observation Domain Id: 42
+    [Expected Sequence Number: 11]
+    [Previous Frame in Sequence: 4]
+
+Frame 6: Packet, 66 bytes on wire (528 bits), 66 bytes captured (528 bits)
+Ethernet II, Src: 02:00:00:00:00:01, Dst: 02:00:00:00:00:02
+Internet Protocol Version 4, Src: 192.0.2.1, Dst: 198.51.100.2
+User Datagram Protocol, Src Port: 40000, Dst Port: 4739
+Cisco NetFlow/IPFIX
+    Version: 10
+    Length: 24
+    Timestamp: Nov 14, 2023 22:13:25.000000000 UTC
+        ExportTime: 1700000005
+    FlowSequence: 13 (expected 12)
+        [Expert Info (Warning/Sequence): Unexpected flow sequence for domain ID 42 (expected 12, got 13)]
+            [Unexpected flow sequence for domain ID 42 (expected 12, got 13)]
+            [Severity level: Warning]
+            [Group: Sequence]
+    Observation Domain Id: 42
+    Set 1 [id=300]
+        FlowSet Id: (Data) (300)
+        FlowSet Length: 8
+        Data (4 bytes), no template found
+            [Expert Info (Warning/Malformed): Data (4 bytes), no template found]
+                [Data (4 bytes), no template found]
+                [Severity level: Warning]
+                [Group: Malformed]
+    [Expected Sequence Number: 12]
+    [Previous Frame in Sequence: 5]
+
+Frame 7: Packet, 66 bytes on wire (528 bits), 66 bytes captured (528 bits)
+Ethernet II, Src: 02:00:00:00:00:01, Dst: 02:00:00:00:00:02
+Internet Protocol Version 4, Src: 192.0.2.1, Dst: 198.51.100.2
+User Datagram Protocol, Src Port: 40000, Dst Port: 4739
+Cisco NetFlow/IPFIX
+    Version: 10
+    Length: 24
+    Timestamp: Nov 14, 2023 22:13:26.000000000 UTC
+        ExportTime: 1700000006
+    FlowSequence: 13
+    Observation Domain Id: 42
+    Set 1 [id=256] (1 flows)
+        FlowSet Id: (Data) (256)
+        FlowSet Length: 8
+        [Template Frame: 1]
+        Flow 1
+            SrcAddr: 10.0.0.1
+
+Frame 9: Packet, 66 bytes on wire (528 bits), 66 bytes captured (528 bits)
+Ethernet II, Src: 02:00:00:00:00:01, Dst: 02:00:00:00:00:02
+Internet Protocol Version 4, Src: 192.0.2.1, Dst: 198.51.100.2
+User Datagram Protocol, Src Port: 40000, Dst Port: 4739
+Cisco NetFlow/IPFIX
+    Version: 10
+    Length: 24
+    Timestamp: Nov 14, 2023 22:13:28.000000000 UTC
+        ExportTime: 1700000008
+    FlowSequence: 14
+    Observation Domain Id: 42
+    Set 1 [id=256] (1 flows)
+        FlowSet Id: (Data) (256)
+        FlowSet Length: 8
+        [Template Frame: 1]
+        Flow 1
+            SrcAddr: 10.0.0.1
+
+Frame 10: Packet, 310 bytes on wire (2480 bits), 310 bytes captured (2480 bits)
+Ethernet II, Src: 02:00:00:00:00:01, Dst: 02:00:00:00:00:02
+Internet Protocol Version 4, Src: 192.0.2.1, Dst: 198.51.100.2
+User Datagram Protocol, Src Port: 40000, Dst Port: 4739
+Cisco NetFlow/IPFIX
+    Version: 10
+    Length: 268
+    Timestamp: Nov 14, 2023 22:13:29.000000000 UTC
+        ExportTime: 1700000009
+    FlowSequence: 30 (expected 15)
+        [Expert Info (Warning/Sequence): Unexpected flow sequence for domain ID 42 (expected 15, got 30)]
+            [Unexpected flow sequence for domain ID 42 (expected 15, got 30)]
+            [Severity level: Warning]
+            [Group: Sequence]
+    Observation Domain Id: 42
+    Set 1 [id=2] (Data Template): 257
+        FlowSet Id: Data Template (V10 [IPFIX]) (2)
+        FlowSet Length: 252
+        Template (Id = 257, Count = 61)
+            Template Id: 257
+            Field Count: 61
+                [Expert Info (Warning/Undecoded): More entries (61) than we can handle [template won't be used]. Maximum value can be adjusted in the protocol preferences.]
+                    [More entries (61) than we can handle [template won't be used]. Maximum value can be adjusted in the protocol preferences.]
+                    [Severity level: Warning]
+                    [Group: Undecoded]
+            Field (1/61): IP_SRC_ADDR
+                0... .... .... .... = Pen provided: No
+                .000 0000 0000 1000 = Type: IP_SRC_ADDR (8)
+                Length: 4
+            Field (2/61): IP_SRC_ADDR
+                0... .... .... .... = Pen provided: No
+                .000 0000 0000 1000 = Type: IP_SRC_ADDR (8)
+                Length: 4
+            Field (3/61): IP_SRC_ADDR
+                0... .... .... .... = Pen provided: No
+                .000 0000 0000 1000 = Type: IP_SRC_ADDR (8)
+                Length: 4
+            Field (4/61): IP_SRC_ADDR
+                0... .... .... .... = Pen provided: No
+                .000 0000 0000 1000 = Type: IP_SRC_ADDR (8)
+                Length: 4
+            Field (5/61): IP_SRC_ADDR
+                0... .... .... .... = Pen provided: No
+                .000 0000 0000 1000 = Type: IP_SRC_ADDR (8)
+                Length: 4
+            Field (6/61): IP_SRC_ADDR
+                0... .... .... .... = Pen provided: No
+                .000 0000 0000 1000 = Type: IP_SRC_ADDR (8)
+                Length: 4
+            Field (7/61): IP_SRC_ADDR
+                0... .... .... .... = Pen provided: No
+                .000 0000 0000 1000 = Type: IP_SRC_ADDR (8)
+                Length: 4
+            Field (8/61): IP_SRC_ADDR
+                0... .... .... .... = Pen provided: No
+                .000 0000 0000 1000 = Type: IP_SRC_ADDR (8)
+                Length: 4
+            Field (9/61): IP_SRC_ADDR
+                0... .... .... .... = Pen provided: No
+                .000 0000 0000 1000 = Type: IP_SRC_ADDR (8)
+                Length: 4
+            Field (10/61): IP_SRC_ADDR
+                0... .... .... .... = Pen provided: No
+                .000 0000 0000 1000 = Type: IP_SRC_ADDR (8)
+                Length: 4
+            Field (11/61): IP_SRC_ADDR
+                0... .... .... .... = Pen provided: No
+                .000 0000 0000 1000 = Type: IP_SRC_ADDR (8)
+                Length: 4
+            Field (12/61): IP_SRC_ADDR
+                0... .... .... .... = Pen provided: No
+                .000 0000 0000 1000 = Type: IP_SRC_ADDR (8)
+                Length: 4
+            Field (13/61): IP_SRC_ADDR
+                0... .... .... .... = Pen provided: No
+                .000 0000 0000 1000 = Type: IP_SRC_ADDR (8)
+                Length: 4
+            Field (14/61): IP_SRC_ADDR
+                0... .... .... .... = Pen provided: No
+                .000 0000 0000 1000 = Type: IP_SRC_ADDR (8)
+                Length: 4
+            Field (15/61): IP_SRC_ADDR
+                0... .... .... .... = Pen provided: No
+                .000 0000 0000 1000 = Type: IP_SRC_ADDR (8)
+                Length: 4
+            Field (16/61): IP_SRC_ADDR
+                0... .... .... .... = Pen provided: No
+                .000 0000 0000 1000 = Type: IP_SRC_ADDR (8)
+                Length: 4
+            Field (17/61): IP_SRC_ADDR
+                0... .... .... .... = Pen provided: No
+                .000 0000 0000 1000 = Type: IP_SRC_ADDR (8)
+                Length: 4
+            Field (18/61): IP_SRC_ADDR
+                0... .... .... .... = Pen provided: No
+                .000 0000 0000 1000 = Type: IP_SRC_ADDR (8)
+                Length: 4
+            Field (19/61): IP_SRC_ADDR
+                0... .... .... .... = Pen provided: No
+                .000 0000 0000 1000 = Type: IP_SRC_ADDR (8)
+                Length: 4
+            Field (20/61): IP_SRC_ADDR
+                0... .... .... .... = Pen provided: No
+                .000 0000 0000 1000 = Type: IP_SRC_ADDR (8)
+                Length: 4
+            Field (21/61): IP_SRC_ADDR
+                0... .... .... .... = Pen provided: No
+                .000 0000 0000 1000 = Type: IP_SRC_ADDR (8)
+                Length: 4
+            Field (22/61): IP_SRC_ADDR
+                0... .... .... .... = Pen provided: No
+                .000 0000 0000 1000 = Type: IP_SRC_ADDR (8)
+                Length: 4
+            Field (23/61): IP_SRC_ADDR
+                0... .... .... .... = Pen provided: No
+                .000 0000 0000 1000 = Type: IP_SRC_ADDR (8)
+                Length: 4
+            Field (24/61): IP_SRC_ADDR
+                0... .... .... .... = Pen provided: No
+                .000 0000 0000 1000 = Type: IP_SRC_ADDR (8)
+                Length: 4
+            Field (25/61): IP_SRC_ADDR
+                0... .... .... .... = Pen provided: No
+                .000 0000 0000 1000 = Type: IP_SRC_ADDR (8)
+                Length: 4
+            Field (26/61): IP_SRC_ADDR
+                0... .... .... .... = Pen provided: No
+                .000 0000 0000 1000 = Type: IP_SRC_ADDR (8)
+                Length: 4
+            Field (27/61): IP_SRC_ADDR
+                0... .... .... .... = Pen provided: No
+                .000 0000 0000 1000 = Type: IP_SRC_ADDR (8)
+                Length: 4
+            Field (28/61): IP_SRC_ADDR
+                0... .... .... .... = Pen provided: No
+                .000 0000 0000 1000 = Type: IP_SRC_ADDR (8)
+                Length: 4
+            Field (29/61): IP_SRC_ADDR
+                0... .... .... .... = Pen provided: No
+                .000 0000 0000 1000 = Type: IP_SRC_ADDR (8)
+                Length: 4
+            Field (30/61): IP_SRC_ADDR
+                0... .... .... .... = Pen provided: No
+                .000 0000 0000 1000 = Type: IP_SRC_ADDR (8)
+                Length: 4
+            Field (31/61): IP_SRC_ADDR
+                0... .... .... .... = Pen provided: No
+                .000 0000 0000 1000 = Type: IP_SRC_ADDR (8)
+                Length: 4
+            Field (32/61): IP_SRC_ADDR
+                0... .... .... .... = Pen provided: No
+                .000 0000 0000 1000 = Type: IP_SRC_ADDR (8)
+                Length: 4
+            Field (33/61): IP_SRC_ADDR
+                0... .... .... .... = Pen provided: No
+                .000 0000 0000 1000 = Type: IP_SRC_ADDR (8)
+                Length: 4
+            Field (34/61): IP_SRC_ADDR
+                0... .... .... .... = Pen provided: No
+                .000 0000 0000 1000 = Type: IP_SRC_ADDR (8)
+                Length: 4
+            Field (35/61): IP_SRC_ADDR
+                0... .... .... .... = Pen provided: No
+                .000 0000 0000 1000 = Type: IP_SRC_ADDR (8)
+                Length: 4
+            Field (36/61): IP_SRC_ADDR
+                0... .... .... .... = Pen provided: No
+                .000 0000 0000 1000 = Type: IP_SRC_ADDR (8)
+                Length: 4
+            Field (37/61): IP_SRC_ADDR
+                0... .... .... .... = Pen provided: No
+                .000 0000 0000 1000 = Type: IP_SRC_ADDR (8)
+                Length: 4
+            Field (38/61): IP_SRC_ADDR
+                0... .... .... .... = Pen provided: No
+                .000 0000 0000 1000 = Type: IP_SRC_ADDR (8)
+                Length: 4
+            Field (39/61): IP_SRC_ADDR
+                0... .... .... .... = Pen provided: No
+                .000 0000 0000 1000 = Type: IP_SRC_ADDR (8)
+                Length: 4
+            Field (40/61): IP_SRC_ADDR
+                0... .... .... .... = Pen provided: No
+                .000 0000 0000 1000 = Type: IP_SRC_ADDR (8)
+                Length: 4
+            Field (41/61): IP_SRC_ADDR
+                0... .... .... .... = Pen provided: No
+                .000 0000 0000 1000 = Type: IP_SRC_ADDR (8)
+                Length: 4
+            Field (42/61): IP_SRC_ADDR
+                0... .... .... .... = Pen provided: No
+                .000 0000 0000 1000 = Type: IP_SRC_ADDR (8)
+                Length: 4
+            Field (43/61): IP_SRC_ADDR
+                0... .... .... .... = Pen provided: No
+                .000 0000 0000 1000 = Type: IP_SRC_ADDR (8)
+                Length: 4
+            Field (44/61): IP_SRC_ADDR
+                0... .... .... .... = Pen provided: No
+                .000 0000 0000 1000 = Type: IP_SRC_ADDR (8)
+                Length: 4
+            Field (45/61): IP_SRC_ADDR
+                0... .... .... .... = Pen provided: No
+                .000 0000 0000 1000 = Type: IP_SRC_ADDR (8)
+                Length: 4
+            Field (46/61): IP_SRC_ADDR
+                0... .... .... .... = Pen provided: No
+                .000 0000 0000 1000 = Type: IP_SRC_ADDR (8)
+                Length: 4
+            Field (47/61): IP_SRC_ADDR
+                0... .... .... .... = Pen provided: No
+                .000 0000 0000 1000 = Type: IP_SRC_ADDR (8)
+                Length: 4
+            Field (48/61): IP_SRC_ADDR
+                0... .... .... .... = Pen provided: No
+                .000 0000 0000 1000 = Type: IP_SRC_ADDR (8)
+                Length: 4
+            Field (49/61): IP_SRC_ADDR
+                0... .... .... .... = Pen provided: No
+                .000 0000 0000 1000 = Type: IP_SRC_ADDR (8)
+                Length: 4
+            Field (50/61): IP_SRC_ADDR
+                0... .... .... .... = Pen provided: No
+                .000 0000 0000 1000 = Type: IP_SRC_ADDR (8)
+                Length: 4
+            Field (51/61): IP_SRC_ADDR
+                0... .... .... .... = Pen provided: No
+                .000 0000 0000 1000 = Type: IP_SRC_ADDR (8)
+                Length: 4
+            Field (52/61): IP_SRC_ADDR
+                0... .... .... .... = Pen provided: No
+                .000 0000 0000 1000 = Type: IP_SRC_ADDR (8)
+                Length: 4
+            Field (53/61): IP_SRC_ADDR
+                0... .... .... .... = Pen provided: No
+                .000 0000 0000 1000 = Type: IP_SRC_ADDR (8)
+                Length: 4
+            Field (54/61): IP_SRC_ADDR
+                0... .... .... .... = Pen provided: No
+                .000 0000 0000 1000 = Type: IP_SRC_ADDR (8)
+                Length: 4
+            Field (55/61): IP_SRC_ADDR
+                0... .... .... .... = Pen provided: No
+                .000 0000 0000 1000 = Type: IP_SRC_ADDR (8)
+                Length: 4
+            Field (56/61): IP_SRC_ADDR
+                0... .... .... .... = Pen provided: No
+                .000 0000 0000 1000 = Type: IP_SRC_ADDR (8)
+                Length: 4
+            Field (57/61): IP_SRC_ADDR
+                0... .... .... .... = Pen provided: No
+                .000 0000 0000 1000 = Type: IP_SRC_ADDR (8)
+                Length: 4
+            Field (58/61): IP_SRC_ADDR
+                0... .... .... .... = Pen provided: No
+                .000 0000 0000 1000 = Type: IP_SRC_ADDR (8)
+                Length: 4
+            Field (59/61): IP_SRC_ADDR
+                0... .... .... .... = Pen provided: No
+                .000 0000 0000 1000 = Type: IP_SRC_ADDR (8)
+                Length: 4
+            Field (60/61): IP_SRC_ADDR
+                0... .... .... .... = Pen provided: No
+                .000 0000 0000 1000 = Type: IP_SRC_ADDR (8)
+                Length: 4
+            Field (61/61): IP_SRC_ADDR
+                0... .... .... .... = Pen provided: No
+                .000 0000 0000 1000 = Type: IP_SRC_ADDR (8)
+                Length: 4
+    [Expected Sequence Number: 15]
+    [Previous Frame in Sequence: 9]
+
+Frame 11: Packet, 66 bytes on wire (528 bits), 66 bytes captured (528 bits)
+Ethernet II, Src: 02:00:00:00:00:01, Dst: 02:00:00:00:00:02
+Internet Protocol Version 4, Src: 192.0.2.1, Dst: 198.51.100.2
+User Datagram Protocol, Src Port: 40000, Dst Port: 4739
+Cisco NetFlow/IPFIX
+    Version: 10
+    Length: 24
+    Timestamp: Nov 14, 2023 22:13:30.000000000 UTC
+        ExportTime: 1700000010
+    FlowSequence: 30
+    Observation Domain Id: 42
+    Set 1 [id=257]
+        FlowSet Id: (Data) (257)
+        FlowSet Length: 8
+        Data (4 bytes), no template found
+            [Expert Info (Warning/Malformed): Data (4 bytes), no template found]
+                [Data (4 bytes), no template found]
+                [Severity level: Warning]
+                [Group: Malformed]
+

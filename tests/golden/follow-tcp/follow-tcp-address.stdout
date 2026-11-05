@@ -1,0 +1,17 @@
+
+===================================================================
+Follow: tcp,ascii
+Filter: ((ip.src eq 192.0.2.10 and tcp.srcport eq 40000) and (ip.dst eq 198.51.100.20 and tcp.dstport eq 80)) or ((ip.src eq 198.51.100.20 and tcp.srcport eq 80) and (ip.dst eq 192.0.2.10 and tcp.dstport eq 40000))
+Node 0: 192.0.2.10:40000
+Node 1: 198.51.100.20:80
+8
+one
+two
+
+	6
+three
+
+5
+four
+
+===================================================================

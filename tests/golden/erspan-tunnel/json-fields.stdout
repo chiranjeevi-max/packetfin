@@ -1,0 +1,123 @@
+[
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {}
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "erspan.version": [
+          "1"
+        ],
+        "erspan.vlan": [
+          "100"
+        ],
+        "erspan.spanid": [
+          "34"
+        ],
+        "erspan.index": [
+          "385280"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "erspan.version": [
+          "2"
+        ],
+        "erspan.vlan": [
+          "100"
+        ],
+        "erspan.spanid": [
+          "34"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "erspan.version": [
+          "2"
+        ],
+        "erspan.vlan": [
+          "100"
+        ],
+        "erspan.spanid": [
+          "34"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "erspan.version": [
+          "3",
+          "3"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "erspan.version": [
+          "1"
+        ],
+        "erspan.vlan": [
+          "100"
+        ],
+        "erspan.spanid": [
+          "34"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "erspan.version": [
+          "2"
+        ],
+        "erspan.vlan": [
+          "100"
+        ],
+        "erspan.spanid": [
+          "34"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {}
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {}
+    }
+  }
+]

@@ -1,0 +1,110 @@
+[
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "ipv6.fraghdr.ident": [
+          "0x00000001"
+        ],
+        "ipv6.reassembled.in": [
+          "2"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "ipv6.fraghdr.ident": [
+          "0x00000001"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "ipv6.fraghdr.ident": [
+          "0x00000002"
+        ],
+        "ipv6.reassembled.in": [
+          "4"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "ipv6.fraghdr.ident": [
+          "0x00000002"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "ipv6.fraghdr.ident": [
+          "0x00000003"
+        ],
+        "ipv6.reassembled.in": [
+          "6"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "ipv6.fraghdr.ident": [
+          "0x00000003"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "ipv6.fraghdr.ident": [
+          "0x00000004"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "ipv6.fraghdr.ident": [
+          "0x00000005"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "ipv6.fraghdr.ident": [
+          "0x00000005"
+        ]
+      }
+    }
+  }
+]

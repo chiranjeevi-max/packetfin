@@ -1,0 +1,2 @@
+packetfin: The file "tests/fixtures/compressed-lz4-concat.lz4" appears to be damaged or corrupt.
+(pcap: File has 1700000000-byte packet, bigger than maximum of 262144)

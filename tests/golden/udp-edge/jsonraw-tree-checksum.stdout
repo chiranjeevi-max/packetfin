@@ -1,0 +1,214 @@
+[
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "frame_raw": [
+          "0200000000020200000000010800450000251c4640004011324bc0000201c63364023039270f001112347061636b657466696e",
+          0,
+          51,
+          0,
+          1,
+          0
+        ],
+        "frame": {
+          "filtered": "frame"
+        },
+        "eth_raw": [
+          "0200000000020200000000010800",
+          0,
+          14,
+          0,
+          1,
+          0
+        ],
+        "eth": {
+          "filtered": "eth"
+        },
+        "ip_raw": [
+          "450000251c4640004011324bc0000201c6336402",
+          14,
+          20,
+          0,
+          1,
+          0
+        ],
+        "ip": {
+          "filtered": "ip"
+        },
+        "udp_raw": [
+          "3039270f00111234",
+          34,
+          8,
+          0,
+          1,
+          0
+        ],
+        "udp": {
+          "udp.srcport_raw": [
+            "3039",
+            34,
+            2,
+            0,
+            5,
+            0
+          ],
+          "udp.dstport_raw": [
+            "270f",
+            36,
+            2,
+            0,
+            5,
+            0
+          ],
+          "udp.port_raw": [
+            "3039",
+            34,
+            2,
+            0,
+            5,
+            0
+          ],
+          "udp.port_raw": [
+            "270f",
+            36,
+            2,
+            0,
+            5,
+            0
+          ],
+          "udp.length_raw": [
+            "0011",
+            38,
+            2,
+            0,
+            5,
+            0
+          ],
+          "udp.checksum_raw": [
+            "1234",
+            40,
+            2,
+            0,
+            5,
+            0
+          ],
+          "udp.checksum_tree": {
+            "_ws.expert_raw": [
+              "",
+              0,
+              0,
+              0,
+              1,
+              null
+            ],
+            "_ws.expert": {
+              "udp.checksum.bad_raw": [
+                "",
+                0,
+                0,
+                0,
+                0,
+                null
+              ],
+              "_ws.expert.message_raw": [
+                "",
+                0,
+                0,
+                0,
+                26,
+                null
+              ],
+              "_ws.expert.severity_raw": [
+                "",
+                0,
+                0,
+                0,
+                7,
+                null
+              ],
+              "_ws.expert.group_raw": [
+                "",
+                0,
+                0,
+                0,
+                7,
+                null
+              ]
+            },
+            "udp.checksum_calculated_raw": [
+              "1234",
+              40,
+              2,
+              0,
+              5,
+              0
+            ]
+          },
+          "udp.checksum.status_raw": [
+            "",
+            40,
+            0,
+            0,
+            4,
+            0
+          ],
+          "udp.stream_raw": [
+            "",
+            42,
+            0,
+            0,
+            7,
+            0
+          ],
+          "udp.stream.pnum_raw": [
+            "",
+            34,
+            0,
+            0,
+            7,
+            0
+          ],
+          "Timestamps": {
+            "udp.time_relative_raw": [
+              "",
+              34,
+              0,
+              0,
+              25,
+              0
+            ],
+            "udp.time_delta_raw": [
+              "",
+              34,
+              0,
+              0,
+              25,
+              0
+            ]
+          },
+          "udp.payload_raw": [
+            "7061636b657466696e",
+            42,
+            9,
+            0,
+            30,
+            0
+          ]
+        },
+        "data_raw": [
+          "7061636b657466696e",
+          42,
+          9,
+          0,
+          1,
+          0
+        ],
+        "data": {
+          "filtered": "data"
+        }
+      }
+    }
+  }
+]

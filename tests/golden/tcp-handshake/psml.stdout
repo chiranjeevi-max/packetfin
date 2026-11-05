@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<psml version="0" creator="creator">
+<structure>
+<section>No.</section>
+<section>Time</section>
+<section>Source</section>
+<section>Destination</section>
+<section>Protocol</section>
+<section>Length</section>
+<section>Info</section>
+</structure>
+
+<packet>
+<section>1</section>
+<section>0.000000</section>
+<section>192.0.2.1</section>
+<section>198.51.100.2</section>
+<section>TCP</section>
+<section>74</section>
+<section>40000 → 443 [SYN] Seq=1000 Win=65535 Len=0 MSS=1460 SACK_PERM WS=128 TSval=287454020 TSecr=0</section>
+</packet>
+
+<packet>
+<section>2</section>
+<section>0.000001</section>
+<section>192.0.2.1</section>
+<section>198.51.100.2</section>
+<section>TCP</section>
+<section>74</section>
+<section>443 → 40000 [SYN, ACK] Seq=5000 Ack=1001 Win=65535 Len=0 MSS=1460 SACK_PERM WS=128 TSval=287454020 TSecr=0</section>
+</packet>
+
+</psml>

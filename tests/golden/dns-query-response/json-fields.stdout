@@ -1,0 +1,36 @@
+[
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "dns.id": [
+          "0x1234"
+        ],
+        "dns.qry.name": [
+          "example.com"
+        ],
+        "dns.count.answers": [
+          "0"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "dns.id": [
+          "0x1234"
+        ],
+        "dns.qry.name": [
+          "example.com"
+        ],
+        "dns.count.answers": [
+          "9"
+        ]
+      }
+    }
+  }
+]

@@ -1,0 +1,82 @@
+[
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "frame": {
+          "filtered": "frame"
+        },
+        "eth": {
+          "filtered": "eth"
+        },
+        "lldp": {
+          "Chassis Subtype = MAC address, Id: 00:11:22:33:44:55": {
+            "lldp.tlv.type": "1",
+            "lldp.tlv.len": "7",
+            "lldp.chassis.subtype": "4",
+            "lldp.chassis.id.mac": "00:11:22:33:44:55"
+          },
+          "Port Subtype = Interface name, Id: eth0": {
+            "lldp.tlv.type": "2",
+            "lldp.tlv.len": "5",
+            "lldp.port.subtype": "5",
+            "lldp.port.id": "eth0"
+          },
+          "Time To Live = 120 sec": {
+            "lldp.pdu_type": "",
+            "lldp.tlv.type": "3",
+            "lldp.tlv.len": "2",
+            "lldp.time_to_live": "120"
+          },
+          "System Name = switch-b": {
+            "lldp.tlv.type": "5",
+            "lldp.tlv.len": "8",
+            "lldp.tlv.system.name": "switch-b"
+          },
+          "System Description = packetfin test switch b": {
+            "lldp.tlv.type": "6",
+            "lldp.tlv.len": "23",
+            "lldp.tlv.system.desc": "packetfin test switch b"
+          },
+          "Capabilities": {
+            "lldp.tlv.type": "7",
+            "lldp.tlv.len": "4",
+            "lldp.tlv.system_cap": "0x0004",
+            "lldp.tlv.system_cap_tree": {
+              "lldp.tlv.system_cap.other": "0",
+              "lldp.tlv.system_cap.repeater": "0",
+              "lldp.tlv.system_cap.bridge": "1",
+              "lldp.tlv.system_cap.wlan_access_pt": "0",
+              "lldp.tlv.system_cap.router": "0",
+              "lldp.tlv.system_cap.telephone": "0",
+              "lldp.tlv.system_cap.docsis_cable_device": "0",
+              "lldp.tlv.system_cap.station_only": "0",
+              "lldp.tlv.system_cap.cvlan": "0",
+              "lldp.tlv.system_cap.svlan": "0",
+              "lldp.tlv.system_cap.tpmr": "0"
+            },
+            "lldp.tlv.enable_system_cap": "0x0004",
+            "lldp.tlv.enable_system_cap_tree": {
+              "lldp.tlv.enable_system_cap.other": "0",
+              "lldp.tlv.enable_system_cap.repeater": "0",
+              "lldp.tlv.enable_system_cap.bridge": "1",
+              "lldp.tlv.enable_system_cap.wlan_access_pt": "0",
+              "lldp.tlv.enable_system_cap.router": "0",
+              "lldp.tlv.enable_system_cap.telephone": "0",
+              "lldp.tlv.enable_system_cap.docsis_cable_device": "0",
+              "lldp.tlv.enable_system_cap.station_only": "0",
+              "lldp.tlv.enable_system_cap.cvlan": "0",
+              "lldp.tlv.enable_system_cap.svlan": "0",
+              "lldp.tlv.enable_system_cap.tpmr": "0"
+            }
+          },
+          "End of LLDPDU": {
+            "lldp.tlv.type": "0",
+            "lldp.tlv.len": "0"
+          }
+        }
+      }
+    }
+  }
+]

@@ -1,0 +1,8 @@
+    1   0.000000    192.0.2.1 → 198.51.100.2 DNS 69 Standard query 0x3333 A retr.test
+    2   0.500000    192.0.2.1 → 198.51.100.2 DNS 69 Standard query 0x3333 A retr.test
+    3   1.000000 198.51.100.2 → 192.0.2.1    DNS 85 Standard query response 0x3333 A retr.test A 203.0.113.9
+    4   1.200000 198.51.100.2 → 192.0.2.1    DNS 85 Standard query response 0x3333 A retr.test A 203.0.113.9
+    5   1.500000    192.0.2.1 → 198.51.100.2 DNS 75 Standard query 0x4444 A unanswered.test
+    6   1.600000    192.0.2.1 → 198.51.100.2 DNS 75 Standard query 0x4444 A unanswered.test
+    7   8.000000    192.0.2.1 → 198.51.100.2 DNS 69 Standard query 0x5555 A late.test
+    8  14.100000    192.0.2.1 → 198.51.100.2 DNS 69 Standard query 0x5555 A late.test

@@ -1,0 +1,64 @@
+[
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "dhcp.id": [
+          "0x12345678"
+        ],
+        "dhcp.option.dhcp": [
+          "1"
+        ],
+        "dhcp.option.hostname": [
+          "client-host"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "dhcp.id": [
+          "0x12345678"
+        ],
+        "dhcp.option.dhcp": [
+          "2"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "dhcp.id": [
+          "0x12345678"
+        ],
+        "dhcp.option.dhcp": [
+          "3"
+        ],
+        "dhcp.option.hostname": [
+          "client-host"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "dhcp.id": [
+          "0x12345678"
+        ],
+        "dhcp.option.dhcp": [
+          "5"
+        ]
+      }
+    }
+  }
+]

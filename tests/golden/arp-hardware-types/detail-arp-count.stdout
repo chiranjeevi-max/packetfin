@@ -1,0 +1,13 @@
+Frame 1: Packet, 38 bytes on wire (304 bits), 38 bytes captured (304 bits)
+Ethernet II, Src: 02:00:00:00:00:01, Dst: 02:00:00:00:00:02
+Address Resolution Protocol (request)
+    Hardware type: NET/ROM pseudo (0)
+    Protocol type: IPv4 (0x0800)
+    Hardware size: 4
+    Protocol size: 4
+    Opcode: request (1)
+    Sender hardware address: 01020304
+    Sender IP address: 192.0.2.1
+    Target hardware address: 20212223
+    Target IP address: 198.51.100.2
+

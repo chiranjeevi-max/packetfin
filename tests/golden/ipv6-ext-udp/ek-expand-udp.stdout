@@ -1,0 +1,2 @@
+{"index":{"_index":"packets-2023-11-14"}}
+{"timestamp":"1700000000123","layers":{"udp":{"udp_udp_time_delta":"0.000000000","udp_udp_dstport":"9999","udp_udp_checksum":"19745","udp_udp_stream_pnum":"1","udp_udp_checksum_status":"2","udp_udp_port":["12345","9999"],"udp_udp_stream":"0","udp_udp_length":"8","text":"Timestamps","udp_udp_srcport":"12345","udp_udp_time_relative":"0.000000000"},"ipv6":{"filtered":"ipv6"},"frame":{"filtered":"frame"},"eth":{"filtered":"eth"}}}

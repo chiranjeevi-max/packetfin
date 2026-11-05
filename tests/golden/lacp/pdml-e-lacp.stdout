@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<?xml-stylesheet type="text/xsl" href="pdml2html.xsl"?>
+<!-- normalized -->
+<pdml version="0" creator="creator" time="time" capture_file="tests/fixtures/lacp.pcap">
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="74">
+    <field name="num" pos="0" show="1" showname="Number" value="1" size="74"/>
+    <field name="len" pos="0" show="74" showname="Frame Length" value="4a" size="74"/>
+    <field name="caplen" pos="0" show="74" showname="Captured Length" value="4a" size="74"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:20.123456000 UTC" showname="Captured Time" value="1700000000.123456000" size="74"/>
+  </proto>
+  <field name="lacp.actor.state" value="0x3d"/>
+</packet>
+
+
+</pdml>

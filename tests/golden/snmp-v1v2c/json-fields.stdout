@@ -1,0 +1,182 @@
+[
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "snmp.version": [
+          "0"
+        ],
+        "snmp.community": [
+          "public"
+        ],
+        "snmp.name": [
+          "1.3.6.1.2.1.1.1.0"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "snmp.version": [
+          "0"
+        ],
+        "snmp.community": [
+          "public"
+        ],
+        "snmp.name": [
+          "1.3.6.1.2.1.1.1.0"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "snmp.version": [
+          "1"
+        ],
+        "snmp.community": [
+          "public"
+        ],
+        "snmp.name": [
+          "1.3.6.1.2.1.1.1.0",
+          "1.3.6.1.2.1.1.3.0",
+          "1.3.6.1.2.1.1.5.0",
+          "1.3.6.1.2.1.4.20.1.1",
+          "1.3.6.1.2.1.4.20.1.2",
+          "1.3.6.1.2.1.4.20.1.3",
+          "1.3.6.1.2.1.4.20.1.4",
+          "1.3.6.1.2.1.4.20.1.5",
+          "1.3.6.1.2.1.4.20.1.6",
+          "1.3.6.1.2.1.4.20.1.7",
+          "1.3.6.1.2.1.4.20.1.8",
+          "1.3.6.1.2.1.4.20.1.9",
+          "1.3.6.1.2.1.4.20.1.10",
+          "1.3.6.1.2.1.4.20.1.11",
+          "1.3.6.1.2.1.4.20.1.12",
+          "1.3.6.1.2.1.4.20.1.13",
+          "1.3.6.1.2.1.4.20.1.14"
+        ],
+        "snmp.value.int": [
+          "-42"
+        ],
+        "snmp.value.octets": [
+          "41636d6520526f757465722039303030",
+          "656467652d31"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "snmp.version": [
+          "0"
+        ],
+        "snmp.community": [
+          "public"
+        ],
+        "snmp.name": [
+          "1.3.6.1.2.1.1.1.0"
+        ],
+        "snmp.value.octets": [
+          "74726170"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "snmp.version": [
+          "0"
+        ],
+        "snmp.community": [
+          "private"
+        ],
+        "snmp.name": [
+          "1.3.6.1.2.1.1.5.0"
+        ],
+        "snmp.value.octets": [
+          "6e6577"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "snmp.version": [
+          "1"
+        ],
+        "snmp.community": [
+          "public"
+        ],
+        "snmp.name": [
+          "1.3.6.1.2.1.1.1.0"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "snmp.version": [
+          "1"
+        ],
+        "snmp.community": [
+          "public"
+        ],
+        "snmp.name": [
+          "1.3.6.1.2.1.1.1.0"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "snmp.version": [
+          "1"
+        ],
+        "snmp.community": [
+          "public"
+        ],
+        "snmp.name": [
+          "1.3.6.1.2.1.1.3.0",
+          "1.3.6.1.6.3.1.1.4.1.0"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "snmp.version": [
+          "1"
+        ],
+        "snmp.community": [
+          "public"
+        ]
+      }
+    }
+  }
+]

@@ -1,0 +1,19 @@
+[
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "dhcp.option.option_overload": [
+          "3"
+        ],
+        "dhcp.option.hostname": [
+          "sname-host"
+        ],
+        "dhcp.option.tftp_server_name": [
+          "tftp.example.com"
+        ]
+      }
+    }
+  }
+]

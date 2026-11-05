@@ -1,0 +1,142 @@
+<?xml version="1.0" encoding="utf-8"?>
+<?xml-stylesheet type="text/xsl" href="pdml2html.xsl"?>
+<!-- normalized -->
+<pdml version="0" creator="creator" time="time" capture_file="tests/fixtures/ipv6-ext-udp.pcap">
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="70">
+    <field name="num" pos="0" show="1" showname="Number" value="1" size="70"/>
+    <field name="len" pos="0" show="70" showname="Frame Length" value="46" size="70"/>
+    <field name="caplen" pos="0" show="70" showname="Captured Length" value="46" size="70"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:20.123456000 UTC" showname="Captured Time" value="1700000000.123456000" size="70"/>
+  </proto>
+  <proto name="frame" showname="Frame 1: Packet, 70 bytes on wire (560 bits), 70 bytes captured (560 bits)" size="70" pos="0">
+    <field name="frame.encap_type" showname="Encapsulation type: Ethernet (1)" size="0" pos="0" show="1"/>
+    <field name="frame.time" showname="Arrival Time: Nov 14, 2023 22:13:20.123456000 UTC" size="0" pos="0" show="2023-11-14T22:13:20.123456000+0000"/>
+    <field name="frame.time_utc" showname="UTC Arrival Time: Nov 14, 2023 22:13:20.123456000 UTC" size="0" pos="0" show="2023-11-14T22:13:20.123456000Z"/>
+    <field name="frame.time_epoch" showname="Epoch Arrival Time: 1700000000.123456000" size="0" pos="0" show="1700000000.123456000"/>
+    <field name="frame.offset_shift" showname="Time shift for this packet: 0.000000000 seconds" size="0" pos="0" show="0.000000000"/>
+    <field name="frame.time_relative" showname="Time since reference or first frame: 0.000000000 seconds" size="0" pos="0" show="0.000000000"/>
+    <field name="frame.number" showname="Frame Number: 1" size="0" pos="0" show="1"/>
+    <field name="frame.len" showname="Frame Length: 70 bytes (560 bits)" size="0" pos="0" show="70"/>
+    <field name="frame.cap_len" showname="Capture Length: 70 bytes (560 bits)" size="0" pos="0" show="70"/>
+    <field name="frame.marked" showname="Frame is marked: False" size="0" pos="0" show="False"/>
+    <field name="frame.ignored" showname="Frame is ignored: False" size="0" pos="0" show="False"/>
+    <field name="frame.protocols" showname="Protocols in frame: eth:ethertype:ipv6:ipv6.hopopts:udp" size="0" pos="0" show="eth:ethertype:ipv6:ipv6.hopopts:udp"/>
+    <field name="frame.encoding" showname="Character encoding: ASCII (0)" size="0" pos="0" show="0"/>
+  </proto>
+  <proto name="eth" showname="Ethernet II, Src: 02:00:00:00:00:01, Dst: 02:00:00:00:00:02" size="14" pos="0">
+    <field name="eth.dst" showname="Destination: 02:00:00:00:00:02" size="6" pos="0" show="02:00:00:00:00:02" value="020000000002">
+      <field name="eth.dst_resolved" showname="Destination (resolved): 02:00:00:00:00:02" hide="yes" size="6" pos="0" show="02:00:00:00:00:02" value="020000000002"/>
+      <field name="eth.dst.oui" showname="Destination OUI: 02:00:00" hide="yes" size="3" pos="0" show="131072" value="020000"/>
+      <field name="eth.dst.lg" showname=".... ..1. .... .... .... .... = LG bit: Locally administered address (this is NOT the factory default)" size="3" pos="0" show="True" value="1" unmaskedvalue="020000"/>
+      <field name="eth.dst.ig" showname=".... ...0 .... .... .... .... = IG bit: Individual address (unicast)" size="3" pos="0" show="False" value="0" unmaskedvalue="020000"/>
+      <field name="eth.addr" showname="Address: 02:00:00:00:00:02" hide="yes" size="6" pos="0" show="02:00:00:00:00:02" value="020000000002"/>
+      <field name="eth.addr_resolved" showname="Address (resolved): 02:00:00:00:00:02" hide="yes" size="6" pos="0" show="02:00:00:00:00:02" value="020000000002"/>
+      <field name="eth.addr.oui" showname="Address OUI: 02:00:00" hide="yes" size="3" pos="0" show="131072" value="020000"/>
+      <field name="eth.lg" showname=".... ..1. .... .... .... .... = LG bit: Locally administered address (this is NOT the factory default)" hide="yes" size="3" pos="0" show="True" value="1" unmaskedvalue="020000"/>
+      <field name="eth.ig" showname=".... ...0 .... .... .... .... = IG bit: Individual address (unicast)" hide="yes" size="3" pos="0" show="False" value="0" unmaskedvalue="020000"/>
+    </field>
+    <field name="eth.src" showname="Source: 02:00:00:00:00:01" size="6" pos="6" show="02:00:00:00:00:01" value="020000000001">
+      <field name="eth.src_resolved" showname="Source (resolved): 02:00:00:00:00:01" hide="yes" size="6" pos="6" show="02:00:00:00:00:01" value="020000000001"/>
+      <field name="eth.src.oui" showname="Source OUI: 02:00:00" hide="yes" size="3" pos="6" show="131072" value="020000"/>
+      <field name="eth.src.lg" showname=".... ..1. .... .... .... .... = LG bit: Locally administered address (this is NOT the factory default)" size="3" pos="6" show="True" value="1" unmaskedvalue="020000"/>
+      <field name="eth.src.ig" showname=".... ...0 .... .... .... .... = IG bit: Individual address (unicast)" size="3" pos="6" show="False" value="0" unmaskedvalue="020000"/>
+      <field name="eth.addr" showname="Address: 02:00:00:00:00:01" hide="yes" size="6" pos="6" show="02:00:00:00:00:01" value="020000000001"/>
+      <field name="eth.addr_resolved" showname="Address (resolved): 02:00:00:00:00:01" hide="yes" size="6" pos="6" show="02:00:00:00:00:01" value="020000000001"/>
+      <field name="eth.addr.oui" showname="Address OUI: 02:00:00" hide="yes" size="3" pos="6" show="131072" value="020000"/>
+      <field name="eth.lg" showname=".... ..1. .... .... .... .... = LG bit: Locally administered address (this is NOT the factory default)" hide="yes" size="3" pos="6" show="True" value="1" unmaskedvalue="020000"/>
+      <field name="eth.ig" showname=".... ...0 .... .... .... .... = IG bit: Individual address (unicast)" hide="yes" size="3" pos="6" show="False" value="0" unmaskedvalue="020000"/>
+    </field>
+    <field name="eth.type" showname="Type: IPv6 (0x86dd)" size="2" pos="12" show="0x86dd" value="86dd"/>
+    <field name="eth.stream" showname="Stream index: 0" size="0" pos="0" show="0"/>
+  </proto>
+  <proto name="ipv6" showname="Internet Protocol Version 6, Src: 2001:db8::1, Dst: 2001:db8::2" size="48" pos="14">
+    <field name="ipv6.version" showname="0110 .... = Version: 6" size="1" pos="14" show="6" value="60"/>
+    <field name="ip.version" showname="0110 .... = Version: 6 [This field makes the filter match on &quot;ip.version == 6&quot; possible]" hide="yes" size="1" pos="14" show="6" value="6" unmaskedvalue="60"/>
+    <field name="ipv6.tclass" showname=".... 0000 0000 .... .... .... .... .... = Traffic Class: 0x00 (DSCP: CS0, ECN: Not-ECT)" size="4" pos="14" show="0x00000000" value="0" unmaskedvalue="60000000">
+      <field name="ipv6.tclass.dscp" showname=".... 0000 00.. .... .... .... .... .... = Differentiated Services Codepoint: Default (0)" size="4" pos="14" show="0" value="0" unmaskedvalue="60000000"/>
+      <field name="ipv6.tclass.ecn" showname=".... .... ..00 .... .... .... .... .... = Explicit Congestion Notification: Not ECN-Capable Transport (0)" size="4" pos="14" show="0" value="0" unmaskedvalue="60000000"/>
+    </field>
+    <field name="ipv6.flow" showname=".... 0000 0000 0000 0000 0000 = Flow Label: 0x00000" size="3" pos="15" show="0x000000" value="0" unmaskedvalue="000000"/>
+    <field name="ipv6.plen" showname="Payload Length: 16" size="2" pos="18" show="16" value="0010"/>
+    <field name="ipv6.nxt" showname="Next Header: IPv6 Hop-by-Hop Option (0)" size="1" pos="20" show="0" value="00"/>
+    <field name="ipv6.hlim" showname="Hop Limit: 64" size="1" pos="21" show="64" value="40"/>
+    <field name="ipv6.src" showname="Source Address: 2001:db8::1" size="16" pos="22" show="2001:db8::1" value="20010db8000000000000000000000001">
+      <field name="ipv6.src_addr_space" showname="Address Space: Global Unicast" size="2" pos="22" show="Global Unicast" value="2001"/>
+      <field name="ipv6.src_special_purpose" showname="Special-Purpose Allocation: Documentation" size="16" pos="22" show="Documentation" value="20010db8000000000000000000000001">
+        <field name="ipv6.src_special_purpose_source" showname="Source: False" size="16" pos="22" show="False" value="20010db8000000000000000000000001"/>
+        <field name="ipv6.src_special_purpose_destination" showname="Destination: False" size="16" pos="22" show="False" value="20010db8000000000000000000000001"/>
+        <field name="ipv6.src_special_purpose_forwardable" showname="Forwardable: False" size="16" pos="22" show="False" value="20010db8000000000000000000000001"/>
+        <field name="ipv6.src_special_purpose_global" showname="Globally Reachable: False" size="16" pos="22" show="False" value="20010db8000000000000000000000001"/>
+        <field name="ipv6.src_special_purpose_reserved" showname="Reserved-by-Protocol: False" size="16" pos="22" show="False" value="20010db8000000000000000000000001"/>
+      </field>
+    </field>
+    <field name="ipv6.addr" showname="Source or Destination Address: 2001:db8::1" hide="yes" size="16" pos="22" show="2001:db8::1" value="20010db8000000000000000000000001">
+      <field name="ipv6.addr_space" showname="Address Space: Global Unicast" size="2" pos="22" show="Global Unicast" value="2001"/>
+      <field name="ipv6.addr_special_purpose" showname="Special-Purpose Allocation: Documentation" size="16" pos="22" show="Documentation" value="20010db8000000000000000000000001">
+        <field name="ipv6.addr_special_purpose_source" showname="Source: False" size="16" pos="22" show="False" value="20010db8000000000000000000000001"/>
+        <field name="ipv6.addr_special_purpose_destination" showname="Destination: False" size="16" pos="22" show="False" value="20010db8000000000000000000000001"/>
+        <field name="ipv6.addr_special_purpose_forwardable" showname="Forwardable: False" size="16" pos="22" show="False" value="20010db8000000000000000000000001"/>
+        <field name="ipv6.addr_special_purpose_global" showname="Globally Reachable: False" size="16" pos="22" show="False" value="20010db8000000000000000000000001"/>
+        <field name="ipv6.addr_special_purpose_reserved" showname="Reserved-by-Protocol: False" size="16" pos="22" show="False" value="20010db8000000000000000000000001"/>
+      </field>
+    </field>
+    <field name="ipv6.src_host" showname="Source Host: 2001:db8::1" hide="yes" size="16" pos="22" show="2001:db8::1" value="20010db8000000000000000000000001"/>
+    <field name="ipv6.host" showname="Source or Destination Host: 2001:db8::1" hide="yes" size="16" pos="22" show="2001:db8::1" value="20010db8000000000000000000000001"/>
+    <field name="ipv6.dst" showname="Destination Address: 2001:db8::2" size="16" pos="38" show="2001:db8::2" value="20010db8000000000000000000000002">
+      <field name="ipv6.dst_addr_space" showname="Address Space: Global Unicast" size="2" pos="38" show="Global Unicast" value="2001"/>
+      <field name="ipv6.dst_special_purpose" showname="Special-Purpose Allocation: Documentation" size="16" pos="38" show="Documentation" value="20010db8000000000000000000000002">
+        <field name="ipv6.dst_special_purpose_source" showname="Source: False" size="16" pos="38" show="False" value="20010db8000000000000000000000002"/>
+        <field name="ipv6.dst_special_purpose_destination" showname="Destination: False" size="16" pos="38" show="False" value="20010db8000000000000000000000002"/>
+        <field name="ipv6.dst_special_purpose_forwardable" showname="Forwardable: False" size="16" pos="38" show="False" value="20010db8000000000000000000000002"/>
+        <field name="ipv6.dst_special_purpose_global" showname="Globally Reachable: False" size="16" pos="38" show="False" value="20010db8000000000000000000000002"/>
+        <field name="ipv6.dst_special_purpose_reserved" showname="Reserved-by-Protocol: False" size="16" pos="38" show="False" value="20010db8000000000000000000000002"/>
+      </field>
+    </field>
+    <field name="ipv6.addr" showname="Source or Destination Address: 2001:db8::2" hide="yes" size="16" pos="38" show="2001:db8::2" value="20010db8000000000000000000000002">
+      <field name="ipv6.addr_space" showname="Address Space: Global Unicast" size="2" pos="38" show="Global Unicast" value="2001"/>
+      <field name="ipv6.addr_special_purpose" showname="Special-Purpose Allocation: Documentation" size="16" pos="38" show="Documentation" value="20010db8000000000000000000000002">
+        <field name="ipv6.addr_special_purpose_source" showname="Source: False" size="16" pos="38" show="False" value="20010db8000000000000000000000002"/>
+        <field name="ipv6.addr_special_purpose_destination" showname="Destination: False" size="16" pos="38" show="False" value="20010db8000000000000000000000002"/>
+        <field name="ipv6.addr_special_purpose_forwardable" showname="Forwardable: False" size="16" pos="38" show="False" value="20010db8000000000000000000000002"/>
+        <field name="ipv6.addr_special_purpose_global" showname="Globally Reachable: False" size="16" pos="38" show="False" value="20010db8000000000000000000000002"/>
+        <field name="ipv6.addr_special_purpose_reserved" showname="Reserved-by-Protocol: False" size="16" pos="38" show="False" value="20010db8000000000000000000000002"/>
+      </field>
+    </field>
+    <field name="ipv6.dst_host" showname="Destination Host: 2001:db8::2" hide="yes" size="16" pos="38" show="2001:db8::2" value="20010db8000000000000000000000002"/>
+    <field name="ipv6.host" showname="Source or Destination Host: 2001:db8::2" hide="yes" size="16" pos="38" show="2001:db8::2" value="20010db8000000000000000000000002"/>
+    <field name="ipv6.stream" showname="Stream index: 0" size="0" pos="14" show="0"/>
+    <proto name="ipv6.hopopts" showname="IPv6 Hop-by-Hop Option" size="8" pos="54">
+      <field name="ipv6.hopopts.nxt" showname="Next Header: UDP (17)" size="1" pos="54" show="17" value="11"/>
+      <field name="ipv6.hopopts.len" showname="Length: 0" size="1" pos="55" show="0" value="00"/>
+      <field name="ipv6.hopopts.len_oct" showname="Length: 8 bytes" size="1" pos="55" show="8" value="00"/>
+      <field name="ipv6.opt" showname="PadN" size="6" pos="56" show="" value="">
+        <field name="ipv6.opt.type" showname="Type: PadN (0x01)" size="1" pos="56" show="0x01" value="01">
+          <field name="ipv6.opt.type.action" showname="00.. .... = Action: Skip and continue (0)" size="1" pos="56" show="0" value="0" unmaskedvalue="01"/>
+          <field name="ipv6.opt.type.change" showname="..0. .... = May Change: No" size="1" pos="56" show="False" value="0" unmaskedvalue="01"/>
+          <field name="ipv6.opt.type.rest" showname="...0 0001 = Low-Order Bits: 0x01" size="1" pos="56" show="0x01" value="1" unmaskedvalue="01"/>
+        </field>
+        <field name="ipv6.opt.length" showname="Length: 4" size="1" pos="57" show="4" value="04"/>
+        <field name="ipv6.opt.padn" showname="PadN: 00000000" size="4" pos="58" show="00:00:00:00" value="00000000"/>
+      </field>
+    </proto>
+  </proto>
+  <proto name="udp" showname="User Datagram Protocol, Src Port: 12345, Dst Port: 9999" size="8" pos="62">
+    <field name="udp.srcport" showname="Source Port: 12345" size="2" pos="62" show="12345" value="3039"/>
+    <field name="udp.dstport" showname="Destination Port: 9999" size="2" pos="64" show="9999" value="270f"/>
+    <field name="udp.port" showname="Source or Destination Port: 12345" hide="yes" size="2" pos="62" show="12345" value="3039"/>
+    <field name="udp.port" showname="Source or Destination Port: 9999" hide="yes" size="2" pos="64" show="9999" value="270f"/>
+    <field name="udp.length" showname="Length: 8" size="2" pos="66" show="8" value="0008"/>
+    <field name="udp.checksum" showname="Checksum: 0x4d21 [unverified]" size="2" pos="68" show="0x4d21" value="4d21"/>
+    <field name="udp.checksum.status" showname="Checksum Status: Unverified" size="0" pos="68" show="2"/>
+    <field name="udp.stream" showname="Stream index: 0" size="0" pos="70" show="0"/>
+    <field name="udp.stream.pnum" showname="Stream Packet Number: 1" size="0" pos="62" show="1"/>
+    <field name="" show="Timestamps" size="0" pos="62">
+      <field name="udp.time_relative" showname="Time since first frame: 0.000000000 seconds" size="0" pos="62" show="0.000000000"/>
+      <field name="udp.time_delta" showname="Time since previous frame: 0.000000000 seconds" size="0" pos="62" show="0.000000000"/>
+    </field>
+  </proto>
+</packet>
+
+
+</pdml>

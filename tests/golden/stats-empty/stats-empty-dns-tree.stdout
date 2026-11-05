@@ -1,0 +1,32 @@
+
+==============================================================================================================================================
+DNS:
+Packet Type                    Count         Average       Min Val       Max Val       Rate (ms)     Percent       Burst Rate    Burst Start  
+----------------------------------------------------------------------------------------------------------------------------------------------
+Total Packets                  0                                                                     100%          -             -            
+Response                       0                                                                     100%          -             -            
+Query Type                     0                                                                     100%          -             -            
+Answer Type                    0                                                                     100%          -             -            
+Query Name                     0                                                                     100%          -             -            
+Class                          0                                                                     100%          -             -            
+rcode                          0                                                                     100%          -             -            
+opcodes                        0                                                                     100%          -             -            
+Payload size                   0                                                                     100%          -             -            
+Query Stats                    0                                                                     100%          -             -            
+ Qname Len                     0                                                                                   -             -            
+ Label Stats                   0                                                                                   -             -            
+  4th Level or more            0                                                                                   -             -            
+  3rd Level                    0                                                                                   -             -            
+  2nd Level                    0                                                                                   -             -            
+  1st Level                    0                                                                                   -             -            
+Response Stats                 0                                                                     100%          -             -            
+ no. of questions              0                                                                                   -             -            
+ no. of authorities            0                                                                                   -             -            
+ no. of answers                0                                                                                   -             -            
+ no. of additionals            0                                                                                   -             -            
+Service Stats                  0                                                                     100%          -             -            
+ request-response time (msec)  0                                                                                   -             -            
+ no. of unsolicited responses  0                                                                                   -             -            
+ no. of retransmissions        0                                                                                   -             -            
+
+----------------------------------------------------------------------------------------------------------------------------------------------

@@ -1,0 +1,48 @@
+[
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "dhcp.hw.addr": [
+          "000102030405060708090a0b0c0d0e0f"
+        ],
+        "dhcp.hw.addr_padding": [
+          "0102030405060708090a0b0c0d0e0f"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "dhcp.hw.addr": [
+          "000102030405060708090a0b0c0d0e0f"
+        ],
+        "dhcp.hw.addr_padding": [
+          "0f"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "dhcp.client_address_not_given": [
+          "1"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {}
+    }
+  }
+]

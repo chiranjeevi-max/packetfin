@@ -1,0 +1,8 @@
+    1   0.000000    192.0.2.1 → 198.51.100.2 IPv4 114 Fragmented IP protocol (proto=Unknown 250, off=0, ID=0b0b)
+    2   0.000001    192.0.2.1 → 198.51.100.2 IPv4 54 Unknown (250)
+    3   0.000002    192.0.2.1 → 198.51.100.2 IPv4 54 Fragmented IP protocol (proto=Unknown 250, off=80, ID=0b0c)
+    4   0.000003    192.0.2.1 → 198.51.100.2 IPv4 114 Unknown (250)
+    5   0.000004  2001:db8::1 → 2001:db8::2  IPv6 142 IPv6 fragment (off=0 more=y ident=0x00000006 nxt=250)
+    6   0.000005  2001:db8::1 → 2001:db8::2  IPv6 82 Unknown IP Protocol: Unknown (250)
+    7   0.000006  2001:db8::1 → 2001:db8::2  IPv6 82 IPv6 fragment (off=80 more=n ident=0x00000007 nxt=250)
+    8   0.000007  2001:db8::1 → 2001:db8::2  IPv6 142 Unknown IP Protocol: Unknown (250)

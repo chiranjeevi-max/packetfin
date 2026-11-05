@@ -1,0 +1,6 @@
+# Keep generated capture fixtures and stored expected output byte-exact on
+# every platform. Line-ending conversion must never rewrite them.
+* text=auto
+tests/fixtures/** -text
+tests/golden/** -text
+fuzz/corpus/** -text

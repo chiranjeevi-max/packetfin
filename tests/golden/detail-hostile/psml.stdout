@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<psml version="0" creator="creator">
+<structure>
+<section>No.</section>
+<section>Time</section>
+<section>Source</section>
+<section>Destination</section>
+<section>Protocol</section>
+<section>Length</section>
+<section>Info</section>
+</structure>
+
+<packet>
+<section>1</section>
+<section>0.000000</section>
+<section>02:00:00:00:00:01</section>
+<section>02:00:00:00:00:02</section>
+<section>ARP</section>
+<section>42</section>
+<section>Who has 198.51.100.2? Tell 192.0.2.1</section>
+</packet>
+
+<packet>
+<section>2</section>
+<section>1.000000</section>
+<section>02:00:00:00:00:01</section>
+<section>02:00:00:00:00:02</section>
+<section>ARP</section>
+<section>42</section>
+<section>Who has 198.51.100.2? Tell 192.0.2.1</section>
+</packet>
+
+<packet>
+<section>3</section>
+<section>2.000000</section>
+<section>02:00:00:00:00:01</section>
+<section>02:00:00:00:00:02</section>
+<section>ARP</section>
+<section>42</section>
+<section>Who has 198.51.100.2? Tell 192.0.2.1</section>
+</packet>
+
+</psml>

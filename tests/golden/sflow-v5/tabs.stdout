@@ -1,0 +1,2 @@
+    1	  0.000000	   192.0.2.1	→	198.51.100.2	sFlow	1018	V5, agent 192.0.2.1, sub-agent ID 4, seq 42, 4 samples
+    2	  0.000001	   192.0.2.1	→	198.51.100.2	sFlow	122	V5, agent 2001:db8::9, sub-agent ID 7, seq 44, 1 samples

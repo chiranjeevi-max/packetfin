@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<?xml-stylesheet type="text/xsl" href="pdml2html.xsl"?>
+<!-- normalized -->
+<pdml version="0" creator="creator" time="time" capture_file="tests/fixtures/ipv6-basic.pcap">
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="58">
+    <field name="num" pos="0" show="1" showname="Number" value="1" size="58"/>
+    <field name="len" pos="0" show="58" showname="Frame Length" value="3a" size="58"/>
+    <field name="caplen" pos="0" show="58" showname="Captured Length" value="3a" size="58"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:20.123456000 UTC" showname="Captured Time" value="1700000000.123456000" size="58"/>
+  </proto>
+  <field name="ipv6.src" value="2001:db8::1"/>
+  <field name="ipv6.dst" value="2001:db8::2"/>
+</packet>
+
+
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="54">
+    <field name="num" pos="0" show="2" showname="Number" value="2" size="54"/>
+    <field name="len" pos="0" show="54" showname="Frame Length" value="36" size="54"/>
+    <field name="caplen" pos="0" show="54" showname="Captured Length" value="36" size="54"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:20.123457000 UTC" showname="Captured Time" value="1700000000.123457000" size="54"/>
+  </proto>
+  <field name="ipv6.src" value="fe80::1"/>
+  <field name="ipv6.dst" value="ff02::1"/>
+</packet>
+
+
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="54">
+    <field name="num" pos="0" show="3" showname="Number" value="3" size="54"/>
+    <field name="len" pos="0" show="54" showname="Frame Length" value="36" size="54"/>
+    <field name="caplen" pos="0" show="54" showname="Captured Length" value="36" size="54"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:20.123458000 UTC" showname="Captured Time" value="1700000000.123458000" size="54"/>
+  </proto>
+  <field name="ipv6.src" value="::"/>
+  <field name="ipv6.dst" value="::1"/>
+</packet>
+
+
+</pdml>

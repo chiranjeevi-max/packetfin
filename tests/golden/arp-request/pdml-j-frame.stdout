@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<?xml-stylesheet type="text/xsl" href="pdml2html.xsl"?>
+<!-- normalized -->
+<pdml version="0" creator="creator" time="time" capture_file="tests/fixtures/arp-request.pcap">
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="42">
+    <field name="num" pos="0" show="1" showname="Number" value="1" size="42"/>
+    <field name="len" pos="0" show="42" showname="Frame Length" value="2a" size="42"/>
+    <field name="caplen" pos="0" show="42" showname="Captured Length" value="2a" size="42"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:20.123456000 UTC" showname="Captured Time" value="1700000000.123456000" size="42"/>
+  </proto>
+  <proto name="frame" showname="Frame 1: Packet, 42 bytes on wire (336 bits), 42 bytes captured (336 bits)" size="42" pos="0">
+    <field name="frame.encap_type" showname="Encapsulation type: Ethernet (1)" size="0" pos="0" show="1"/>
+    <field name="frame.time" showname="Arrival Time: Nov 14, 2023 22:13:20.123456000 UTC" size="0" pos="0" show="2023-11-14T22:13:20.123456000+0000"/>
+    <field name="frame.time_utc" showname="UTC Arrival Time: Nov 14, 2023 22:13:20.123456000 UTC" size="0" pos="0" show="2023-11-14T22:13:20.123456000Z"/>
+    <field name="frame.time_epoch" showname="Epoch Arrival Time: 1700000000.123456000" size="0" pos="0" show="1700000000.123456000"/>
+    <field name="frame.offset_shift" showname="Time shift for this packet: 0.000000000 seconds" size="0" pos="0" show="0.000000000"/>
+    <field name="frame.time_relative" showname="Time since reference or first frame: 0.000000000 seconds" size="0" pos="0" show="0.000000000"/>
+    <field name="frame.number" showname="Frame Number: 1" size="0" pos="0" show="1"/>
+    <field name="frame.len" showname="Frame Length: 42 bytes (336 bits)" size="0" pos="0" show="42"/>
+    <field name="frame.cap_len" showname="Capture Length: 42 bytes (336 bits)" size="0" pos="0" show="42"/>
+    <field name="frame.marked" showname="Frame is marked: False" size="0" pos="0" show="False"/>
+    <field name="frame.ignored" showname="Frame is ignored: False" size="0" pos="0" show="False"/>
+    <field name="frame.protocols" showname="Protocols in frame: eth:ethertype:arp" size="0" pos="0" show="eth:ethertype:arp"/>
+    <field name="frame.encoding" showname="Character encoding: ASCII (0)" size="0" pos="0" show="0"/>
+  </proto>
+  <proto name="eth" showname="Ethernet II, Src: 02:00:00:00:00:01, Dst: 02:00:00:00:00:02" size="14" pos="0">
+    <field name="filtered" value="eth" />
+  </proto>
+  <proto name="arp" showname="Address Resolution Protocol (request)" size="28" pos="14">
+    <field name="filtered" value="arp" />
+  </proto>
+</packet>
+
+
+</pdml>

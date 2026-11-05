@@ -1,0 +1,206 @@
+Frame 1: Packet, 379 bytes on wire (3032 bits), 379 bytes captured (3032 bits)
+Ethernet II, Src: 02:00:00:00:00:01, Dst: 02:00:00:00:00:02
+Internet Protocol Version 4, Src: 192.0.2.1, Dst: 198.51.100.2
+User Datagram Protocol, Src Port: 68, Dst Port: 67
+Dynamic Host Configuration Protocol (Discover)
+    Message type: Boot Request (1)
+    Hardware type: Ethernet (0x01)
+    Hardware address length: 6
+    Hops: 0
+    Transaction ID: 0x12345678
+    Seconds elapsed: 0
+    Bootp flags: 0x8000, Broadcast flag (Broadcast)
+        1... .... .... .... = Broadcast flag: Broadcast
+        .000 0000 0000 0000 = Reserved flags: 0x0000
+    Client IP address: 0.0.0.0
+    Your (client) IP address: 0.0.0.0
+    Next server IP address: 0.0.0.0
+    Relay agent IP address: 0.0.0.0
+    Client MAC address: 02:00:00:00:00:01
+    Client hardware address padding: 00000000000000000000
+    Server host name not given
+    Boot file name not given
+    Magic cookie: DHCP
+    Option: (53) DHCP Message Type (Discover)
+        Length: 1
+        DHCP: Discover (1)
+    Option: (61) Client identifier
+        Length: 7
+        Hardware type: Ethernet (0x01)
+        Client MAC address: 02:00:00:00:00:01
+    Option: (12) Host Name
+        Length: 11
+        Host Name: client-host
+    Option: (55) Parameter Request List
+        Length: 5
+        Parameter Request List Item: (1) Subnet Mask
+        Parameter Request List Item: (3) Router
+        Parameter Request List Item: (6) Domain Name Server
+        Parameter Request List Item: (15) Domain Name
+        Parameter Request List Item: (28) Broadcast Address
+    Option: (50) Requested IP Address (192.0.2.100)
+        Length: 4
+        Requested IP Address: 192.0.2.100
+    Option: (57) Maximum DHCP Message Size
+        Length: 2
+        Maximum DHCP Message Size: 1500
+    Option: (60) Vendor class identifier
+        Length: 32
+        Vendor class identifier: PXEClient:Arch:00000:UNDI:002001
+    Option: (82) Agent Information Option
+        Length: 18
+        Option 82 Suboption: (1) Agent Circuit ID
+            Length: 6
+            Agent Circuit ID: 010203040506
+        Option 82 Suboption: (2) Agent Remote ID
+            Length: 8
+            Agent Remote ID: 6162636431323334
+    Option: (255) End
+        Option End: 255
+
+Frame 2: Packet, 351 bytes on wire (2808 bits), 351 bytes captured (2808 bits)
+Ethernet II, Src: 02:00:00:00:00:01, Dst: 02:00:00:00:00:02
+Internet Protocol Version 4, Src: 192.0.2.1, Dst: 198.51.100.2
+User Datagram Protocol, Src Port: 68, Dst Port: 67
+Dynamic Host Configuration Protocol (Offer)
+    Message type: Boot Reply (2)
+    Hardware type: Ethernet (0x01)
+    Hardware address length: 6
+    Hops: 0
+    Transaction ID: 0x12345678
+    Seconds elapsed: 0
+    Bootp flags: 0x8000, Broadcast flag (Broadcast)
+        1... .... .... .... = Broadcast flag: Broadcast
+        .000 0000 0000 0000 = Reserved flags: 0x0000
+    Client IP address: 0.0.0.0
+    Your (client) IP address: 192.0.2.100
+    Next server IP address: 192.0.2.1
+    Relay agent IP address: 0.0.0.0
+    Client MAC address: 02:00:00:00:00:01
+    Client hardware address padding: 00000000000000000000
+    Server host name not given
+    Boot file name not given
+    Magic cookie: DHCP
+    Option: (53) DHCP Message Type (Offer)
+        Length: 1
+        DHCP: Offer (2)
+    Option: (54) DHCP Server Identifier (192.0.2.1)
+        Length: 4
+        DHCP Server Identifier: 192.0.2.1
+    Option: (51) IP Address Lease Time
+        Length: 4
+        IP Address Lease Time: 1 day (86400)
+    Option: (1) Subnet Mask (255.255.255.0)
+        Length: 4
+        Subnet Mask: 255.255.255.0
+    Option: (3) Router
+        Length: 4
+        Router: 192.0.2.1
+    Option: (6) Domain Name Server
+        Length: 8
+        Domain Name Server: 8.8.8.8
+        Domain Name Server: 8.8.4.4
+    Option: (15) Domain Name
+        Length: 11
+        Domain Name: example.com
+    Option: (58) Renewal Time Value
+        Length: 4
+        Renewal Time Value: 12 hours (43200)
+    Option: (59) Rebinding Time Value
+        Length: 4
+        Rebinding Time Value: 21 hours (75600)
+    Option: (28) Broadcast Address (192.0.2.255)
+        Length: 4
+        Broadcast Address: 192.0.2.255
+    Option: (255) End
+        Option End: 255
+
+Frame 3: Packet, 331 bytes on wire (2648 bits), 331 bytes captured (2648 bits)
+Ethernet II, Src: 02:00:00:00:00:01, Dst: 02:00:00:00:00:02
+Internet Protocol Version 4, Src: 192.0.2.1, Dst: 198.51.100.2
+User Datagram Protocol, Src Port: 68, Dst Port: 67
+Dynamic Host Configuration Protocol (Request)
+    Message type: Boot Request (1)
+    Hardware type: Ethernet (0x01)
+    Hardware address length: 6
+    Hops: 0
+    Transaction ID: 0x12345678
+    Seconds elapsed: 0
+    Bootp flags: 0x8000, Broadcast flag (Broadcast)
+        1... .... .... .... = Broadcast flag: Broadcast
+        .000 0000 0000 0000 = Reserved flags: 0x0000
+    Client IP address: 0.0.0.0
+    Your (client) IP address: 0.0.0.0
+    Next server IP address: 0.0.0.0
+    Relay agent IP address: 0.0.0.0
+    Client MAC address: 02:00:00:00:00:01
+    Client hardware address padding: 00000000000000000000
+    Server host name not given
+    Boot file name not given
+    Magic cookie: DHCP
+    Option: (53) DHCP Message Type (Request)
+        Length: 1
+        DHCP: Request (3)
+    Option: (61) Client identifier
+        Length: 7
+        Hardware type: Ethernet (0x01)
+        Client MAC address: 02:00:00:00:00:01
+    Option: (50) Requested IP Address (192.0.2.100)
+        Length: 4
+        Requested IP Address: 192.0.2.100
+    Option: (54) DHCP Server Identifier (192.0.2.1)
+        Length: 4
+        DHCP Server Identifier: 192.0.2.1
+    Option: (12) Host Name
+        Length: 11
+        Host Name: client-host
+    Option: (56) Message
+        Length: 9
+        Message: packetfin
+    Option: (255) End
+        Option End: 255
+
+Frame 4: Packet, 316 bytes on wire (2528 bits), 316 bytes captured (2528 bits)
+Ethernet II, Src: 02:00:00:00:00:01, Dst: 02:00:00:00:00:02
+Internet Protocol Version 4, Src: 192.0.2.1, Dst: 198.51.100.2
+User Datagram Protocol, Src Port: 68, Dst Port: 67
+Dynamic Host Configuration Protocol (ACK)
+    Message type: Boot Reply (2)
+    Hardware type: Ethernet (0x01)
+    Hardware address length: 6
+    Hops: 0
+    Transaction ID: 0x12345678
+    Seconds elapsed: 0
+    Bootp flags: 0x8000, Broadcast flag (Broadcast)
+        1... .... .... .... = Broadcast flag: Broadcast
+        .000 0000 0000 0000 = Reserved flags: 0x0000
+    Client IP address: 0.0.0.0
+    Your (client) IP address: 192.0.2.100
+    Next server IP address: 192.0.2.1
+    Relay agent IP address: 0.0.0.0
+    Client MAC address: 02:00:00:00:00:01
+    Client hardware address padding: 00000000000000000000
+    Server host name not given
+    Boot file name not given
+    Magic cookie: DHCP
+    Option: (53) DHCP Message Type (ACK)
+        Length: 1
+        DHCP: ACK (5)
+    Option: (54) DHCP Server Identifier (192.0.2.1)
+        Length: 4
+        DHCP Server Identifier: 192.0.2.1
+    Option: (51) IP Address Lease Time
+        Length: 4
+        IP Address Lease Time: 1 hour (3600)
+    Option: (1) Subnet Mask (255.255.255.0)
+        Length: 4
+        Subnet Mask: 255.255.255.0
+    Option: (3) Router
+        Length: 4
+        Router: 192.0.2.1
+    Option: (6) Domain Name Server
+        Length: 4
+        Domain Name Server: 8.8.8.8
+    Option: (255) End
+        Option End: 255
+

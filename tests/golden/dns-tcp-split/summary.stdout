@@ -1,0 +1,10 @@
+    1   0.000000    192.0.2.1 → 192.0.2.2    TCP 55 40200 → 53 [PSH, ACK] Seq=1000 Ack=1 Win=65535 Len=1
+    2   0.000001    192.0.2.1 → 192.0.2.2    DNS 84 Standard query 0x1234 A example.com
+    3   0.000002    192.0.2.1 → 192.0.2.2    TCP 56 40201 → 53 [PSH, ACK] Seq=1000 Ack=1 Win=65535 Len=2
+    4   0.000003    192.0.2.1 → 192.0.2.2    DNS 83 Standard query 0x1234 A example.com
+    5   0.000004    192.0.2.1 → 192.0.2.2    TCP 68 40202 → 53 [PSH, ACK] Seq=1000 Ack=1 Win=65535 Len=14
+    6   0.000005    192.0.2.1 → 192.0.2.2    DNS 101 Standard query 0x2345 A a.example, Standard query 0x3456 A b.example
+    7   0.000006    192.0.2.1 → 192.0.2.2    TCP 59 40203 → 53 [PSH, ACK] Seq=1000 Ack=1 Win=65535 Len=5
+    8   0.000007    192.0.2.1 → 192.0.2.2    TCP 75 40203 → 53 [PSH, ACK] Seq=1005 Ack=1 Win=65535 Len=21
+    9   0.000008    192.0.2.1 → 192.0.2.2    TCP 55 40204 → 53 [PSH, ACK] Seq=1000 Ack=1 Win=65535 Len=1
+   10   0.000009    192.0.2.1 → 192.0.2.2    DNS 55 [Malformed Packet]

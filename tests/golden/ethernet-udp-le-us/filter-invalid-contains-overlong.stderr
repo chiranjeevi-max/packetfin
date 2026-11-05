@@ -1,0 +1,3 @@
+packetfin: "02:00:00:00:00:02:03" contains too many bytes to be a valid Ethernet address.
+    eth.dst contains 02:00:00:00:00:02:03
+                     ^~~~~~~~~~~~~~~~~~~~

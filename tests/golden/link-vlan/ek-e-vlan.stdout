@@ -1,0 +1,12 @@
+{"index":{"_index":"packets-2023-11-14"}}
+{"timestamp":"1700000000123","layers":{"vlan_id":["100"],"vlan_priority":["5"]}}
+{"index":{"_index":"packets-2023-11-14"}}
+{"timestamp":"1700000000123","layers":{"vlan_id":["20"],"vlan_priority":["1"]}}
+{"index":{"_index":"packets-2023-11-14"}}
+{"timestamp":"1700000000123","layers":{"vlan_id":["30"],"vlan_priority":["2"]}}
+{"index":{"_index":"packets-2023-11-14"}}
+{"timestamp":"1700000000123","layers":{"vlan_id":["40"],"vlan_priority":["3"]}}
+{"index":{"_index":"packets-2023-11-14"}}
+{"timestamp":"1700000000123","layers":{"vlan_id":["50"],"vlan_priority":["4"]}}
+{"index":{"_index":"packets-2023-11-14"}}
+{"timestamp":"1700000000123","layers":{"vlan_id":["60"],"vlan_priority":["5"]}}

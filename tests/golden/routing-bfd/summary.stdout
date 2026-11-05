@@ -1,0 +1,10 @@
+    1   0.000000    192.0.2.1 → 198.51.100.2 BFD Control 66 Diag: No Diagnostic, State: AdminDown, Flags: 0x00
+    2   0.000001    192.0.2.1 → 198.51.100.2 BFD Control 66 Diag: No Diagnostic, State: Up, Flags: 0x38
+    3   0.000002    192.0.2.1 → 198.51.100.2 BFD Control 77 Diag: No Diagnostic, State: AdminDown, Flags: 0x04
+    4   0.000003    192.0.2.1 → 198.51.100.2 BFD Control 90 Diag: No Diagnostic, State: AdminDown, Flags: 0x04
+    5   0.000004    192.0.2.1 → 198.51.100.2 BFD Echo 50 Originator specific content
+    6   0.000005    192.0.2.1 → 198.51.100.2 BFD Control 50 [Malformed Packet]
+    7   0.000006    192.0.2.1 → 198.51.100.2 BFD Control 81 Diag: No Diagnostic, State: AdminDown, Flags: 0x04[Malformed Packet]
+    8   0.000007    192.0.2.1 → 198.51.100.2 BFD Control 66 Diag: No Diagnostic, State: AdminDown, Flags: 0x04
+    9   0.000008    192.0.2.1 → 198.51.100.2 BFD Control 70 Diag: No Diagnostic, State: AdminDown, Flags: 0x00
+   10   0.000009    192.0.2.1 → 198.51.100.2 BFD Control 66 Diag: No Diagnostic, Flags: 0x80

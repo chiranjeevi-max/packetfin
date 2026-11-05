@@ -1,0 +1,365 @@
+[
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "frame": {
+          "filtered": "frame"
+        },
+        "eth": {
+          "filtered": "eth"
+        },
+        "ip": {
+          "filtered": "ip"
+        },
+        "udp": {
+          "filtered": "udp"
+        },
+        "dhcp": {
+          "dhcp.type": "1",
+          "dhcp.hw.type": "0x01",
+          "dhcp.hw.len": "6",
+          "dhcp.hops": "0",
+          "dhcp.id": "0x12345678",
+          "dhcp.secs": "0",
+          "dhcp.flags": "0x8000",
+          "dhcp.flags_tree": {
+            "dhcp.flags.bc": "1",
+            "dhcp.flags.reserved": "0x0000"
+          },
+          "dhcp.ip.client": "0.0.0.0",
+          "dhcp.ip.your": "0.0.0.0",
+          "dhcp.ip.server": "0.0.0.0",
+          "dhcp.ip.relay": "0.0.0.0",
+          "dhcp.hw.mac_addr": "02:00:00:00:00:01",
+          "dhcp.hw.addr_padding": "00:00:00:00:00:00:00:00:00:00",
+          "dhcp.server": "",
+          "dhcp.file": "",
+          "dhcp.cookie": "99.130.83.99",
+          "dhcp.option.type": "53",
+          "dhcp.option.type_tree": {
+            "dhcp.option.length": "1",
+            "dhcp.option.value": "01",
+            "dhcp.option.dhcp": "1"
+          },
+          "dhcp.option.type": "61",
+          "dhcp.option.type_tree": {
+            "dhcp.option.length": "7",
+            "dhcp.option.value": "01:02:00:00:00:00:01",
+            "dhcp.hw.type": "0x01",
+            "dhcp.hw.mac_addr": "02:00:00:00:00:01"
+          },
+          "dhcp.option.type": "0",
+          "dhcp.option.type_tree": {
+            "dhcp.option.end": "255"
+          }
+        }
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "frame": {
+          "filtered": "frame"
+        },
+        "eth": {
+          "filtered": "eth"
+        },
+        "ip": {
+          "filtered": "ip"
+        },
+        "udp": {
+          "filtered": "udp"
+        },
+        "dhcp": {
+          "dhcp.type": "1",
+          "dhcp.hw.type": "0x01",
+          "dhcp.hw.len": "6",
+          "dhcp.hops": "0",
+          "dhcp.id": "0x12345678",
+          "dhcp.secs": "0",
+          "dhcp.flags": "0x8000",
+          "dhcp.flags_tree": {
+            "dhcp.flags.bc": "1",
+            "dhcp.flags.reserved": "0x0000"
+          },
+          "dhcp.ip.client": "0.0.0.0",
+          "dhcp.ip.your": "0.0.0.0",
+          "dhcp.ip.server": "0.0.0.0",
+          "dhcp.ip.relay": "0.0.0.0",
+          "dhcp.hw.mac_addr": "02:00:00:00:00:01",
+          "dhcp.hw.addr_padding": "00:00:00:00:00:00:00:00:00:00",
+          "dhcp.server": "",
+          "dhcp.file": "",
+          "dhcp.cookie": "99.130.83.99",
+          "dhcp.option.type": "53",
+          "dhcp.option.type_tree": {
+            "dhcp.option.length": "1",
+            "dhcp.option.value": "01",
+            "dhcp.option.dhcp": "1"
+          },
+          "dhcp.option.type": "61",
+          "dhcp.option.type_tree": {
+            "dhcp.option.length": "7",
+            "dhcp.option.value": "02:01:02:03:04:05:06",
+            "dhcp.hw.type": "0x02",
+            "dhcp.client_hardware_address": "010203040506"
+          },
+          "dhcp.option.type": "0",
+          "dhcp.option.type_tree": {
+            "dhcp.option.end": "255"
+          }
+        }
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "frame": {
+          "filtered": "frame"
+        },
+        "eth": {
+          "filtered": "eth"
+        },
+        "ip": {
+          "filtered": "ip"
+        },
+        "udp": {
+          "filtered": "udp"
+        },
+        "dhcp": {
+          "dhcp.type": "1",
+          "dhcp.hw.type": "0x01",
+          "dhcp.hw.len": "6",
+          "dhcp.hops": "0",
+          "dhcp.id": "0x12345678",
+          "dhcp.secs": "0",
+          "dhcp.flags": "0x8000",
+          "dhcp.flags_tree": {
+            "dhcp.flags.bc": "1",
+            "dhcp.flags.reserved": "0x0000"
+          },
+          "dhcp.ip.client": "0.0.0.0",
+          "dhcp.ip.your": "0.0.0.0",
+          "dhcp.ip.server": "0.0.0.0",
+          "dhcp.ip.relay": "0.0.0.0",
+          "dhcp.hw.mac_addr": "02:00:00:00:00:01",
+          "dhcp.hw.addr_padding": "00:00:00:00:00:00:00:00:00:00",
+          "dhcp.server": "",
+          "dhcp.file": "",
+          "dhcp.cookie": "99.130.83.99",
+          "dhcp.option.type": "53",
+          "dhcp.option.type_tree": {
+            "dhcp.option.length": "1",
+            "dhcp.option.value": "01",
+            "dhcp.option.dhcp": "1"
+          },
+          "dhcp.option.type": "61",
+          "dhcp.option.type_tree": {
+            "dhcp.option.length": "7",
+            "dhcp.option.value": "06:01:02:03:04:05:06",
+            "dhcp.hw.type": "0x06",
+            "dhcp.hw.mac_addr": "01:02:03:04:05:06"
+          },
+          "dhcp.option.type": "0",
+          "dhcp.option.type_tree": {
+            "dhcp.option.end": "255"
+          }
+        }
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "frame": {
+          "filtered": "frame"
+        },
+        "eth": {
+          "filtered": "eth"
+        },
+        "ip": {
+          "filtered": "ip"
+        },
+        "udp": {
+          "filtered": "udp"
+        },
+        "dhcp": {
+          "dhcp.type": "1",
+          "dhcp.hw.type": "0x01",
+          "dhcp.hw.len": "6",
+          "dhcp.hops": "0",
+          "dhcp.id": "0x12345678",
+          "dhcp.secs": "0",
+          "dhcp.flags": "0x8000",
+          "dhcp.flags_tree": {
+            "dhcp.flags.bc": "1",
+            "dhcp.flags.reserved": "0x0000"
+          },
+          "dhcp.ip.client": "0.0.0.0",
+          "dhcp.ip.your": "0.0.0.0",
+          "dhcp.ip.server": "0.0.0.0",
+          "dhcp.ip.relay": "0.0.0.0",
+          "dhcp.hw.mac_addr": "02:00:00:00:00:01",
+          "dhcp.hw.addr_padding": "00:00:00:00:00:00:00:00:00:00",
+          "dhcp.server": "",
+          "dhcp.file": "",
+          "dhcp.cookie": "99.130.83.99",
+          "dhcp.option.type": "53",
+          "dhcp.option.type_tree": {
+            "dhcp.option.length": "1",
+            "dhcp.option.value": "01",
+            "dhcp.option.dhcp": "1"
+          },
+          "dhcp.option.type": "61",
+          "dhcp.option.type_tree": {
+            "dhcp.option.length": "19",
+            "dhcp.option.value": "ff:00:00:00:00:00:01:00:01:e9:00:00:00:02:00:00:00:00:01",
+            "dhcp.client_id.iaid": "00000000",
+            "dhcp.client_id.duid_type": "1",
+            "dhcp.client_id.duid_llt_hw_type": "1",
+            "dhcp.client_id.time": "3909091328",
+            "dhcp.client_id.link_layer_address": "02:00:00:00:00:01",
+            "dhcp.client_id.link_layer_address_ether": "02:00:00:00:00:01"
+          },
+          "dhcp.option.type": "0",
+          "dhcp.option.type_tree": {
+            "dhcp.option.end": "255"
+          }
+        }
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "frame": {
+          "filtered": "frame"
+        },
+        "eth": {
+          "filtered": "eth"
+        },
+        "ip": {
+          "filtered": "ip"
+        },
+        "udp": {
+          "filtered": "udp"
+        },
+        "dhcp": {
+          "dhcp.type": "1",
+          "dhcp.hw.type": "0x01",
+          "dhcp.hw.len": "6",
+          "dhcp.hops": "0",
+          "dhcp.id": "0x12345678",
+          "dhcp.secs": "0",
+          "dhcp.flags": "0x8000",
+          "dhcp.flags_tree": {
+            "dhcp.flags.bc": "1",
+            "dhcp.flags.reserved": "0x0000"
+          },
+          "dhcp.ip.client": "0.0.0.0",
+          "dhcp.ip.your": "0.0.0.0",
+          "dhcp.ip.server": "0.0.0.0",
+          "dhcp.ip.relay": "0.0.0.0",
+          "dhcp.hw.mac_addr": "02:00:00:00:00:01",
+          "dhcp.hw.addr_padding": "00:00:00:00:00:00:00:00:00:00",
+          "dhcp.server": "",
+          "dhcp.file": "",
+          "dhcp.cookie": "99.130.83.99",
+          "dhcp.option.type": "53",
+          "dhcp.option.type_tree": {
+            "dhcp.option.length": "1",
+            "dhcp.option.value": "01",
+            "dhcp.option.dhcp": "1"
+          },
+          "dhcp.option.type": "61",
+          "dhcp.option.type_tree": {
+            "dhcp.option.length": "15",
+            "dhcp.option.value": "ff:00:00:00:01:00:03:00:01:02:00:00:00:00:01",
+            "dhcp.client_id.iaid": "00000001",
+            "dhcp.client_id.duid_type": "3",
+            "dhcp.client_id.duid_ll_hw_type": "1",
+            "dhcp.client_id.link_layer_address": "02:00:00:00:00:01",
+            "dhcp.client_id.link_layer_address_ether": "02:00:00:00:00:01"
+          },
+          "dhcp.option.type": "0",
+          "dhcp.option.type_tree": {
+            "dhcp.option.end": "255"
+          }
+        }
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "frame": {
+          "filtered": "frame"
+        },
+        "eth": {
+          "filtered": "eth"
+        },
+        "ip": {
+          "filtered": "ip"
+        },
+        "udp": {
+          "filtered": "udp"
+        },
+        "dhcp": {
+          "dhcp.type": "1",
+          "dhcp.hw.type": "0x01",
+          "dhcp.hw.len": "6",
+          "dhcp.hops": "0",
+          "dhcp.id": "0x12345678",
+          "dhcp.secs": "0",
+          "dhcp.flags": "0x8000",
+          "dhcp.flags_tree": {
+            "dhcp.flags.bc": "1",
+            "dhcp.flags.reserved": "0x0000"
+          },
+          "dhcp.ip.client": "0.0.0.0",
+          "dhcp.ip.your": "0.0.0.0",
+          "dhcp.ip.server": "0.0.0.0",
+          "dhcp.ip.relay": "0.0.0.0",
+          "dhcp.hw.mac_addr": "02:00:00:00:00:01",
+          "dhcp.hw.addr_padding": "00:00:00:00:00:00:00:00:00:00",
+          "dhcp.server": "",
+          "dhcp.file": "",
+          "dhcp.cookie": "99.130.83.99",
+          "dhcp.option.type": "53",
+          "dhcp.option.type_tree": {
+            "dhcp.option.length": "1",
+            "dhcp.option.value": "01",
+            "dhcp.option.dhcp": "1"
+          },
+          "dhcp.option.type": "61",
+          "dhcp.option.type_tree": {
+            "dhcp.option.length": "14",
+            "dhcp.option.value": "ff:00:00:00:02:00:02:00:00:7e:d9:61:62:63",
+            "dhcp.client_id.iaid": "00000002",
+            "dhcp.client_id.duid_type": "2",
+            "dhcp.client_id.enterprise_num": "32473",
+            "dhcp.client_id": "61:62:63"
+          },
+          "dhcp.option.type": "0",
+          "dhcp.option.type_tree": {
+            "dhcp.option.end": "255"
+          }
+        }
+      }
+    }
+  }
+]

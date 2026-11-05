@@ -1,0 +1,5 @@
+    1   0.000000    192.0.2.1 → 198.51.100.2 DNS 68 Standard query 0x4444 A foo.test
+    2   0.000001 198.51.100.2 → 192.0.2.1    DNS 84 Standard query response 0x4444 A foo.test A 203.0.113.9
+    3   0.000002  203.0.113.9 → 192.0.2.1    UDP 47 9000 → 9001 Len=5
+    4   0.000003    192.0.2.1 → 198.51.100.2 DNS 96 Standard query response 0x6666 AAAA bar.test AAAA 2001:db8::9
+    5   0.000004 02:00:00:00:00:02 → 02:00:00:00:00:01 0x86dd 67 IPv6

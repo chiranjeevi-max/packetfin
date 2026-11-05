@@ -1,0 +1,4 @@
+packetfin: "nope" isn't a valid output compression mode
+packetfin: The available output compression type(s) are:
+   lz4
+   gzip

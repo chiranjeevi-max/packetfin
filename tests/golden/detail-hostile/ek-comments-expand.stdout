@@ -1,0 +1,2 @@
+{"index":{"_index":"packets-2023-11-14"}}
+{"timestamp":"1700000000123","layers":{"arp":{"filtered":"arp"},"pkt_comment":{"frame_frame_comment":["first line","first line","second line","\tthird with tab","first line\nsecond line\n\tthird with tab"],"_ws_expert":{"_ws_expert__ws_expert_severity":"1048576","frame_frame_comment_expert":null,"_ws_expert__ws_expert_message":"first line\nsecond line\n\tthird with tab","_ws_expert__ws_expert_group":"184549376"}},"frame":{"filtered":"frame"},"eth":{"filtered":"eth"}}}

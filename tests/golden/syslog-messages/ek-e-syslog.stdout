@@ -1,0 +1,4 @@
+{"index":{"_index":"packets-2023-11-14"}}
+{"timestamp":"1700000000123","layers":{"syslog_hostname":["host.example.com"],"syslog_msg":["An application event log entry"]}}
+{"index":{"_index":"packets-2023-11-14"}}
+{"timestamp":"1700000000123","layers":{"syslog_hostname":["edge-1"],"syslog_msg":["su root failed"]}}

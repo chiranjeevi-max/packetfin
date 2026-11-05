@@ -1,0 +1,22 @@
+Frame 1: Packet, 50 bytes on wire (400 bits), 50 bytes captured (400 bits)
+Ethernet II, Src: 02:00:00:00:00:01, Dst: 02:00:00:00:00:02
+Internet Protocol Version 4, Src: 192.0.2.1, Dst: 198.51.100.2
+Internet Control Message Protocol
+    Type: Echo (ping) request (8)
+    Code: 0
+    Checksum: 0x1234 incorrect, should be 0x5435
+        [Expert Info (Warning/Checksum): Bad checksum [should be 0x5435]]
+            [Bad checksum [should be 0x5435]]
+            [Severity level: Warning]
+            [Group: Checksum]
+    [Checksum Status: Bad]
+    Identifier (BE): 4660 (0x1234)
+    Identifier (LE): 13330 (0x3412)
+    Sequence Number (BE): 1 (0x0001)
+    Sequence Number (LE): 256 (0x0100)
+    Data (8 bytes)
+
+0000  61 62 63 64 65 66 67 68                           abcdefgh
+        Data: 6162636465666768
+        [Length: 8]
+

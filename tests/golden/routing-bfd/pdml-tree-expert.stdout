@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<?xml-stylesheet type="text/xsl" href="pdml2html.xsl"?>
+<!-- normalized -->
+<pdml version="0" creator="creator" time="time" capture_file="tests/fixtures/routing-bfd.pcap">
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="66">
+    <field name="num" pos="0" show="8" showname="Number" value="8" size="66"/>
+    <field name="len" pos="0" show="66" showname="Frame Length" value="42" size="66"/>
+    <field name="caplen" pos="0" show="66" showname="Captured Length" value="42" size="66"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:20.123463000 UTC" showname="Captured Time" value="1700000000.123463000" size="66"/>
+  </proto>
+  <proto name="frame" showname="Frame 8: Packet, 66 bytes on wire (528 bits), 66 bytes captured (528 bits)" size="66" pos="0">
+    <field name="filtered" value="frame" />
+  </proto>
+  <proto name="eth" showname="Ethernet II, Src: 02:00:00:00:00:01, Dst: 02:00:00:00:00:02" size="14" pos="0">
+    <field name="filtered" value="eth" />
+  </proto>
+  <proto name="ip" showname="Internet Protocol Version 4, Src: 192.0.2.1, Dst: 198.51.100.2" size="20" pos="14">
+    <field name="filtered" value="ip" />
+  </proto>
+  <proto name="udp" showname="User Datagram Protocol, Src Port: 49152, Dst Port: 3784" size="8" pos="34">
+    <field name="filtered" value="udp" />
+  </proto>
+  <proto name="bfd" showname="BFD Control message" size="24" pos="42">
+    <field name="bfd.version" showname="001. .... = Protocol Version: 1" size="1" pos="42" show="1" value="1" unmaskedvalue="20"/>
+    <field name="bfd.diag" showname="...0 0000 = Diagnostic Code: No Diagnostic (0x00)" size="1" pos="42" show="0x00" value="0" unmaskedvalue="20"/>
+    <field name="bfd.sta" showname="00.. .... = Session State: AdminDown (0x0)" size="1" pos="43" show="0x00" value="0" unmaskedvalue="04"/>
+    <field name="bfd.flags" showname="Message Flags: 0x04, Authentication Present: Set" size="1" pos="43" show="0x04" value="04">
+      <field name="bfd.flags.p" showname="0... .. = Poll: Not set" size="1" pos="43" show="False" value="0" unmaskedvalue="04"/>
+      <field name="bfd.flags.f" showname=".0.. .. = Final: Not set" size="1" pos="43" show="False" value="0" unmaskedvalue="04"/>
+      <field name="bfd.flags.c" showname="..0. .. = Control Plane Independent: Not set" size="1" pos="43" show="False" value="0" unmaskedvalue="04"/>
+      <field name="bfd.flags.a" showname="...1 .. = Authentication Present: Set" size="1" pos="43" show="True" value="1" unmaskedvalue="04"/>
+      <field name="bfd.flags.d" showname=".... 0. = Demand: Not set" size="1" pos="43" show="False" value="0" unmaskedvalue="04"/>
+      <field name="bfd.flags.m" showname=".... .0 = Multipoint: Not set" size="1" pos="43" show="False" value="0" unmaskedvalue="04"/>
+    </field>
+    <field name="bfd.detect_time_multiplier" showname="Detect Time Multiplier: 3 (= 3000 ms Detection time)" size="1" pos="44" show="3" value="03"/>
+    <field name="bfd.message_length" showname="Message Length: 24 bytes" size="1" pos="45" show="24" value="18"/>
+    <field name="bfd.my_discriminator" showname="My Discriminator: 0x11223344" size="4" pos="46" show="0x11223344" value="11223344"/>
+    <field name="bfd.your_discriminator" showname="Your Discriminator: 0x55667788" size="4" pos="50" show="0x55667788" value="55667788"/>
+    <field name="bfd.desired_min_tx_interval" showname="Desired Min TX Interval: 1000 ms (1000000 us)" size="4" pos="54" show="1000000" value="000f4240"/>
+    <field name="bfd.required_min_rx_interval" showname="Required Min RX Interval: 1000 ms (1000000 us)" size="4" pos="58" show="1000000" value="000f4240"/>
+    <field name="bfd.required_min_echo_interval" showname="Required Min Echo Interval:    0 ms (0 us)" size="4" pos="62" show="0" value="00000000"/>
+    <field name="" show="Authentication: Length of the BFD frame is invalid (24)" size="0" pos="66">
+      <field name="_ws.expert" showname="Expert Info (Warning/Malformed): Authentication: Length of the BFD frame is invalid (24)" size="0" pos="66">
+        <field name="bfd.auth.no_data" showname="Authentication: Length of the BFD frame is invalid (24)" size="0" pos="0" show="" value=""/>
+        <field name="_ws.expert.message" showname="Message: Authentication: Length of the BFD frame is invalid (24)" hide="yes" size="0" pos="0" show="Authentication: Length of the BFD frame is invalid (24)"/>
+        <field name="_ws.expert.severity" showname="Severity level: Warning" size="0" pos="0" show="6291456"/>
+        <field name="_ws.expert.group" showname="Group: Malformed" size="0" pos="0" show="117440512"/>
+      </field>
+      <proto name="_ws.malformed" showname="Malformed Packet" hide="yes" size="0" pos="66"/>
+    </field>
+  </proto>
+</packet>
+
+
+</pdml>

@@ -1,0 +1,13 @@
+    1   0.000000    192.0.2.1 → 02:00:00:00:00:02 IPv4 33 [Malformed Packet]
+    2   0.000001 02:00:00:00:00:01 → 02:00:00:00:00:02 IPv4 29 [Malformed Packet]
+    3   0.000002 02:00:00:00:00:01 → 02:00:00:00:00:02 IPv4 15 [Malformed Packet]
+    4   0.000003 02:00:00:00:00:01 → 02:00:00:00:00:02 IPv4 42 Bogus IP length (10, less than header length 20)
+    5   0.000004    192.0.2.1 → 198.51.100.2 IPv4 42 Unknown (253)
+    6   0.000005 02:00:00:00:00:01 → 02:00:00:00:00:02 IPv4 30 Bogus IP header length (16, must be at least 20)
+    7   0.000006    192.0.2.1 → 198.51.100.2 IPv4 38 
+    8   0.000007    192.0.2.1 → 198.51.100.2 IPv4 38 
+    9   0.000008    192.0.2.1 → 198.51.100.2 IPv4 38 
+   10   0.000009    192.0.2.1 → 198.51.100.2 IPv4 36 [Malformed Packet: length of contained item exceeds length of containing item]
+   11   0.000010    192.0.2.1 → 198.51.100.2 IPv4 37 [Malformed Packet: length of contained item exceeds length of containing item]
+   12   0.000011    192.0.2.1 → 198.51.100.2 IPv4 36 [Malformed Packet: length of contained item exceeds length of containing item]
+   13   0.000012    192.0.2.1 → 198.51.100.2 IPv4 37 [Malformed Packet: length of contained item exceeds length of containing item]

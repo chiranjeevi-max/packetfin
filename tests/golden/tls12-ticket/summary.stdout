@@ -1,0 +1,17 @@
+    1   0.000000    192.0.2.1 → 192.0.2.2    TLSv1 355 Client Hello (SNI=tls.test)
+    2   0.000001    192.0.2.2 → 192.0.2.1    TLSv1.2 135 Server Hello
+    3   0.000002    192.0.2.2 → 192.0.2.1    TLSv1.2 261 New Session Ticket
+    4   0.000003    192.0.2.2 → 192.0.2.1    TLSv1.2 60 Change Cipher Spec
+    5   0.000004    192.0.2.2 → 192.0.2.1    TLSv1.2 99 Encrypted Handshake Message
+    6   0.000005    192.0.2.1 → 192.0.2.2    TLSv1.2 60 Change Cipher Spec
+    7   0.000006    192.0.2.1 → 192.0.2.2    TLSv1.2 99 Encrypted Handshake Message
+    8   0.000007    192.0.2.1 → 192.0.2.2    TLSv1.2 120 Application Data
+    9   0.000008    192.0.2.2 → 192.0.2.1    TLSv1.2 124 Application Data
+   10   0.000009    192.0.2.1 → 192.0.2.2    TLSv1 355 Client Hello (SNI=tls.test)
+   11   0.000010    192.0.2.2 → 192.0.2.1    TLSv1.2 135 Server Hello
+   12   0.000011    192.0.2.2 → 192.0.2.1    TLSv1.2 60 Change Cipher Spec
+   13   0.000012    192.0.2.2 → 192.0.2.1    TLSv1.2 99 Encrypted Handshake Message
+   14   0.000013    192.0.2.1 → 192.0.2.2    TLSv1.2 60 Change Cipher Spec
+   15   0.000014    192.0.2.1 → 192.0.2.2    TLSv1.2 99 Encrypted Handshake Message
+   16   0.000015    192.0.2.1 → 192.0.2.2    TLSv1.2 120 Application Data
+   17   0.000016    192.0.2.2 → 192.0.2.1    TLSv1.2 124 Application Data

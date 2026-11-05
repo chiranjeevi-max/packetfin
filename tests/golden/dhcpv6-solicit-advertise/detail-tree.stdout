@@ -1,0 +1,194 @@
+Frame 1: Packet, 220 bytes on wire (1760 bits), 220 bytes captured (1760 bits)
+Ethernet II, Src: 02:00:00:00:00:01, Dst: 02:00:00:00:00:02
+Internet Protocol Version 4, Src: 192.0.2.1, Dst: 198.51.100.2
+User Datagram Protocol, Src Port: 546, Dst Port: 547
+DHCPv6
+    Message type: Solicit (1)
+    Transaction ID: 0x123456
+    Client Identifier
+        Option: Client Identifier (1)
+        Length: 14
+        DUID: 00010001e9000000020000000001
+        DUID Type: link-layer address plus time (1)
+        Hardware type: Ethernet (1)
+        DUID Time: Oct  9, 1987 20:13:52.000000000 UTC
+        Link-layer address: 02:00:00:00:00:01
+        Link-layer address (Ethernet): 02:00:00:00:00:01
+    Identity Association for Non-temporary Address
+        Option: Identity Association for Non-temporary Address (3)
+        Length: 40
+        IAID: 00000001
+        T1: 100
+        T2: 200
+        IA Address
+            Option: IA Address (5)
+            Length: 24
+            IPv6 address: 2001:db8::100
+            Preferred lifetime: 300
+            Valid lifetime: 600
+    Identity Association for Temporary Address
+        Option: Identity Association for Temporary Address (4)
+        Length: 32
+        [Expert Info (Warning/Deprecated): IA_TA: obsoleted option (RFC draft-ietf-dhc-rfc8415bis-12)]
+            [IA_TA: obsoleted option (RFC draft-ietf-dhc-rfc8415bis-12)]
+            [Severity level: Warning]
+            [Group: Deprecated]
+        IATA: 00000007
+        IA Address
+            Option: IA Address (5)
+            Length: 24
+            IPv6 address: 2001:db8::200
+            Preferred lifetime: 300
+            Valid lifetime: 600
+    Identity Association for Prefix Delegation
+        Option: Identity Association for Prefix Delegation (25)
+        Length: 41
+        IAID: 00000009
+        T1: 100
+        T2: 200
+        IA Prefix
+            Option: IA Prefix (26)
+            Length: 25
+            Preferred lifetime: 300
+            Valid lifetime: 600
+            Prefix length: 56
+            Prefix address: 2001:db8:abcd::
+    Option Request
+        Option: Option Request (6)
+        Length: 6
+        Requested Option code: DNS recursive name server (23)
+        Requested Option code: Domain Search List (24)
+        Requested Option code: Client Fully Qualified Domain Name (39)
+    Elapsed time
+        Option: Elapsed time (8)
+        Length: 2
+        Elapsed time: 50ms
+    Preference
+        Option: Preference (7)
+        Length: 1
+        Pref-value: 255
+    DHCP option 65535
+        Option: Unknown (65535)
+        Length: 6
+        Data: 6f7061717565
+
+Frame 2: Packet, 187 bytes on wire (1496 bits), 187 bytes captured (1496 bits)
+Ethernet II, Src: 02:00:00:00:00:01, Dst: 02:00:00:00:00:02
+Internet Protocol Version 4, Src: 192.0.2.1, Dst: 198.51.100.2
+User Datagram Protocol, Src Port: 546, Dst Port: 547
+DHCPv6
+    Message type: Advertise (2)
+    Transaction ID: 0x123456
+    Server Identifier
+        Option: Server Identifier (2)
+        Length: 9
+        DUID: 000200007ed9616263
+        DUID Type: assigned by vendor based on Enterprise number (2)
+        Enterprise ID: Example Enterprise Number for Documentation Use (32473)
+        Identifier: 616263
+    Client Identifier
+        Option: Client Identifier (1)
+        Length: 14
+        DUID: 00010001e9000000020000000001
+        DUID Type: link-layer address plus time (1)
+        Hardware type: Ethernet (1)
+        DUID Time: Oct  9, 1987 20:13:52.000000000 UTC
+        Link-layer address: 02:00:00:00:00:01
+        Link-layer address (Ethernet): 02:00:00:00:00:01
+    Identity Association for Non-temporary Address
+        Option: Identity Association for Non-temporary Address (3)
+        Length: 40
+        IAID: 00000001
+        T1: 100
+        T2: 200
+        IA Address
+            Option: IA Address (5)
+            Length: 24
+            IPv6 address: 2001:db8::100
+            Preferred lifetime: 300
+            Valid lifetime: 600
+    Preference
+        Option: Preference (7)
+        Length: 1
+        Pref-value: 100
+    DNS recursive name server
+        Option: DNS recursive name server (23)
+        Length: 32
+         1 DNS server address: 2001:db8::53
+         2 DNS server address: 2001:db8::54
+    Domain Search List
+        Option: Domain Search List (24)
+        Length: 13
+        Domain name suffix search list
+            List entry: example.com.
+    Status code
+        Option: Status code (13)
+        Length: 4
+        Status Code: Success (0)
+        Status Message: ok
+
+Frame 3: Packet, 61 bytes on wire (488 bits), 61 bytes captured (488 bits)
+Ethernet II, Src: 02:00:00:00:00:01, Dst: 02:00:00:00:00:02
+Internet Protocol Version 4, Src: 192.0.2.1, Dst: 198.51.100.2
+User Datagram Protocol, Src Port: 546, Dst Port: 547
+DHCPv6
+    Message type: Solicit (1)
+    Transaction ID: 0x123457
+    Client Identifier
+        Option: Client Identifier (1)
+        Length: 11
+        DUID: 00010006e9000000010203
+        DUID Type: link-layer address plus time (1)
+        Hardware type: IEEE 802 (6)
+        DUID Time: Oct  9, 1987 20:13:52.000000000 UTC
+        Link-layer address: 010203
+
+Frame 4: Packet, 65 bytes on wire (520 bits), 65 bytes captured (520 bits)
+Ethernet II, Src: 02:00:00:00:00:01, Dst: 02:00:00:00:00:02
+Internet Protocol Version 4, Src: 192.0.2.1, Dst: 198.51.100.2
+User Datagram Protocol, Src Port: 546, Dst Port: 547
+DHCPv6
+    Message type: Solicit (1)
+    Transaction ID: 0x123458
+    Client Identifier
+        Option: Client Identifier (1)
+        Length: 15
+        DUID: 00010001e900000001020304050607
+        DUID Type: link-layer address plus time (1)
+        Hardware type: Ethernet (1)
+        DUID Time: Oct  9, 1987 20:13:52.000000000 UTC
+        Link-layer address: 01020304050607
+
+Frame 5: Packet, 64 bytes on wire (512 bits), 64 bytes captured (512 bits)
+Ethernet II, Src: 02:00:00:00:00:01, Dst: 02:00:00:00:00:02
+Internet Protocol Version 4, Src: 192.0.2.1, Dst: 198.51.100.2
+User Datagram Protocol, Src Port: 546, Dst Port: 547
+DHCPv6
+    Message type: Solicit (1)
+    Transaction ID: 0x123459
+    Client Identifier
+        Option: Client Identifier (1)
+        Length: 14
+        DUID: 00010006e9000000010203040506
+        DUID Type: link-layer address plus time (1)
+        Hardware type: IEEE 802 (6)
+        DUID Time: Oct  9, 1987 20:13:52.000000000 UTC
+        Link-layer address: 01:02:03:04:05:06
+        Link-layer address (Ethernet): 01:02:03:04:05:06
+
+Frame 6: Packet, 60 bytes on wire (480 bits), 60 bytes captured (480 bits)
+Ethernet II, Src: 02:00:00:00:00:01, Dst: 02:00:00:00:00:02
+Internet Protocol Version 4, Src: 192.0.2.1, Dst: 198.51.100.2
+User Datagram Protocol, Src Port: 546, Dst Port: 547
+DHCPv6
+    Message type: Solicit (1)
+    Transaction ID: 0x12345a
+    Client Identifier
+        Option: Client Identifier (1)
+        Length: 10
+        DUID: 00030006010203040506
+        DUID Type: link-layer address (3)
+        Hardware type: IEEE 802 (6)
+        Link-layer address: 01:02:03:04:05:06
+        Link-layer address (Ethernet): 01:02:03:04:05:06
+

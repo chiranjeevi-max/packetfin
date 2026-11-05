@@ -1,0 +1,25 @@
+    1   0.000000    192.0.2.1 → 198.51.100.2 TCP 54 40000 → 53 [SYN] Seq=0 Win=65535 Len=0
+    2   0.000500 198.51.100.2 → 192.0.2.1    TCP 54 53 → 40000 [SYN, ACK] Seq=0 Ack=1 Win=65535 Len=0
+    3   0.001000    192.0.2.1 → 198.51.100.2 TCP 54 40000 → 53 [ACK] Seq=1 Ack=1 Win=65535 Len=0
+    4   0.001500    192.0.2.1 → 198.51.100.2 TCP 64 40000 → 53 [PSH, ACK] Seq=1 Ack=1 Win=65535 Len=10
+    5   0.002000    192.0.2.1 → 198.51.100.2 DNS 75 Standard query 0x1234 A example.com
+    6   0.002500    192.0.2.1 → 198.51.100.2 TCP 54 40001 → 53 [SYN] Seq=0 Win=65535 Len=0
+    7   0.003000 198.51.100.2 → 192.0.2.1    TCP 54 53 → 40001 [SYN, ACK] Seq=0 Ack=1 Win=65535 Len=0
+    8   0.003500    192.0.2.1 → 198.51.100.2 TCP 54 40001 → 53 [ACK] Seq=1 Ack=1 Win=65535 Len=0
+    9   0.004000    192.0.2.1 → 198.51.100.2 DNS 85 Standard query 0x1234 A example.com
+   10   0.004500    192.0.2.1 → 198.51.100.2 TCP 54 40002 → 53 [SYN] Seq=0 Win=65535 Len=0
+   11   0.005000 198.51.100.2 → 192.0.2.1    TCP 54 53 → 40002 [SYN, ACK] Seq=0 Ack=1 Win=65535 Len=0
+   12   0.005500    192.0.2.1 → 198.51.100.2 TCP 54 40002 → 53 [ACK] Seq=1 Ack=1 Win=65535 Len=0
+   13   0.006000    192.0.2.1 → 198.51.100.2 TCP 64 40002 → 53 [PSH, ACK] Seq=1 Ack=1 Win=65535 Len=10
+   14   0.006500    192.0.2.1 → 198.51.100.2 TCP 65 [TCP Previous segment not captured] 40002 → 53 [PSH, ACK] Seq=21 Ack=1 Win=65535 Len=11
+   15   0.007000    192.0.2.1 → 198.51.100.2 DNS 64 [TCP Retransmission] , Standard query 0x1234 A example.com
+   16   0.007500    192.0.2.1 → 198.51.100.2 TCP 54 40003 → 53 [SYN] Seq=0 Win=65535 Len=0
+   17   0.008000 198.51.100.2 → 192.0.2.1    TCP 54 53 → 40003 [SYN, ACK] Seq=0 Ack=1 Win=65535 Len=0
+   18   0.008500    192.0.2.1 → 198.51.100.2 TCP 54 40003 → 53 [ACK] Seq=1 Ack=1 Win=65535 Len=0
+   19   0.009000    192.0.2.1 → 198.51.100.2 TCP 74 40003 → 53 [PSH, ACK] Seq=1 Ack=1 Win=65535 Len=20
+   20   0.009500    192.0.2.1 → 198.51.100.2 DNS 75 [TCP Retransmission] , Standard query 0x1234 A example.com
+   21   0.010000    192.0.2.1 → 198.51.100.2 TCP 54 40004 → 53 [SYN] Seq=0 Win=65535 Len=0
+   22   0.010500 198.51.100.2 → 192.0.2.1    TCP 54 53 → 40004 [SYN, ACK] Seq=0 Ack=1 Win=65535 Len=0
+   23   0.011000    192.0.2.1 → 198.51.100.2 TCP 54 40004 → 53 [ACK] Seq=1 Ack=1 Win=65535 Len=0
+   24   0.011500    192.0.2.1 → 198.51.100.2 TCP 64 40004 → 53 [PSH, ACK] Seq=1 Ack=1 Win=65535 Len=10
+   25   0.012000    192.0.2.1 → 198.51.100.2 TCP 65 [TCP Previous segment not captured] 40004 → 53 [PSH, ACK] Seq=21 Ack=1 Win=65535 Len=11

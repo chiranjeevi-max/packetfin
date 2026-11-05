@@ -1,0 +1,35 @@
+[workspace]
+resolver = "3"
+members = [
+    "crates/packetfin-core",
+    "crates/packetfin",
+    "crates/packetfin-pcap",
+    "crates/packetfin-testkit",
+]
+
+[workspace.lints.rust]
+# Every inheriting crate forbids unsafe code. packetfin-pcap deliberately does
+# not inherit workspace lints: it sets its own `unsafe_code = "allow"` for the
+# single libpcap/Npcap, SystemConfiguration and signal-FFI boundary.
+unsafe_code = { level = "forbid" }
+
+[workspace.lints.clippy]
+unwrap_used = { level = "deny" }
+expect_used = { level = "deny" }
+panic = { level = "deny" }
+indexing_slicing = { level = "deny" }
+todo = { level = "deny" }
+unimplemented = { level = "deny" }
+dbg_macro = { level = "deny" }
+
+[profile.dev]
+overflow-checks = true
+
+[profile.release]
+overflow-checks = true
+
+[profile.test]
+overflow-checks = true
+
+[profile.bench]
+overflow-checks = true

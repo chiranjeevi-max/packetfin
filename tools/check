@@ -1,0 +1,64 @@
+#!/usr/bin/env bash
+# tools/check — run the full packetfin quality gate from any cwd.
+#
+# Steps (fail fast, each labelled):
+#   1. cargo fmt --all --check
+#   2. cargo clippy --all-targets -- -D warnings
+#   3. cargo test --workspace
+#   4. cargo deny check
+#   5. cargo check --workspace --all-targets --target x86_64-unknown-linux-gnu
+#   6. cargo check --workspace --all-targets --target x86_64-pc-windows-msvc
+#   7. cargo check --manifest-path fuzz/Cargo.toml --bins
+#
+# Exits nonzero on the first failing step. Requires the x86_64-unknown-linux-gnu
+# and x86_64-pc-windows-msvc rustup targets; the error below shows how to add
+# a missing one.
+
+set -euo pipefail
+
+# Resolve the repository root from this script's location so the check works
+# from any cwd.
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+repo_root="$(cd "$script_dir/.." && pwd)"
+cd "$repo_root"
+
+step() {
+    printf '\n==> %s\n' "$*"
+}
+
+fail() {
+    printf '\n!! %s\n' "$*" >&2
+    exit 1
+}
+
+# Verify required cross-compilation targets are installed.
+for target in x86_64-unknown-linux-gnu x86_64-pc-windows-msvc; do
+    if ! rustup target list --installed 2>/dev/null | grep -qx "$target"; then
+        fail "missing rustup target '$target'. Install it with:
+  rustup target add $target
+Then rerun tools/check."
+    fi
+done
+
+step "1/7 cargo fmt --all --check"
+cargo fmt --all --check
+
+step "2/7 cargo clippy --all-targets -- -D warnings"
+cargo clippy --all-targets -- -D warnings
+
+step "3/7 cargo test --workspace"
+cargo test --workspace
+
+step "4/7 cargo deny check"
+cargo deny check
+
+step "5/7 cargo check --workspace --all-targets --target x86_64-unknown-linux-gnu"
+cargo check --workspace --all-targets --target x86_64-unknown-linux-gnu
+
+step "6/7 cargo check --workspace --all-targets --target x86_64-pc-windows-msvc"
+cargo check --workspace --all-targets --target x86_64-pc-windows-msvc
+
+step "7/7 cargo check --manifest-path fuzz/Cargo.toml --bins"
+cargo check --manifest-path fuzz/Cargo.toml --bins
+
+printf '\n==> tools/check: all steps passed\n'

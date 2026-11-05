@@ -1,0 +1,8 @@
+    1   0.000000  2001:db8::1 → 2001:db8::2  OSPF 94 Hello Packet
+    2   0.000001  2001:db8::1 → 2001:db8::2  OSPF 122 DB Description
+    3   0.000002  2001:db8::1 → 2001:db8::2  OSPF 94 LS Request
+    4   0.000003  2001:db8::1 → 2001:db8::2  OSPF 386 LS Update
+    5   0.000004  2001:db8::1 → 2001:db8::2  OSPF 110 LS Acknowledge
+    6   0.000005  2001:db8::1 → 2001:db8::2  OSPF 64 Hello Packet[Malformed Packet]
+    7   0.000006  2001:db8::1 → 2001:db8::2  OSPF 98 LS Update[Malformed Packet]
+    8   0.000007  2001:db8::1 → 2001:db8::2  OSPF 102 LS Update[Malformed Packet]

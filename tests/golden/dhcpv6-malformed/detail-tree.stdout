@@ -1,0 +1,124 @@
+Frame 1: Packet, 44 bytes on wire (352 bits), 44 bytes captured (352 bits)
+Ethernet II, Src: 02:00:00:00:00:01, Dst: 02:00:00:00:00:02
+Internet Protocol Version 4, Src: 192.0.2.1, Dst: 198.51.100.2
+User Datagram Protocol, Src Port: 546, Dst Port: 547
+DHCPv6
+    Message type: Solicit (1)
+[Malformed Packet: DHCPv6]
+
+Frame 2: Packet, 52 bytes on wire (416 bits), 52 bytes captured (416 bits)
+Ethernet II, Src: 02:00:00:00:00:01, Dst: 02:00:00:00:00:02
+Internet Protocol Version 4, Src: 192.0.2.1, Dst: 198.51.100.2
+User Datagram Protocol, Src Port: 546, Dst Port: 547
+DHCPv6
+    Message type: Solicit (1)
+    Transaction ID: 0x123456
+
+Frame 3: Packet, 52 bytes on wire (416 bits), 52 bytes captured (416 bits)
+Ethernet II, Src: 02:00:00:00:00:01, Dst: 02:00:00:00:00:02
+Internet Protocol Version 4, Src: 192.0.2.1, Dst: 198.51.100.2
+User Datagram Protocol, Src Port: 546, Dst Port: 547
+DHCPv6
+    Message type: Solicit (1)
+    Transaction ID: 0x123456
+    Preference
+        Option: Preference (7)
+        Length: 2
+        [Expert Info (Error/Malformed): PREFERENCE: malformed option]
+            [PREFERENCE: malformed option]
+            [Severity level: Error]
+            [Group: Malformed]
+
+Frame 4: Packet, 44 bytes on wire (352 bits), 44 bytes captured (352 bits)
+Ethernet II, Src: 02:00:00:00:00:01, Dst: 02:00:00:00:00:02
+Internet Protocol Version 4, Src: 192.0.2.1, Dst: 198.51.100.2
+User Datagram Protocol, Src Port: 546, Dst Port: 547
+DHCPv6
+    Message type: Relay-forw (12)
+    Hopcount: 0
+[Malformed Packet: DHCPv6]
+
+Frame 5: Packet, 66 bytes on wire (528 bits), 66 bytes captured (528 bits)
+Ethernet II, Src: 02:00:00:00:00:01, Dst: 02:00:00:00:00:02
+Internet Protocol Version 4, Src: 192.0.2.1, Dst: 198.51.100.2
+User Datagram Protocol, Src Port: 546, Dst Port: 547
+DHCPv6
+    Message type: Solicit (1)
+    Transaction ID: 0x123456
+    Client Identifier
+        Option: Client Identifier (1)
+        Length: 16
+        DUID: 00041111111111111111111111111111
+        DUID Type: Universally Unique IDentifier (UUID) (4)
+        [Expert Info (Error/Malformed): DUID: malformed option]
+            [DUID: malformed option]
+            [Severity level: Error]
+            [Group: Malformed]
+
+Frame 6: Packet, 50 bytes on wire (400 bits), 50 bytes captured (400 bits)
+Ethernet II, Src: 02:00:00:00:00:01, Dst: 02:00:00:00:00:02
+Internet Protocol Version 4, Src: 192.0.2.1, Dst: 198.51.100.2
+User Datagram Protocol, Src Port: 546, Dst Port: 547
+DHCPv6
+    Message type: Solicit (1)
+    Transaction ID: 0x123456
+    Interface-Id
+        Option: Interface-Id (18)
+        Length: 0
+        [Expert Info (Error/Malformed): INTERFACE_ID: malformed option]
+            [INTERFACE_ID: malformed option]
+            [Severity level: Error]
+            [Group: Malformed]
+
+Frame 7: Packet, 50 bytes on wire (400 bits), 50 bytes captured (400 bits)
+Ethernet II, Src: 02:00:00:00:00:01, Dst: 02:00:00:00:00:02
+Internet Protocol Version 4, Src: 192.0.2.1, Dst: 198.51.100.2
+User Datagram Protocol, Src Port: 546, Dst Port: 547
+DHCPv6
+    Message type: Solicit (1)
+    Transaction ID: 0x123456
+    Relay Message
+        Option: Relay Message (9)
+        Length: 0
+        [Expert Info (Error/Malformed): RELAY-MSG: malformed option]
+            [RELAY-MSG: malformed option]
+            [Severity level: Error]
+            [Group: Malformed]
+
+Frame 8: Packet, 53 bytes on wire (424 bits), 53 bytes captured (424 bits)
+Ethernet II, Src: 02:00:00:00:00:01, Dst: 02:00:00:00:00:02
+Internet Protocol Version 4, Src: 192.0.2.1, Dst: 198.51.100.2
+User Datagram Protocol, Src Port: 546, Dst Port: 547
+DHCPv6
+    Message type: Solicit (1)
+    Transaction ID: 0x123456
+    Option Request
+        Option: Option Request (6)
+        Length: 3
+        Requested Option code: DNS recursive name server (23)
+[Malformed Packet: DHCPv6]
+
+Frame 9: Packet, 51 bytes on wire (408 bits), 51 bytes captured (408 bits)
+Ethernet II, Src: 02:00:00:00:00:01, Dst: 02:00:00:00:00:02
+Internet Protocol Version 4, Src: 192.0.2.1, Dst: 198.51.100.2
+User Datagram Protocol, Src Port: 546, Dst Port: 547
+DHCPv6
+    Message type: Solicit (1)
+    Transaction ID: 0x123456
+    Status code
+        Option: Status code (13)
+        Length: 1
+[Malformed Packet: DHCPv6]
+
+Frame 10: Packet, 52 bytes on wire (416 bits), 52 bytes captured (416 bits)
+Ethernet II, Src: 02:00:00:00:00:01, Dst: 02:00:00:00:00:02
+Internet Protocol Version 4, Src: 192.0.2.1, Dst: 198.51.100.2
+User Datagram Protocol, Src Port: 546, Dst Port: 547
+DHCPv6
+    Message type: Solicit (1)
+    Transaction ID: 0x123456
+    Status code
+        Option: Status code (13)
+        Length: 2
+        Status Code: Success (0)
+

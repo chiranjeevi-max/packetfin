@@ -1,0 +1,3 @@
+packetfin: Unsigned integer 0 cannot be converted to Ethernet or other MAC address.
+    eth.dst contains 0
+                     ^

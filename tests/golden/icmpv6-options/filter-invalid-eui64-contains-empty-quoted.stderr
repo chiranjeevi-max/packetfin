@@ -1,0 +1,3 @@
+packetfin: EUI64 address cannot be converted from a string ("").
+    icmpv6.opt.src_linkaddr_eui64 contains ""
+                                           ^~

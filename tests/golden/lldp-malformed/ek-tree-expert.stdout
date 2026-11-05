@@ -1,0 +1,2 @@
+{"index":{"_index":"packets-2023-11-14"}}
+{"timestamp":"1700000000123","layers":{"lldp":{"lldp_lldp_tlv_type":"1","lldp_lldp_chassis_subtype":"4","text":"Chassis Subtype = MAC address","lldp_lldp_tlv_len":"5","_ws_expert":{"_ws_expert__ws_expert_severity":"6291456","lldp_lldp_incorrect_length":null,"_ws_expert__ws_expert_message":"Invalid Chassis ID Length (5) for Type (MAC address), expected (7)","_ws_expert__ws_expert_group":"117440512"},"_ws_malformed":{}},"frame":{"filtered":"frame"},"eth":{"filtered":"eth"}}}

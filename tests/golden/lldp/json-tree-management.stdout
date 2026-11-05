@@ -1,0 +1,51 @@
+[
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "frame": {
+          "filtered": "frame"
+        },
+        "eth": {
+          "filtered": "eth"
+        },
+        "lldp": {
+          "Chassis Subtype = MAC address, Id: 00:11:22:33:44:55": {
+            "lldp.tlv.type": "1",
+            "lldp.tlv.len": "7",
+            "lldp.chassis.subtype": "4",
+            "lldp.chassis.id.mac": "00:11:22:33:44:55"
+          },
+          "Port Subtype = Interface name, Id: eth0": {
+            "lldp.tlv.type": "2",
+            "lldp.tlv.len": "5",
+            "lldp.port.subtype": "5",
+            "lldp.port.id": "eth0"
+          },
+          "Time To Live = 120 sec": {
+            "lldp.pdu_type": "",
+            "lldp.tlv.type": "3",
+            "lldp.tlv.len": "2",
+            "lldp.time_to_live": "120"
+          },
+          "Management Address": {
+            "lldp.tlv.type": "8",
+            "lldp.tlv.len": "14",
+            "lldp.mgn.address.len": "5",
+            "lldp.mgn.address.subtype": "1",
+            "lldp.mgn.addr.ip4": "192.0.2.1",
+            "lldp.mgn.interface.subtype": "2",
+            "lldp.mgn.interface.number": "7",
+            "lldp.mgn.obj.len": "2",
+            "lldp.mgn.obj.id": "2.100"
+          },
+          "End of LLDPDU": {
+            "lldp.tlv.type": "0",
+            "lldp.tlv.len": "0"
+          }
+        }
+      }
+    }
+  }
+]

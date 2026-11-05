@@ -1,0 +1,6 @@
+    1   0.000000    192.0.2.1 → 198.51.100.2 MDNS 73 Standard query 0x0000 A printer.local, "QM" question
+    2   1.000000    192.0.2.1 → 198.51.100.2 MDNS 73 Standard query 0x0000 AAAA printer.local, "QU" question
+    3   2.000000    192.0.2.1 → 198.51.100.2 MDNS 184 Standard query response 0x0000 A, cache flush 192.0.2.5 TXT, cache flush SRV, cache flush 0 0 80 printer.local OPT, cache flush
+    4   3.000000    192.0.2.1 → 198.51.100.2 LLMNR 64 Standard query 0x5678 A host
+    5   4.000000    192.0.2.1 → 198.51.100.2 LLMNR 74 Standard query response 0x9999 A 10.0.0.1
+    6   5.000000    192.0.2.1 → 198.51.100.2 MDNS 88 Standard query 0x0000 PTR _services._dns-sd._udp.local, "QM" question

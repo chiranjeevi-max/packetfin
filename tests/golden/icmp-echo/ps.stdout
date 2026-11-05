@@ -1,0 +1,6 @@
+0 (    1   0.000000    192.0.2.1 → 198.51.100.2 ICMP 50 Echo \(ping\) request  id=0x1234, seq=1/256, ttl=64) putline
+0 (    2   0.000001    192.0.2.1 → 198.51.100.2 ICMP 50 Echo \(ping\) reply    id=0x1234, seq=1/256, ttl=64 \(request in 1\)) putline
+0 (    3   0.000002    192.0.2.1 → 198.51.100.2 ICMP 54 Timestamp request    id=0x0007, seq=9/2304, ttl=64) putline
+0 (    4   0.000003    192.0.2.1 → 198.51.100.2 ICMP 42 Mobile IP Advertisement \(Normal router advertisement\)) putline
+0 (    5   0.000004    192.0.2.1 → 198.51.100.2 ICMP 42 Router solicitation ) putline
+0 (    6   0.000005    192.0.2.1 → 198.51.100.2 ICMP 54 Echo \(ping\) request  id=0x1234, seq=1/256, ttl=64) putline

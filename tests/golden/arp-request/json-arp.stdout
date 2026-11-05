@@ -1,0 +1,27 @@
+[
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "frame": {
+          "filtered": "frame"
+        },
+        "eth": {
+          "filtered": "eth"
+        },
+        "arp": {
+          "arp.hw.type": "1",
+          "arp.proto.type": "0x0800",
+          "arp.hw.size": "6",
+          "arp.proto.size": "4",
+          "arp.opcode": "1",
+          "arp.src.hw_mac": "02:00:00:00:00:01",
+          "arp.src.proto_ipv4": "192.0.2.1",
+          "arp.dst.hw_mac": "00:00:00:00:00:00",
+          "arp.dst.proto_ipv4": "198.51.100.2"
+        }
+      }
+    }
+  }
+]

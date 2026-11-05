@@ -1,0 +1,4 @@
+{"index":{"_index":"packets-2023-11-14"}}
+{"timestamp":"1700000000000","layers":{"dns_qry_name":["example.com"]}}
+{"index":{"_index":"packets-2023-11-14"}}
+{"timestamp":"1700000001000","layers":{"dns_qry_name":["example.com"]}}

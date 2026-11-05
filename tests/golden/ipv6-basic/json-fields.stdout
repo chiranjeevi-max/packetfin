@@ -1,0 +1,62 @@
+[
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "ipv6.src": [
+          "2001:db8::1"
+        ],
+        "ipv6.dst": [
+          "2001:db8::2"
+        ],
+        "ipv6.plen": [
+          "4"
+        ],
+        "ipv6.nxt": [
+          "59"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "ipv6.src": [
+          "fe80::1"
+        ],
+        "ipv6.dst": [
+          "ff02::1"
+        ],
+        "ipv6.plen": [
+          "0"
+        ],
+        "ipv6.nxt": [
+          "59"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "ipv6.src": [
+          "::"
+        ],
+        "ipv6.dst": [
+          "::1"
+        ],
+        "ipv6.plen": [
+          "0"
+        ],
+        "ipv6.nxt": [
+          "59"
+        ]
+      }
+    }
+  }
+]

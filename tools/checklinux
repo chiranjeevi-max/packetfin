@@ -1,0 +1,105 @@
+#!/usr/bin/env bash
+# tools/checklinux — run the packetfin test gate inside a Linux container.
+#
+# Usage: tools/checklinux
+#
+# Runs from any cwd. Requires a Docker daemon running Linux containers. The
+# pinned image rust:1.99.0-slim-bookworm (Debian bookworm, rustc 1.99.0,
+# matching rust-toolchain.toml, edition 2024) is pulled on first use and
+# provides the Linux libc and linker that the macOS host lacks. Inside the
+# container the script installs libpcap-dev and pkg-config, the build
+# prerequisites for packetfin-pcap. The golden tests compare the committed
+# fixtures and expected-output files, so no other analyzer is needed.
+#
+# Steps (fail fast, each labelled):
+#   1. cargo test --workspace --locked
+#   2. cargo check --workspace --all-targets --locked
+#
+# Host artifacts stay untouched. The source tree is mounted at /work and the
+# build output goes to /target on the named volume packetfin-linux-target;
+# the crate registry is cached on packetfin-linux-registry. --locked keeps the
+# committed Cargo.lock as is, and cargo never writes a target directory into
+# the mounted tree.
+#
+# Live capture is a manual lane, not part of this gate. packetfin-pcap opens
+# the container's loopback with CAP_NET_RAW:
+#   docker run --rm --cap-add=NET_RAW \
+#     -v "$PWD:/work" -w /work -e CARGO_TARGET_DIR=/target \
+#     -e PACKETFIN_LIVE=1 \
+#     -v packetfin-linux-target:/target \
+#     -v packetfin-linux-registry:/usr/local/cargo/registry \
+#     rust:1.99.0-slim-bookworm bash -c \
+#     'apt-get update -qq && apt-get install -y -qq --no-install-recommends \
+#        libpcap-dev pkg-config && cargo test -p packetfin-pcap --test live -- \
+#        --ignored --nocapture --test-threads=1'
+# It exercises loopback only; host-network and virtual-interface variants
+# stay manual. The same container proves the CLI end to end (loopback name
+# `lo`, Ethernet frames, read back with packetfin):
+#   docker run --rm --cap-add=NET_RAW \
+#     -v "$PWD:/work" -w /work -e CARGO_TARGET_DIR=/target \
+#     -v packetfin-linux-target:/target \
+#     -v packetfin-linux-registry:/usr/local/cargo/registry \
+#     rust:1.99.0-slim-bookworm bash -c \
+#     'apt-get update -qq && apt-get install -y -qq --no-install-recommends \
+#        libpcap-dev pkg-config python3 && cargo build -p packetfin --locked && \
+#      target/debug/packetfin -i lo -f "udp port 45999" -a duration:1.2 \
+#        -w /tmp/live.pcapng'
+# Send datagrams to 127.0.0.1:45999 from a second process while the capture
+# runs. On this image `-D` lists eth0, any and lo; `-L` reports EN10MB.
+
+set -euo pipefail
+
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+repo_root="$(cd "$script_dir/.." && pwd)"
+
+image="rust:1.99.0-slim-bookworm"
+target_volume="packetfin-linux-target"
+registry_volume="packetfin-linux-registry"
+
+fail() {
+    printf '\n!! %s\n' "$*" >&2
+    exit 1
+}
+
+if ! command -v docker >/dev/null 2>&1; then
+    fail "docker not found on PATH. Install Docker Desktop or another engine that runs Linux containers."
+fi
+
+if ! docker info >/dev/null 2>&1; then
+    fail "the Docker daemon is not reachable. Start it and rerun tools/checklinux."
+fi
+
+printf '==> image %s\n' "$image"
+printf '==> repository %s\n' "$repo_root"
+
+container_script=$(
+    cat <<'CONTAINER'
+set -euo pipefail
+
+apt-get update -qq
+DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends \
+    libpcap-dev pkg-config
+
+printf '\n==> rustc %s\n' "$(rustc --version)"
+printf '==> cargo %s\n' "$(cargo --version)"
+
+printf '\n==> 1/2 cargo test --workspace --locked\n'
+cargo test --workspace --locked
+
+printf '\n==> 2/2 cargo check --workspace --all-targets --locked\n'
+cargo check --workspace --all-targets --locked
+
+printf '\n==> tools/checklinux: all steps passed\n'
+CONTAINER
+)
+
+docker run --rm \
+    --volume "$repo_root:/work" \
+    --volume "$target_volume:/target" \
+    --volume "$registry_volume:/usr/local/cargo/registry" \
+    --workdir /work \
+    --env CARGO_TARGET_DIR=/target \
+    --env CARGO_TERM_COLOR=never \
+    --env CARGO_INCREMENTAL=0 \
+    "$image" \
+    bash -c "$container_script"

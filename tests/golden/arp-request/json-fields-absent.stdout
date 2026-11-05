@@ -1,0 +1,13 @@
+[
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "arp.opcode": [
+          "1"
+        ]
+      }
+    }
+  }
+]

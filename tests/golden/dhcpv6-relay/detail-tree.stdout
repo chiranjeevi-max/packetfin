@@ -1,0 +1,136 @@
+Frame 1: Packet, 112 bytes on wire (896 bits), 112 bytes captured (896 bits)
+Ethernet II, Src: 02:00:00:00:00:01, Dst: 02:00:00:00:00:02
+Internet Protocol Version 4, Src: 192.0.2.1, Dst: 198.51.100.2
+User Datagram Protocol, Src Port: 547, Dst Port: 547
+DHCPv6
+    Message type: Relay-forw (12)
+    Hopcount: 0
+    Link address: fe80::1
+    Peer address: fe80::2
+    Relay Message
+        Option: Relay Message (9)
+        Length: 24
+        DHCPv6
+            Message type: Solicit (1)
+            Transaction ID: 0x123456
+            Client Identifier
+                Option: Client Identifier (1)
+                Length: 10
+                DUID: 00030001020000000001
+                DUID Type: link-layer address (3)
+                Hardware type: Ethernet (1)
+                Link-layer address: 02:00:00:00:00:01
+                Link-layer address (Ethernet): 02:00:00:00:00:01
+            Option Request
+                Option: Option Request (6)
+                Length: 2
+                Requested Option code: DNS recursive name server (23)
+    Interface-Id
+        Option: Interface-Id (18)
+        Length: 4
+        Interface-ID: 65746830
+
+Frame 2: Packet, 90 bytes on wire (720 bits), 90 bytes captured (720 bits)
+Ethernet II, Src: 02:00:00:00:00:01, Dst: 02:00:00:00:00:02
+Internet Protocol Version 4, Src: 192.0.2.1, Dst: 198.51.100.2
+User Datagram Protocol, Src Port: 547, Dst Port: 547
+DHCPv6
+    Message type: Relay-reply (13)
+    Hopcount: 0
+    Link address: fe80::1
+    Peer address: fe80::2
+    Relay Message
+        Option: Relay Message (9)
+        Length: 10
+        DHCPv6
+            Message type: Reply (7)
+            Transaction ID: 0x123456
+            Status code
+                Option: Status code (13)
+                Length: 2
+                Status Code: Success (0)
+
+Frame 3: Packet, 75 bytes on wire (600 bits), 75 bytes captured (600 bits)
+Ethernet II, Src: 02:00:00:00:00:01, Dst: 02:00:00:00:00:02
+Internet Protocol Version 4, Src: 192.0.2.1, Dst: 198.51.100.2
+User Datagram Protocol, Src Port: 547, Dst Port: 547
+DHCPv6
+    Message type: Relay-forw (12)
+    Hopcount: 0
+    Link address: fe80::1
+[Malformed Packet: DHCPv6]
+
+Frame 4: Packet, 118 bytes on wire (944 bits), 118 bytes captured (944 bits)
+Ethernet II, Src: 02:00:00:00:00:01, Dst: 02:00:00:00:00:02
+Internet Protocol Version 4, Src: 192.0.2.1, Dst: 198.51.100.2
+User Datagram Protocol, Src Port: 547, Dst Port: 547
+DHCPv6
+    Message type: Relay-forw (12)
+    Hopcount: 0
+    Link address: fe80::1
+    Peer address: fe80::2
+    Client Identifier
+        Option: Client Identifier (1)
+        Length: 10
+        DUID: 00030001020000000001
+        DUID Type: link-layer address (3)
+        Hardware type: Ethernet (1)
+        Link-layer address: 02:00:00:00:00:01
+        Link-layer address (Ethernet): 02:00:00:00:00:01
+    Relay Message
+        Option: Relay Message (9)
+        Length: 24
+        DHCPv6
+            Message type: Solicit (1)
+            Transaction ID: 0x123456
+            Client Identifier
+                Option: Client Identifier (1)
+                Length: 10
+                DUID: 00030001020000000001
+                DUID Type: link-layer address (3)
+                Hardware type: Ethernet (1)
+                Link-layer address: 02:00:00:00:00:01
+                Link-layer address (Ethernet): 02:00:00:00:00:01
+            Option Request
+                Option: Option Request (6)
+                Length: 2
+                Requested Option code: DNS recursive name server (23)
+
+Frame 5: Packet, 118 bytes on wire (944 bits), 118 bytes captured (944 bits)
+Ethernet II, Src: 02:00:00:00:00:01, Dst: 02:00:00:00:00:02
+Internet Protocol Version 4, Src: 192.0.2.1, Dst: 198.51.100.2
+User Datagram Protocol, Src Port: 547, Dst Port: 547
+DHCPv6
+    Message type: Relay-forw (12)
+    Hopcount: 0
+    Link address: fe80::1
+    Peer address: fe80::2
+    Relay Message
+        Option: Relay Message (9)
+        Length: 24
+        DHCPv6
+            Message type: Solicit (1)
+            Transaction ID: 0x123456
+            Client Identifier
+                Option: Client Identifier (1)
+                Length: 10
+                DUID: 00030001020000000001
+                DUID Type: link-layer address (3)
+                Hardware type: Ethernet (1)
+                Link-layer address: 02:00:00:00:00:01
+                Link-layer address (Ethernet): 02:00:00:00:00:01
+            Option Request
+                Option: Option Request (6)
+                Length: 2
+                Requested Option code: DNS recursive name server (23)
+    Relay Message
+        Option: Relay Message (9)
+        Length: 10
+        DHCPv6
+            Message type: Reply (7)
+            Transaction ID: 0x123456
+            Status code
+                Option: Status code (13)
+                Length: 2
+                Status Code: Success (0)
+

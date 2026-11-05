@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<?xml-stylesheet type="text/xsl" href="pdml2html.xsl"?>
+<!-- normalized -->
+<pdml version="0" creator="creator" time="time" capture_file="tests/fixtures/dns-llmnr-unicast.pcap">
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="64">
+    <field name="num" pos="0" show="1" showname="Number" value="1" size="64"/>
+    <field name="len" pos="0" show="64" showname="Frame Length" value="40" size="64"/>
+    <field name="caplen" pos="0" show="64" showname="Captured Length" value="40" size="64"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:20.000000000 UTC" showname="Captured Time" value="1700000000.000000000" size="64"/>
+  </proto>
+  <field name="dns.response_in" value="2"/>
+</packet>
+
+
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="80">
+    <field name="num" pos="0" show="2" showname="Number" value="2" size="80"/>
+    <field name="len" pos="0" show="80" showname="Frame Length" value="50" size="80"/>
+    <field name="caplen" pos="0" show="80" showname="Captured Length" value="50" size="80"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:21.000000000 UTC" showname="Captured Time" value="1700000001.000000000" size="80"/>
+  </proto>
+  <field name="dns.response_to" value="1"/>
+  <field name="dns.time" value="1.000000000"/>
+</packet>
+
+
+</pdml>

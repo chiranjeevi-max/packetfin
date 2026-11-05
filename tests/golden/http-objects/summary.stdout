@@ -1,0 +1,47 @@
+    1   0.000000    192.0.2.1 → 192.0.2.2    HTTP 91 GET /normal.txt HTTP/1.1 
+    2   0.000001    192.0.2.2 → 192.0.2.1    HTTP 132 HTTP/1.1 200 OK  (text/plain)
+    3   0.000002    192.0.2.1 → 192.0.2.2    HTTP 92 GET /chunked.txt HTTP/1.1 
+    4   0.000003    192.0.2.2 → 192.0.2.1    HTTP 153 HTTP/1.1 200 OK  (text/plain)
+    5   0.000004    192.0.2.1 → 192.0.2.2    HTTP 116 POST /post-target HTTP/1.1 
+    6   0.000005    192.0.2.2 → 192.0.2.1    HTTP 139 HTTP/1.1 200 OK 
+    7   0.000006    192.0.2.1 → 192.0.2.2    HTTP 89 GET /zero.bin HTTP/1.1 
+    8   0.000007    192.0.2.2 → 192.0.2.1    HTTP 132 HTTP/1.1 200 OK 
+    9   0.000008    192.0.2.1 → 192.0.2.2    HTTP 87 GET /gz.txt HTTP/1.1 
+   10   0.000009    192.0.2.2 → 192.0.2.1    HTTP 166 HTTP/1.1 200 OK  (text/plain)
+   11   0.000010    192.0.2.1 → 192.0.2.2    HTTP 87 GET /cd.txt HTTP/1.1 
+   12   0.000011    192.0.2.2 → 192.0.2.1    HTTP 178 HTTP/1.1 200 OK  (text/plain)
+   13   0.000012    192.0.2.2 → 192.0.2.1    HTTP 137 HTTP/1.1 200 OK  (text/html)
+   14   0.000013    192.0.2.2 → 192.0.2.1    HTTP 97 HTTP/1.1 200 OK 
+   15   0.000014    192.0.2.2 → 192.0.2.1    HTTP 113 HTTP/1.1 200 OK  ()
+   16   0.000015    192.0.2.1 → 192.0.2.2    HTTP 91 GET /x?q=1#frag HTTP/1.1 
+   17   0.000016    192.0.2.2 → 192.0.2.1    HTTP 123 HTTP/1.1 200 OK  (text/plain)
+   18   0.000017    192.0.2.1 → 192.0.2.2    HTTP 99 GET /raw\back\slash.txt HTTP/1.1 
+   19   0.000018    192.0.2.2 → 192.0.2.1    HTTP 123 HTTP/1.1 200 OK  (text/plain)
+   20   0.000019    192.0.2.1 → 192.0.2.2    HTTP 84 GET /CON HTTP/1.1 
+   21   0.000020    192.0.2.2 → 192.0.2.1    HTTP 123 HTTP/1.1 200 OK  (text/plain)
+   22   0.000021    192.0.2.1 → 192.0.2.2    HTTP 86 GET /file. HTTP/1.1 
+   23   0.000022    192.0.2.2 → 192.0.2.1    HTTP 123 HTTP/1.1 200 OK  (text/plain)
+   24   0.000023    192.0.2.1 → 192.0.2.2    HTTP 85 GET /dir/ HTTP/1.1 
+   25   0.000024    192.0.2.2 → 192.0.2.1    HTTP 123 HTTP/1.1 200 OK  (text/plain)
+   26   0.000025    192.0.2.1 → 192.0.2.2    HTTP 81 GET / HTTP/1.1 
+   27   0.000026    192.0.2.2 → 192.0.2.1    HTTP 123 HTTP/1.1 200 OK  (text/plain)
+   28   0.000027    192.0.2.1 → 192.0.2.2    HTTP 105 GET http://other.test/abs.txt HTTP/1.1 
+   29   0.000028    192.0.2.2 → 192.0.2.1    HTTP 123 HTTP/1.1 200 OK  (text/plain)
+   30   0.000029    192.0.2.1 → 192.0.2.2    HTTP 105 GET //double//slash//name.txt HTTP/1.1 
+   31   0.000030    192.0.2.2 → 192.0.2.1    HTTP 123 HTTP/1.1 200 OK  (text/plain)
+   32   0.000031    192.0.2.1 → 192.0.2.2    HTTP 485 GET /LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL.txt HTTP/1.1 
+   33   0.000032    192.0.2.2 → 192.0.2.1    HTTP 123 HTTP/1.1 200 OK  (text/plain)
+   34   0.000033    192.0.2.1 → 192.0.2.2    HTTP 388 GET /eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee.tar.gz HTTP/1.1 
+   35   0.000034    192.0.2.2 → 192.0.2.1    HTTP 123 HTTP/1.1 200 OK  (text/plain)
+   36   0.000035    192.0.2.1 → 192.0.2.2    HTTP 88 GET /dup.txt HTTP/1.1 
+   37   0.000036    192.0.2.2 → 192.0.2.1    HTTP 121 HTTP/1.1 200 OK  (text/plain)
+   38   0.000037    192.0.2.1 → 192.0.2.2    HTTP 88 GET /dup.txt HTTP/1.1 
+   39   0.000038    192.0.2.2 → 192.0.2.1    HTTP 121 HTTP/1.1 200 OK  (text/plain)
+   40   0.000039    192.0.2.1 → 192.0.2.2    HTTP 88 GET /dup.txt HTTP/1.1 
+   41   0.000040    192.0.2.2 → 192.0.2.1    HTTP 123 HTTP/1.1 200 OK  (text/plain)
+   42   0.000041    192.0.2.1 → 192.0.2.2    HTTP 98 GET /empty-chunked.txt HTTP/1.1 
+   43   0.000042    192.0.2.2 → 192.0.2.1    HTTP 106 HTTP/1.1 200 OK 
+   44   0.000043    192.0.2.1 → 192.0.2.2    HTTP 82 GET /a HTTP/1.1 
+   45   0.000044    192.0.2.2 → 192.0.2.1    HTTP 119 HTTP/1.1 200 OK  (text/plain)
+   46   0.000045    192.0.2.2 → 192.0.2.1    HTTP 119 HTTP/1.1 200 OK  (text/plain)
+   47   0.000046    192.0.2.1 → 192.0.2.2    HTTP 89 GET /malformed HTTP/1.1 Continuation

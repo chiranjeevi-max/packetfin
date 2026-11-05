@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<psml version="0" creator="creator">
+<structure>
+<section>No.</section>
+<section>Time</section>
+<section>Source</section>
+<section>Destination</section>
+<section>Protocol</section>
+<section>Length</section>
+<section>Info</section>
+</structure>
+
+<packet>
+<section>1</section>
+<section>0.000000</section>
+<section>192.0.2.1</section>
+<section>198.51.100.2</section>
+<section>Syslog</section>
+<section>212</section>
+<section>LOCAL4.NOTICE: 1 2023-11-14T22:13:20.123456Z host.example.com evntslog 1234 ID47 [exampleSDID@32473 iut=&quot;3&quot; eventSource=&quot;Application&quot; eventID=&quot;1011&quot;] An application event log entry</section>
+</packet>
+
+<packet>
+<section>2</section>
+<section>0.000001</section>
+<section>192.0.2.1</section>
+<section>198.51.100.2</section>
+<section>Syslog</section>
+<section>102</section>
+<section>AUTH.CRIT: 1 2023-11-14T22:13:21Z edge-1 su - ID48 - su root failed</section>
+</packet>
+
+</psml>

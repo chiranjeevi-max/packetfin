@@ -1,0 +1,132 @@
+[
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "stp.type": [
+          "0x00"
+        ],
+        "stp.root.cost": [
+          "0"
+        ],
+        "stp.port": [
+          "0x8001"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "stp.type": [
+          "0x00"
+        ],
+        "stp.root.cost": [
+          "0"
+        ],
+        "stp.port": [
+          "0x8001"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "stp.type": [
+          "0x80"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "stp.type": [
+          "0x02"
+        ],
+        "stp.root.cost": [
+          "0"
+        ],
+        "stp.port": [
+          "0x8001"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "stp.type": [
+          "0x02"
+        ],
+        "stp.root.cost": [
+          "0"
+        ],
+        "stp.port": [
+          "0x8001"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "stp.type": [
+          "0x02"
+        ],
+        "stp.root.cost": [
+          "0"
+        ],
+        "stp.port": [
+          "0x8001"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "stp.type": [
+          "0x02"
+        ],
+        "stp.root.cost": [
+          "0"
+        ],
+        "stp.port": [
+          "0x8001"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "stp.type": [
+          "0x02"
+        ],
+        "stp.root.cost": [
+          "0"
+        ],
+        "stp.port": [
+          "0x8001"
+        ]
+      }
+    }
+  }
+]

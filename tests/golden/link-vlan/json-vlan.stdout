@@ -1,0 +1,31 @@
+[
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "frame": {
+          "filtered": "frame"
+        },
+        "eth": {
+          "filtered": "eth"
+        },
+        "vlan": {
+          "vlan.priority": "5",
+          "vlan.dei": "0",
+          "vlan.id": "100",
+          "vlan.etype": "0x0800"
+        },
+        "ip": {
+          "filtered": "ip"
+        },
+        "udp": {
+          "filtered": "udp"
+        },
+        "data": {
+          "filtered": "data"
+        }
+      }
+    }
+  }
+]

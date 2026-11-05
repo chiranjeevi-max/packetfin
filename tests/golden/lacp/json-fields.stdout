@@ -1,0 +1,30 @@
+[
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "lacp.actor.key": [
+          "5"
+        ],
+        "lacp.actor.state": [
+          "0x3d"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "lacp.actor.key": [
+          "7"
+        ],
+        "lacp.actor.state": [
+          "0xff"
+        ]
+      }
+    }
+  }
+]

@@ -1,0 +1,2 @@
+{"index":{"_index":"packets-2023-11-14"}}
+{"timestamp":"1700000000123","no_":"1","time":"0.000000","source":"02:00:00:00:00:01","destination":"02:00:00:00:00:02","protocol":"ARP","length":"42","info":"Who has 198.51.100.2? Tell 192.0.2.1"}

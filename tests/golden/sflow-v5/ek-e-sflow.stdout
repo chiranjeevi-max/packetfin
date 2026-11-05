@@ -1,0 +1,4 @@
+{"index":{"_index":"packets-2023-11-14"}}
+{"timestamp":"1700000000123","layers":{"sflow_245_agent":["192.0.2.1"],"sflow_flow_sample_sequence_number":["7","9"]}}
+{"index":{"_index":"packets-2023-11-14"}}
+{"timestamp":"1700000000123","layers":{"sflow_flow_sample_sequence_number":["1"]}}

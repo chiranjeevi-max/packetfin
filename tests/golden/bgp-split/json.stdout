@@ -1,0 +1,123 @@
+[
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {}
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {}
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tcp.segment_data": [
+          "ffffffffffffffffffffffffffffffff004002"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tcp.pdu.size": [
+          "64"
+        ],
+        "tcp.segment_data": [
+          "0002080a001f400101004002060202fde8fde9400304c0000201c00808000100020003000418cb007118c63364"
+        ],
+        "tcp.reassembled.length": [
+          "64"
+        ],
+        "bgp.type": [
+          "2"
+        ],
+        "bgp.nlri_prefix": [
+          "203.0.113.0",
+          "198.51.100.0"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tcp.segment_data": [
+          "ffffffffffffffffffffffffffffffff0040020002080a001f"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tcp.pdu.size": [
+          "64"
+        ],
+        "tcp.segment_data": [
+          "400101004002060202fde8fde9400304c0000201c00808000100020003000418cb007118c63364"
+        ],
+        "tcp.reassembled.length": [
+          "64"
+        ],
+        "bgp.type": [
+          "2"
+        ],
+        "bgp.nlri_prefix": [
+          "203.0.113.0",
+          "198.51.100.0"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tcp.segment_data": [
+          "ffffffffffffffffffffffffffffffff0040020002080a001f"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tcp.pdu.size": [
+          "64",
+          "19"
+        ],
+        "tcp.segment_data": [
+          "400101004002060202fde8fde9400304c0000201c00808000100020003000418cb007118c63364"
+        ],
+        "tcp.reassembled.length": [
+          "64"
+        ],
+        "bgp.type": [
+          "2",
+          "4"
+        ],
+        "bgp.nlri_prefix": [
+          "203.0.113.0",
+          "198.51.100.0"
+        ]
+      }
+    }
+  }
+]

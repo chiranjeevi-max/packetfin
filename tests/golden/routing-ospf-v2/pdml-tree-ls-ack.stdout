@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="utf-8"?>
+<?xml-stylesheet type="text/xsl" href="pdml2html.xsl"?>
+<!-- normalized -->
+<pdml version="0" creator="creator" time="time" capture_file="tests/fixtures/routing-ospf-v2.pcap">
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="98">
+    <field name="num" pos="0" show="5" showname="Number" value="5" size="98"/>
+    <field name="len" pos="0" show="98" showname="Frame Length" value="62" size="98"/>
+    <field name="caplen" pos="0" show="98" showname="Captured Length" value="62" size="98"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:20.123460000 UTC" showname="Captured Time" value="1700000000.123460000" size="98"/>
+  </proto>
+  <proto name="frame" showname="Frame 5: Packet, 98 bytes on wire (784 bits), 98 bytes captured (784 bits)" size="98" pos="0">
+    <field name="filtered" value="frame" />
+  </proto>
+  <proto name="eth" showname="Ethernet II, Src: 02:00:00:00:00:01, Dst: 02:00:00:00:00:02" size="14" pos="0">
+    <field name="filtered" value="eth" />
+  </proto>
+  <proto name="ip" showname="Internet Protocol Version 4, Src: 192.0.2.1, Dst: 198.51.100.2" size="20" pos="14">
+    <field name="filtered" value="ip" />
+  </proto>
+  <proto name="ospf" showname="Open Shortest Path First" size="64" pos="34">
+    <field name="ospf.header" showname="OSPF Header" size="24" pos="34" show="" value="">
+      <field name="ospf.version" showname="Version: 2" size="1" pos="34" show="2" value="02"/>
+      <field name="ospf.msg" showname="Message Type: LS Acknowledge (5)" size="1" pos="35" show="5" value="05"/>
+      <field name="ospf.msg.lsack" showname="Link State Adv Acknowledgement: True" hide="yes" size="1" pos="35" show="True" value="05"/>
+      <field name="ospf.packet_length" showname="Packet Length: 64" size="2" pos="36" show="64" value="0040"/>
+      <field name="ospf.srcrouter" showname="Source OSPF Router: 1.1.1.1" size="4" pos="38" show="1.1.1.1" value="01010101"/>
+      <field name="ospf.area_id" showname="Area ID: 0.0.0.0 (Backbone)" size="4" pos="42" show="0.0.0.0" value="00000000"/>
+      <field name="ospf.checksum" showname="Checksum: 0xff66 [correct]" size="2" pos="46" show="0xff66" value="ff66"/>
+      <field name="ospf.instance_id" showname="Instance ID: Base IPv4 Unicast Instance (0)" size="1" pos="48" show="0" value="00"/>
+      <field name="ospf.auth.type" showname="Auth Type: Null (0)" size="1" pos="49" show="0" value="00"/>
+      <field name="ospf.auth.none" showname="Auth Data (none): 0000000000000000" size="8" pos="50" show="00:00:00:00:00:00:00:00" value="0000000000000000"/>
+    </field>
+    <field name="" show="LSA-type 1 (Router-LSA), len 48" size="20" pos="58" value="000022010101010101010101800000016a130030">
+      <field name="ospf.lsa.age" showname=".000 0000 0000 0000 = LS Age (seconds): 0" size="2" pos="58" show="0" value="0" unmaskedvalue="0000"/>
+      <field name="ospf.lsa.donotage" showname="0... .... .... .... = Do Not Age Flag: 0" size="2" pos="58" show="0" value="0" unmaskedvalue="0000"/>
+      <field name="ospf.v2.options" showname="Options: 0x22, (DC) Demand Circuits, (E) External Routing" size="1" pos="60" show="0x22" value="22">
+        <field name="ospf.v2.options.dn" showname="0... .... = DN: Not set" size="1" pos="60" show="False" value="0" unmaskedvalue="22"/>
+        <field name="ospf.v2.options.o" showname=".0.. .... = (O) Opaque: Not set" size="1" pos="60" show="False" value="0" unmaskedvalue="22"/>
+        <field name="ospf.v2.options.dc" showname="..1. .... = (DC) Demand Circuits: Supported" size="1" pos="60" show="True" value="1" unmaskedvalue="22"/>
+        <field name="ospf.v2.options.l" showname="...0 .... = (L) LLS Data block: Not Present" size="1" pos="60" show="False" value="0" unmaskedvalue="22"/>
+        <field name="ospf.v2.options.n" showname=".... 0... = (N) NSSA: Not supported" size="1" pos="60" show="False" value="0" unmaskedvalue="22"/>
+        <field name="ospf.v2.options.mc" showname=".... .0.. = (MC) Multicast: Not capable" size="1" pos="60" show="False" value="0" unmaskedvalue="22"/>
+        <field name="ospf.v2.options.e" showname=".... ..1. = (E) External Routing: Capable" size="1" pos="60" show="True" value="1" unmaskedvalue="22"/>
+        <field name="ospf.v2.options.mt" showname=".... ...0 = (MT) Multi-Topology Routing: No" size="1" pos="60" show="False" value="0" unmaskedvalue="22"/>
+      </field>
+      <field name="ospf.lsa" showname="LS Type: Router-LSA (1)" size="1" pos="61" show="1" value="01"/>
+      <field name="ospf.lsa.router" showname="Router LSA: True" hide="yes" size="1" pos="61" show="True" value="01"/>
+      <field name="ospf.lsa.id" showname="Link State ID: 1.1.1.1" size="4" pos="62" show="1.1.1.1" value="01010101"/>
+      <field name="ospf.advrouter" showname="Advertising Router: 1.1.1.1" size="4" pos="66" show="1.1.1.1" value="01010101"/>
+      <field name="ospf.lsa.seqnum" showname="Sequence Number: 0x80000001" size="4" pos="70" show="0x80000001" value="80000001"/>
+      <field name="ospf.lsa.chksum" showname="Checksum: 0x6a13" size="2" pos="74" show="0x6a13" value="6a13"/>
+      <field name="ospf.lsa.length" showname="Length: 48" size="2" pos="76" show="48" value="0030"/>
+    </field>
+    <field name="" show="LSA-type 2 (Network-LSA), len 32" size="20" pos="78" value="000022020a00000101010101800000013de10020">
+      <field name="ospf.lsa.age" showname=".000 0000 0000 0000 = LS Age (seconds): 0" size="2" pos="78" show="0" value="0" unmaskedvalue="0000"/>
+      <field name="ospf.lsa.donotage" showname="0... .... .... .... = Do Not Age Flag: 0" size="2" pos="78" show="0" value="0" unmaskedvalue="0000"/>
+      <field name="ospf.v2.options" showname="Options: 0x22, (DC) Demand Circuits, (E) External Routing" size="1" pos="80" show="0x22" value="22">
+        <field name="ospf.v2.options.dn" showname="0... .... = DN: Not set" size="1" pos="80" show="False" value="0" unmaskedvalue="22"/>
+        <field name="ospf.v2.options.o" showname=".0.. .... = (O) Opaque: Not set" size="1" pos="80" show="False" value="0" unmaskedvalue="22"/>
+        <field name="ospf.v2.options.dc" showname="..1. .... = (DC) Demand Circuits: Supported" size="1" pos="80" show="True" value="1" unmaskedvalue="22"/>
+        <field name="ospf.v2.options.l" showname="...0 .... = (L) LLS Data block: Not Present" size="1" pos="80" show="False" value="0" unmaskedvalue="22"/>
+        <field name="ospf.v2.options.n" showname=".... 0... = (N) NSSA: Not supported" size="1" pos="80" show="False" value="0" unmaskedvalue="22"/>
+        <field name="ospf.v2.options.mc" showname=".... .0.. = (MC) Multicast: Not capable" size="1" pos="80" show="False" value="0" unmaskedvalue="22"/>
+        <field name="ospf.v2.options.e" showname=".... ..1. = (E) External Routing: Capable" size="1" pos="80" show="True" value="1" unmaskedvalue="22"/>
+        <field name="ospf.v2.options.mt" showname=".... ...0 = (MT) Multi-Topology Routing: No" size="1" pos="80" show="False" value="0" unmaskedvalue="22"/>
+      </field>
+      <field name="ospf.lsa" showname="LS Type: Network-LSA (2)" size="1" pos="81" show="2" value="02"/>
+      <field name="ospf.lsa.network" showname="Network LSA: True" hide="yes" size="1" pos="81" show="True" value="02"/>
+      <field name="ospf.lsa.id" showname="Link State ID: 10.0.0.1" size="4" pos="82" show="10.0.0.1" value="0a000001"/>
+      <field name="ospf.advrouter" showname="Advertising Router: 1.1.1.1" size="4" pos="86" show="1.1.1.1" value="01010101"/>
+      <field name="ospf.lsa.seqnum" showname="Sequence Number: 0x80000001" size="4" pos="90" show="0x80000001" value="80000001"/>
+      <field name="ospf.lsa.chksum" showname="Checksum: 0x3de1" size="2" pos="94" show="0x3de1" value="3de1"/>
+      <field name="ospf.lsa.length" showname="Length: 32" size="2" pos="96" show="32" value="0020"/>
+    </field>
+  </proto>
+</packet>
+
+
+</pdml>

@@ -1,0 +1,17 @@
+Frame 1: Packet, 42 bytes on wire (336 bits), 42 bytes captured (336 bits)
+    Encapsulation type: Ethernet (1)
+    Arrival Time: Nov 14, 2023 22:13:20.123456000 UTC
+    UTC Arrival Time: Nov 14, 2023 22:13:20.123456000 UTC
+    Epoch Arrival Time: 1700000000.123456000
+    [Time shift for this packet: 0.000000000 seconds]
+    [Time since reference or first frame: 0.000000000 seconds]
+    Frame Number: 1
+    Frame Length: 42 bytes (336 bits)
+    Capture Length: 42 bytes (336 bits)
+    [Frame is marked: False]
+    [Frame is ignored: False]
+    [Protocols in frame: eth:ethertype:arp]
+    Character encoding: ASCII (0)
+Ethernet II, Src: 02:00:00:00:00:01, Dst: 02:00:00:00:00:02
+Address Resolution Protocol (reply)
+X

@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="utf-8"?>
+<?xml-stylesheet type="text/xsl" href="pdml2html.xsl"?>
+<!-- normalized -->
+<pdml version="0" creator="creator" time="time" capture_file="tests/fixtures/lldp.pcap">
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="77">
+    <field name="num" pos="0" show="3" showname="Number" value="3" size="77"/>
+    <field name="len" pos="0" show="77" showname="Frame Length" value="4d" size="77"/>
+    <field name="caplen" pos="0" show="77" showname="Captured Length" value="4d" size="77"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:20.123458000 UTC" showname="Captured Time" value="1700000000.123458000" size="77"/>
+  </proto>
+  <proto name="frame" showname="Frame 3: Packet, 77 bytes on wire (616 bits), 77 bytes captured (616 bits)" size="77" pos="0">
+    <field name="filtered" value="frame" />
+  </proto>
+  <proto name="eth" showname="Ethernet II, Src: 02:00:00:00:00:01, Dst: 01:80:c2:00:00:0e" size="14" pos="0">
+    <field name="filtered" value="eth" />
+  </proto>
+  <proto name="lldp" showname="Link Layer Discovery Protocol" size="63" pos="14">
+    <field name="" show="Chassis Subtype = MAC address, Id: 00:11:22:33:44:55" size="9" pos="14" value="020704001122334455">
+      <field name="lldp.tlv.type" showname="0000 001. .... .... = TLV Type: Chassis Id (1)" size="2" pos="14" show="1" value="1" unmaskedvalue="0207"/>
+      <field name="lldp.tlv.len" showname=".... ...0 0000 0111 = TLV Length: 7" size="2" pos="14" show="7" value="7" unmaskedvalue="0207"/>
+      <field name="lldp.chassis.subtype" showname="Chassis Id Subtype: MAC address (4)" size="1" pos="16" show="4" value="04"/>
+      <field name="lldp.chassis.id.mac" showname="Chassis Id: 00:11:22:33:44:55" size="6" pos="17" show="00:11:22:33:44:55" value="001122334455"/>
+    </field>
+    <field name="" show="Port Subtype = Interface name, Id: eth0" size="7" pos="23" value="04050565746830">
+      <field name="lldp.tlv.type" showname="0000 010. .... .... = TLV Type: Port Id (2)" size="2" pos="23" show="2" value="2" unmaskedvalue="0405"/>
+      <field name="lldp.tlv.len" showname=".... ...0 0000 0101 = TLV Length: 5" size="2" pos="23" show="5" value="5" unmaskedvalue="0405"/>
+      <field name="lldp.port.subtype" showname="Port Id Subtype: Interface name (5)" size="1" pos="25" show="5" value="05"/>
+      <field name="lldp.port.id" showname="Port Id: eth0" size="4" pos="26" show="eth0" value="65746830"/>
+    </field>
+    <field name="" show="Time To Live = 120 sec" size="4" pos="30" value="06020078">
+      <field name="lldp.pdu_type" showname="Normal LLDPDU" size="4" pos="30" show="" value=""/>
+      <field name="lldp.tlv.type" showname="0000 011. .... .... = TLV Type: Time to Live (3)" size="2" pos="30" show="3" value="3" unmaskedvalue="0602"/>
+      <field name="lldp.tlv.len" showname=".... ...0 0000 0010 = TLV Length: 2" size="2" pos="30" show="2" value="2" unmaskedvalue="0602"/>
+      <field name="lldp.time_to_live" showname="Seconds: 120" size="2" pos="32" show="120" value="0078"/>
+    </field>
+    <field name="" show="System Name = switch-b" size="10" pos="34" value="0a087377697463682d62">
+      <field name="lldp.tlv.type" showname="0000 101. .... .... = TLV Type: System Name (5)" size="2" pos="34" show="5" value="5" unmaskedvalue="0a08"/>
+      <field name="lldp.tlv.len" showname=".... ...0 0000 1000 = TLV Length: 8" size="2" pos="34" show="8" value="8" unmaskedvalue="0a08"/>
+      <field name="lldp.tlv.system.name" showname="System Name: switch-b" size="8" pos="36" show="switch-b" value="7377697463682d62"/>
+    </field>
+    <field name="" show="System Description = packetfin test switch b" size="25" pos="44" value="0c177061636b657466696e2074657374207377697463682062">
+      <field name="lldp.tlv.type" showname="0000 110. .... .... = TLV Type: System Description (6)" size="2" pos="44" show="6" value="6" unmaskedvalue="0c17"/>
+      <field name="lldp.tlv.len" showname=".... ...0 0001 0111 = TLV Length: 23" size="2" pos="44" show="23" value="17" unmaskedvalue="0c17"/>
+      <field name="lldp.tlv.system.desc" showname="System Description: packetfin test switch b" size="23" pos="46" show="packetfin test switch b" value="7061636b657466696e2074657374207377697463682062"/>
+    </field>
+    <field name="" show="Capabilities" size="6" pos="69" value="0e0400040004">
+      <field name="lldp.tlv.type" showname="0000 111. .... .... = TLV Type: System Capabilities (7)" size="2" pos="69" show="7" value="7" unmaskedvalue="0e04"/>
+      <field name="lldp.tlv.len" showname=".... ...0 0000 0100 = TLV Length: 4" size="2" pos="69" show="4" value="4" unmaskedvalue="0e04"/>
+      <field name="lldp.tlv.system_cap" showname="Capabilities: 0x0004" size="2" pos="71" show="0x0004" value="0004">
+        <field name="lldp.tlv.system_cap.other" showname=".... .... .... ...0 = Other: Not capable" size="2" pos="71" show="False" value="0" unmaskedvalue="0004"/>
+        <field name="lldp.tlv.system_cap.repeater" showname=".... .... .... ..0. = Repeater: Not capable" size="2" pos="71" show="False" value="0" unmaskedvalue="0004"/>
+        <field name="lldp.tlv.system_cap.bridge" showname=".... .... .... .1.. = Bridge: Capable" size="2" pos="71" show="True" value="1" unmaskedvalue="0004"/>
+        <field name="lldp.tlv.system_cap.wlan_access_pt" showname=".... .... .... 0... = WLAN access point: Not capable" size="2" pos="71" show="False" value="0" unmaskedvalue="0004"/>
+        <field name="lldp.tlv.system_cap.router" showname=".... .... ...0 .... = Router: Not capable" size="2" pos="71" show="False" value="0" unmaskedvalue="0004"/>
+        <field name="lldp.tlv.system_cap.telephone" showname=".... .... ..0. .... = Telephone: Not capable" size="2" pos="71" show="False" value="0" unmaskedvalue="0004"/>
+        <field name="lldp.tlv.system_cap.docsis_cable_device" showname=".... .... .0.. .... = DOCSIS cable device: Not capable" size="2" pos="71" show="False" value="0" unmaskedvalue="0004"/>
+        <field name="lldp.tlv.system_cap.station_only" showname=".... .... 0... .... = Station only: Not capable" size="2" pos="71" show="False" value="0" unmaskedvalue="0004"/>
+        <field name="lldp.tlv.system_cap.cvlan" showname=".... ...0 .... .... = C-VLAN component: Not capable" size="2" pos="71" show="False" value="0" unmaskedvalue="0004"/>
+        <field name="lldp.tlv.system_cap.svlan" showname=".... ..0. .... .... = S-VLAN component: Not capable" size="2" pos="71" show="False" value="0" unmaskedvalue="0004"/>
+        <field name="lldp.tlv.system_cap.tpmr" showname=".... .0.. .... .... = TPMR component: Not capable" size="2" pos="71" show="False" value="0" unmaskedvalue="0004"/>
+      </field>
+      <field name="lldp.tlv.enable_system_cap" showname="Enabled Capabilities: 0x0004" size="2" pos="73" show="0x0004" value="0004">
+        <field name="lldp.tlv.enable_system_cap.other" showname=".... .... .... ...0 = Other: Not capable" size="2" pos="73" show="False" value="0" unmaskedvalue="0004"/>
+        <field name="lldp.tlv.enable_system_cap.repeater" showname=".... .... .... ..0. = Repeater: Not capable" size="2" pos="73" show="False" value="0" unmaskedvalue="0004"/>
+        <field name="lldp.tlv.enable_system_cap.bridge" showname=".... .... .... .1.. = Bridge: Capable" size="2" pos="73" show="True" value="1" unmaskedvalue="0004"/>
+        <field name="lldp.tlv.enable_system_cap.wlan_access_pt" showname=".... .... .... 0... = WLAN access point: Not capable" size="2" pos="73" show="False" value="0" unmaskedvalue="0004"/>
+        <field name="lldp.tlv.enable_system_cap.router" showname=".... .... ...0 .... = Router: Not capable" size="2" pos="73" show="False" value="0" unmaskedvalue="0004"/>
+        <field name="lldp.tlv.enable_system_cap.telephone" showname=".... .... ..0. .... = Telephone: Not capable" size="2" pos="73" show="False" value="0" unmaskedvalue="0004"/>
+        <field name="lldp.tlv.enable_system_cap.docsis_cable_device" showname=".... .... .0.. .... = DOCSIS cable device: Not capable" size="2" pos="73" show="False" value="0" unmaskedvalue="0004"/>
+        <field name="lldp.tlv.enable_system_cap.station_only" showname=".... .... 0... .... = Station only: Not capable" size="2" pos="73" show="False" value="0" unmaskedvalue="0004"/>
+        <field name="lldp.tlv.enable_system_cap.cvlan" showname=".... ...0 .... .... = C-VLAN component: Not capable" size="2" pos="73" show="False" value="0" unmaskedvalue="0004"/>
+        <field name="lldp.tlv.enable_system_cap.svlan" showname=".... ..0. .... .... = S-VLAN component: Not capable" size="2" pos="73" show="False" value="0" unmaskedvalue="0004"/>
+        <field name="lldp.tlv.enable_system_cap.tpmr" showname=".... .0.. .... .... = TPMR component: Not capable" size="2" pos="73" show="False" value="0" unmaskedvalue="0004"/>
+      </field>
+    </field>
+    <field name="" show="End of LLDPDU" size="2" pos="75" value="0000">
+      <field name="lldp.tlv.type" showname="0000 000. .... .... = TLV Type: End of LLDPDU (0)" size="2" pos="75" show="0" value="0" unmaskedvalue="0000"/>
+      <field name="lldp.tlv.len" showname=".... ...0 0000 0000 = TLV Length: 0" size="2" pos="75" show="0" value="0" unmaskedvalue="0000"/>
+    </field>
+  </proto>
+</packet>
+
+
+</pdml>

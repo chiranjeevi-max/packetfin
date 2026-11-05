@@ -1,0 +1,112 @@
+[
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "cflow.version": [
+          "5"
+        ],
+        "cflow.count": [
+          "2"
+        ],
+        "cflow.sysuptime": [
+          "123.456000000"
+        ],
+        "cflow.timestamp": [
+          "2023-11-14T22:13:20.500000000+0000"
+        ],
+        "cflow.srcaddr": [
+          "192.0.2.1",
+          "10.1.1.1"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "cflow.version": [
+          "5"
+        ],
+        "cflow.count": [
+          "0"
+        ],
+        "cflow.sysuptime": [
+          "0.000000000"
+        ],
+        "cflow.timestamp": [
+          "1970-01-01T00:00:00.000000000+0000"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "cflow.version": [
+          "5"
+        ],
+        "cflow.count": [
+          "3"
+        ],
+        "cflow.sysuptime": [
+          "1.000000000"
+        ],
+        "cflow.timestamp": [
+          "1970-01-01T00:01:40.000000000+0000"
+        ],
+        "cflow.srcaddr": [
+          "192.0.2.5"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "cflow.version": [
+          "5"
+        ],
+        "cflow.count": [
+          "1"
+        ],
+        "cflow.sysuptime": [
+          "0.500000000"
+        ],
+        "cflow.timestamp": [
+          "1970-01-01T00:03:20.000000001+0000"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "cflow.version": [
+          "5"
+        ],
+        "cflow.count": [
+          "1"
+        ],
+        "cflow.sysuptime": [
+          "0.000000000"
+        ],
+        "cflow.timestamp": [
+          "1970-01-01T00:00:00.000000000+0000"
+        ],
+        "cflow.srcaddr": [
+          "203.0.113.1"
+        ]
+      }
+    }
+  }
+]

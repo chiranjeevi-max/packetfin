@@ -1,0 +1,65 @@
+#!/usr/bin/env bash
+# tools/fuzz — run each cargo-fuzz target for a bounded wall time.
+#
+# Usage: tools/fuzz [minutes]
+#
+#   minutes   fuzzing time per target in minutes (default 5)
+#   FUZZ_NIGHTLY  nightly toolchain to use (default nightly-2026-10-30)
+#
+# Each input gets a 10-second timeout and the fuzzer process a 1 GiB RSS
+# limit, so a hang or unbounded allocation fails the run instead of stalling.
+#
+# Exits 1 with an actionable message if cargo-fuzz is missing or the fuzz/
+# directory does not exist. Does not create an empty fuzz crate.
+
+set -euo pipefail
+
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+repo_root="$(cd "$script_dir/.." && pwd)"
+cd "$repo_root"
+
+fail() {
+    printf '!! %s\n' "$*" >&2
+    exit 1
+}
+
+minutes="${1:-5}"
+case $minutes in
+    '' | *[!0-9]*) fail "minutes must be a whole number, got '$minutes'" ;;
+esac
+FUZZ_NIGHTLY="${FUZZ_NIGHTLY:-nightly-2026-10-30}"
+max_total_time=$((minutes * 60))
+
+if ! command -v cargo-fuzz >/dev/null 2>&1 && ! cargo fuzz --version >/dev/null 2>&1; then
+    fail "cargo-fuzz is not installed. Install it with:
+  cargo install cargo-fuzz --version 0.13.2
+Then rerun tools/fuzz."
+fi
+
+if [ ! -d "$repo_root/fuzz" ]; then
+    fail "missing fuzz/ directory; run tools/fuzz from a full checkout of the repository."
+fi
+
+cargo "+$FUZZ_NIGHTLY" fuzz list >/dev/null 2>&1 || {
+    fail "cargo +$FUZZ_NIGHTLY fuzz list failed. Ensure the nightly toolchain
+  $FUZZ_NIGHTLY is installed (rustup install $FUZZ_NIGHTLY) and cargo-fuzz 0.13.2
+  is available."
+}
+
+targets="$(cargo "+$FUZZ_NIGHTLY" fuzz list)"
+if [ -z "$targets" ]; then
+    printf 'No fuzz targets found; nothing to run.\n'
+    exit 0
+fi
+
+printf 'Fuzzing each target for %d seconds (minutes=%d, toolchain=%s)\n' \
+    "$max_total_time" "$minutes" "$FUZZ_NIGHTLY"
+
+while IFS= read -r target; do
+    [ -n "$target" ] || continue
+    printf '\n==> fuzzing target: %s\n' "$target"
+    cargo "+$FUZZ_NIGHTLY" fuzz run "$target" -- \
+        -max_total_time="$max_total_time" -timeout=10 -rss_limit_mb=1024
+done <<< "$targets"
+
+printf '\n==> tools/fuzz: all targets completed\n'

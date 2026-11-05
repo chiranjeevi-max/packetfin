@@ -1,0 +1,39 @@
+[
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "frame": {
+          "frame.encap_type": "1",
+          "frame.time": "2023-11-14T22:13:20.123456000Z",
+          "frame.time_utc": "2023-11-14T22:13:20.123456000Z",
+          "frame.time_epoch": "2023-11-14T22:13:20.123456000Z",
+          "frame.offset_shift": "0.000000000",
+          "frame.time_relative": "0.000000000",
+          "frame.number": "1",
+          "frame.len": "42",
+          "frame.cap_len": "42",
+          "frame.marked": "0",
+          "frame.ignored": "0",
+          "frame.protocols": "eth:ethertype:arp",
+          "frame.encoding": "0"
+        },
+        "eth": {
+          "filtered": "eth"
+        },
+        "arp": {
+          "arp.hw.type": "1",
+          "arp.proto.type": "0x0800",
+          "arp.hw.size": "6",
+          "arp.proto.size": "4",
+          "arp.opcode": "1",
+          "arp.src.hw_mac": "02:00:00:00:00:01",
+          "arp.src.proto_ipv4": "192.0.2.1",
+          "arp.dst.hw_mac": "00:00:00:00:00:00",
+          "arp.dst.proto_ipv4": "198.51.100.2"
+        }
+      }
+    }
+  }
+]

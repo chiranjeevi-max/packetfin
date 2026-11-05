@@ -1,0 +1,341 @@
+[
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "frame": {
+          "filtered": "frame"
+        },
+        "eth": {
+          "filtered": "eth"
+        },
+        "ip": {
+          "filtered": "ip"
+        },
+        "udp": {
+          "filtered": "udp"
+        },
+        "dhcpv6": {
+          "dhcpv6.msgtype": "1",
+          "dhcpv6.xid": "0x123456",
+          "dhcpv6.option.type_str": "Client Identifier",
+          "dhcpv6.option.type_str_tree": {
+            "dhcpv6.option.type": "1",
+            "dhcpv6.option.length": "14",
+            "dhcpv6.duid.bytes": "00:01:00:01:e9:00:00:00:02:00:00:00:00:01",
+            "dhcpv6.duid.type": "1",
+            "dhcpv6.duidllt.hwtype": "1",
+            "dhcpv6.duidllt.time": "1987-10-09T20:13:52.000000000Z",
+            "dhcpv6.duidllt.link_layer_addr": "02:00:00:00:00:01",
+            "dhcpv6.duidllt.link_layer_addr_ether": "02:00:00:00:00:01"
+          },
+          "dhcpv6.option.type_str": "Identity Association for Non-temporary Address",
+          "dhcpv6.option.type_str_tree": {
+            "dhcpv6.option.type": "3",
+            "dhcpv6.option.length": "40",
+            "dhcpv6.iaid": "00000001",
+            "dhcpv6.iaid.t1": "100",
+            "dhcpv6.iaid.t2": "200",
+            "dhcpv6.option.type_str": "IA Address",
+            "dhcpv6.option.type_str_tree": {
+              "dhcpv6.option.type": "5",
+              "dhcpv6.option.length": "24",
+              "dhcpv6.iaaddr.ip": "2001:db8::100",
+              "dhcpv6.iaaddr.pref_lifetime": "300",
+              "dhcpv6.iaaddr.valid_lifetime": "600"
+            }
+          },
+          "dhcpv6.option.type_str": "Identity Association for Temporary Address",
+          "dhcpv6.option.type_str_tree": {
+            "dhcpv6.option.type": "4",
+            "dhcpv6.option.length": "32",
+            "_ws.expert": {
+              "dhcpv6.obsoleted_option": "",
+              "_ws.expert.message": "IA_TA: obsoleted option (RFC draft-ietf-dhc-rfc8415bis-12)",
+              "_ws.expert.severity": "6291456",
+              "_ws.expert.group": "234881024"
+            },
+            "dhcpv6.iata": "00000007",
+            "dhcpv6.option.type_str": "IA Address",
+            "dhcpv6.option.type_str_tree": {
+              "dhcpv6.option.type": "5",
+              "dhcpv6.option.length": "24",
+              "dhcpv6.iaaddr.ip": "2001:db8::200",
+              "dhcpv6.iaaddr.pref_lifetime": "300",
+              "dhcpv6.iaaddr.valid_lifetime": "600"
+            }
+          },
+          "dhcpv6.option.type_str": "Identity Association for Prefix Delegation",
+          "dhcpv6.option.type_str_tree": {
+            "dhcpv6.option.type": "25",
+            "dhcpv6.option.length": "41",
+            "dhcpv6.iaid": "00000009",
+            "dhcpv6.iaid.t1": "100",
+            "dhcpv6.iaid.t2": "200",
+            "dhcpv6.option.type_str": "IA Prefix",
+            "dhcpv6.option.type_str_tree": {
+              "dhcpv6.option.type": "26",
+              "dhcpv6.option.length": "25",
+              "dhcpv6.iaprefix.pref_lifetime": "300",
+              "dhcpv6.iaprefix.valid_lifetime": "600",
+              "dhcpv6.iaprefix.pref_len": "56",
+              "dhcpv6.iaprefix.pref_addr": "2001:db8:abcd::"
+            }
+          },
+          "dhcpv6.option.type_str": "Option Request",
+          "dhcpv6.option.type_str_tree": {
+            "dhcpv6.option.type": "6",
+            "dhcpv6.option.length": "6",
+            "dhcpv6.requested_option_code": "23",
+            "dhcpv6.requested_option_code": "24",
+            "dhcpv6.requested_option_code": "39"
+          },
+          "dhcpv6.option.type_str": "Elapsed time",
+          "dhcpv6.option.type_str_tree": {
+            "dhcpv6.option.type": "8",
+            "dhcpv6.option.length": "2",
+            "dhcpv6.elapsed_time": "50"
+          },
+          "dhcpv6.option.type_str": "Preference",
+          "dhcpv6.option.type_str_tree": {
+            "dhcpv6.option.type": "7",
+            "dhcpv6.option.length": "1",
+            "dhcpv6.option_preference": "255"
+          },
+          "dhcpv6.option.type_str": "DHCP option 65535",
+          "dhcpv6.option.type_str_tree": {
+            "dhcpv6.option.type": "65535",
+            "dhcpv6.option.length": "6",
+            "dhcpv6.option.data": "6f:70:61:71:75:65"
+          }
+        }
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "frame": {
+          "filtered": "frame"
+        },
+        "eth": {
+          "filtered": "eth"
+        },
+        "ip": {
+          "filtered": "ip"
+        },
+        "udp": {
+          "filtered": "udp"
+        },
+        "dhcpv6": {
+          "dhcpv6.msgtype": "2",
+          "dhcpv6.xid": "0x123456",
+          "dhcpv6.option.type_str": "Server Identifier",
+          "dhcpv6.option.type_str_tree": {
+            "dhcpv6.option.type": "2",
+            "dhcpv6.option.length": "9",
+            "dhcpv6.duid.bytes": "00:02:00:00:7e:d9:61:62:63",
+            "dhcpv6.duid.type": "2",
+            "dhcpv6.duiden.enterprise": "32473",
+            "dhcpv6.duiden.identifier": "61:62:63"
+          },
+          "dhcpv6.option.type_str": "Client Identifier",
+          "dhcpv6.option.type_str_tree": {
+            "dhcpv6.option.type": "1",
+            "dhcpv6.option.length": "14",
+            "dhcpv6.duid.bytes": "00:01:00:01:e9:00:00:00:02:00:00:00:00:01",
+            "dhcpv6.duid.type": "1",
+            "dhcpv6.duidllt.hwtype": "1",
+            "dhcpv6.duidllt.time": "1987-10-09T20:13:52.000000000Z",
+            "dhcpv6.duidllt.link_layer_addr": "02:00:00:00:00:01",
+            "dhcpv6.duidllt.link_layer_addr_ether": "02:00:00:00:00:01"
+          },
+          "dhcpv6.option.type_str": "Identity Association for Non-temporary Address",
+          "dhcpv6.option.type_str_tree": {
+            "dhcpv6.option.type": "3",
+            "dhcpv6.option.length": "40",
+            "dhcpv6.iaid": "00000001",
+            "dhcpv6.iaid.t1": "100",
+            "dhcpv6.iaid.t2": "200",
+            "dhcpv6.option.type_str": "IA Address",
+            "dhcpv6.option.type_str_tree": {
+              "dhcpv6.option.type": "5",
+              "dhcpv6.option.length": "24",
+              "dhcpv6.iaaddr.ip": "2001:db8::100",
+              "dhcpv6.iaaddr.pref_lifetime": "300",
+              "dhcpv6.iaaddr.valid_lifetime": "600"
+            }
+          },
+          "dhcpv6.option.type_str": "Preference",
+          "dhcpv6.option.type_str_tree": {
+            "dhcpv6.option.type": "7",
+            "dhcpv6.option.length": "1",
+            "dhcpv6.option_preference": "100"
+          },
+          "dhcpv6.option.type_str": "DNS recursive name server",
+          "dhcpv6.option.type_str_tree": {
+            "dhcpv6.option.type": "23",
+            "dhcpv6.option.length": "32",
+            "dhcpv6.dns_server": "2001:db8::53",
+            "dhcpv6.dns_server": "2001:db8::54"
+          },
+          "dhcpv6.option.type_str": "Domain Search List",
+          "dhcpv6.option.type_str_tree": {
+            "dhcpv6.option.type": "24",
+            "dhcpv6.option.length": "13",
+            "Domain name suffix search list": {
+              "dhcpv6.search_list_entry": "example.com."
+            }
+          },
+          "dhcpv6.option.type_str": "Status code",
+          "dhcpv6.option.type_str_tree": {
+            "dhcpv6.option.type": "13",
+            "dhcpv6.option.length": "4",
+            "dhcpv6.status_code": "0",
+            "dhcpv6.status_msg": "ok"
+          }
+        }
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "frame": {
+          "filtered": "frame"
+        },
+        "eth": {
+          "filtered": "eth"
+        },
+        "ip": {
+          "filtered": "ip"
+        },
+        "udp": {
+          "filtered": "udp"
+        },
+        "dhcpv6": {
+          "dhcpv6.msgtype": "1",
+          "dhcpv6.xid": "0x123457",
+          "dhcpv6.option.type_str": "Client Identifier",
+          "dhcpv6.option.type_str_tree": {
+            "dhcpv6.option.type": "1",
+            "dhcpv6.option.length": "11",
+            "dhcpv6.duid.bytes": "00:01:00:06:e9:00:00:00:01:02:03",
+            "dhcpv6.duid.type": "1",
+            "dhcpv6.duidllt.hwtype": "6",
+            "dhcpv6.duidllt.time": "1987-10-09T20:13:52.000000000Z",
+            "dhcpv6.duidllt.link_layer_addr": "010203"
+          }
+        }
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "frame": {
+          "filtered": "frame"
+        },
+        "eth": {
+          "filtered": "eth"
+        },
+        "ip": {
+          "filtered": "ip"
+        },
+        "udp": {
+          "filtered": "udp"
+        },
+        "dhcpv6": {
+          "dhcpv6.msgtype": "1",
+          "dhcpv6.xid": "0x123458",
+          "dhcpv6.option.type_str": "Client Identifier",
+          "dhcpv6.option.type_str_tree": {
+            "dhcpv6.option.type": "1",
+            "dhcpv6.option.length": "15",
+            "dhcpv6.duid.bytes": "00:01:00:01:e9:00:00:00:01:02:03:04:05:06:07",
+            "dhcpv6.duid.type": "1",
+            "dhcpv6.duidllt.hwtype": "1",
+            "dhcpv6.duidllt.time": "1987-10-09T20:13:52.000000000Z",
+            "dhcpv6.duidllt.link_layer_addr": "01020304050607"
+          }
+        }
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "frame": {
+          "filtered": "frame"
+        },
+        "eth": {
+          "filtered": "eth"
+        },
+        "ip": {
+          "filtered": "ip"
+        },
+        "udp": {
+          "filtered": "udp"
+        },
+        "dhcpv6": {
+          "dhcpv6.msgtype": "1",
+          "dhcpv6.xid": "0x123459",
+          "dhcpv6.option.type_str": "Client Identifier",
+          "dhcpv6.option.type_str_tree": {
+            "dhcpv6.option.type": "1",
+            "dhcpv6.option.length": "14",
+            "dhcpv6.duid.bytes": "00:01:00:06:e9:00:00:00:01:02:03:04:05:06",
+            "dhcpv6.duid.type": "1",
+            "dhcpv6.duidllt.hwtype": "6",
+            "dhcpv6.duidllt.time": "1987-10-09T20:13:52.000000000Z",
+            "dhcpv6.duidllt.link_layer_addr": "01:02:03:04:05:06",
+            "dhcpv6.duidllt.link_layer_addr_ether": "01:02:03:04:05:06"
+          }
+        }
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "frame": {
+          "filtered": "frame"
+        },
+        "eth": {
+          "filtered": "eth"
+        },
+        "ip": {
+          "filtered": "ip"
+        },
+        "udp": {
+          "filtered": "udp"
+        },
+        "dhcpv6": {
+          "dhcpv6.msgtype": "1",
+          "dhcpv6.xid": "0x12345a",
+          "dhcpv6.option.type_str": "Client Identifier",
+          "dhcpv6.option.type_str_tree": {
+            "dhcpv6.option.type": "1",
+            "dhcpv6.option.length": "10",
+            "dhcpv6.duid.bytes": "00:03:00:06:01:02:03:04:05:06",
+            "dhcpv6.duid.type": "3",
+            "dhcpv6.duidll.hwtype": "6",
+            "dhcpv6.duidll.link_layer_addr": "01:02:03:04:05:06",
+            "dhcpv6.duidll.link_layer_addr_ether": "01:02:03:04:05:06"
+          }
+        }
+      }
+    }
+  }
+]

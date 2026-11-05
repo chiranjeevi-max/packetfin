@@ -1,0 +1,4 @@
+    1   0.000000    192.0.2.1 → 198.51.100.2 DHCP 286 DHCP Discover - Transaction ID 0x12345678
+    2   0.000001    192.0.2.1 → 198.51.100.2 DHCP 286 DHCP Discover - Transaction ID 0x12345678
+    3   0.000002    192.0.2.1 → 198.51.100.2 DHCP 286 DHCP Discover - Transaction ID 0x12345678
+    4   0.000003    192.0.2.1 → 198.51.100.2 BOOTP 286 [Malformed Packet]

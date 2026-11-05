@@ -1,0 +1,1 @@
+not (eth or ipv6) xor tcp.flags.syn == 1

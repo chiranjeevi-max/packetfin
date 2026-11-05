@@ -1,0 +1,116 @@
+[
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "frame": {
+          "filtered": "frame"
+        },
+        "eth": {
+          "filtered": "eth"
+        },
+        "ip": {
+          "filtered": "ip"
+        },
+        "udp": {
+          "filtered": "udp"
+        },
+        "dhcp": {
+          "dhcp.type": "2",
+          "dhcp.hw.type": "0x01",
+          "dhcp.hw.len": "6",
+          "dhcp.hops": "0",
+          "dhcp.id": "0x12345678",
+          "dhcp.secs": "0",
+          "dhcp.flags": "0x8000",
+          "dhcp.flags_tree": {
+            "dhcp.flags.bc": "1",
+            "dhcp.flags.reserved": "0x0000"
+          },
+          "dhcp.ip.client": "0.0.0.0",
+          "dhcp.ip.your": "192.0.2.100",
+          "dhcp.ip.server": "192.0.2.1",
+          "dhcp.ip.relay": "0.0.0.0",
+          "dhcp.hw.mac_addr": "02:00:00:00:00:01",
+          "dhcp.hw.addr_padding": "00:00:00:00:00:00:00:00:00:00",
+          "Server name option overloaded by DHCP": {
+            "_ws.expert": {
+              "dhcp.server_name_overloaded_by_dhcp": "",
+              "_ws.expert.message": "Server name option overloaded by DHCP",
+              "_ws.expert.severity": "4194304",
+              "_ws.expert.group": "150994944"
+            }
+          },
+          "Server host name option overload": {
+            "dhcp.option.type": "12",
+            "dhcp.option.type_tree": {
+              "dhcp.option.length": "10",
+              "dhcp.option.value": "73:6e:61:6d:65:2d:68:6f:73:74",
+              "dhcp.option.hostname": "sname-host"
+            },
+            "dhcp.option.type": "0",
+            "dhcp.option.type_tree": {
+              "dhcp.option.end": "255"
+            }
+          },
+          "Boot file name option overloaded by DHCP": {
+            "_ws.expert": {
+              "dhcp.boot_filename_overloaded_by_dhcp": "",
+              "_ws.expert.message": "Boot file name option overloaded by DHCP",
+              "_ws.expert.severity": "4194304",
+              "_ws.expert.group": "150994944"
+            }
+          },
+          "Boot file name option overload": {
+            "dhcp.option.type": "66",
+            "dhcp.option.type_tree": {
+              "dhcp.option.length": "16",
+              "dhcp.option.value": "74:66:74:70:2e:65:78:61:6d:70:6c:65:2e:63:6f:6d",
+              "dhcp.option.tftp_server_name": "tftp.example.com"
+            },
+            "dhcp.option.type": "67",
+            "dhcp.option.type_tree": {
+              "dhcp.option.length": "8",
+              "dhcp.option.value": "62:6f:6f:74:2e:69:6d:67",
+              "dhcp.option.bootfile_name": "boot.img"
+            },
+            "dhcp.option.type": "0",
+            "dhcp.option.type_tree": {
+              "dhcp.option.end": "255"
+            }
+          },
+          "dhcp.cookie": "99.130.83.99",
+          "dhcp.option.type": "53",
+          "dhcp.option.type_tree": {
+            "dhcp.option.length": "1",
+            "dhcp.option.value": "02",
+            "dhcp.option.dhcp": "2"
+          },
+          "dhcp.option.type": "52",
+          "dhcp.option.type_tree": {
+            "dhcp.option.length": "1",
+            "dhcp.option.value": "03",
+            "dhcp.option.option_overload": "3"
+          },
+          "dhcp.option.type": "54",
+          "dhcp.option.type_tree": {
+            "dhcp.option.length": "4",
+            "dhcp.option.value": "c0:00:02:01",
+            "dhcp.option.dhcp_server_id": "192.0.2.1"
+          },
+          "dhcp.option.type": "51",
+          "dhcp.option.type_tree": {
+            "dhcp.option.length": "4",
+            "dhcp.option.value": "00:00:0e:10",
+            "dhcp.option.ip_address_lease_time": "3600"
+          },
+          "dhcp.option.type": "0",
+          "dhcp.option.type_tree": {
+            "dhcp.option.end": "255"
+          }
+        }
+      }
+    }
+  }
+]

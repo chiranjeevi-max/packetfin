@@ -1,0 +1,3 @@
+packetfin: "4294967296" too big for this field, maximum 4294967295.
+    1 + -tcp.seq == 4294967296
+                    ^~~~~~~~~~

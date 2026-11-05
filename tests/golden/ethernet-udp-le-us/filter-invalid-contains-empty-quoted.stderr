@@ -1,0 +1,3 @@
+packetfin: Ethernet or other MAC address cannot be converted from a string ("").
+    eth.dst contains ""
+                     ^~

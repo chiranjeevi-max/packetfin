@@ -1,0 +1,3 @@
+packetfin: "ip.nope" is not a valid protocol or protocol field.
+    ip.nope == 1
+    ^~~~~~~

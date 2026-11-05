@@ -1,0 +1,99 @@
+[
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {}
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {}
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "syslog.msg": [
+          "34>hello"
+        ],
+        "syslog.msg.nonconformant": [
+          "1"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "syslog.facility": [
+          "4"
+        ],
+        "syslog.msg": [
+          "not a syslog"
+        ],
+        "syslog.msg.nonconformant": [
+          "1"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "syslog.facility": [
+          "4"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "syslog.facility": [
+          "4"
+        ],
+        "syslog.msg": [
+          "a"
+        ],
+        "syslog.msg.nonconformant": [
+          "1"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "syslog.facility": [
+          "4"
+        ],
+        "syslog.msg": [
+          "[x@1 k=\"v\"]msg"
+        ],
+        "syslog.msg.nonconformant": [
+          "1"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {}
+    }
+  }
+]

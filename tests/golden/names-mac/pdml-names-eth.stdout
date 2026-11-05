@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<?xml-stylesheet type="text/xsl" href="pdml2html.xsl"?>
+<!-- normalized -->
+<pdml version="0" creator="creator" time="time" capture_file="tests/fixtures/names-mac.pcap">
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="43">
+    <field name="num" pos="0" show="1" showname="Number" value="1" size="43"/>
+    <field name="len" pos="0" show="43" showname="Frame Length" value="2b" size="43"/>
+    <field name="caplen" pos="0" show="43" showname="Captured Length" value="2b" size="43"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:20.123456000 UTC" showname="Captured Time" value="1700000000.123456000" size="43"/>
+  </proto>
+  <field name="eth.src_resolved" value="Cisco_11:22:33"/>
+  <field name="eth.dst_resolved" value="Broadcast"/>
+  <field name="eth.src.oui_resolved" value="Cisco Systems, Inc"/>
+  <field name="ip.src_host" value="10.0.0.1"/>
+</packet>
+
+
+</pdml>

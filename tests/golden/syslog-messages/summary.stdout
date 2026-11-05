@@ -1,0 +1,6 @@
+    1   0.000000    192.0.2.1 → 198.51.100.2 Syslog 212 LOCAL4.NOTICE: 1 2023-11-14T22:13:20.123456Z host.example.com evntslog 1234 ID47 [exampleSDID@32473 iut="3" eventSource="Application" eventID="1011"] An application event log entry
+    2   0.000001    192.0.2.1 → 198.51.100.2 Syslog 102 AUTH.CRIT: 1 2023-11-14T22:13:21Z edge-1 su - ID48 - su root failed
+    3   0.000002    192.0.2.1 → 198.51.100.2 Syslog 104 AUTH.CRIT: Oct 11 22:14:15 mymachine su: 'su root' failed for lonvick
+    4   0.000003    192.0.2.1 → 198.51.100.2 Syslog 139 USER.NOTICE: 1 2023-11-14T22:13:22+02:00 host app 99 MSG [meta@1 key="value" seq="42"][other@2 x="y"]hello
+    5   0.000004    192.0.2.1 → 198.51.100.2 Syslog 97 AUTH.CRIT: 1 2023-11-14T22:13:24Z host app 7 ID50 - café 😀
+    6   0.000005    192.0.2.1 → 198.51.100.2 Syslog 98 KERN.EMERG: 1 2023-11-14T22:13:25Z h a p m - hi

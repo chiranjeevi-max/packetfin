@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<?xml-stylesheet type="text/xsl" href="pdml2html.xsl"?>
+<!-- normalized -->
+<pdml version="0" creator="creator" time="time" capture_file="tests/fixtures/bgp.pcap">
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="91">
+    <field name="num" pos="0" show="1" showname="Number" value="1" size="91"/>
+    <field name="len" pos="0" show="91" showname="Frame Length" value="5b" size="91"/>
+    <field name="caplen" pos="0" show="91" showname="Captured Length" value="5b" size="91"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:20.123456000 UTC" showname="Captured Time" value="1700000000.123456000" size="91"/>
+  </proto>
+  <field name="bgp.type" value="1"/>
+  <field name="bgp.open.myas" value="64512"/>
+</packet>
+
+
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="73">
+    <field name="num" pos="0" show="2" showname="Number" value="2" size="73"/>
+    <field name="len" pos="0" show="73" showname="Frame Length" value="49" size="73"/>
+    <field name="caplen" pos="0" show="73" showname="Captured Length" value="49" size="73"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:20.123457000 UTC" showname="Captured Time" value="1700000000.123457000" size="73"/>
+  </proto>
+  <field name="bgp.type" value="4"/>
+</packet>
+
+
+</pdml>

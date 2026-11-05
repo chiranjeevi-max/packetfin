@@ -1,0 +1,474 @@
+#!/usr/bin/env python3
+"""Reproduce packetfin's release performance matrix.
+
+Generates classic pcap captures (Ethernet + IPv4 + UDP), runs the release
+binary over the normal four-field path, the field storm and maximum-size
+frames, and prints the median wall time and peak RSS of each configuration.
+
+Only the Python standard library is used. Captures are reused when they
+already have the expected size; pass --regenerate to rebuild them.
+
+Examples:
+
+    cargo build --release
+    tools/bench
+
+    tools/bench --binary /tmp/pf-before/target/release/packetfin \
+        --captures /tmp/packetfin-bench-captures --repeats 5
+"""
+
+from __future__ import annotations
+
+import argparse
+import os
+import platform
+import re
+import statistics
+import struct
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
+MAX_FRAME = 16 * 1024 * 1024
+NORMAL_FIELDS = ["frame.number", "frame.len", "frame.cap_len", "frame.time_epoch"]
+
+
+def parse_arguments() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Generate captures and measure packetfin release throughput."
+    )
+    parser.add_argument(
+        "--binary",
+        default="target/release/packetfin",
+        help="packetfin binary; relative paths are resolved from the repository root",
+    )
+    parser.add_argument(
+        "--captures",
+        default="/tmp/packetfin-bench-captures",
+        help="directory for generated captures",
+    )
+    parser.add_argument(
+        "--repeats",
+        type=int,
+        default=3,
+        help="measured runs per configuration (default 3)",
+    )
+    parser.add_argument(
+        "--frames",
+        type=int,
+        default=1_000_000,
+        help="frames in the 1400-byte normal-path capture (default 1000000)",
+    )
+    parser.add_argument(
+        "--flow-frames",
+        type=int,
+        default=1_000_000,
+        help="frames in the one-conversation-per-frame flood capture (default 1000000)",
+    )
+    parser.add_argument(
+        "--storm-frames",
+        type=int,
+        default=10_000,
+        help="frames in the field-storm capture (default 10000)",
+    )
+    parser.add_argument(
+        "--regenerate",
+        action="store_true",
+        help="rewrite captures even when their size already matches",
+    )
+    parser.add_argument(
+        "--no-rss",
+        action="store_true",
+        help="skip peak-RSS measurement",
+    )
+    arguments = parser.parse_args()
+    if arguments.repeats < 1:
+        parser.error("--repeats must be at least 1")
+    if arguments.frames < 1 or arguments.storm_frames < 1 or arguments.flow_frames < 1:
+        parser.error("frame counts must be at least 1")
+    return arguments
+
+
+def checksum16(header: bytes) -> int:
+    total = 0
+    for offset in range(0, len(header) - 1, 2):
+        total += (header[offset] << 8) | header[offset + 1]
+    if len(header) % 2:
+        total += header[-1] << 8
+    while total >> 16:
+        total = (total & 0xFFFF) + (total >> 16)
+    return (~total) & 0xFFFF
+
+
+def frame_bytes(frame_len: int) -> bytes:
+    if frame_len < 42:
+        raise ValueError("frames must hold Ethernet, IPv4 and UDP headers")
+    payload_len = frame_len - 42
+    frame = bytearray(frame_len)
+    frame[0:6] = bytes((0x00, 0x11, 0x22, 0x33, 0x44, 0x55))
+    frame[6:12] = bytes((0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB))
+    frame[12:14] = (0x0800).to_bytes(2, "big")
+
+    ipv4 = 14
+    frame[ipv4] = 0x45
+    frame[ipv4 + 2 : ipv4 + 4] = ((frame_len - 14) & 0xFFFF).to_bytes(2, "big")
+    frame[ipv4 + 4 : ipv4 + 6] = (1).to_bytes(2, "big")
+    frame[ipv4 + 6 : ipv4 + 8] = (0x4000).to_bytes(2, "big")
+    frame[ipv4 + 8] = 64
+    frame[ipv4 + 9] = 17
+    frame[ipv4 + 12 : ipv4 + 16] = bytes((10, 0, 0, 1))
+    frame[ipv4 + 16 : ipv4 + 20] = bytes((10, 0, 0, 2))
+    frame[ipv4 + 10 : ipv4 + 12] = checksum16(bytes(frame[ipv4 : ipv4 + 20])).to_bytes(
+        2, "big"
+    )
+
+    udp = 34
+    frame[udp : udp + 2] = (12345).to_bytes(2, "big")
+    frame[udp + 2 : udp + 4] = (54321).to_bytes(2, "big")
+    frame[udp + 4 : udp + 6] = ((frame_len - 34) & 0xFFFF).to_bytes(2, "big")
+    for index in range(payload_len):
+        frame[42 + index] = (index * 31 + 7) & 0xFF
+    return bytes(frame)
+
+
+def flow_frame_bytes(index: int) -> bytes:
+    """One 42-byte frame whose source address makes a unique UDP conversation."""
+    frame = bytearray(42)
+    frame[0:6] = bytes((0x00, 0x11, 0x22, 0x33, 0x44, 0x55))
+    frame[6:12] = bytes((0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB))
+    frame[12:14] = (0x0800).to_bytes(2, "big")
+
+    ipv4 = 14
+    frame[ipv4] = 0x45
+    frame[ipv4 + 2 : ipv4 + 4] = (28).to_bytes(2, "big")
+    frame[ipv4 + 4 : ipv4 + 6] = (index & 0xFFFF).to_bytes(2, "big")
+    frame[ipv4 + 6 : ipv4 + 8] = (0x4000).to_bytes(2, "big")
+    frame[ipv4 + 8] = 64
+    frame[ipv4 + 9] = 17
+    frame[ipv4 + 12 : ipv4 + 16] = bytes((10, (index >> 16) & 0xFF, (index >> 8) & 0xFF, index & 0xFF))
+    frame[ipv4 + 16 : ipv4 + 20] = bytes((203, 0, 113, 1))
+
+    udp = 34
+    frame[udp : udp + 2] = (5000).to_bytes(2, "big")
+    frame[udp + 2 : udp + 4] = (6000).to_bytes(2, "big")
+    frame[udp + 4 : udp + 6] = (8).to_bytes(2, "big")
+    return bytes(frame)
+
+
+def write_flow_capture(path: Path, count: int, regenerate: bool) -> None:
+    expected = 24 + count * (16 + 42)
+    if not regenerate and path.exists() and path.stat().st_size == expected:
+        return
+    print(f"generating {path} ({count} conversations)", file=sys.stderr)
+    record_header = struct.Struct("<IIII")
+    with path.open("wb", buffering=1 << 20) as output:
+        output.write(
+            b"\xd4\xc3\xb2\xa1\x02\x00\x04\x00"
+            + bytes(8)
+            + MAX_FRAME.to_bytes(4, "little")
+            + (1).to_bytes(4, "little")
+        )
+        base_seconds = 1_700_000_000
+        for index in range(count):
+            seconds = base_seconds + index // 1_000_000
+            micros = index % 1_000_000
+            frame = flow_frame_bytes(index)
+            output.write(record_header.pack(seconds, micros, len(frame), len(frame)))
+            output.write(frame)
+
+
+def jumbo_frame_bytes(frame_len: int) -> bytes:
+    if frame_len < 70:
+        raise ValueError("jumbo frames must hold Ethernet, IPv6, hop-by-hop and UDP headers")
+    payload_len = frame_len - 70
+    frame = bytearray(frame_len)
+    frame[0:6] = bytes((0x00, 0x11, 0x22, 0x33, 0x44, 0x55))
+    frame[6:12] = bytes((0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB))
+    frame[12:14] = (0x86DD).to_bytes(2, "big")
+
+    ipv6 = 14
+    frame[ipv6] = 0x60
+    frame[ipv6 + 4 : ipv6 + 6] = bytes(2)
+    frame[ipv6 + 6] = 0
+    frame[ipv6 + 7] = 64
+    frame[ipv6 + 8 : ipv6 + 24] = bytes.fromhex("20010db8000000000000000000000001")
+    frame[ipv6 + 24 : ipv6 + 40] = bytes.fromhex("20010db8000000000000000000000002")
+
+    hop_by_hop = ipv6 + 40
+    frame[hop_by_hop] = 17
+    frame[hop_by_hop + 1] = 0
+    frame[hop_by_hop + 2] = 0xC2
+    frame[hop_by_hop + 3] = 4
+    frame[hop_by_hop + 4 : hop_by_hop + 8] = (frame_len - 54).to_bytes(4, "big")
+
+    udp = hop_by_hop + 8
+    frame[udp : udp + 2] = (12345).to_bytes(2, "big")
+    frame[udp + 2 : udp + 4] = (54321).to_bytes(2, "big")
+    frame[udp + 4 : udp + 6] = (0xFFFF).to_bytes(2, "big")
+    for index in range(payload_len):
+        frame[70 + index] = (index * 31 + 7) & 0xFF
+    return bytes(frame)
+
+
+def write_capture(
+    path: Path, frame_len: int, count: int, regenerate: bool, jumbo: bool = False
+) -> None:
+    expected = 24 + count * (16 + frame_len)
+    if not regenerate and path.exists() and path.stat().st_size == expected:
+        return
+    print(f"generating {path} ({count} x {frame_len} bytes)", file=sys.stderr)
+    frame = jumbo_frame_bytes(frame_len) if jumbo else frame_bytes(frame_len)
+    record_header = struct.Struct("<IIII")
+    with path.open("wb", buffering=1 << 20) as output:
+        output.write(
+            b"\xd4\xc3\xb2\xa1\x02\x00\x04\x00"
+            + bytes(8)
+            + MAX_FRAME.to_bytes(4, "little")
+            + (1).to_bytes(4, "little")
+        )
+        base_seconds = 1_700_000_000
+        for index in range(count):
+            seconds = base_seconds + index // 1_000_000
+            micros = index % 1_000_000
+            output.write(
+                record_header.pack(seconds, micros, frame_len, frame_len)
+            )
+            output.write(frame)
+
+
+def registry_fields(binary: Path) -> list[str]:
+    output = subprocess.run(
+        [os.fspath(binary), "-G", "fields"],
+        check=True,
+        stdout=subprocess.PIPE,
+        text=True,
+    ).stdout
+    fields = []
+    for line in output.splitlines():
+        columns = line.split("\t")
+        if columns and columns[0] == "F" and len(columns) > 2:
+            fields.append(columns[2])
+    if not fields:
+        raise SystemExit("packetfin -G fields listed no fields")
+    return fields
+
+
+def rss_prefix() -> list[str]:
+    candidate = Path("/usr/bin/time")
+    if not candidate.exists():
+        return []
+    if sys.platform == "darwin":
+        return [os.fspath(candidate), "-l"]
+    if sys.platform.startswith("linux"):
+        return [os.fspath(candidate), "-v"]
+    return []
+
+
+def peak_rss(stderr: bytes, prefix: list[str]) -> int | None:
+    text = stderr.decode("utf-8", "replace")
+    if prefix and prefix[-1] == "-l":
+        match = re.search(r"(\d+)\s+maximum resident set size", text)
+        return int(match.group(1)) if match else None
+    if prefix and prefix[-1] == "-v":
+        match = re.search(r"Maximum resident set size \(kbytes\):\s*(\d+)", text)
+        return int(match.group(1)) * 1024 if match else None
+    return None
+
+
+def measure(
+    binary: Path,
+    arguments: list[str],
+    output_path: Path,
+    repeats: int,
+    prefix: list[str],
+) -> tuple[list[float], list[int | None], int]:
+    command = prefix + [os.fspath(binary)] + arguments
+    timings: list[float] = []
+    rss_values: list[int | None] = []
+    output_bytes = 0
+    for index in range(repeats + 1):
+        with output_path.open("wb") as output:
+            start = time.perf_counter()
+            completed = subprocess.run(
+                command,
+                stdout=output,
+                stderr=subprocess.PIPE,
+                check=False,
+            )
+            elapsed = time.perf_counter() - start
+        if completed.returncode != 0:
+            raise SystemExit(
+                f"{' '.join(command)} exited {completed.returncode}: "
+                f"{completed.stderr.decode('utf-8', 'replace').strip()}"
+            )
+        output_bytes = output_path.stat().st_size
+        if index:
+            timings.append(elapsed)
+            rss_values.append(peak_rss(completed.stderr, prefix))
+    return timings, rss_values, output_bytes
+
+
+def field_arguments(fields: list[str]) -> list[str]:
+    arguments: list[str] = ["-T", "fields"]
+    for field in fields:
+        arguments.extend(["-e", field])
+    return arguments
+
+
+def storm_fields(all_fields: list[str], count: int) -> list[str]:
+    if count <= len(all_fields):
+        return all_fields[:count]
+    return [all_fields[index % len(all_fields)] for index in range(count)]
+
+
+def summarize(
+    name: str,
+    frames: int,
+    timings: list[float],
+    rss_values: list[int | None],
+    output_bytes: int,
+) -> None:
+    median = statistics.median(timings)
+    low = min(timings)
+    high = max(timings)
+    series = [value for value in rss_values if value is not None]
+    rss = f"{statistics.median(series) / 1e6:.1f}" if series else "n/a"
+    mpps = frames / median / 1e6 if median else 0.0
+    print(
+        f"{name:<40} {median * 1000:10.1f} {low * 1000:9.1f}-{high * 1000:<8.1f} "
+        f"{mpps:8.2f} {output_bytes / 1e6:9.1f} {rss:>7}"
+    )
+
+
+def main() -> int:
+    arguments = parse_arguments()
+    binary = Path(arguments.binary)
+    if not binary.is_absolute():
+        binary = REPO_ROOT / binary
+    if not binary.is_file():
+        raise SystemExit(
+            f"{binary} does not exist; build it with `cargo build --release`"
+        )
+
+    captures = Path(arguments.captures)
+    captures.mkdir(parents=True, exist_ok=True)
+    outputs = captures / "output"
+    outputs.mkdir(exist_ok=True)
+
+    normal_capture = captures / f"f1400-{arguments.frames}.pcap"
+    flow_capture = captures / f"flows-{arguments.flow_frames}.pcap"
+    storm_capture = captures / f"f1400-{arguments.storm_frames}.pcap"
+    large_one = captures / "f16777216-1.pcap"
+    large_eight = captures / "f16777216-8.pcap"
+    jumbo_capture = captures / "f16777216-jumbo.pcap"
+    payload_capture = captures / "f60042.pcap"
+
+    write_capture(normal_capture, 1400, arguments.frames, arguments.regenerate)
+    write_flow_capture(flow_capture, arguments.flow_frames, arguments.regenerate)
+    write_capture(storm_capture, 1400, arguments.storm_frames, arguments.regenerate)
+    write_capture(large_one, MAX_FRAME, 1, arguments.regenerate)
+    write_capture(large_eight, MAX_FRAME, 8, arguments.regenerate)
+    write_capture(jumbo_capture, MAX_FRAME, 1, arguments.regenerate, jumbo=True)
+    write_capture(payload_capture, 60_042, 1, arguments.regenerate)
+
+    all_fields = registry_fields(binary)
+    prefix = [] if arguments.no_rss else rss_prefix()
+
+    print(
+        f"packetfin {binary}\n"
+        f"platform {sys.platform} {platform.machine()}, "
+        f"{arguments.repeats} runs per case, peak RSS via "
+        f"{' '.join(prefix) if prefix else 'disabled'}\n"
+    )
+    print(
+        f"{'case':<40} {'median ms':>10} {'range ms':>18} "
+        f"{'Mpps':>8} {'out MB':>9} {'RSS MB':>7}"
+    )
+
+    normal = measure(
+        binary,
+        field_arguments(NORMAL_FIELDS)
+        + ["-r", os.fspath(normal_capture)],
+        outputs / "normal.out",
+        arguments.repeats,
+        prefix,
+    )
+    summarize(
+        f"normal 1400B x {arguments.frames} (4 fields)",
+        arguments.frames,
+        *normal,
+    )
+
+    flows = measure(
+        binary,
+        field_arguments(["frame.number"]) + ["-r", os.fspath(flow_capture)],
+        outputs / "flows.out",
+        arguments.repeats,
+        prefix,
+    )
+    summarize(
+        f"flows 42B x {arguments.flow_frames} (1 field)",
+        arguments.flow_frames,
+        *flows,
+    )
+
+    for count in (1, 10, 100, 258, 5000):
+        fields = storm_fields(all_fields, count)
+        result = measure(
+            binary,
+            field_arguments(fields) + ["-r", os.fspath(storm_capture)],
+            outputs / f"storm-{count}.out",
+            arguments.repeats,
+            prefix,
+        )
+        summarize(
+            f"storm 1400B x {arguments.storm_frames}, {count} fields",
+            arguments.storm_frames,
+            *result,
+        )
+
+    for frames, capture in ((1, large_one), (8, large_eight)):
+        result = measure(
+            binary,
+            field_arguments(NORMAL_FIELDS) + ["-r", os.fspath(capture)],
+            outputs / f"large-{frames}.out",
+            arguments.repeats,
+            prefix,
+        )
+        summarize(
+            f"16MiB x {frames} (4 fields)",
+            frames,
+            *result,
+        )
+
+    memory_cases = (
+        (
+            "memory-10x",
+            "memory 10x udp.payload, 16MiB jumbo",
+            jumbo_capture,
+            ["udp.payload"] * 10,
+        ),
+        (
+            "memory-5000x",
+            "memory 5000x udp.payload, 60KB",
+            payload_capture,
+            ["udp.payload"] * 5000,
+        ),
+    )
+    for key, label, capture, fields in memory_cases:
+        result = measure(
+            binary,
+            field_arguments(fields) + ["-r", os.fspath(capture)],
+            outputs / f"{key}.out",
+            arguments.repeats,
+            prefix,
+        )
+        summarize(label, 1, *result)
+
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

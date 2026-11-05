@@ -1,0 +1,3 @@
+packetfin: "}" was unexpected in this context.
+    frame.number in {}
+                     ^

@@ -1,0 +1,137 @@
+[
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "pkt_comment_raw": [
+          "",
+          0,
+          0,
+          0,
+          1,
+          0
+        ],
+        "pkt_comment": {
+          "frame.comment_raw": [
+            "",
+            0,
+            0,
+            0,
+            26,
+            0
+          ],
+          "frame.comment_tree": {
+            "frame.comment_raw": [
+              "",
+              0,
+              0,
+              0,
+              26,
+              0
+            ],
+            "frame.comment_raw": [
+              "",
+              0,
+              0,
+              0,
+              26,
+              0
+            ],
+            "frame.comment_raw": [
+              "",
+              0,
+              0,
+              0,
+              26,
+              0
+            ],
+            "frame.comment_raw": [
+              "",
+              0,
+              0,
+              0,
+              26,
+              0
+            ],
+            "_ws.expert_raw": [
+              "",
+              0,
+              0,
+              0,
+              1,
+              null
+            ],
+            "_ws.expert": {
+              "frame.comment.expert_raw": [
+                "",
+                0,
+                0,
+                0,
+                0,
+                null
+              ],
+              "_ws.expert.message_raw": [
+                "",
+                0,
+                0,
+                0,
+                26,
+                null
+              ],
+              "_ws.expert.severity_raw": [
+                "",
+                0,
+                0,
+                0,
+                7,
+                null
+              ],
+              "_ws.expert.group_raw": [
+                "",
+                0,
+                0,
+                0,
+                7,
+                null
+              ]
+            }
+          }
+        },
+        "frame_raw": [
+          "02000000000202000000000108060001080006040001020000000001c0000201000000000000c6336402",
+          0,
+          42,
+          0,
+          1,
+          0
+        ],
+        "frame": {
+          "filtered": "frame"
+        },
+        "eth_raw": [
+          "0200000000020200000000010806",
+          0,
+          14,
+          0,
+          1,
+          0
+        ],
+        "eth": {
+          "filtered": "eth"
+        },
+        "arp_raw": [
+          "0001080006040001020000000001c0000201000000000000c6336402",
+          14,
+          28,
+          0,
+          1,
+          0
+        ],
+        "arp": {
+          "filtered": "arp"
+        }
+      }
+    }
+  }
+]

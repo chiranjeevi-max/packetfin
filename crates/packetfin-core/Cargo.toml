@@ -1,0 +1,36 @@
+[package]
+name = "packetfin-core"
+description = "Packet decoding, fields, filters and output formatting for packetfin. No I/O beyond Read/Write values passed in by the caller."
+version = "0.1.0"
+edition = "2024"
+publish = false
+license = "MIT"
+
+[lints]
+workspace = true
+
+[features]
+fuzzing = []
+
+[dependencies]
+aes = { version = "0.8.4", features = ["zeroize"] }
+aes-gcm = "0.10.3"
+cbc = "0.1.2"
+chacha20poly1305 = "0.10.1"
+flate2 = { version = "1.1.10", default-features = false, features = ["rust_backend"] }
+hkdf = "0.12.4"
+hmac = "0.12.1"
+lz4_flex = { version = "0.14.0", default-features = false, features = ["std", "frame", "safe-decode"] }
+md-5 = "0.10.6"
+regex = "1.13.1"
+ruzstd = "0.9.1"
+sha1 = "0.10.6"
+sha2 = "0.10.9"
+subtle = "2.6.1"
+zeroize = "1.8.2"
+
+[dev-dependencies]
+packetfin-testkit = { path = "../packetfin-testkit" }
+
+[lib]
+path = "src/lib.rs"

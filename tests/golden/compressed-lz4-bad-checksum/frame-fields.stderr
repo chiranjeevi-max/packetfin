@@ -1,0 +1,2 @@
+packetfin: The file "tests/fixtures/compressed-lz4-bad-checksum.lz4" cannot be decompressed; it may be damaged or corrupt.
+(ERROR_contentChecksum_invalid)

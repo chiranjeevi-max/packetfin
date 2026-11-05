@@ -1,0 +1,10 @@
+    1   0.000000    192.0.2.1 → 198.51.100.2 DHCPv6 44 Solicit [Malformed Packet]
+    2   0.000001    192.0.2.1 → 198.51.100.2 DHCPv6 52 Solicit XID: 0x123456 
+    3   0.000002    192.0.2.1 → 198.51.100.2 DHCPv6 52 Solicit XID: 0x123456 
+    4   0.000003    192.0.2.1 → 198.51.100.2 DHCPv6 44 Relay-forw [Malformed Packet]
+    5   0.000004    192.0.2.1 → 198.51.100.2 DHCPv6 66 Solicit XID: 0x123456 CID: 00041111111111111111111111111111 
+    6   0.000005    192.0.2.1 → 198.51.100.2 DHCPv6 50 Solicit XID: 0x123456 
+    7   0.000006    192.0.2.1 → 198.51.100.2 DHCPv6 50 Solicit XID: 0x123456 
+    8   0.000007    192.0.2.1 → 198.51.100.2 DHCPv6 53 Solicit XID: 0x123456 [Malformed Packet]
+    9   0.000008    192.0.2.1 → 198.51.100.2 DHCPv6 51 Solicit XID: 0x123456 [Malformed Packet]
+   10   0.000009    192.0.2.1 → 198.51.100.2 DHCPv6 52 Solicit XID: 0x123456 

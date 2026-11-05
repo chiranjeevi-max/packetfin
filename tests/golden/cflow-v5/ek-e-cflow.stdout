@@ -1,0 +1,4 @@
+{"index":{"_index":"packets-2023-11-14"}}
+{"timestamp":"1700000000123","layers":{"cflow_srcaddr":["192.0.2.1","10.1.1.1"],"cflow_octets":["5000","900"]}}
+{"index":{"_index":"packets-2023-11-14"}}
+{"timestamp":"1700000000123","layers":{}}

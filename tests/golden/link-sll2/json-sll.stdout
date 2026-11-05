@@ -1,0 +1,32 @@
+[
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "frame": {
+          "filtered": "frame"
+        },
+        "sll": {
+          "sll.etype": "0x0800",
+          "sll.reserved": "00:00",
+          "sll.ifindex": "3",
+          "sll.hatype": "1",
+          "sll.pkttype": "0",
+          "sll.halen": "6",
+          "sll.src.eth": "02:00:00:00:00:01",
+          "sll.unused": "00:00"
+        },
+        "ip": {
+          "filtered": "ip"
+        },
+        "udp": {
+          "filtered": "udp"
+        },
+        "data": {
+          "filtered": "data"
+        }
+      }
+    }
+  }
+]

@@ -1,0 +1,6 @@
+{"index":{"_index":"packets-2023-11-14"}}
+{"timestamp":"1700000000123","layers":{"ipv6_src":["2001:db8::1"],"ipv6_dst":["2001:db8::2"]}}
+{"index":{"_index":"packets-2023-11-14"}}
+{"timestamp":"1700000000123","layers":{"ipv6_src":["fe80::1"],"ipv6_dst":["ff02::1"]}}
+{"index":{"_index":"packets-2023-11-14"}}
+{"timestamp":"1700000000123","layers":{"ipv6_src":["::"],"ipv6_dst":["::1"]}}

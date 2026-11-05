@@ -1,0 +1,16 @@
+Frame 3: Packet, 46 bytes on wire (368 bits), 46 bytes captured (368 bits)
+Ethernet II, Src: 02:00:00:00:00:01, Dst: 02:00:00:00:00:02
+Internet Protocol Version 4, Src: 192.0.2.1, Dst: 198.51.100.2
+Virtual Router Redundancy Protocol
+    Version 3, Packet type 1 (Advertisement)
+        0011 .... = VRRP protocol version: 3
+        .... 0001 = VRRP packet type: Advertisement (1)
+    Virtual Rtr ID: 1
+    Priority: 100 (Default priority for a backup VRRP router)
+    Addr Count: 1
+    0000 .... = Reserved: 0
+    .... 0000 0110 0100 = Adver Int: 100
+    Checksum: 0x5f9b [correct]
+    [Checksum Status: Good]
+    IP Address: 10.0.0.254
+

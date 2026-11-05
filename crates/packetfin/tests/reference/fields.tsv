@@ -1,0 +1,1493 @@
+F	Epoch Arrival Time	frame.time_epoch	FT_ABSOLUTE_TIME	frame		0x0	Absolute time when this frame was captured, in Epoch time (also known as Unix time)
+F	Time delta from previous captured frame	frame.time_delta	FT_RELATIVE_TIME	frame		0x0	
+F	Time since reference or first frame	frame.time_relative	FT_RELATIVE_TIME	frame		0x0	Time relative to time reference or first frame
+F	Frame Number	frame.number	FT_UINT32	frame	BASE_DEC	0x0	
+F	Frame Length	frame.len	FT_UINT32	frame	BASE_DEC	0x0	Frame length on the wire
+F	Capture Length	frame.cap_len	FT_UINT32	frame	BASE_DEC	0x0	Frame length stored into the capture file
+F	Interface id	frame.interface_id	FT_UINT32	frame	BASE_DEC	0x0	
+F	Interface name	frame.interface_name	FT_STRING	frame		0x0	The friendly name for this interface
+F	Destination	eth.dst	FT_ETHER	eth		0x0	Destination Hardware Address
+F	Destination (resolved)	eth.dst_resolved	FT_STRING	eth		0x0	Destination Hardware Address (resolved)
+F	Destination OUI (resolved)	eth.dst.oui_resolved	FT_STRING	eth		0x0	Destination Organizationally Unique Identifier (resolved)
+F	Source	eth.src	FT_ETHER	eth		0x0	Source Hardware Address
+F	Source (resolved)	eth.src_resolved	FT_STRING	eth		0x0	Source Hardware Address (resolved)
+F	Source OUI (resolved)	eth.src.oui_resolved	FT_STRING	eth		0x0	Source Organizationally Unique Identifier (resolved)
+F	Length	eth.len	FT_UINT16	eth	BASE_DEC	0x0	
+F	Type	eth.type	FT_UINT16	eth	BASE_HEX	0x0	
+F	Address	eth.addr	FT_ETHER	eth		0x0	Source or Destination Hardware Address
+F	DSAP	llc.dsap	FT_UINT8	llc	BASE_HEX	0x0	Destination Service Access Point
+F	SSAP	llc.ssap	FT_UINT8	llc	BASE_HEX	0x0	Source Service Access Point
+F	Control	llc.control	FT_UINT16	llc	BASE_HEX	0x0	
+F	Type	llc.type	FT_UINT16	llc	BASE_HEX	0x0	
+F	Organization Code	llc.oui	FT_UINT24	llc	BASE_OUI	0x0	
+F	Protocol ID	llc.pid	FT_UINT16	llc	BASE_HEX	0x0	
+F	PID	llc.cisco_pid	FT_UINT16	llc	BASE_HEX	0x0	Protocol ID
+F	Priority	vlan.priority	FT_UINT16	vlan	BASE_DEC	0xe000	Descriptions are recommendations from IEEE standard 802.1D-2004
+F	DEI	vlan.dei	FT_BOOLEAN	vlan	16	0x1000	Drop Eligible Indicator
+F	ID	vlan.id	FT_UINT16	vlan	BASE_DEC	0xfff	VLAN ID
+F	Type	vlan.etype	FT_UINT16	vlan	BASE_HEX	0x0	Ethertype
+F	Length	vlan.len	FT_UINT16	vlan	BASE_DEC	0x0	
+F	Priority	ieee8021ad.priority	FT_UINT16	ieee8021ad	BASE_DEC	0xe000	
+F	DEI	ieee8021ad.dei	FT_UINT16	ieee8021ad	BASE_DEC	0x1000	Drop Eligibility
+F	ID	ieee8021ad.id	FT_UINT16	ieee8021ad	BASE_DEC	0xfff	Vlan ID
+F	ID	ieee8021ad.svid	FT_UINT16	ieee8021ad	BASE_DEC	0xfff	S-Vlan ID
+F	ID	ieee8021ad.cvid	FT_UINT16	ieee8021ad	BASE_DEC	0xfff	C-Vlan ID
+F	Packet type	sll.pkttype	FT_UINT16	sll	BASE_DEC	0x0	
+F	Link-layer address type	sll.hatype	FT_UINT16	sll	BASE_DEC	0x0	
+F	Link-layer address length	sll.halen	FT_UINT16	sll	BASE_DEC	0x0	
+F	Source	sll.src.eth	FT_ETHER	sll		0x0	Source link-layer address
+F	Source	sll.src.ipv4	FT_IPv4	sll		0x0	Source link-layer address
+F	Source	sll.src.other	FT_BYTES	sll		0x0	Source link-layer address
+F	Unused	sll.unused	FT_BYTES	sll		0x0	Unused bytes
+F	Protocol	sll.ltype	FT_UINT16	sll	BASE_HEX	0x0	Linux protocol type
+F	Protocol	sll.etype	FT_UINT16	sll	BASE_HEX	0x0	Ethernet protocol type
+F	Interface index	sll.ifindex	FT_UINT32	sll	BASE_DEC	0x0	
+F	Reserved	sll.reserved	FT_BYTES	sll		0x0	Reserved bytes
+F	Type	null.type	FT_UINT16	null	BASE_HEX	0x0	
+F	Family	null.family	FT_UINT32	null	BASE_DEC	0x0	
+F	Hardware type	arp.hw.type	FT_UINT16	arp	BASE_DEC	0x0	
+F	Protocol type	arp.proto.type	FT_UINT16	arp	BASE_HEX	0x0	
+F	Hardware size	arp.hw.size	FT_UINT8	arp	BASE_DEC	0x0	
+F	Protocol size	arp.proto.size	FT_UINT8	arp	BASE_DEC	0x0	
+F	Opcode	arp.opcode	FT_UINT16	arp	BASE_DEC	0x0	
+F	Sender hardware address	arp.src.hw	FT_BYTES	arp		0x0	
+F	Sender MAC address	arp.src.hw_mac	FT_ETHER	arp		0x0	
+F	Target hardware address	arp.dst.hw	FT_BYTES	arp		0x0	
+F	Target MAC address	arp.dst.hw_mac	FT_ETHER	arp		0x0	
+F	Sender protocol address	arp.src.proto	FT_BYTES	arp		0x0	
+F	Sender IP address	arp.src.proto_ipv4	FT_IPv4	arp		0x0	
+F	Target protocol address	arp.dst.proto	FT_BYTES	arp		0x0	
+F	Target IP address	arp.dst.proto_ipv4	FT_IPv4	arp		0x0	
+F	Version	ip.version	FT_UINT8	ip	BASE_DEC	0x0	
+F	Header Length	ip.hdr_len	FT_UINT8	ip	BASE_DEC	0x0	Header length in 32-bit words
+F	Differentiated Services Field	ip.dsfield	FT_UINT8	ip	BASE_HEX	0x0	
+F	Differentiated Services Codepoint	ip.dsfield.dscp	FT_UINT8	ip	BASE_DEC	0xfc	
+F	Explicit Congestion Notification	ip.dsfield.ecn	FT_UINT8	ip	BASE_DEC	0x3	
+F	Total Length	ip.len	FT_UINT16	ip	BASE_DEC	0x0	
+F	Identification	ip.id	FT_UINT16	ip	BASE_HEX_DEC	0x0	
+F	Flags	ip.flags	FT_UINT8	ip	BASE_HEX	0xe0	
+F	Reserved bit	ip.flags.rb	FT_BOOLEAN	ip	8	0x80	
+F	Don't fragment	ip.flags.df	FT_BOOLEAN	ip	8	0x40	
+F	More fragments	ip.flags.mf	FT_BOOLEAN	ip	8	0x20	
+F	Fragment Offset	ip.frag_offset	FT_UINT16	ip	BASE_DEC	0x1fff	
+F	Time to Live	ip.ttl	FT_UINT8	ip	BASE_DEC	0x0	
+F	Protocol	ip.proto	FT_UINT8	ip	BASE_DEC	0x0	
+F	Header Checksum	ip.checksum	FT_UINT16	ip	BASE_HEX	0x0	
+F	Calculated Checksum	ip.checksum_calculated	FT_UINT16	ip	BASE_HEX	0x0	The expected IP checksum field as calculated from the IP datagram
+F	Header checksum status	ip.checksum.status	FT_UINT8	ip	BASE_NONE	0x0	
+F	Destination Address	ip.dst	FT_IPv4	ip		0x0	
+F	Destination Host	ip.dst_host	FT_STRING	ip		0x0	
+F	Source Address	ip.src	FT_IPv4	ip		0x0	
+F	Source Host	ip.src_host	FT_STRING	ip		0x0	
+F	Type	ip.opt.type	FT_UINT8	ip	BASE_DEC	0x0	
+F	Copy on fragmentation	ip.opt.type.copy	FT_BOOLEAN	ip	8	0x80	
+F	Class	ip.opt.type.class	FT_UINT8	ip	BASE_DEC	0x60	
+F	Number	ip.opt.type.number	FT_UINT8	ip	BASE_DEC	0x1f	
+F	Length	ip.opt.len	FT_UINT8	ip	BASE_DEC	0x0	
+F	Data	ip.opt.data	FT_BYTES	ip		0x0	
+F	Pointer	ip.opt.ptr	FT_UINT8	ip	BASE_DEC	0x0	
+F	Overflow	ip.opt.overflow	FT_UINT8	ip	BASE_DEC	0xf0	
+F	Flag	ip.opt.flag	FT_UINT8	ip	BASE_HEX	0xf	
+F	Time stamp	ip.opt.time_stamp	FT_UINT32	ip	BASE_DEC	0x0	
+F	Address	ip.opt.time_stamp_addr	FT_IPv4	ip		0x0	
+F	Router Alert	ip.opt.ra	FT_UINT16	ip	BASE_DEC	0x0	
+F	Recorded Route	ip.rec_rt	FT_IPv4	ip		0x0	
+F	Current Route	ip.cur_rt	FT_IPv4	ip		0x0	
+F	Source Route	ip.src_rt	FT_IPv4	ip		0x0	
+F	Empty Route	ip.empty_rt	FT_IPv4	ip		0x0	
+F	Fragment overlap	ip.fragment.overlap	FT_BOOLEAN	ip	0	0x0	Fragment overlaps with other fragments
+F	Conflicting data in fragment overlap	ip.fragment.overlap.conflict	FT_BOOLEAN	ip	0	0x0	Overlapping fragments contained conflicting data
+F	Multiple tail fragments found	ip.fragment.multipletails	FT_BOOLEAN	ip	0	0x0	Several tails were found when defragmenting the packet
+F	Fragment too long	ip.fragment.toolongfragment	FT_BOOLEAN	ip	0	0x0	Fragment contained data past end of packet
+F	Defragmentation error	ip.fragment.error	FT_FRAMENUM	ip		0x0	Defragmentation error due to illegal fragments
+F	Fragment count	ip.fragment.count	FT_UINT32	ip	BASE_DEC	0x0	
+F	IPv4 Fragment	ip.fragment	FT_FRAMENUM	ip		0x0	
+F	IPv4 Fragments	ip.fragments	FT_BYTES	ip		0x0	
+F	Reassembled IPv4 in frame	ip.reassembled_in	FT_FRAMENUM	ip		0x0	This IPv4 packet is reassembled in this frame
+F	Reassembled IPv4 length	ip.reassembled.length	FT_UINT32	ip	BASE_DEC	0x0	The total length of the reassembled payload
+F	Reassembled IPv4 data	ip.reassembled.data	FT_BYTES	ip		0x0	The reassembled payload
+F	Version	ipv6.version	FT_UINT8	ipv6	BASE_DEC	0x0	
+F	Traffic Class	ipv6.tclass	FT_UINT32	ipv6	BASE_HEX	0xff00000	
+F	Differentiated Services Codepoint	ipv6.tclass.dscp	FT_UINT32	ipv6	BASE_DEC	0xfc00000	
+F	Explicit Congestion Notification	ipv6.tclass.ecn	FT_UINT32	ipv6	BASE_DEC	0x300000	
+F	Flow Label	ipv6.flow	FT_UINT24	ipv6	BASE_HEX	0xfffff	
+F	Payload Length	ipv6.plen	FT_UINT16	ipv6	BASE_DEC	0x0	
+F	Next Header	ipv6.nxt	FT_UINT8	ipv6	BASE_DEC	0x0	
+F	Hop Limit	ipv6.hlim	FT_UINT8	ipv6	BASE_DEC	0x0	
+F	Source Address	ipv6.src	FT_IPv6	ipv6		0x0	Source IPv6 Address
+F	Source Host	ipv6.src_host	FT_STRING	ipv6		0x0	Source IPv6 Host
+F	Destination Address	ipv6.dst	FT_IPv6	ipv6		0x0	Destination IPv6 Address
+F	Destination Host	ipv6.dst_host	FT_STRING	ipv6		0x0	Destination IPv6 Host
+F	Source or Destination Address	ipv6.addr	FT_IPv6	ipv6		0x0	
+F	Type	ipv6.opt.type	FT_UINT8	ipv6	BASE_HEX	0x0	Option type
+F	Action	ipv6.opt.type.action	FT_UINT8	ipv6	BASE_DEC	0xc0	Action for unrecognized option type
+F	May Change	ipv6.opt.type.change	FT_BOOLEAN	ipv6	8	0x20	Whether the option data may change en-route
+F	Low-Order Bits	ipv6.opt.type.rest	FT_UINT8	ipv6	BASE_HEX	0x1f	Remaining low-order bits
+F	Length	ipv6.opt.length	FT_UINT8	ipv6	BASE_DEC	0x0	Option length in octets
+F	Pad1	ipv6.opt.pad1	FT_NONE	ipv6		0x0	Pad1 Option
+F	PadN	ipv6.opt.padn	FT_BYTES	ipv6		0x0	PadN Option
+F	Router Alert	ipv6.opt.router_alert	FT_UINT16	ipv6	BASE_DEC	0x0	Router Alert Option
+F	Payload Length	ipv6.opt.jumbo	FT_UINT32	ipv6	BASE_DEC	0x0	IPv6 (Jumbo) Payload Length
+F	IPv6 Fragment	ipv6.fragment	FT_FRAMENUM	ipv6		0x0	
+F	Fragment overlap	ipv6.fragment.overlap	FT_BOOLEAN	ipv6	0	0x0	Fragment overlaps with other fragments
+F	Conflicting data in fragment overlap	ipv6.fragment.overlap.conflict	FT_BOOLEAN	ipv6	0	0x0	Overlapping fragments contained conflicting data
+F	Multiple tail fragments found	ipv6.fragment.multipletails	FT_BOOLEAN	ipv6	0	0x0	Several tails were found when defragmenting the packet
+F	Fragment too long	ipv6.fragment.toolongfragment	FT_BOOLEAN	ipv6	0	0x0	Fragment contained data past end of packet
+F	Defragmentation error	ipv6.fragment.error	FT_FRAMENUM	ipv6		0x0	Defragmentation error due to illegal fragments
+F	Fragment count	ipv6.fragment.count	FT_UINT32	ipv6	BASE_DEC	0x0	
+F	IPv6 Fragments	ipv6.fragments	FT_NONE	ipv6		0x0	
+F	Reassembled IPv6 in frame	ipv6.reassembled.in	FT_FRAMENUM	ipv6		0x0	This IPv6 packet is reassembled in this frame
+F	Reassembled IPv6 length	ipv6.reassembled.length	FT_UINT32	ipv6	BASE_DEC	0x0	The total length of the reassembled payload
+F	Reassembled IPv6 data	ipv6.reassembled.data	FT_BYTES	ipv6		0x0	The reassembled payload
+F	Next Header	ipv6.hopopts.nxt	FT_UINT8	ipv6.hopopts	BASE_DEC	0x0	
+F	Length	ipv6.hopopts.len	FT_UINT8	ipv6.hopopts	BASE_DEC	0x0	Extension header length in 8-octet words (minus 1)
+F	Length	ipv6.hopopts.len_oct	FT_UINT16	ipv6.hopopts	BASE_DEC	0x0	Extension header length in octets
+F	Next Header	ipv6.dstopts.nxt	FT_UINT8	ipv6.dstopts	BASE_DEC	0x0	
+F	Length	ipv6.dstopts.len	FT_UINT8	ipv6.dstopts	BASE_DEC	0x0	Extension header length in 8-octet words (minus 1)
+F	Length	ipv6.dstopts.len_oct	FT_UINT16	ipv6.dstopts	BASE_DEC	0x0	Extension header length in octets
+F	Next Header	ipv6.routing.nxt	FT_UINT8	ipv6.routing	BASE_DEC	0x0	
+F	Length	ipv6.routing.len	FT_UINT8	ipv6.routing	BASE_DEC	0x0	Extension header length in 8-octet words (minus 1)
+F	Length	ipv6.routing.len_oct	FT_UINT16	ipv6.routing	BASE_DEC	0x0	Extension header length in octets
+F	Type	ipv6.routing.type	FT_UINT8	ipv6.routing	BASE_DEC	0x0	Routing Header Type
+F	Segments Left	ipv6.routing.segleft	FT_UINT8	ipv6.routing	BASE_DEC	0x0	Routing Header Segments Left
+F	Type-Specific Data	ipv6.routing.unknown_data	FT_BYTES	ipv6.routing		0x0	Unknown routing header type-specific data
+F	Reserved	ipv6.routing.src.reserved	FT_BYTES	ipv6.routing		0x0	Must be zero
+F	Address	ipv6.routing.src.addr	FT_IPv6	ipv6.routing		0x0	Source Routing Header Address
+F	Reserved	ipv6.routing.mipv6.reserved	FT_BYTES	ipv6.routing		0x0	Must be zero
+F	Home Address	ipv6.routing.mipv6.home_address	FT_IPv6	ipv6.routing		0x0	
+F	Last Entry	ipv6.routing.srh.last_entry	FT_UINT8	ipv6.routing	BASE_DEC	0x0	Index (zero based) of the last element of the Segment List
+F	Flags	ipv6.routing.srh.flags	FT_UINT8	ipv6.routing	BASE_HEX	0x0	Unused, 8 bits of flags
+F	Tag	ipv6.routing.srh.tag	FT_BYTES	ipv6.routing		0x0	Tag a packet as part of a class or group of packets
+F	Address	ipv6.routing.srh.addr	FT_IPv6	ipv6.routing		0x0	Segment address
+F	Next header	ipv6.fraghdr.nxt	FT_UINT8	ipv6.fraghdr	BASE_DEC	0x0	
+F	Reserved octet	ipv6.fraghdr.reserved_octet	FT_UINT8	ipv6.fraghdr	BASE_HEX	0x0	Should always be 0
+F	Offset	ipv6.fraghdr.offset	FT_UINT16	ipv6.fraghdr	BASE_DEC	0xfff8	Fragment Offset
+F	Reserved bits	ipv6.fraghdr.reserved_bits	FT_UINT16	ipv6.fraghdr	BASE_DEC	0x6	
+F	More Fragments	ipv6.fraghdr.more	FT_BOOLEAN	ipv6.fraghdr	16	0x1	
+F	Identification	ipv6.fraghdr.ident	FT_UINT32	ipv6.fraghdr	BASE_HEX	0x0	Fragment Identification
+F	Source Port	tcp.srcport	FT_UINT16	tcp	BASE_PT_TCP	0x0	
+F	Destination Port	tcp.dstport	FT_UINT16	tcp	BASE_PT_TCP	0x0	
+F	Source or Destination Port	tcp.port	FT_UINT16	tcp	BASE_PT_TCP	0x0	
+F	Stream index	tcp.stream	FT_UINT32	tcp	BASE_DEC	0x0	
+F	Stream Packet Number	tcp.stream.pnum	FT_UINT32	tcp	BASE_DEC	0x0	Relative packet number in this TCP stream
+F	Sequence Number	tcp.seq	FT_UINT32	tcp	BASE_DEC	0x0	
+F	Sequence Number (raw)	tcp.seq_raw	FT_UINT32	tcp	BASE_DEC	0x0	This shows the raw value of the sequence number
+F	Next Sequence Number	tcp.nxtseq	FT_UINT32	tcp	BASE_DEC	0x0	
+F	Acknowledgment Number	tcp.ack	FT_UINT32	tcp	BASE_DEC	0x0	
+F	Acknowledgment number (raw)	tcp.ack_raw	FT_UINT32	tcp	BASE_DEC	0x0	This shows the raw value of the acknowledgment number
+F	Header Length	tcp.hdr_len	FT_UINT8	tcp	BASE_DEC	0x0	Data offset in 32-bit words
+F	Flags	tcp.flags	FT_UINT16	tcp	BASE_HEX	0xfff	
+F	Reserved	tcp.flags.res	FT_BOOLEAN	tcp	12	0xe00	Three reserved bits (must be zero)
+F	Accurate ECN	tcp.flags.ae	FT_BOOLEAN	tcp	12	0x100	
+F	Congestion Window Reduced	tcp.flags.cwr	FT_BOOLEAN	tcp	12	0x80	
+F	ECN-Echo	tcp.flags.ece	FT_BOOLEAN	tcp	12	0x40	
+F	Urgent	tcp.flags.urg	FT_BOOLEAN	tcp	12	0x20	
+F	Acknowledgment	tcp.flags.ack	FT_BOOLEAN	tcp	12	0x10	
+F	Push	tcp.flags.push	FT_BOOLEAN	tcp	12	0x8	
+F	Reset	tcp.flags.reset	FT_BOOLEAN	tcp	12	0x4	
+F	Syn	tcp.flags.syn	FT_BOOLEAN	tcp	12	0x2	
+F	Fin	tcp.flags.fin	FT_BOOLEAN	tcp	12	0x1	
+F	TCP Flags	tcp.flags.str	FT_STRING	tcp		0x0	
+F	Window	tcp.window_size_value	FT_UINT16	tcp	BASE_DEC	0x0	The window size value from the TCP header
+F	Calculated window size	tcp.window_size	FT_UINT32	tcp	BASE_DEC	0x0	The scaled window size (if scaling has been used)
+F	Window size scaling factor	tcp.window_size_scalefactor	FT_INT32	tcp	BASE_DEC	0x0	The window size scaling factor (-1 when unknown, -2 when no scaling is used)
+F	Checksum	tcp.checksum	FT_UINT16	tcp	BASE_HEX	0x0	Checksum over the pseudo-header, TCP header and data (RFC 9293)
+F	Checksum Status	tcp.checksum.status	FT_UINT8	tcp	BASE_NONE	0x0	
+F	Calculated Checksum	tcp.checksum_calculated	FT_UINT16	tcp	BASE_HEX	0x0	The expected TCP checksum field as calculated from the TCP segment
+F	SEQ/ACK analysis	tcp.analysis	FT_NONE	tcp		0x0	This frame has some of the TCP analysis shown
+F	TCP Analysis Flags	tcp.analysis.flags	FT_NONE	tcp		0x0	This frame has some of the TCP analysis flags set
+F	Duplicate ACK	tcp.analysis.duplicate_ack	FT_NONE	tcp		0x0	This is a duplicate ACK
+F	Duplicate ACK #	tcp.analysis.duplicate_ack_num	FT_UINT32	tcp	BASE_DEC	0x0	This is duplicate ACK number #
+F	Duplicate to the ACK in frame	tcp.analysis.duplicate_ack_frame	FT_FRAMENUM	tcp		0x0	This is a duplicate to the ACK in frame #
+F	TCP Segment Len	tcp.len	FT_UINT32	tcp	BASE_DEC	0x0	
+F	This is an ACK to the segment in frame	tcp.analysis.acks_frame	FT_FRAMENUM	tcp		0x0	Which previous segment is this an ACK for
+F	Bytes in flight	tcp.analysis.bytes_in_flight	FT_UINT32	tcp	BASE_DEC	0x0	How many bytes are now in flight for this connection
+F	Bytes sent since last PSH flag	tcp.analysis.push_bytes_sent	FT_UINT32	tcp	BASE_DEC	0x0	How many bytes have been sent since the last PSH flag
+F	The RTT to ACK the segment was	tcp.analysis.ack_rtt	FT_RELATIVE_TIME	tcp		0x0	How long time it took to ACK the segment (RTT)
+F	iRTT	tcp.analysis.initial_rtt	FT_RELATIVE_TIME	tcp		0x0	How long it took for the SYN to ACK handshake (iRTT)
+F	The RTO for this segment was	tcp.analysis.rto	FT_RELATIVE_TIME	tcp		0x0	How long transmission was delayed before this segment was retransmitted (RTO)
+F	RTO based on delta from frame	tcp.analysis.rto_frame	FT_FRAMENUM	tcp		0x0	This is the frame we measure the RTO from
+F	Urgent Pointer	tcp.urgent_pointer	FT_UINT16	tcp	BASE_DEC	0x0	
+F	Segment overlap	tcp.segment.overlap	FT_BOOLEAN	tcp	0	0x0	Segment overlaps with other segments
+F	Conflicting data in segment overlap	tcp.segment.overlap.conflict	FT_BOOLEAN	tcp	0	0x0	Overlapping segments contained conflicting data
+F	Multiple tail segments found	tcp.segment.multipletails	FT_BOOLEAN	tcp	0	0x0	Several tails were found when reassembling the pdu
+F	Segment too long	tcp.segment.toolongfragment	FT_BOOLEAN	tcp	0	0x0	Segment contained data past end of the pdu
+F	Reassembling error	tcp.segment.error	FT_FRAMENUM	tcp		0x0	Reassembling error due to illegal segments
+F	Segment count	tcp.segment.count	FT_UINT32	tcp	BASE_DEC	0x0	
+F	TCP Segment	tcp.segment	FT_FRAMENUM	tcp		0x0	
+F	Reassembled TCP Segments	tcp.segments	FT_NONE	tcp		0x0	
+F	Reassembled PDU in frame	tcp.reassembled_in	FT_FRAMENUM	tcp		0x0	The PDU that doesn't end in this segment is reassembled in this frame
+F	Reassembled TCP length	tcp.reassembled.length	FT_UINT32	tcp	BASE_DEC	0x0	The total length of the reassembled payload
+F	Reassembled TCP Data	tcp.reassembled.data	FT_BYTES	tcp		0x0	The reassembled payload
+F	Kind	tcp.option_kind	FT_UINT8	tcp	BASE_DEC	0x0	This TCP option's kind
+F	Length	tcp.option_len	FT_UINT8	tcp	BASE_DEC	0x0	Length of this TCP option in bytes (including kind and length fields)
+F	TCP Options	tcp.options	FT_BYTES	tcp		0x0	
+F	MSS Value	tcp.options.mss_val	FT_UINT16	tcp	BASE_DEC	0x0	
+F	Shift count	tcp.options.wscale.shift	FT_UINT8	tcp	BASE_DEC	0x0	Logarithmically encoded power of 2 scale factor
+F	Multiplier	tcp.options.wscale.multiplier	FT_UINT16	tcp	BASE_DEC	0x0	Multiply segment window size by this for scaled window size
+F	TCP SACK Left Edge	tcp.options.sack_le	FT_UINT32	tcp	BASE_DEC	0x0	
+F	TCP SACK Right Edge	tcp.options.sack_re	FT_UINT32	tcp	BASE_DEC	0x0	
+F	TCP SACK Count	tcp.options.sack.count	FT_UINT8	tcp	BASE_DEC	0x0	
+F	Timestamp value	tcp.options.timestamp.tsval	FT_UINT32	tcp	BASE_DEC	0x0	Value of sending machine's timestamp clock
+F	Timestamp echo reply	tcp.options.timestamp.tsecr	FT_UINT32	tcp	BASE_DEC	0x0	Echoed timestamp from remote machine
+F	Time until the last segment of this PDU	tcp.pdu.time	FT_RELATIVE_TIME	tcp		0x0	How long time has passed until the last frame of this PDU
+F	PDU Size	tcp.pdu.size	FT_UINT32	tcp	BASE_DEC	0x0	The size of this PDU
+F	Last frame of this PDU	tcp.pdu.last_frame	FT_FRAMENUM	tcp		0x0	This is the last frame of the PDU starting in this segment
+F	Time since first frame in this TCP stream	tcp.time_relative	FT_RELATIVE_TIME	tcp		0x0	Time relative to first frame in this TCP stream
+F	Time since previous frame in this TCP stream	tcp.time_delta	FT_RELATIVE_TIME	tcp		0x0	Time delta from previous frame in this TCP stream
+F	TCP segment data	tcp.segment_data	FT_BYTES	tcp		0x0	A data segment used in reassembly of an upper-layer protocol (ULP)
+F	TCP payload	tcp.payload	FT_BYTES	tcp		0x0	The TCP payload of this packet
+F	Invalid length for option	tcp.option.len.invalid	FT_NONE	tcp		0x0	
+F	This frame is a (suspected) retransmission	tcp.analysis.retransmission	FT_NONE	tcp		0x0	
+F	This frame is a (suspected) fast retransmission	tcp.analysis.fast_retransmission	FT_NONE	tcp		0x0	
+F	This frame is a (suspected) spurious retransmission	tcp.analysis.spurious_retransmission	FT_NONE	tcp		0x0	
+F	This frame is a (suspected) out-of-order segment	tcp.analysis.out_of_order	FT_NONE	tcp		0x0	
+F	A new tcp session is started with the same ports as an earlier session in this trace	tcp.analysis.reused_ports	FT_NONE	tcp		0x0	
+F	Previous segment(s) not captured (common at capture start)	tcp.analysis.lost_segment	FT_NONE	tcp		0x0	
+F	ACKed segment that wasn't captured (common at capture start)	tcp.analysis.ack_lost_segment	FT_NONE	tcp		0x0	
+F	TCP window update	tcp.analysis.window_update	FT_NONE	tcp		0x0	
+F	TCP window specified by the receiver is now completely full	tcp.analysis.window_full	FT_NONE	tcp		0x0	
+F	TCP keep-alive segment	tcp.analysis.keep_alive	FT_NONE	tcp		0x0	
+F	ACK to a TCP keep-alive segment	tcp.analysis.keep_alive_ack	FT_NONE	tcp		0x0	
+F	TCP Zero Window Probe	tcp.analysis.zero_window_probe	FT_NONE	tcp		0x0	
+F	TCP Zero Window segment	tcp.analysis.zero_window	FT_NONE	tcp		0x0	
+F	ACK to a TCP Zero Window Probe	tcp.analysis.zero_window_probe_ack	FT_NONE	tcp		0x0	
+F	The SYN packet does not contain a MSS option	tcp.options.mss.absent	FT_NONE	tcp		0x0	
+F	The SYN packet does not contain a SACK PERM option	tcp.options.sack_perm.absent	FT_NONE	tcp		0x0	
+F	Source Port	udp.srcport	FT_UINT16	udp	BASE_PT_UDP	0x0	
+F	Destination Port	udp.dstport	FT_UINT16	udp	BASE_PT_UDP	0x0	
+F	Source or Destination Port	udp.port	FT_UINT16	udp	BASE_PT_UDP	0x0	
+F	Stream index	udp.stream	FT_UINT32	udp	BASE_DEC	0x0	
+F	Stream Packet Number	udp.stream.pnum	FT_UINT32	udp	BASE_DEC	0x0	Relative packet number in this UDP stream
+F	Length	udp.length	FT_UINT16	udp	BASE_DEC	0x0	Length in octets including this header and the data
+F	Checksum	udp.checksum	FT_UINT16	udp	BASE_HEX	0x0	Checksum over the pseudo-header, UDP header and data (RFC 768)
+F	Calculated Checksum	udp.checksum_calculated	FT_UINT16	udp	BASE_HEX	0x0	The expected UDP checksum field as calculated from the UDP packet
+F	Checksum Status	udp.checksum.status	FT_UINT8	udp	BASE_NONE	0x0	
+F	Time since first frame	udp.time_relative	FT_RELATIVE_TIME	udp		0x0	Time relative to first frame in this UDP stream
+F	Time since previous frame	udp.time_delta	FT_RELATIVE_TIME	udp		0x0	Time delta from previous frame in UDP stream
+F	Payload	udp.payload	FT_BYTES	udp		0x0	
+F	Length	dns.length	FT_UINT16	dns	BASE_DEC	0x0	Length of DNS-over-TCP request or response
+F	Transaction ID	dns.id	FT_UINT16	dns	BASE_HEX	0x0	Identification of transaction
+F	Flags	dns.flags	FT_UINT16	dns	BASE_HEX	0x0	
+F	Response	dns.flags.response	FT_BOOLEAN	dns	16	0x8000	Is the message a response?
+F	Opcode	dns.flags.opcode	FT_UINT16	dns	BASE_DEC	0x7800	Operation code
+F	Authoritative	dns.flags.authoritative	FT_BOOLEAN	dns	16	0x400	Is the server is an authority for the domain?
+F	Conflict	dns.flags.conflict	FT_BOOLEAN	dns	16	0x400	Did we receive multiple responses to a query?
+F	Truncated	dns.flags.truncated	FT_BOOLEAN	dns	16	0x200	Is the message truncated?
+F	Recursion desired	dns.flags.recdesired	FT_BOOLEAN	dns	16	0x100	Do query recursively?
+F	Recursion available	dns.flags.recavail	FT_BOOLEAN	dns	16	0x80	Can the server do recursive queries?
+F	Z	dns.flags.z	FT_BOOLEAN	dns	16	0x40	Z flag
+F	Answer authenticated	dns.flags.authenticated	FT_BOOLEAN	dns	16	0x20	Was the reply data authenticated by the server?
+F	Non-authenticated data	dns.flags.checkdisable	FT_BOOLEAN	dns	16	0x10	Is non-authenticated data acceptable?
+F	Reply code	dns.flags.rcode	FT_UINT16	dns	BASE_DEC	0xf	
+F	Questions	dns.count.queries	FT_UINT16	dns	BASE_DEC	0x0	Number of queries in packet
+F	Zones	dns.count.zones	FT_UINT16	dns	BASE_DEC	0x0	Number of zones in packet
+F	Answer RRs	dns.count.answers	FT_UINT16	dns	BASE_DEC	0x0	Number of answers in packet
+F	Prerequisites	dns.count.prerequisites	FT_UINT16	dns	BASE_DEC	0x0	Number of prerequisites in packet
+F	Authority RRs	dns.count.auth_rr	FT_UINT16	dns	BASE_DEC	0x0	Number of authoritative records in packet
+F	Updates	dns.count.updates	FT_UINT16	dns	BASE_DEC	0x0	Number of updates records in packet
+F	Additional RRs	dns.count.add_rr	FT_UINT16	dns	BASE_DEC	0x0	Number of additional records in packet
+F	Name	dns.qry.name	FT_STRING	dns		0x0	Query Name
+F	Name Length	dns.qry.name.len	FT_UINT16	dns	BASE_DEC	0x0	Query Name Len
+F	Label Count	dns.count.labels	FT_UINT16	dns	BASE_DEC	0x0	Query Label Count
+F	Type	dns.qry.type	FT_UINT16	dns	BASE_DEC	0x0	Query Type
+F	Class	dns.qry.class	FT_UINT16	dns	BASE_HEX	0x0	Query Class
+F	"QU" question	dns.qry.qu	FT_BOOLEAN	dns	16	0x8000	QU flag
+F	Name	dns.resp.name	FT_STRING	dns		0x0	Response Name
+F	Type	dns.resp.type	FT_UINT16	dns	BASE_DEC	0x0	Response Type
+F	Class	dns.resp.class	FT_UINT16	dns	BASE_HEX	0x0	Response Class
+F	Cache flush	dns.resp.cache_flush	FT_BOOLEAN	dns	16	0x8000	Cache flush flag
+F	Time to live	dns.resp.ttl	FT_UINT32	dns	BASE_DEC	0x0	Response TTL
+F	Data length	dns.resp.len	FT_UINT16	dns	BASE_DEC	0x0	Response Length
+F	UDP payload size	dns.rr.udp_payload_size	FT_UINT16	dns	BASE_DEC	0x0	
+F	UDP payload size	dns.rr.udp_payload_size	FT_UINT16	dns	BASE_HEX	0x7fff	
+F	Higher bits in extended RCODE	dns.resp.ext_rcode	FT_UINT8	dns	BASE_HEX	0x0	
+F	EDNS0 version	dns.resp.edns0_version	FT_UINT8	dns	BASE_DEC	0x0	
+F	Z	dns.resp.z	FT_UINT16	dns	BASE_HEX	0x0	
+F	DO bit	dns.resp.z.do	FT_BOOLEAN	dns	16	0x8000	DNSSEC OK
+F	Reserved	dns.resp.z.reserved	FT_UINT16	dns	BASE_HEX	0x7fff	
+F	Address	dns.a	FT_IPv4	dns		0x0	Response IPv4 Address
+F	AAAA Address	dns.aaaa	FT_IPv6	dns		0x0	AAAA Response Address
+F	CNAME	dns.cname	FT_STRING	dns		0x0	Response Primary Name
+F	Name Server	dns.ns	FT_STRING	dns		0x0	
+F	Domain Name	dns.ptr.domain_name	FT_STRING	dns		0x0	
+F	Preference	dns.mx.preference	FT_UINT16	dns	BASE_DEC	0x0	
+F	Mail Exchange	dns.mx.mail_exchange	FT_STRING	dns		0x0	
+F	Primary name server	dns.soa.mname	FT_STRING	dns		0x0	
+F	Responsible authority's mailbox	dns.soa.rname	FT_STRING	dns		0x0	
+F	Responsible authority's mailbox name	dns.soa.rname.name	FT_STRING	dns		0x0	
+F	Serial Number	dns.soa.serial_number	FT_UINT32	dns	BASE_DEC	0x0	
+F	Refresh Interval	dns.soa.refresh_interval	FT_UINT32	dns	BASE_DEC	0x0	
+F	Retry Interval	dns.soa.retry_interval	FT_UINT32	dns	BASE_DEC	0x0	
+F	Expire limit	dns.soa.expire_limit	FT_UINT32	dns	BASE_DEC	0x0	
+F	Minimum TTL	dns.soa.minimum_ttl	FT_UINT32	dns	BASE_DEC	0x0	
+F	TXT Length	dns.txt.length	FT_UINT8	dns	BASE_DEC	0x0	
+F	TXT	dns.txt	FT_STRING	dns		0x0	
+F	Instance	dns.srv.instance	FT_STRING	dns		0x0	Desired service instance
+F	Service	dns.srv.service	FT_STRING	dns		0x0	Desired service
+F	Protocol	dns.srv.proto	FT_STRING	dns		0x0	Desired protocol
+F	Name	dns.srv.name	FT_STRING	dns		0x0	Domain this resource record refers to
+F	Priority	dns.srv.priority	FT_UINT16	dns	BASE_DEC	0x0	
+F	Weight	dns.srv.weight	FT_UINT16	dns	BASE_DEC	0x0	
+F	Port	dns.srv.port	FT_UINT16	dns	BASE_DEC	0x0	
+F	Target	dns.srv.target	FT_STRING	dns		0x0	
+F	Option	dns.opt	FT_NONE	dns		0x0	
+F	Option Code	dns.opt.code	FT_UINT16	dns	BASE_DEC	0x0	
+F	Option Length	dns.opt.len	FT_UINT16	dns	BASE_DEC	0x0	
+F	Option Data	dns.opt.data	FT_BYTES	dns		0x0	
+F	Padding	dns.opt.padding	FT_BYTES	dns		0x0	The PADDING octets SHOULD be set to 0x00
+F	Response In	dns.response_in	FT_FRAMENUM	dns		0x0	The response to this DNS query is in this frame
+F	Request In	dns.response_to	FT_FRAMENUM	dns		0x0	This is a response to the DNS query in this frame
+F	Retransmission	dns.retransmission	FT_BOOLEAN	dns	0	0x0	This is a retransmission
+F	Retransmitted request. Original request in	dns.retransmit_request_in	FT_FRAMENUM	dns		0x0	This is a retransmitted DNS query
+F	Retransmitted response. Original response in	dns.retransmit_response_in	FT_FRAMENUM	dns		0x0	This is a retransmitted DNS response
+F	Time	dns.time	FT_RELATIVE_TIME	dns		0x0	The time between the Query and the Response
+F	Unsolicited	dns.unsolicited	FT_BOOLEAN	dns	0	0x0	This is an unsolicited response
+F	Data	dns.data	FT_BYTES	dns		0x0	
+F	DNS query retransmission	dns.retransmit_request	FT_NONE	dns		0x0	
+F	DNS response retransmission	dns.retransmit_response	FT_NONE	dns		0x0	
+F	DNS response missing	dns.response_missing	FT_NONE	dns		0x0	
+F	Frame is BOOTP	dhcp.bootp	FT_BOOLEAN	dhcp	0	0x0	
+F	Message type	dhcp.type	FT_UINT8	dhcp	BASE_DEC	0x0	
+F	Hardware type	dhcp.hw.type	FT_UINT8	dhcp	BASE_HEX	0x0	
+F	Hardware address length	dhcp.hw.len	FT_UINT8	dhcp	BASE_DEC	0x0	
+F	Hops	dhcp.hops	FT_UINT8	dhcp	BASE_DEC	0x0	
+F	Transaction ID	dhcp.id	FT_UINT32	dhcp	BASE_HEX	0x0	
+F	Seconds elapsed	dhcp.secs	FT_UINT16	dhcp	BASE_DEC	0x0	
+F	Bootp flags	dhcp.flags	FT_UINT16	dhcp	BASE_HEX	0x0	
+F	Broadcast flag	dhcp.flags.bc	FT_BOOLEAN	dhcp	16	0x8000	
+F	Reserved flags	dhcp.flags.reserved	FT_UINT16	dhcp	BASE_HEX	0x7fff	
+F	Client IP address	dhcp.ip.client	FT_IPv4	dhcp		0x0	
+F	Your (client) IP address	dhcp.ip.your	FT_IPv4	dhcp		0x0	
+F	Next server IP address	dhcp.ip.server	FT_IPv4	dhcp		0x0	
+F	Relay agent IP address	dhcp.ip.relay	FT_IPv4	dhcp		0x0	
+F	Client hardware address	dhcp.hw.addr	FT_BYTES	dhcp		0x0	
+F	Client hardware address padding	dhcp.hw.addr_padding	FT_BYTES	dhcp		0x0	
+F	Client MAC address	dhcp.hw.mac_addr	FT_ETHER	dhcp		0x0	
+F	Server host name	dhcp.server	FT_STRING	dhcp		0x0	
+F	Boot file name	dhcp.file	FT_STRING	dhcp		0x0	
+F	Magic cookie	dhcp.cookie	FT_IPv4	dhcp		0x0	
+F	Client hardware address	dhcp.client_hardware_address	FT_STRING	dhcp		0x0	
+F	IAID	dhcp.client_id.iaid	FT_STRING	dhcp		0x0	
+F	DUID Type	dhcp.client_id.duid_type	FT_UINT16	dhcp	BASE_DEC	0x0	
+F	Hardware type	dhcp.client_id.duid_llt_hw_type	FT_UINT16	dhcp	BASE_DEC	0x0	Client Identifier DUID LLT Hardware type
+F	Hardware type	dhcp.client_id.duid_ll_hw_type	FT_UINT16	dhcp	BASE_DEC	0x0	Client Identifier DUID LL Hardware type
+F	Time	dhcp.client_id.time	FT_UINT32	dhcp	BASE_DEC	0x0	
+F	Link layer address	dhcp.client_id.link_layer_address	FT_STRING	dhcp		0x0	
+F	Link layer address (Ethernet)	dhcp.client_id.link_layer_address_ether	FT_ETHER	dhcp		0x0	
+F	Enterprise-number	dhcp.client_id.enterprise_num	FT_UINT32	dhcp	BASE_CUSTOM	0x0	
+F	Identifier	dhcp.client_id	FT_BYTES	dhcp		0x0	
+F	Type	dhcp.client_id.type	FT_UINT8	dhcp	BASE_DEC	0x0	
+F	Client Identifier	dhcp.client_id.undef	FT_STRING	dhcp		0x0	
+F	Option	dhcp.option.type	FT_UINT8	dhcp	BASE_DEC	0x0	DHCP/BOOTP option type
+F	Length	dhcp.option.length	FT_UINT8	dhcp	BASE_DEC	0x0	DHCP/BOOTP option length
+F	Length	dhcp.option.suboption_length	FT_UINT8	dhcp	BASE_DEC	0x0	Suboption length
+F	Value	dhcp.option.value	FT_BYTES	dhcp		0x0	DHCP/BOOTP option value
+F	Padding	dhcp.option.padding	FT_BYTES	dhcp		0x0	Option 0: Padding
+F	Encoding Long Options detected (RFC 3396)	dhcp.option.rfc_3396_detected	FT_STRINGZ	dhcp		0x0	
+F	Subnet Mask	dhcp.option.subnet_mask	FT_IPv4	dhcp		0x0	Option 1: Subnet Mask
+F	Router	dhcp.option.router	FT_IPv4	dhcp		0x0	Option 3: Router
+F	Domain Name Server	dhcp.option.domain_name_server	FT_IPv4	dhcp		0x0	Option 6: Domain Name Server
+F	Host Name	dhcp.option.hostname	FT_STRINGZ	dhcp		0x0	Option 12: Host Name
+F	Domain Name	dhcp.option.domain_name	FT_STRINGZ	dhcp		0x0	Option 15: Domain Name
+F	Broadcast Address	dhcp.option.broadcast_address	FT_IPv4	dhcp		0x0	Option 28: Broadcast Address
+F	Requested IP Address	dhcp.option.requested_ip_address	FT_IPv4	dhcp		0x0	Option 50: Requested IP Address
+F	IP Address Lease Time	dhcp.option.ip_address_lease_time	FT_UINT32	dhcp	BASE_CUSTOM	0x0	Option 51: IP Address Lease Time
+F	Option Overload	dhcp.option.option_overload	FT_UINT8	dhcp	BASE_DEC	0x0	Option 52: Option Overload
+F	DHCP	dhcp.option.dhcp	FT_UINT8	dhcp	BASE_DEC	0x0	Option 53: DHCP option
+F	DHCP Server Identifier	dhcp.option.dhcp_server_id	FT_IPv4	dhcp		0x0	Option 54: DHCP Server Identifier
+F	Parameter Request List Item	dhcp.option.request_list_item	FT_UINT8	dhcp	BASE_DEC	0x0	Option 55: Parameter Request List Item
+F	Message	dhcp.option.message	FT_STRINGZ	dhcp		0x0	Option 56: Option message
+F	Maximum DHCP Message Size	dhcp.option.dhcp_max_message_size	FT_UINT16	dhcp	BASE_DEC	0x0	Option 57: Maximum DHCP Message Size
+F	Renewal Time Value	dhcp.option.renewal_time_value	FT_UINT32	dhcp	BASE_CUSTOM	0x0	Option 58: Renewal Time Value
+F	Rebinding Time Value	dhcp.option.rebinding_time_value	FT_UINT32	dhcp	BASE_CUSTOM	0x0	Option 59: Rebinding Time Value
+F	Vendor class identifier	dhcp.option.vendor_class_id	FT_STRINGZ	dhcp		0x0	Option 60: Vendor class identifier
+F	TFTP Server Name	dhcp.option.tftp_server_name	FT_STRINGZ	dhcp		0x0	Option 66: TFTP Server Name
+F	Bootfile name	dhcp.option.bootfile_name	FT_STRINGZ	dhcp		0x0	Option 67: Bootfile name
+F	Option 82 Suboption	dhcp.option.agent_information_option.suboption	FT_UINT8	dhcp	BASE_DEC	0x0	Option 82: Suboption
+F	Value	dhcp.option.agent_information_option.value	FT_BYTES	dhcp		0x0	Option 82: Suboption value
+F	Agent Circuit ID	dhcp.option.agent_information_option.agent_circuit_id	FT_BYTES	dhcp		0x0	Option 82:1 Agent Circuit ID
+F	Agent Remote ID	dhcp.option.agent_information_option.agent_remote_id	FT_BYTES	dhcp		0x0	Option 82:2 Agent Remote ID
+F	DOCSIS Device Class	dhcp.option.agent_information_option.docsis_device_class	FT_UINT32	dhcp	BASE_HEX	0x0	Option 82:4 DOCSIS Device Class
+F	Link selection	dhcp.option.agent_information_option.link_selection	FT_IPv4	dhcp		0x0	Option 82:5 Link selection
+F	Subscriber ID	dhcp.option.agent_information_option.subscriber_id	FT_STRINGZ	dhcp		0x0	Option 82:6 Subscriber ID
+F	Option End	dhcp.option.end	FT_UINT8	dhcp	BASE_DEC	0x0	Option 255: End
+F	length isn't 0	dhcp.bad_length	FT_NONE	dhcp		0x0	
+F	no room left in option for suboption value	dhcp.missing_subopt_value	FT_NONE	dhcp		0x0	
+F	no room left in option for suboption length	dhcp.missing_subopt_length	FT_NONE	dhcp		0x0	
+F	For the data, please refer to the last option of this type	dhcp.option.refer_last_option	FT_NONE	dhcp		0x0	
+F	overload option makes no sense in the file or sname field	dhcp.option.option_overload.wrong_field	FT_NONE	dhcp		0x0	
+F	file overload end option missing	dhcp.option.option_overload.file_end_missing	FT_NONE	dhcp		0x0	
+F	sname overload end option missing	dhcp.option.option_overload.sname_end_missing	FT_NONE	dhcp		0x0	
+F	Seconds elapsed appears to be encoded as little-endian	dhcp.secs_le	FT_NONE	dhcp		0x0	
+F	End option missing	dhcp.end_option_missing	FT_NONE	dhcp		0x0	
+F	Client address not given	dhcp.client_address_not_given	FT_NONE	dhcp		0x0	
+F	Server name option overloaded by DHCP	dhcp.server_name_overloaded_by_dhcp	FT_NONE	dhcp		0x0	
+F	Boot file name option overloaded by DHCP	dhcp.boot_filename_overloaded_by_dhcp	FT_NONE	dhcp		0x0	
+F	Message type	dhcpv6.msgtype	FT_UINT8	dhcpv6	BASE_DEC	0x0	
+F	Hopcount	dhcpv6.hopcount	FT_UINT8	dhcpv6	BASE_DEC	0x0	
+F	Transaction ID	dhcpv6.xid	FT_UINT24	dhcpv6	BASE_HEX	0x0	
+F	Link address	dhcpv6.linkaddr	FT_IPv6	dhcpv6		0x0	
+F	Peer address	dhcpv6.peeraddr	FT_IPv6	dhcpv6		0x0	
+F	Option	dhcpv6.option.type	FT_UINT16	dhcpv6	BASE_DEC	0x0	
+F	Length	dhcpv6.option.length	FT_UINT16	dhcpv6	BASE_DEC	0x0	
+F	Option	dhcpv6.option.type_str	FT_STRING	dhcpv6		0x0	
+F	Data	dhcpv6.option.data	FT_BYTES	dhcpv6		0x0	
+F	DUID	dhcpv6.duid.bytes	FT_BYTES	dhcpv6		0x0	
+F	DUID Type	dhcpv6.duid.type	FT_UINT16	dhcpv6	BASE_DEC	0x0	
+F	DUID Time	dhcpv6.duidllt.time	FT_ABSOLUTE_TIME	dhcpv6		0x0	
+F	Link-layer address	dhcpv6.duidllt.link_layer_addr	FT_STRING	dhcpv6		0x0	
+F	Link-layer address (Ethernet)	dhcpv6.duidllt.link_layer_addr_ether	FT_ETHER	dhcpv6		0x0	
+F	Hardware type	dhcpv6.duidllt.hwtype	FT_UINT16	dhcpv6	BASE_DEC	0x0	DUID LLT Hardware Type
+F	Hardware type	dhcpv6.duidll.hwtype	FT_UINT16	dhcpv6	BASE_DEC	0x0	DUID LL Hardware Type
+F	Enterprise ID	dhcpv6.duiden.enterprise	FT_UINT32	dhcpv6	BASE_CUSTOM	0x0	DUID EN Enterprise Number
+F	Identifier	dhcpv6.duiden.identifier	FT_BYTES	dhcpv6		0x0	
+F	Link-layer address	dhcpv6.duidll.link_layer_addr	FT_STRING	dhcpv6		0x0	
+F	Link-layer address (Ethernet)	dhcpv6.duidll.link_layer_addr_ether	FT_ETHER	dhcpv6		0x0	
+F	UUID	dhcpv6.duiduuid.bytes	FT_BYTES	dhcpv6		0x0	
+F	IAID	dhcpv6.iaid	FT_STRING	dhcpv6		0x0	
+F	T1	dhcpv6.iaid.t1	FT_UINT32	dhcpv6	BASE_DEC	0x0	
+F	T2	dhcpv6.iaid.t2	FT_UINT32	dhcpv6	BASE_DEC	0x0	
+F	IATA	dhcpv6.iata	FT_STRING	dhcpv6		0x0	
+F	IPv6 address	dhcpv6.iaaddr.ip	FT_IPv6	dhcpv6		0x0	
+F	Preferred lifetime	dhcpv6.iaaddr.pref_lifetime	FT_UINT32	dhcpv6	BASE_DEC	0x0	
+F	Valid lifetime	dhcpv6.iaaddr.valid_lifetime	FT_UINT32	dhcpv6	BASE_DEC	0x0	
+F	Requested Option code	dhcpv6.requested_option_code	FT_UINT16	dhcpv6	BASE_DEC	0x0	
+F	Pref-value	dhcpv6.option_preference	FT_UINT8	dhcpv6	BASE_DEC	0x0	
+F	Elapsed time	dhcpv6.elapsed_time	FT_UINT16	dhcpv6	BASE_DEC	0x0	
+F	Status Code	dhcpv6.status_code	FT_UINT16	dhcpv6	BASE_DEC	0x0	
+F	Status Message	dhcpv6.status_msg	FT_STRING	dhcpv6		0x0	
+F	Interface-ID	dhcpv6.interface_id	FT_BYTES	dhcpv6		0x0	
+F	Reconfigure message type	dhcpv6.reconf_msg	FT_UINT8	dhcpv6	BASE_DEC	0x0	
+F	DNS server address	dhcpv6.dns_server	FT_IPv6	dhcpv6		0x0	
+F	List entry	dhcpv6.search_list_entry	FT_STRING	dhcpv6		0x0	
+F	Preferred lifetime	dhcpv6.iaprefix.pref_lifetime	FT_UINT32	dhcpv6	BASE_DEC	0x0	
+F	Valid lifetime	dhcpv6.iaprefix.valid_lifetime	FT_UINT32	dhcpv6	BASE_DEC	0x0	
+F	Prefix length	dhcpv6.iaprefix.pref_len	FT_UINT8	dhcpv6	BASE_DEC	0x0	
+F	Prefix address	dhcpv6.iaprefix.pref_addr	FT_IPv6	dhcpv6		0x0	
+F	Malformed option	dhcpv6.malformed_option	FT_NONE	dhcpv6		0x0	
+F	Obsoleted option	dhcpv6.obsoleted_option	FT_NONE	dhcpv6		0x0	
+F	Flags	ntp.flags	FT_UINT8	ntp	BASE_HEX	0x0	Flags (Leap/Version/Mode)
+F	Leap Indicator	ntp.flags.li	FT_UINT8	ntp	BASE_DEC	0xc0	Warning of an impending leap second to be inserted or deleted in the last minute of the current month
+F	Version number	ntp.flags.vn	FT_UINT8	ntp	BASE_DEC	0x38	
+F	Mode	ntp.flags.mode	FT_UINT8	ntp	BASE_DEC	0x7	
+F	Peer Clock Stratum	ntp.stratum	FT_UINT8	ntp	BASE_DEC	0x0	
+F	Peer Polling Interval	ntp.ppoll	FT_INT8	ntp	BASE_DEC	0x0	Maximum interval between successive messages
+F	Peer Clock Precision	ntp.precision	FT_INT8	ntp	BASE_DEC	0x0	The precision of the system clock
+F	Root Delay	ntp.rootdelay	FT_UINT32	ntp	BASE_DEC	0x0	Total round-trip delay to the reference clock
+F	Root Dispersion	ntp.rootdispersion	FT_UINT32	ntp	BASE_DEC	0x0	Total dispersion to the reference clock
+F	Reference ID	ntp.refid	FT_BYTES	ntp		0x0	Particular server or reference clock being used
+F	Reference Timestamp	ntp.reftime	FT_ABSOLUTE_TIME	ntp		0x0	Time when the system clock was last set or corrected
+F	Origin Timestamp	ntp.org	FT_ABSOLUTE_TIME	ntp		0x0	Time at the client when the request departed for the server
+F	Receive Timestamp	ntp.rec	FT_ABSOLUTE_TIME	ntp		0x0	Time at the server when the request arrived from the client
+F	Transmit Timestamp	ntp.xmt	FT_ABSOLUTE_TIME	ntp		0x0	Time at the server when the response left for the client
+F	Key ID	ntp.keyid	FT_BYTES	ntp		0x0	
+F	Message Authentication Code	ntp.mac	FT_BYTES	ntp		0x0	
+F	Type	icmp.type	FT_UINT8	icmp	BASE_DEC	0x0	
+F	Code	icmp.code	FT_UINT8	icmp	BASE_DEC	0x0	
+F	Checksum	icmp.checksum	FT_UINT16	icmp	BASE_HEX	0x0	
+F	Checksum Status	icmp.checksum.status	FT_UINT8	icmp	BASE_NONE	0x0	
+F	Unused	icmp.unused	FT_BYTES	icmp		0x0	
+F	Identifier (BE)	icmp.ident	FT_UINT16	icmp	BASE_DEC_HEX	0x0	Identifier (big endian representation)
+F	Identifier (LE)	icmp.ident_le	FT_UINT16	icmp	BASE_DEC_HEX	0x0	Identifier (little endian representation)
+F	Sequence Number (BE)	icmp.seq	FT_UINT16	icmp	BASE_DEC_HEX	0x0	Sequence Number (big endian representation)
+F	Sequence Number (LE)	icmp.seq_le	FT_UINT16	icmp	BASE_DEC_HEX	0x0	Sequence Number (little endian representation)
+F	MTU of next hop	icmp.mtu	FT_UINT16	icmp	BASE_DEC	0x0	
+F	Number of addresses	icmp.num_addrs	FT_UINT8	icmp	BASE_DEC	0x0	
+F	Address entry size	icmp.addr_entry_size	FT_UINT8	icmp	BASE_DEC	0x0	
+F	Lifetime	icmp.lifetime	FT_UINT16	icmp	BASE_DEC	0x0	
+F	Pointer	icmp.pointer	FT_UINT32	icmp	BASE_DEC	0x0	
+F	Originate Timestamp	icmp.originate_timestamp	FT_UINT32	icmp	BASE_DEC	0x0	
+F	Receive Timestamp	icmp.receive_timestamp	FT_UINT32	icmp	BASE_DEC	0x0	
+F	Transmit Timestamp	icmp.transmit_timestamp	FT_UINT32	icmp	BASE_DEC	0x0	
+F	Address Mask	icmp.address_mask	FT_IPv4	icmp		0x0	
+F	Gateway Address	icmp.redir_gw	FT_IPv4	icmp		0x0	
+F	Length	icmp.length	FT_UINT8	icmp	BASE_DEC	0x0	The length of the original datagram
+F	Length of original datagram	icmp.length.original_datagram	FT_UINT8	icmp	BASE_DEC	0x0	The length of the original datagram (length * 4)
+F	ICMP Data	icmp.data	FT_BYTES	icmp		0x0	
+F	Type	icmpv6.type	FT_UINT8	icmpv6	BASE_DEC	0x0	Indicates the type of the message
+F	Code	icmpv6.code	FT_UINT8	icmpv6	BASE_DEC	0x0	Depends on the message type.  It is used to create an additional level of message granularity
+F	Checksum	icmpv6.checksum	FT_UINT16	icmpv6	BASE_HEX	0x0	Used to detect data corruption in the ICMPv6 message and parts of the IPv6 header
+F	Checksum Status	icmpv6.checksum.status	FT_UINT8	icmpv6	BASE_NONE	0x0	
+F	Reserved	icmpv6.reserved	FT_BYTES	icmpv6		0x0	Must be Zero
+F	Data	icmpv6.data	FT_BYTES	icmpv6		0x0	
+F	Unknown Data	icmpv6.unknown_data	FT_BYTES	icmpv6		0x0	Not interpreted Data
+F	MTU	icmpv6.mtu	FT_UINT32	icmpv6	BASE_DEC	0x0	The Maximum Transmission Unit of the next-hop link
+F	Pointer	icmpv6.pointer	FT_UINT32	icmpv6	BASE_DEC	0x0	Identifies the octet offset within the invoking packet where the error was detected
+F	Identifier	icmpv6.echo.identifier	FT_UINT16	icmpv6	BASE_HEX	0x0	An identifier to aid in matching with Request and Reply
+F	Sequence	icmpv6.echo.sequence_number	FT_UINT16	icmpv6	BASE_DEC	0x0	A sequence number to aid in matching Echo Replies to this Echo Request
+F	Cur hop limit	icmpv6.nd.ra.cur_hop_limit	FT_UINT8	icmpv6	BASE_DEC	0x0	The default value that should be placed in the Hop Count field of the IP header for outgoing IP packets
+F	Flags	icmpv6.nd.ra.flag	FT_UINT8	icmpv6	BASE_HEX	0x0	
+F	Managed address configuration	icmpv6.nd.ra.flag.m	FT_BOOLEAN	icmpv6	8	0x80	When set, it indicates that addresses are available via DHCPv6
+F	Other configuration	icmpv6.nd.ra.flag.o	FT_BOOLEAN	icmpv6	8	0x40	When set, it indicates that other configuration information is available via DHCPv6
+F	Home Agent	icmpv6.nd.ra.flag.h	FT_BOOLEAN	icmpv6	8	0x20	When set, it indicate that the router sending this Router Advertisement is also functioning as a Mobile IPv6 home agent on this link
+F	Prf (Default Router Preference)	icmpv6.nd.ra.flag.prf	FT_UINT8	icmpv6	BASE_DEC	0x18	Indicates whether to prefer this router over other default routers
+F	ND Proxy	icmpv6.nd.ra.flag.p	FT_BOOLEAN	icmpv6	8	0x4	Neighbor Discovery Proxy (Experimental - RFC4389)
+F	SNAC Router	icmpv6.nd.ra.flag.s	FT_BOOLEAN	icmpv6	8	0x2	Indicates whether the router operates as Stub Network Auto-Configuring (SNAC) router
+F	Reserved	icmpv6.nd.ra.flag.rsv	FT_UINT8	icmpv6	BASE_DEC	0x1	Must be Zero
+F	Router lifetime (s)	icmpv6.nd.ra.router_lifetime	FT_UINT16	icmpv6	BASE_DEC	0x0	The lifetime associated with the default router
+F	Reachable time (ms)	icmpv6.nd.ra.reachable_time	FT_UINT32	icmpv6	BASE_DEC	0x0	The time that a node assumes a neighbor is reachable after having received a reachability confirmation
+F	Retrans timer (ms)	icmpv6.nd.ra.retrans_timer	FT_UINT32	icmpv6	BASE_DEC	0x0	The time between retransmitted Neighbor Solicitation messages
+F	Target Address	icmpv6.nd.ns.target_address	FT_IPv6	icmpv6		0x0	The IP address of the target of the solicitation
+F	Flags	icmpv6.nd.na.flag	FT_UINT32	icmpv6	BASE_HEX	0x0	
+F	Router	icmpv6.nd.na.flag.r	FT_BOOLEAN	icmpv6	32	0x80000000	When set, it indicates that the sender is a router
+F	Solicited	icmpv6.nd.na.flag.s	FT_BOOLEAN	icmpv6	32	0x40000000	When set, it indicates that the advertisement was sent in response to a Neighbor Solicitation from the Destination address
+F	Override	icmpv6.nd.na.flag.o	FT_BOOLEAN	icmpv6	32	0x20000000	When set, it indicates that the advertisement should override an existing cache entry and update the cached link-layer address
+F	Reserved	icmpv6.nd.na.flag.rsv	FT_UINT32	icmpv6	BASE_DEC	0x1fffffff	Must be Zero
+F	Target Address	icmpv6.nd.na.target_address	FT_IPv6	icmpv6		0x0	the Target Address field in the Neighbor Solicitation message that prompted this advertisement
+F	Target Address	icmpv6.nd.rd.target_address	FT_IPv6	icmpv6		0x0	An IP address that is a better first hop to use for the ICMP Destination Address
+F	Destination Address	icmpv6.rd.na.destination_address	FT_IPv6	icmpv6		0x0	The IP address of the destination that is redirected to the target
+F	ICMPv6 Option	icmpv6.opt	FT_NONE	icmpv6		0x0	
+F	Type	icmpv6.opt.type	FT_UINT8	icmpv6	BASE_DEC	0x0	Options type
+F	Length	icmpv6.opt.length	FT_UINT8	icmpv6	BASE_DEC	0x0	The length (in units of 8 bytes) of the option (including the Type and Length fields)
+F	Reserved	icmpv6.opt.reserved	FT_NONE	icmpv6		0x0	Reserved (Must be 0)
+F	Padding	icmpv6.opt.padding	FT_NONE	icmpv6		0x0	Padding (Must be 0)
+F	Link-layer address	icmpv6.opt.linkaddr	FT_BYTES	icmpv6		0x0	
+F	Source Link-layer address	icmpv6.opt.src_linkaddr	FT_BYTES	icmpv6		0x0	
+F	Target Link-layer address	icmpv6.opt.target_linkaddr	FT_BYTES	icmpv6		0x0	
+F	Link-layer address	icmpv6.opt.linkaddr_eui64	FT_EUI64	icmpv6		0x0	
+F	Source Link-layer address	icmpv6.opt.src_linkaddr_eui64	FT_EUI64	icmpv6		0x0	
+F	Target Link-layer address	icmpv6.opt.target_linkaddr_eui64	FT_EUI64	icmpv6		0x0	
+F	Prefix Length	icmpv6.opt.prefix.length	FT_UINT8	icmpv6	BASE_DEC	0x0	The number of leading bits in the Prefix that are valid
+F	Flag	icmpv6.opt.prefix.flag	FT_UINT8	icmpv6	BASE_HEX	0x0	
+F	On-link Flag (L)	icmpv6.opt.prefix.flag.l	FT_BOOLEAN	icmpv6	8	0x80	When set, indicates that this prefix can be used for on-link determination, and traffic to those destinations is sent directly (not via routers)
+F	Autonomous Address Configuration Flag (A)	icmpv6.opt.prefix.flag.a	FT_BOOLEAN	icmpv6	8	0x40	When set, indicates that this prefix can be used for stateless address configuration
+F	Router Address Flag (R)	icmpv6.opt.prefix.flag.r	FT_BOOLEAN	icmpv6	8	0x20	When set, indicates that the Prefix field contains a complete IP address assigned to the sending router
+F	DHCPv6-PD Preferred Flag (P)	icmpv6.opt.prefix.flag.p	FT_BOOLEAN	icmpv6	8	0x10	When set, indicates that the network prefers that clients use Prefix Delegation (PD) instead of acquiring individual addresses via SLAAC or DHCPv6 address assignment.
+F	Reserved	icmpv6.opt.prefix.flag.reserved	FT_UINT8	icmpv6	BASE_DEC	0xf	
+F	Valid Lifetime	icmpv6.opt.prefix.valid_lifetime	FT_UINT32	icmpv6	BASE_DEC	0x0	The length of time in seconds that the prefix is valid for the purpose of on-link determination
+F	Preferred Lifetime	icmpv6.opt.prefix.preferred_lifetime	FT_UINT32	icmpv6	BASE_DEC	0x0	The length of time in seconds that addresses generated from the prefix via stateless address autoconfiguration remain preferred
+F	Prefix	icmpv6.opt.prefix	FT_IPv6	icmpv6		0x0	An IP address or a prefix of an IP address
+F	Redirected Packet	icmpv6.opt.redirected_packet	FT_NONE	icmpv6		0x0	
+F	MTU	icmpv6.opt.mtu	FT_UINT32	icmpv6	BASE_DEC	0x0	The recommended MTU for the link
+F	Version	erspan.version	FT_UINT16	erspan	BASE_DEC	0xf000	
+F	Vlan	erspan.vlan	FT_UINT16	erspan	BASE_DEC	0xfff	
+F	COS	erspan.cos	FT_UINT16	erspan	BASE_DEC	0xe000	
+F	Encap	erspan.encap	FT_UINT16	erspan	BASE_DEC	0x1800	
+F	Bad/Short/Oversized	erspan.bso	FT_UINT16	erspan	BASE_DEC	0x1800	
+F	Truncated	erspan.truncated	FT_UINT16	erspan	BASE_DEC	0x400	ERSPAN packet exceeded the MTU size
+F	SpanID	erspan.spanid	FT_UINT16	erspan	BASE_DEC	0x3ff	
+F	Reserved	erspan.reserved	FT_UINT32	erspan	BASE_DEC	0xfff00000	
+F	Index	erspan.index	FT_UINT32	erspan	BASE_DEC	0xfffff	
+F	Timestamp	erspan.timestamp	FT_UINT32	erspan	BASE_DEC	0x0	
+F	Security Group Tag	erspan.sgt	FT_UINT16	erspan	BASE_DEC	0x0	
+F	Has Ethernet PDU	erspan.p	FT_UINT16	erspan	BASE_DEC	0x8000	
+F	Frame Type	erspan.ft	FT_UINT16	erspan	BASE_DEC	0x7c00	
+F	Hardware ID	erspan.hw	FT_UINT16	erspan	BASE_DEC	0x3f0	
+F	Timestamp granularity	erspan.gra	FT_UINT16	erspan	BASE_DEC	0x6	
+F	Direction	erspan.direction	FT_BOOLEAN	erspan	16	0x8	
+F	Optional Sub headers	erspan.o	FT_UINT16	erspan	BASE_DEC	0x1	
+F	Platform ID	erspan.platid	FT_UINT32	erspan	BASE_DEC	0xfc000000	
+F	Reserved	erspan.pid1.rsvd1	FT_UINT32	erspan	BASE_DEC	0x3fff000	
+F	VSM Domain ID	erspan.pid1.vsmid	FT_UINT32	erspan	BASE_DEC	0xfff	
+F	Port ID/Index	erspan.pid1.port_index	FT_UINT32	erspan	BASE_DEC	0x0	
+F	Reserved	erspan.pid3.rsvd1	FT_UINT32	erspan	BASE_DEC	0x3ffc000	
+F	Port ID/Index	erspan.pid3.port_index	FT_UINT32	erspan	BASE_DEC	0x3fff	
+F	Upper 32-bit Timestamp	erspan.pid3.timestamp	FT_UINT32	erspan	BASE_DEC	0x0	
+F	Reserved	erspan.pid4.rsvd1	FT_UINT32	erspan	BASE_DEC	0x3ffc000	
+F	Reserved	erspan.pid4.rsvd2	FT_UINT32	erspan	BASE_DEC	0x3fff	
+F	Reserved	erspan.pid4.rsvd3	FT_UINT32	erspan	BASE_DEC	0xffffffff	
+F	Switch ID	erspan.pid5.switchid	FT_UINT32	erspan	BASE_DEC	0x3ff0000	
+F	Port ID/Index	erspan.pid5.port_index	FT_UINT32	erspan	BASE_DEC	0xffff	
+F	Timestamp (seconds)	erspan.pid5.timestamp	FT_UINT32	erspan	BASE_DEC	0x0	
+F	Reserved	erspan.pid7.rsvd1	FT_UINT32	erspan	BASE_DEC	0x3f00000	
+F	Source Index	erspan.pid7.source_index	FT_UINT32	erspan	BASE_DEC	0xfffff	
+F	Upper 32-bit Timestamp	erspan.pid7.timestamp	FT_UINT32	erspan	BASE_DEC	0x0	
+F	Reserved	erspan.pid.rsvd	FT_UINT64	erspan	BASE_DEC	0x3ffffff	
+F	Unknown version, please report or test to use fake ERSPAN preference	erspan.version.unknown	FT_NONE	erspan		0x0	
+F	Version	geneve.version	FT_UINT8	geneve	BASE_DEC	0x0	
+F	Flags	geneve.flags	FT_UINT8	geneve	BASE_HEX	0x0	
+F	Operations, Administration and Management Frame	geneve.flags.oam	FT_BOOLEAN	geneve	8	0x80	
+F	Critical Options Present	geneve.flags.critical	FT_BOOLEAN	geneve	8	0x40	
+F	Reserved	geneve.flags.reserved	FT_BOOLEAN	geneve	8	0x3f	
+F	Protocol Type	geneve.proto_type	FT_UINT16	geneve	BASE_HEX	0x0	
+F	Virtual Network Identifier (VNI)	geneve.vni	FT_UINT24	geneve	BASE_HEX_DEC	0x0	
+F	Reserved	geneve.reserved	FT_UINT8	geneve	BASE_HEX	0x0	
+F	Geneve Options	geneve.options	FT_BYTES	geneve		0x0	
+F	Class	geneve.option.class	FT_UINT16	geneve	BASE_HEX	0x0	
+F	Type	geneve.option.type	FT_UINT8	geneve	BASE_HEX	0x0	
+F	Critical Option	geneve.option.type.critical	FT_BOOLEAN	geneve	8	0x80	
+F	Flags	geneve.option.flags	FT_UINT8	geneve	BASE_HEX	0x0	
+F	Reserved	geneve.option.flags.reserved	FT_BOOLEAN	geneve	8	0xe0	
+F	Length	geneve.option.length	FT_UINT8	geneve	BASE_DEC	0x0	
+F	Option	geneve.option	FT_BYTES	geneve		0x0	
+F	Unknown Option Data	geneve.option.unknown.data	FT_BYTES	geneve		0x0	
+F	Unknown version	geneve.version.unknown	FT_NONE	geneve		0x0	
+F	Invalid length for option	geneve.option.length.invalid	FT_NONE	geneve		0x0	
+F	Protocol Type	gre.proto	FT_UINT16	gre	BASE_HEX	0x0	The protocol that is GRE encapsulated
+F	Flags and Version	gre.flags_and_version	FT_UINT16	gre	BASE_HEX	0x0	The GRE flags are encoded in the first two octets
+F	Checksum Bit	gre.flags.checksum	FT_BOOLEAN	gre	16	0x8000	Indicates if the Checksum field is present
+F	Routing Bit	gre.flags.routing	FT_BOOLEAN	gre	16	0x4000	Indicates if the Routing and Checksum/Offset field are present
+F	Key Bit	gre.flags.key	FT_BOOLEAN	gre	16	0x2000	Indicates if the Key field is present
+F	Sequence Number Bit	gre.flags.sequence_number	FT_BOOLEAN	gre	16	0x1000	Indicates if the Sequence Number field is present
+F	Strict Source Route Bit	gre.flags.strict_source_route	FT_BOOLEAN	gre	16	0x800	
+F	Recursion control	gre.flags.recursion_control	FT_UINT16	gre	BASE_DEC	0x700	
+F	Acknowledgment	gre.flags.ack	FT_BOOLEAN	gre	16	0x80	Indicates if the packet contains an Acknowledgment Number to be used for acknowledging previously transmitted data
+F	Flags (Reserved)	gre.flags.reserved	FT_UINT16	gre	BASE_DEC	0xf8	
+F	Version	gre.flags.version	FT_UINT16	gre	BASE_DEC	0x7	
+F	Checksum	gre.checksum	FT_UINT16	gre	BASE_HEX	0x0	The Checksum field contains the IP (one's complement) checksum of the GRE header and the payload packet
+F	Checksum Status	gre.checksum.status	FT_UINT8	gre	BASE_NONE	0x0	
+F	Offset	gre.offset	FT_UINT16	gre	BASE_DEC	0x0	The offset field indicates the octet offset from the start of the Routing field to the first octet of the active Source Route Entry to be examined
+F	Key	gre.key	FT_UINT32	gre	BASE_HEX	0x0	The Key field contains a four octet number which was inserted by the encapsulator
+F	Payload Length	gre.key.payload_length	FT_UINT16	gre	BASE_DEC	0x0	Size of the payload, not including the GRE header
+F	Call ID	gre.key.call_id	FT_UINT16	gre	BASE_DEC	0x0	Contains the Peer's Call ID for the session to which this packet belongs.
+F	Sequence Number	gre.sequence_number	FT_UINT32	gre	BASE_DEC	0x0	The Sequence Number field contains an unsigned 32 bit integer which is inserted by the encapsulator
+F	Acknowledgment Number	gre.ack_number	FT_UINT32	gre	BASE_DEC	0x0	Contains the sequence number of the highest numbered GRE packet received by the sending peer for this user session
+F	Routing	gre.routing	FT_NONE	gre		0x0	The Routing field is a list of Source Route Entries (SREs)
+F	Address Family	gre.routing.address_family	FT_UINT16	gre	BASE_DEC	0x0	The Address Family field contains a two octet value which indicates the syntax and semantics of the Routing Information field
+F	SRE Offset	gre.routing.sre_offset	FT_UINT8	gre	BASE_DEC	0x0	The Address Family field contains a two octet value which indicates the syntax and semantics of the Routing Information field
+F	SRE Length	gre.routing.src_length	FT_UINT8	gre	BASE_DEC	0x0	The SRE Length field contains the number of octets in the SRE
+F	Routing Information	gre.routing.information	FT_BYTES	gre		0x0	The Routing Information field contains data which may be used in routing this packet
+F	Incorrect GRE Checksum	gre.checksum.incorrect	FT_NONE	gre		0x0	
+F	MPLS Label	mpls.label	FT_UINT32	mpls	BASE_DEC_HEX	0xfffff000	
+F	MPLS Experimental Bits	mpls.exp	FT_UINT32	mpls	BASE_DEC	0xe00	
+F	MPLS Bottom Of Label Stack	mpls.bottom	FT_UINT32	mpls	BASE_DEC	0x100	
+F	MPLS TTL	mpls.ttl	FT_UINT32	mpls	BASE_DEC	0xff	
+F	Flags	vxlan.flags	FT_UINT16	vxlan	BASE_HEX	0x0	
+F	Reserved(R)	vxlan.flags_reserved	FT_UINT16	vxlan	BASE_HEX	0x77b7	
+F	GBP Extension	vxlan.flag_g	FT_BOOLEAN	vxlan	16	0x8000	
+F	VXLAN Network ID (VNI)	vxlan.flag_i	FT_BOOLEAN	vxlan	16	0x800	
+F	Don't Learn	vxlan.flag_d	FT_BOOLEAN	vxlan	16	0x40	
+F	Policy Applied	vxlan.flag_a	FT_BOOLEAN	vxlan	16	0x8	
+F	Group Policy ID	vxlan.gbp	FT_UINT16	vxlan	BASE_DEC	0x0	
+F	VXLAN Network Identifier (VNI)	vxlan.vni	FT_UINT24	vxlan	BASE_DEC	0x0	
+F	Reserved	vxlan.reserved8	FT_UINT8	vxlan	BASE_DEC	0x0	
+F	Protocol Version	bfd.version	FT_UINT8	bfd	BASE_DEC	0xe0	The version number of the BFD protocol
+F	Diagnostic Code	bfd.diag	FT_UINT8	bfd	BASE_HEX	0x1f	This field give the reason for a BFD session failure
+F	Session State	bfd.sta	FT_UINT8	bfd	BASE_HEX	0xc0	The BFD state as seen by the transmitting system
+F	Message Flags	bfd.flags	FT_UINT8	bfd	BASE_HEX	0x0	
+F	I hear you	bfd.flags.h	FT_BOOLEAN	bfd	8	0x80	
+F	Demand	bfd.flags.d	FT_BOOLEAN	bfd	8	0x40	
+F	Poll	bfd.flags.p	FT_BOOLEAN	bfd	8	0x20	
+F	Final	bfd.flags.f	FT_BOOLEAN	bfd	8	0x10	
+F	Control Plane Independent	bfd.flags.c	FT_BOOLEAN	bfd	6	0x8	If set, the BFD implementation is implemented in the forwarding plane
+F	Authentication Present	bfd.flags.a	FT_BOOLEAN	bfd	6	0x4	The Authentication Section is present
+F	Multipoint	bfd.flags.m	FT_BOOLEAN	bfd	6	0x1	Reserved for future point-to-multipoint extensions
+F	Detect Time Multiplier	bfd.detect_time_multiplier	FT_UINT8	bfd	BASE_DEC	0x0	The transmit interval multiplied by this value is the failure detection time
+F	Message Length	bfd.message_length	FT_UINT8	bfd	BASE_DEC	0x0	Length of the BFD Control packet, in bytes
+F	My Discriminator	bfd.my_discriminator	FT_UINT32	bfd	BASE_HEX	0x0	
+F	Your Discriminator	bfd.your_discriminator	FT_UINT32	bfd	BASE_HEX	0x0	
+F	Desired Min TX Interval	bfd.desired_min_tx_interval	FT_UINT32	bfd	BASE_DEC	0x0	The minimum interval to use when transmitting BFD Control packets
+F	Required Min RX Interval	bfd.required_min_rx_interval	FT_UINT32	bfd	BASE_DEC	0x0	The minimum interval between received BFD Control packets that this system can support
+F	Required Min Echo Interval	bfd.required_min_echo_interval	FT_UINT32	bfd	BASE_DEC	0x0	The minimum interval between received BFD Echo packets that this system can support
+F	Checksum	bfd.checksum	FT_BYTES	bfd		0x0	
+F	Authentication Type	bfd.auth.type	FT_UINT8	bfd	BASE_DEC	0x0	The type of authentication in use on this session
+F	Authentication Length	bfd.auth.len	FT_UINT8	bfd	BASE_DEC	0x0	The length, in bytes, of the authentication section
+F	Authentication Key ID	bfd.auth.key	FT_UINT8	bfd	BASE_DEC	0x0	The Authentication Key ID, identifies which password is in use for this packet
+F	Password	bfd.auth.password	FT_STRING	bfd		0x0	The simple password in use on this session
+F	Sequence Number	bfd.auth.seq_num	FT_UINT32	bfd	BASE_HEX	0x0	The Sequence Number is periodically incremented to prevent replay attacks
+F	Length of authentication section is invalid	bfd.auth.len.invalid	FT_NONE	bfd		0x0	
+F	Authentication flag is set in a BFD packet, but no authentication data is present	bfd.auth.no_data	FT_NONE	bfd		0x0	
+F	Echo	bfd_echo.packet	FT_BYTES	bfd_echo		0x0	Originator specific echo packet
+F	OSPF Header	ospf.header	FT_NONE	ospf		0x0	
+F	Version	ospf.version	FT_UINT8	ospf	BASE_DEC	0x0	
+F	Message Type	ospf.msg	FT_UINT8	ospf	BASE_DEC	0x0	
+F	Packet Length	ospf.packet_length	FT_UINT16	ospf	BASE_DEC	0x0	
+F	Source OSPF Router	ospf.srcrouter	FT_IPv4	ospf		0x0	
+F	Area ID	ospf.area_id	FT_IPv4	ospf		0x0	
+F	Checksum	ospf.checksum	FT_UINT16	ospf	BASE_HEX	0x0	
+F	Instance ID	ospf.instance_id	FT_UINT8	ospf	BASE_DEC	0x0	
+F	Auth Type	ospf.auth.type	FT_UINT8	ospf	BASE_DEC	0x0	
+F	Auth Data (none)	ospf.auth.none	FT_BYTES	ospf		0x0	
+F	Auth Data (Simple)	ospf.auth.simple	FT_STRING	ospf		0x0	
+F	Auth Crypt Key id	ospf.auth.crypt.key_id	FT_UINT8	ospf	BASE_DEC	0x0	
+F	Auth Crypt Data Length	ospf.auth.crypt.data_length	FT_UINT8	ospf	BASE_DEC	0x0	
+F	Auth Crypt Sequence Number	ospf.auth.crypt.seq_nbr	FT_UINT32	ospf	BASE_DEC	0x0	
+F	Auth Crypt Data	ospf.auth.crypt.data	FT_BYTES	ospf		0x0	
+F	Auth Unknown	ospf.auth.unknown	FT_BYTES	ospf		0x0	
+F	Instance ID	ospf.v3.instance_id	FT_UINT8	ospf	BASE_DEC	0x0	
+F	Reserved	ospf.reserved	FT_BYTES	ospf		0x0	Must be zero
+F	Hello	ospf.msg.hello	FT_BOOLEAN	ospf	0	0x0	
+F	Database Description	ospf.msg.dbdesc	FT_BOOLEAN	ospf	0	0x0	
+F	Link State Adv Request	ospf.msg.lsreq	FT_BOOLEAN	ospf	0	0x0	
+F	Link State Adv Update	ospf.msg.lsupdate	FT_BOOLEAN	ospf	0	0x0	
+F	Link State Adv Acknowledgement	ospf.msg.lsack	FT_BOOLEAN	ospf	0	0x0	
+F	OSPF Hello Packet	ospf.hello	FT_NONE	ospf		0x0	
+F	Network Mask	ospf.hello.network_mask	FT_IPv4	ospf		0x0	
+F	Interface ID	ospf.hello.interface_id	FT_UINT32	ospf	BASE_DEC	0x0	
+F	Hello Interval [sec]	ospf.hello.hello_interval	FT_UINT32	ospf	BASE_DEC	0x0	
+F	Router Priority	ospf.hello.router_priority	FT_UINT8	ospf	BASE_DEC	0x0	
+F	Router Dead Interval [sec]	ospf.hello.router_dead_interval	FT_UINT32	ospf	BASE_DEC	0x0	
+F	Designated Router	ospf.hello.designated_router	FT_IPv4	ospf		0x0	
+F	Backup Designated Router	ospf.hello.backup_designated_router	FT_IPv4	ospf		0x0	
+F	Active Neighbor	ospf.hello.active_neighbor	FT_IPv4	ospf		0x0	
+F	LS Type	ospf.lsa	FT_UINT32	ospf	BASE_DEC	0x0	
+F	LS Age (seconds)	ospf.lsa.age	FT_UINT16	ospf	BASE_DEC	0xffffffffffff7fff	
+F	Do Not Age Flag	ospf.lsa.donotage	FT_UINT16	ospf	BASE_DEC	0x8000	
+F	Link State ID	ospf.lsa.id	FT_IPv4	ospf		0x0	
+F	Sequence Number	ospf.lsa.seqnum	FT_UINT32	ospf	BASE_HEX	0x0	
+F	Checksum	ospf.lsa.chksum	FT_UINT16	ospf	BASE_HEX	0x0	
+F	Length	ospf.lsa.length	FT_UINT16	ospf	BASE_DEC	0x0	
+F	Router LSA	ospf.lsa.router	FT_BOOLEAN	ospf	0	0x0	
+F	Link Type	ospf.lsa.router.linktype	FT_UINT8	ospf	BASE_DEC	0x0	
+F	Link ID	ospf.lsa.router.linkid	FT_IPv4	ospf		0x0	
+F	Link Data	ospf.lsa.router.linkdata	FT_IPv4	ospf		0x0	
+F	Number of Metrics	ospf.lsa.router.nummetrics	FT_UINT8	ospf	BASE_DEC	0x0	
+F	0 Metric	ospf.lsa.router.metric0	FT_UINT16	ospf	BASE_DEC	0x0	
+F	Network LSA	ospf.lsa.network	FT_BOOLEAN	ospf	0	0x0	
+F	Netmask	ospf.lsa.network.netmask	FT_IPv4	ospf		0x0	
+F	Attached Router	ospf.lsa.network.attchrtr	FT_IPv4	ospf		0x0	
+F	Summary LSA (IP Network)	ospf.lsa.summary	FT_BOOLEAN	ospf	0	0x0	
+F	Summary LSA (ASBR)	ospf.lsa.asbr	FT_BOOLEAN	ospf	0	0x0	
+F	Netmask	ospf.lsa.asbr.netmask	FT_IPv4	ospf		0x0	
+F	AS-External LSA (ASBR)	ospf.lsa.asext	FT_BOOLEAN	ospf	0	0x0	
+F	Netmask	ospf.lsa.asext.netmask	FT_IPv4	ospf		0x0	
+F	Forwarding Address	ospf.lsa.asext.fwdaddr	FT_IPv4	ospf		0x0	
+F	External Route Tag	ospf.lsa.asext.extrttag	FT_UINT32	ospf	BASE_DEC	0x0	
+F	LS Type	ospf.v3.lsa	FT_UINT16	ospf	BASE_HEX	0x0	
+F	LSA Handling	ospf.v3.lsa.u	FT_BOOLEAN	ospf	16	0x8000	
+F	Flooding Scope	ospf.v3.lsa.s12	FT_UINT16	ospf	BASE_HEX	0x6000	
+F	Function Code	ospf.v3.lsa.fc	FT_UINT16	ospf	BASE_DEC	0x1fff	
+F	Router-LSA	ospf.v3.lsa.router	FT_BOOLEAN	ospf	0	0x0	
+F	Network-LSA	ospf.v3.lsa.network	FT_BOOLEAN	ospf	0	0x0	
+F	Inter-Area-Prefix-LSA	ospf.v3.lsa.interprefix	FT_BOOLEAN	ospf	0	0x0	
+F	Inter-Area-Router-LSA	ospf.v3.lsa.interrouter	FT_BOOLEAN	ospf	0	0x0	
+F	AS-External-LSA	ospf.v3.lsa.asext	FT_BOOLEAN	ospf	0	0x0	
+F	Link-LSA	ospf.v3.lsa.link	FT_BOOLEAN	ospf	0	0x0	
+F	Intra-Area-Prefix-LSA	ospf.v3.lsa.intraprefix	FT_BOOLEAN	ospf	0	0x0	
+F	Advertising Router	ospf.advrouter	FT_IPv4	ospf		0x0	
+F	Options	ospf.v2.options	FT_UINT8	ospf	BASE_HEX	0x0	
+F	(MT) Multi-Topology Routing	ospf.v2.options.mt	FT_BOOLEAN	ospf	8	0x1	
+F	(E) External Routing	ospf.v2.options.e	FT_BOOLEAN	ospf	8	0x2	
+F	(MC) Multicast	ospf.v2.options.mc	FT_BOOLEAN	ospf	8	0x4	
+F	(N) NSSA	ospf.v2.options.n	FT_BOOLEAN	ospf	8	0x8	
+F	(P) Propagate	ospf.v2.options.p	FT_BOOLEAN	ospf	8	0x8	
+F	(L) LLS Data block	ospf.v2.options.l	FT_BOOLEAN	ospf	8	0x10	
+F	(DC) Demand Circuits	ospf.v2.options.dc	FT_BOOLEAN	ospf	8	0x20	
+F	(O) Opaque	ospf.v2.options.o	FT_BOOLEAN	ospf	8	0x40	
+F	DN	ospf.v2.options.dn	FT_BOOLEAN	ospf	8	0x80	
+F	Options	ospf.v3.options	FT_UINT24	ospf	BASE_HEX	0x0	
+F	V6	ospf.v3.options.v6	FT_BOOLEAN	ospf	24	0x1	
+F	E	ospf.v3.options.e	FT_BOOLEAN	ospf	24	0x2	
+F	MC	ospf.v3.options.mc	FT_BOOLEAN	ospf	24	0x4	
+F	N	ospf.v3.options.n	FT_BOOLEAN	ospf	24	0x8	
+F	R	ospf.v3.options.r	FT_BOOLEAN	ospf	24	0x10	
+F	DC	ospf.v3.options.dc	FT_BOOLEAN	ospf	24	0x20	
+F	AF	ospf.v3.options.af	FT_BOOLEAN	ospf	24	0x100	
+F	L	ospf.v3.options.l	FT_BOOLEAN	ospf	24	0x200	
+F	AT	ospf.v3.options.at	FT_BOOLEAN	ospf	24	0x400	
+F	DB Description	ospf.dbd	FT_UINT8	ospf	BASE_HEX	0x0	
+F	(R) OOBResync	ospf.dbd.r	FT_BOOLEAN	ospf	8	0x8	
+F	(I) Init	ospf.dbd.i	FT_BOOLEAN	ospf	8	0x4	
+F	(M) More	ospf.dbd.m	FT_BOOLEAN	ospf	8	0x2	
+F	(MS) Master	ospf.dbd.ms	FT_BOOLEAN	ospf	8	0x1	
+F	Flags	ospf.v2.router.lsa.flags	FT_UINT8	ospf	BASE_HEX	0x0	
+F	(B) Area border router	ospf.v2.router.lsa.flags.b	FT_BOOLEAN	ospf	8	0x1	
+F	(E) AS boundary router	ospf.v2.router.lsa.flags.e	FT_BOOLEAN	ospf	8	0x2	
+F	(V) Virtual link endpoint	ospf.v2.router.lsa.flags.v	FT_BOOLEAN	ospf	8	0x4	
+F	(W) Wild-card multicast receiver	ospf.v2.router.lsa.flags.w	FT_BOOLEAN	ospf	8	0x8	
+F	(N) NSSA translation	ospf.v2.router.lsa.flags.n	FT_BOOLEAN	ospf	8	0x10	
+F	(S) Shortcut-capable ABR	ospf.v2.router.lsa.flags.s	FT_BOOLEAN	ospf	8	0x20	
+F	(H) Host	ospf.v2.router.lsa.flags.h	FT_BOOLEAN	ospf	8	0x80	
+F	Flags	ospf.v3.router.lsa.flags	FT_UINT8	ospf	BASE_HEX	0x0	
+F	(B) Area border router	ospf.v3.router.lsa.flags.b	FT_BOOLEAN	ospf	8	0x1	
+F	(E) AS boundary router	ospf.v3.router.lsa.flags.e	FT_BOOLEAN	ospf	8	0x2	
+F	(V) Virtual link endpoint	ospf.v3.router.lsa.flags.v	FT_BOOLEAN	ospf	8	0x4	
+F	(W) Wild-card multicast receiver	ospf.v3.router.lsa.flags.w	FT_BOOLEAN	ospf	8	0x8	
+F	Flags	ospf.v3.as.external.flags	FT_UINT8	ospf	BASE_HEX	0x0	
+F	(T) External Route Tag	ospf.v3.as.external.flags.t	FT_BOOLEAN	ospf	8	0x1	
+F	(F) Forwarding Address	ospf.v3.as.external.flags.f	FT_BOOLEAN	ospf	8	0x2	
+F	(E) External Metric	ospf.v3.as.external.flags.e	FT_BOOLEAN	ospf	8	0x4	
+F	PrefixOptions	ospf.v3.prefix.options	FT_UINT8	ospf	BASE_HEX	0x0	
+F	(NU) NoUnicast	ospf.v3.prefix.options.nu	FT_BOOLEAN	ospf	8	0x1	
+F	(LA) Local Address	ospf.v3.prefix.options.la	FT_BOOLEAN	ospf	8	0x2	
+F	(MC) Multicast	ospf.v3.prefix.options.mc	FT_BOOLEAN	ospf	8	0x4	
+F	(P) Propagate	ospf.v3.prefix.options.p	FT_BOOLEAN	ospf	8	0x8	
+F	Interface MTU	ospf.db.interface_mtu	FT_UINT16	ospf	BASE_DEC	0x0	
+F	DD Sequence	ospf.db.dd_sequence	FT_UINT32	ospf	BASE_DEC	0x0	
+F	Link State ID	ospf.link_state_id	FT_IPv4	ospf		0x0	
+F	Number of LSAs	ospf.ls.number_of_lsas	FT_UINT32	ospf	BASE_DEC	0x0	
+F	Number of Links	ospf.lsa.number_of_links	FT_UINT16	ospf	BASE_DEC	0x0	
+F	Do Not Age	ospf.v3.lsa.do_not_age	FT_BOOLEAN	ospf	16	0x8000	
+F	Interface ID	ospf.v3.lsa.interface_id	FT_UINT32	ospf	BASE_DEC	0x0	
+F	Neighbor Interface ID	ospf.v3.lsa.neighbor_interface_id	FT_UINT32	ospf	BASE_DEC	0x0	
+F	Neighbor Router ID	ospf.v3.lsa.neighbor_router_id	FT_IPv4	ospf		0x0	
+F	Attached Router	ospf.v3.lsa.attached_router	FT_IPv4	ospf		0x0	
+F	Destination Router ID	ospf.v3.lsa.destination_router_id	FT_IPv4	ospf		0x0	
+F	Referenced LS type	ospf.v3.lsa.referenced_ls_type	FT_UINT16	ospf	BASE_HEX	0x0	
+F	Forwarding Address	ospf.v3.lsa.forwarding_address.ipv6	FT_IPv6	ospf		0x0	
+F	External Route Tag	ospf.v3.lsa.external_route_tag	FT_UINT32	ospf	BASE_DEC	0x0	
+F	Referenced Link State ID	ospf.v3.lsa.referenced_link_state_id	FT_IPv4	ospf		0x0	
+F	Router Priority	ospf.v3.lsa.router_priority	FT_UINT8	ospf	BASE_DEC	0x0	
+F	Link-local Interface Address	ospf.v3.lsa.link_local_interface_address.ipv6	FT_IPv6	ospf		0x0	
+F	Referenced Advertising Router	ospf.v3.lsa.referenced_advertising_router	FT_IPv4	ospf		0x0	
+F	External Type	ospf.lsa.asext.type	FT_BOOLEAN	ospf	8	0x80	
+F	TOS	ospf.lsa.tos	FT_UINT8	ospf	BASE_DEC	0x0	
+F	Type	ospf.v3.lsa.type	FT_UINT8	ospf	BASE_DEC	0x0	
+F	Metric	ospf.metric	FT_UINT32	ospf	BASE_DEC	0x0	
+F	PrefixLength	ospf.prefix_length	FT_UINT8	ospf	BASE_DEC	0x0	
+F	Metric	ospf.ls.metric	FT_UINT32	ospf	BASE_DEC	0x0	
+F	# prefixes	ospf.v3.lsa.num_prefixes	FT_UINT32	ospf	BASE_DEC	0x0	
+F	Address Prefix	ospf.v3.address_prefix.ipv6	FT_IPv6	ospf		0x0	
+F	incorrect, should be 0	ospf.reserved.not_zero	FT_NONE	ospf		0x0	
+F	Invalid length	ospf.lsa.invalid_length	FT_NONE	ospf		0x0	
+F	Unknown LSA Type	ospf.lsa.unknown_type	FT_NONE	ospf		0x0	
+F	VRRP message version and type	vrrp.typever	FT_UINT8	vrrp	BASE_DEC	0x0	
+F	VRRP protocol version	vrrp.version	FT_UINT8	vrrp	BASE_DEC	0xf0	
+F	VRRP packet type	vrrp.type	FT_UINT8	vrrp	BASE_DEC	0xf	
+F	Virtual Rtr ID	vrrp.virt_rtr_id	FT_UINT8	vrrp	BASE_DEC	0x0	Virtual router this packet is reporting status for
+F	Priority	vrrp.prio	FT_UINT8	vrrp	BASE_DEC	0x0	Sending VRRP router's priority for the virtual router
+F	Addr Count	vrrp.addr_count	FT_UINT8	vrrp	BASE_DEC	0x0	The number of addresses contained in this VRRP advertisement
+F	Checksum	vrrp.checksum	FT_UINT16	vrrp	BASE_HEX	0x0	Used to detect data corruption in the VRRP message
+F	Checksum Status	vrrp.checksum.status	FT_UINT8	vrrp	BASE_NONE	0x0	
+F	Auth Type	vrrp.auth_type	FT_UINT8	vrrp	BASE_DEC	0x0	The authentication method being utilized
+F	Adver Int	vrrp.adver_int	FT_UINT8	vrrp	BASE_DEC	0x0	Time interval (in seconds) between ADVERTISEMENTS
+F	Reserved	vrrp.reserved_mbz	FT_UINT8	vrrp	BASE_DEC	0xf0	Must be zero
+F	Adver Int	vrrp.short_adver_int	FT_UINT16	vrrp	BASE_DEC	0xfff	Time interval (in centiseconds) between ADVERTISEMENTS
+F	IP Address	vrrp.ip_addr	FT_IPv4	vrrp		0x0	IP address associated with the virtual router
+F	IPv6 Address	vrrp.ipv6_addr	FT_IPv6	vrrp		0x0	IPv6 address associated with the virtual router
+F	Authentication String	vrrp.auth_string	FT_STRING	vrrp		0x0	
+F	MD5 Authentication Data	vrrp.md5_auth_data	FT_BYTES	vrrp		0x0	MD5 digest string is contained.
+F	Bad checksum	vrrp.checksum_bad.expert	FT_NONE	vrrp		0x0	
+F	LACP Version	lacp.version	FT_UINT8	lacp	BASE_HEX	0x0	
+F	TLV Type	lacp.tlv_type	FT_UINT8	lacp	BASE_HEX	0x0	
+F	TLV Length	lacp.tlv_length	FT_UINT8	lacp	BASE_HEX	0x0	
+F	Actor System Priority	lacp.actor.sys_priority	FT_UINT16	lacp	BASE_DEC	0x0	
+F	Actor System ID	lacp.actor.sysid	FT_ETHER	lacp		0x0	
+F	Actor Key	lacp.actor.key	FT_UINT16	lacp	BASE_DEC	0x0	
+F	Actor Port Priority	lacp.actor.port_priority	FT_UINT16	lacp	BASE_DEC	0x0	
+F	Actor Port	lacp.actor.port	FT_UINT16	lacp	BASE_DEC	0x0	
+F	Actor State	lacp.actor.state	FT_UINT8	lacp	BASE_HEX	0x0	
+F	Actor State Flags	lacp.actor.state_str	FT_STRING	lacp		0x0	
+F	LACP Activity	lacp.actor.state.activity	FT_BOOLEAN	lacp	8	0x1	
+F	LACP Timeout	lacp.actor.state.timeout	FT_BOOLEAN	lacp	8	0x2	
+F	Aggregation	lacp.actor.state.aggregation	FT_BOOLEAN	lacp	8	0x4	
+F	Synchronization	lacp.actor.state.synchronization	FT_BOOLEAN	lacp	8	0x8	
+F	Collecting	lacp.actor.state.collecting	FT_BOOLEAN	lacp	8	0x10	
+F	Distributing	lacp.actor.state.distributing	FT_BOOLEAN	lacp	8	0x20	
+F	Defaulted	lacp.actor.state.defaulted	FT_BOOLEAN	lacp	8	0x40	1 = Actor Rx machine is using DEFAULT Partner info, 0 = using info in Rx'd LACPDU
+F	Expired	lacp.actor.state.expired	FT_BOOLEAN	lacp	8	0x80	
+F	Reserved	lacp.actor.reserved	FT_BYTES	lacp		0x0	
+F	Partner System Priority	lacp.partner.sys_priority	FT_UINT16	lacp	BASE_DEC	0x0	
+F	Partner System	lacp.partner.sysid	FT_ETHER	lacp		0x0	
+F	Partner Key	lacp.partner.key	FT_UINT16	lacp	BASE_DEC	0x0	
+F	Partner Port Priority	lacp.partner.port_priority	FT_UINT16	lacp	BASE_DEC	0x0	
+F	Partner Port	lacp.partner.port	FT_UINT16	lacp	BASE_DEC	0x0	The port number associated with this link assigned to the port by the Partner (via Management or Admin)
+F	Partner State	lacp.partner.state	FT_UINT8	lacp	BASE_HEX	0x0	
+F	Partner State Flags	lacp.partner.state_str	FT_STRING	lacp		0x0	
+F	LACP Activity	lacp.partner.state.activity	FT_BOOLEAN	lacp	8	0x1	
+F	LACP Timeout	lacp.partner.state.timeout	FT_BOOLEAN	lacp	8	0x2	
+F	Aggregation	lacp.partner.state.aggregation	FT_BOOLEAN	lacp	8	0x4	
+F	Synchronization	lacp.partner.state.synchronization	FT_BOOLEAN	lacp	8	0x8	
+F	Collecting	lacp.partner.state.collecting	FT_BOOLEAN	lacp	8	0x10	
+F	Distributing	lacp.partner.state.distributing	FT_BOOLEAN	lacp	8	0x20	
+F	Defaulted	lacp.partner.state.defaulted	FT_BOOLEAN	lacp	8	0x40	1 = Actor Rx machine is using DEFAULT Partner info, 0 = using info in Rx'd LACPDU
+F	Expired	lacp.partner.state.expired	FT_BOOLEAN	lacp	8	0x80	
+F	Reserved	lacp.partner.reserved	FT_BYTES	lacp		0x0	
+F	Collector Max Delay	lacp.collector.max_delay	FT_UINT16	lacp	BASE_DEC	0x0	The max delay of the station sending the LACPDU (in tens of usecs)
+F	Reserved	lacp.coll_reserved	FT_BYTES	lacp		0x0	
+F	TLV is not expected type	lacp.wrong_tlv_type	FT_NONE	lacp		0x0	
+F	TLV is not expected length	lacp.wrong_tlv_length	FT_NONE	lacp		0x0	
+F	TLV Type	lldp.tlv.type	FT_UINT16	lldp	BASE_DEC	0xfe00	
+F	TLV Length	lldp.tlv.len	FT_UINT16	lldp	BASE_DEC	0x1ff	
+F	Capabilities	lldp.tlv.system_cap	FT_UINT16	lldp	BASE_HEX	0x0	
+F	Other	lldp.tlv.system_cap.other	FT_BOOLEAN	lldp	16	0x1	
+F	Repeater	lldp.tlv.system_cap.repeater	FT_BOOLEAN	lldp	16	0x2	
+F	Bridge	lldp.tlv.system_cap.bridge	FT_BOOLEAN	lldp	16	0x4	
+F	WLAN access point	lldp.tlv.system_cap.wlan_access_pt	FT_BOOLEAN	lldp	16	0x8	
+F	Router	lldp.tlv.system_cap.router	FT_BOOLEAN	lldp	16	0x10	
+F	Telephone	lldp.tlv.system_cap.telephone	FT_BOOLEAN	lldp	16	0x20	
+F	DOCSIS cable device	lldp.tlv.system_cap.docsis_cable_device	FT_BOOLEAN	lldp	16	0x40	
+F	Station only	lldp.tlv.system_cap.station_only	FT_BOOLEAN	lldp	16	0x80	
+F	C-VLAN component	lldp.tlv.system_cap.cvlan	FT_BOOLEAN	lldp	16	0x100	
+F	S-VLAN component	lldp.tlv.system_cap.svlan	FT_BOOLEAN	lldp	16	0x200	
+F	TPMR component	lldp.tlv.system_cap.tpmr	FT_BOOLEAN	lldp	16	0x400	
+F	System Name	lldp.tlv.system.name	FT_STRING	lldp		0x0	
+F	System Description	lldp.tlv.system.desc	FT_STRING	lldp		0x0	
+F	Enabled Capabilities	lldp.tlv.enable_system_cap	FT_UINT16	lldp	BASE_HEX	0x0	
+F	Other	lldp.tlv.enable_system_cap.other	FT_BOOLEAN	lldp	16	0x1	
+F	Repeater	lldp.tlv.enable_system_cap.repeater	FT_BOOLEAN	lldp	16	0x2	
+F	Bridge	lldp.tlv.enable_system_cap.bridge	FT_BOOLEAN	lldp	16	0x4	
+F	WLAN access point	lldp.tlv.enable_system_cap.wlan_access_pt	FT_BOOLEAN	lldp	16	0x8	
+F	Router	lldp.tlv.enable_system_cap.router	FT_BOOLEAN	lldp	16	0x10	
+F	Telephone	lldp.tlv.enable_system_cap.telephone	FT_BOOLEAN	lldp	16	0x20	
+F	DOCSIS cable device	lldp.tlv.enable_system_cap.docsis_cable_device	FT_BOOLEAN	lldp	16	0x40	
+F	Station only	lldp.tlv.enable_system_cap.station_only	FT_BOOLEAN	lldp	16	0x80	
+F	C-VLAN component	lldp.tlv.enable_system_cap.cvlan	FT_BOOLEAN	lldp	16	0x100	
+F	S-VLAN component	lldp.tlv.enable_system_cap.svlan	FT_BOOLEAN	lldp	16	0x200	
+F	TPMR component	lldp.tlv.enable_system_cap.tpmr	FT_BOOLEAN	lldp	16	0x400	
+F	Chassis Id Subtype	lldp.chassis.subtype	FT_UINT8	lldp	BASE_DEC	0x0	
+F	Chassis Id	lldp.chassis.id	FT_BYTES	lldp		0x0	
+F	Chassis Id	lldp.chassis.id.mac	FT_ETHER	lldp		0x0	
+F	Chassis Id	lldp.chassis.id.ip4	FT_IPv4	lldp		0x0	
+F	Chassis Id	lldp.chassis.id.ip6	FT_IPv6	lldp		0x0	
+F	Port Id Subtype	lldp.port.subtype	FT_UINT8	lldp	BASE_DEC	0x0	
+F	Port Id	lldp.port.id	FT_STRING	lldp		0x0	
+F	Port Description	lldp.port.desc	FT_STRING	lldp		0x0	
+F	Port Id	lldp.port.id.mac	FT_ETHER	lldp		0x0	
+F	Network Address family	lldp.network_address.subtype	FT_UINT8	lldp	BASE_DEC	0x0	
+F	Port Id	lldp.port.id.ip4	FT_IPv4	lldp		0x0	
+F	Port Id	lldp.port.id.ip6	FT_IPv6	lldp		0x0	
+F	Seconds	lldp.time_to_live	FT_UINT16	lldp	BASE_DEC	0x0	
+F	PDU Type	lldp.pdu_type	FT_NONE	lldp		0x0	
+F	Address String Length	lldp.mgn.address.len	FT_UINT8	lldp	BASE_DEC	0x0	
+F	Address Subtype	lldp.mgn.address.subtype	FT_UINT8	lldp	BASE_DEC	0x0	Undefined
+F	Management Address	lldp.mgn.addr.ip4	FT_IPv4	lldp		0x0	
+F	Management Address	lldp.mgn.addr.ip6	FT_IPv6	lldp		0x0	
+F	Management Address	lldp.mgn.addr.hex	FT_BYTES	lldp		0x0	
+F	Interface Subtype	lldp.mgn.interface.subtype	FT_UINT8	lldp	BASE_DEC	0x0	Undefined
+F	Interface Number	lldp.mgn.interface.number	FT_UINT32	lldp	BASE_DEC	0x0	
+F	OID String Length	lldp.mgn.obj.len	FT_UINT8	lldp	BASE_DEC	0x0	
+F	Object Identifier	lldp.mgn.obj.id	FT_OID	lldp		0x0	
+F	Organization Unique Code	lldp.orgtlv.oui	FT_UINT24	lldp	BASE_OUI	0x0	
+F	IEEE 802.1 Subtype	lldp.ieee.802_1.subtype	FT_UINT8	lldp	BASE_HEX	0x0	
+F	Flags	lldp.ieee.802_1.port_and_vlan_id_flag	FT_UINT8	lldp	BASE_HEX	0x0	
+F	Port and Protocol VLAN	lldp.ieee.802_1.port_and_vlan_id_flag.supported	FT_BOOLEAN	lldp	8	0x2	
+F	Port and Protocol VLAN	lldp.ieee.802_1.port_and_vlan_id_flag.enabled	FT_BOOLEAN	lldp	8	0x4	
+F	Port VLAN Identifier	lldp.ieee.802_1.port_vlan.id	FT_UINT16	lldp	BASE_DEC_HEX	0x0	
+F	Port and Protocol VLAN Identifier	lldp.ieee.802_1.port_proto_vlan.id	FT_UINT16	lldp	BASE_DEC_HEX	0x0	
+F	VLAN Identifier	lldp.ieee.802_1.vlan.id	FT_UINT16	lldp	BASE_DEC_HEX	0x0	
+F	VLAN Name Length	lldp.ieee.802_1.vlan.name_len	FT_UINT8	lldp	BASE_DEC	0x0	
+F	VLAN Name	lldp.ieee.802_1.vlan.name	FT_STRINGZ	lldp		0x0	
+F	Protocol Identity Length	lldp.ieee.802_1.proto.id_length	FT_UINT8	lldp	BASE_DEC	0x0	
+F	Protocol Identity	lldp.ieee.802_1.proto.id	FT_BYTES	lldp		0x0	
+F	Aggregation Status	lldp.ieee.802_1.aggregation_status	FT_UINT8	lldp	BASE_HEX	0x0	
+F	Aggregation Capability	lldp.ieee.802_1.aggregation_status.cap	FT_BOOLEAN	lldp	8	0x1	
+F	Aggregation Status	lldp.ieee.802_1.aggregation_status.enabled	FT_BOOLEAN	lldp	8	0x2	
+F	Aggregation Status	lldp.ieee.802_1.aggregation_status.porttype	FT_UINT8	lldp	BASE_DEC	0xc	
+F	Aggregated Port Id	lldp.ieee.802_1.aggregated_port_id	FT_UINT32	lldp	BASE_DEC	0x0	
+F	IEEE 802.3 Subtype	lldp.ieee.802_3.subtype	FT_UINT8	lldp	BASE_HEX	0x0	
+F	Auto-Negotiation Support/Status	lldp.ieee.802_3.mac_phy_auto_neg_status	FT_UINT8	lldp	BASE_HEX	0x0	
+F	Auto-Negotiation	lldp.ieee.802_3.mac_phy_auto_neg_status.supported	FT_BOOLEAN	lldp	8	0x1	
+F	Auto-Negotiation	lldp.ieee.802_3.mac_phy_auto_neg_status.enabled	FT_BOOLEAN	lldp	8	0x2	
+F	PMD Auto-Negotiation Advertised Capability	lldp.ieee.802_3.pmd_auto_neg_advertised_caps	FT_UINT16	lldp	BASE_HEX	0x0	
+F	Operational MAU Type	lldp.ieee.802_3.pmd_mau_type	FT_UINT16	lldp	BASE_HEX	0x0	Unknown
+F	Aggregation Status	lldp.ieee.802_3.aggregation_status	FT_UINT8	lldp	BASE_HEX	0x0	
+F	Aggregation Capability	lldp.ieee.802_3.aggregation_status.cap	FT_BOOLEAN	lldp	8	0x1	
+F	Aggregation Status	lldp.ieee.802_3.aggregation_status.enabled	FT_BOOLEAN	lldp	8	0x2	
+F	Aggregated Port Id	lldp.ieee.802_3.aggregated_port_id	FT_UINT32	lldp	BASE_DEC	0x0	
+F	Maximum Frame Size	lldp.ieee.802_3.max_frame_size	FT_UINT16	lldp	BASE_DEC	0x0	
+F	Unknown Subtype	lldp.unknown_subtype	FT_UINT8	lldp	BASE_DEC	0x0	
+F	Unknown Subtype Content	lldp.unknown_subtype.content	FT_BYTES	lldp		0x0	
+F	Invalid length, too short	lldp.incorrect_length	FT_NONE	lldp		0x0	
+F	Invalid length, greater than expected	lldp.excess_length	FT_NONE	lldp		0x0	
+F	Excess TLV in Shutdown PDU	lldp.excess_tlv	FT_NONE	lldp		0x0	
+F	Incorrect type	lldp.bad_type	FT_NONE	lldp		0x0	
+F	TLV has been deprecated	lldp.tlv_deprecated	FT_NONE	lldp		0x0	
+F	Version Number	marker.version	FT_UINT8	marker	BASE_HEX	0x0	Marker protocol version
+F	TLV Type	marker.tlvType	FT_UINT8	marker	BASE_HEX	0x0	
+F	TLV Length	marker.tlvLen	FT_UINT8	marker	BASE_HEX	0x0	Length of the Actor TLV
+F	Requester Port	marker.requesterPort	FT_UINT16	marker	BASE_DEC	0x0	
+F	Requester System	marker.requesterSystem	FT_ETHER	marker		0x0	Requester System ID encoded as a MAC address
+F	Requester Transaction ID	marker.requesterTransId	FT_UINT32	marker	BASE_DEC	0x0	
+F	Requester Pad	marker.requesterPad	FT_UINT32	marker	BASE_DEC	0x0	
+F	Reserved	marker.reserved	FT_BYTES	marker		0x0	
+F	TLV is not expected type	marker.wrong_tlv_type	FT_NONE	marker		0x0	
+F	TLV is not expected length	marker.wrong_tlv_length	FT_NONE	marker		0x0	
+F	pad value is not 0	marker.wrong_pad_value	FT_NONE	marker		0x0	
+F	Slow Protocols subtype	slow.subtype	FT_UINT8	slow	BASE_HEX	0x0	
+F	Protocol Identifier	stp.protocol	FT_UINT16	stp	BASE_HEX	0x0	
+F	Protocol Version Identifier	stp.version	FT_UINT8	stp	BASE_DEC	0x0	
+F	BPDU Type	stp.type	FT_UINT8	stp	BASE_HEX	0x0	
+F	BPDU flags	stp.flags	FT_UINT8	stp	BASE_HEX	0x0	
+F	Topology Change Acknowledgment	stp.flags.tcack	FT_BOOLEAN	stp	8	0x80	
+F	Agreement	stp.flags.agreement	FT_BOOLEAN	stp	8	0x40	
+F	Forwarding	stp.flags.forwarding	FT_BOOLEAN	stp	8	0x20	
+F	Learning	stp.flags.learning	FT_BOOLEAN	stp	8	0x10	
+F	Port Role	stp.flags.port_role	FT_UINT8	stp	BASE_DEC	0xc	
+F	Proposal	stp.flags.proposal	FT_BOOLEAN	stp	8	0x2	
+F	Topology Change	stp.flags.tc	FT_BOOLEAN	stp	8	0x1	
+F	Root Bridge Priority	stp.root.prio	FT_UINT16	stp	BASE_DEC	0x0	
+F	Root Bridge System ID Extension	stp.root.ext	FT_UINT16	stp	BASE_DEC	0x0	
+F	Root Bridge System ID	stp.root.hw	FT_ETHER	stp		0x0	
+F	Root Path Cost	stp.root.cost	FT_UINT32	stp	BASE_DEC	0x0	
+F	Bridge Priority	stp.bridge.prio	FT_UINT16	stp	BASE_DEC	0x0	
+F	Bridge System ID Extension	stp.bridge.ext	FT_UINT16	stp	BASE_DEC	0x0	
+F	Bridge System ID	stp.bridge.hw	FT_ETHER	stp		0x0	
+F	Port identifier	stp.port	FT_UINT16	stp	BASE_HEX	0x0	
+F	Message Age	stp.msg_age	FT_DOUBLE	stp		0x0	
+F	Max Age	stp.max_age	FT_DOUBLE	stp		0x0	
+F	Hello Time	stp.hello	FT_DOUBLE	stp		0x0	
+F	Forward Delay	stp.forward	FT_DOUBLE	stp		0x0	
+F	Version 1 Length	stp.version_1_length	FT_UINT8	stp	BASE_DEC	0x0	
+F	Unknown BPDU type data	stp.type.unknown	FT_NONE	stp		0x0	
+F	Version 3 Length	mstp.version_3_length	FT_UINT16	stp	BASE_DEC	0x0	
+F	MST Config ID format selector	mstp.config_format_selector	FT_UINT8	stp	BASE_DEC	0x0	
+F	MST Config name	mstp.config_name	FT_STRINGZPAD	stp		0x0	
+F	MST Config revision	mstp.config_revision_level	FT_UINT16	stp	BASE_DEC	0x0	
+F	MST Config digest	mstp.config_digest	FT_BYTES	stp		0x0	
+F	CIST Internal Root Path Cost	mstp.cist_internal_root_path_cost	FT_UINT32	stp	BASE_DEC	0x0	
+F	CIST Bridge Priority	mstp.cist_bridge.prio	FT_UINT16	stp	BASE_DEC	0x0	
+F	CIST Bridge Identifier System ID Extension	mstp.cist_bridge.ext	FT_UINT16	stp	BASE_DEC	0x0	
+F	CIST Bridge Identifier System ID	mstp.cist_bridge.hw	FT_ETHER	stp		0x0	
+F	CIST Remaining hops	mstp.cist_remaining_hops	FT_UINT8	stp	BASE_DEC	0x0	
+F	MSTI flags	mstp.msti.flags	FT_UINT8	stp	BASE_HEX	0x0	
+F	Priority	mstp.msti.priority	FT_UINT8	stp	BASE_HEX	0xf0	
+F	MSTID	mstp.msti.msti_id	FT_UINT16	stp	BASE_DEC	0xfff	
+F	Regional Root	mstp.msti.root.hw	FT_ETHER	stp		0x0	
+F	Internal root path cost	mstp.msti.root_cost	FT_UINT32	stp	BASE_DEC	0x0	
+F	Bridge Identifier Priority	mstp.msti.bridge_priority	FT_UINT8	stp	BASE_DEC	0x0	
+F	Port identifier priority	mstp.msti.port_priority	FT_UINT8	stp	BASE_DEC	0x0	
+F	Remaining hops	mstp.msti.remaining_hops	FT_UINT8	stp	BASE_DEC	0x0	
+F	Version	cflow.version	FT_UINT16	cflow	BASE_DEC	0x0	NetFlow Version
+F	Length	cflow.len	FT_UINT16	cflow	BASE_DEC	0x0	Length of PDUs
+F	Count	cflow.count	FT_UINT16	cflow	BASE_DEC	0x0	Count of PDUs
+F	SysUptime	cflow.sysuptime	FT_RELATIVE_TIME	cflow		0x0	Time since router booted (in seconds)
+F	ExportTime	cflow.exporttime	FT_UINT32	cflow	BASE_DEC	0x0	Time when the flow has been exported
+F	Timestamp	cflow.timestamp	FT_ABSOLUTE_TIME	cflow		0x0	Current seconds since epoch
+F	CurrentSecs	cflow.unix_secs	FT_UINT32	cflow	BASE_DEC	0x0	Current seconds since epoch
+F	CurrentNSecs	cflow.unix_nsecs	FT_UINT32	cflow	BASE_DEC	0x0	Residual nanoseconds since epoch
+F	SamplingMode	cflow.samplingmode	FT_UINT16	cflow	BASE_DEC	0xc000	Sampling Mode of exporter
+F	SampleRate	cflow.samplerate	FT_UINT16	cflow	BASE_DEC	0x3fff	Sample Frequency of exporter
+F	FlowSequence	cflow.sequence	FT_UINT32	cflow	BASE_DEC	0x0	Sequence number of flows seen
+F	EngineType	cflow.engine_type	FT_UINT8	cflow	BASE_DEC	0x0	Flow switching engine type
+F	EngineId	cflow.engine_id	FT_UINT8	cflow	BASE_DEC	0x0	Slot number of switching engine
+F	SourceId	cflow.source_id	FT_UINT32	cflow	BASE_DEC	0x0	Identifier for export device
+F	FlowSet Id	cflow.flowset_id	FT_UINT16	cflow	BASE_DEC	0x0	
+F	FlowSet Length	cflow.flowset_length	FT_UINT16	cflow	BASE_DEC	0x0	FlowSet Length in bytes
+F	Template Id	cflow.template_id	FT_UINT16	cflow	BASE_DEC	0x0	
+F	Field Count	cflow.template_field_count	FT_UINT16	cflow	BASE_DEC	0x0	Template field count
+F	Type	cflow.template_field_type	FT_UINT16	cflow	BASE_DEC	0x0	Template field type
+F	Length	cflow.template_field_length	FT_UINT16	cflow	BASE_DEC	0x0	Template field length
+F	Option Scope Length	cflow.option_scope_length	FT_UINT16	cflow	BASE_DEC	0x0	
+F	Option Length	cflow.option_length	FT_UINT16	cflow	BASE_DEC	0x0	
+F	Scope Type	cflow.scope_field_type	FT_UINT16	cflow	BASE_DEC	0x0	Scope field type
+F	SrcAddr	cflow.srcaddr	FT_IPv4	cflow		0x0	Flow Source Address (IPv4)
+F	SrcAddr	cflow.srcaddrv6	FT_IPv6	cflow		0x0	Flow Source Address (IPv6)
+F	DstAddr	cflow.dstaddr	FT_IPv4	cflow		0x0	Flow Destination Address (IPv4)
+F	DstAddr	cflow.dstaddrv6	FT_IPv6	cflow		0x0	Flow Destination Address (IPv6)
+F	NextHop	cflow.nexthop	FT_IPv4	cflow		0x0	Router nexthop (IPv4)
+F	BGPNextHop	cflow.bgpnexthop	FT_IPv4	cflow		0x0	BGP Router Nexthop (IPv4)
+F	InputInt	cflow.inputint	FT_UINT32	cflow	BASE_DEC	0x0	Flow Input Interface
+F	OutputInt	cflow.outputint	FT_UINT32	cflow	BASE_DEC	0x0	Flow Output Interface
+F	Packets	cflow.packets	FT_UINT64	cflow	BASE_DEC	0x0	Count of packets in flow
+F	Octets	cflow.octets	FT_UINT64	cflow	BASE_DEC	0x0	Count of bytes in flow
+F	Duration	cflow.timedelta	FT_RELATIVE_TIME	cflow		0x0	Duration of flow sample (end - start) in seconds
+F	StartTime	cflow.timestart	FT_RELATIVE_TIME	cflow		0x0	Uptime at start of flow
+F	EndTime	cflow.timeend	FT_RELATIVE_TIME	cflow		0x0	Uptime at end of flow
+F	SrcPort	cflow.srcport	FT_UINT16	cflow	BASE_DEC	0x0	Flow Source Port
+F	DstPort	cflow.dstport	FT_UINT16	cflow	BASE_DEC	0x0	Flow Destination Port
+F	Protocol	cflow.protocol	FT_UINT8	cflow	BASE_DEC	0x0	IP Protocol
+F	IP ToS	cflow.tos	FT_UINT8	cflow	BASE_HEX	0x0	IP Type of Service
+F	TCP Flags	cflow.tcpflags	FT_UINT8	cflow	BASE_HEX	0x0	
+F	FIN	cflow.tcpflags.fin	FT_BOOLEAN	cflow	8	0x1	
+F	SYN	cflow.tcpflags.syn	FT_BOOLEAN	cflow	8	0x2	
+F	RST	cflow.tcpflags.rst	FT_BOOLEAN	cflow	8	0x4	
+F	PSH	cflow.tcpflags.psh	FT_BOOLEAN	cflow	8	0x8	
+F	ACK	cflow.tcpflags.ack	FT_BOOLEAN	cflow	8	0x10	
+F	URG	cflow.tcpflags.urg	FT_BOOLEAN	cflow	8	0x20	
+F	Reserved	cflow.tcpflags.reserved	FT_UINT8	cflow	BASE_HEX	0xc0	
+F	SrcAS	cflow.srcas	FT_UINT32	cflow	BASE_DEC	0x0	Source AS
+F	DstAS	cflow.dstas	FT_UINT32	cflow	BASE_DEC	0x0	Destination AS
+F	SrcMask	cflow.srcmask	FT_UINT8	cflow	BASE_DEC	0x0	Source Prefix Mask
+F	DstMask	cflow.dstmask	FT_UINT8	cflow	BASE_DEC	0x0	Destination Prefix Mask
+F	Observation Domain Id	cflow.od_id	FT_UINT32	cflow	BASE_DEC	0x0	Identifier of an Observation Domain that is locally unique to an Exporting Process
+F	StartTime	cflow.abstimestart	FT_ABSOLUTE_TIME	cflow		0x0	Uptime at start of flow
+F	EndTime	cflow.abstimeend	FT_ABSOLUTE_TIME	cflow		0x0	Uptime at end of flow
+F	ScopeSystem	cflow.scope_system	FT_BYTES	cflow		0x0	Option Scope System
+F	ScopeInterface	cflow.scope_interface	FT_UINT32	cflow	BASE_DEC	0x0	Option Scope Interface
+F	ScopeLinecard	cflow.scope_linecard	FT_UINT32	cflow	BASE_DEC	0x0	Option Scope Linecard
+F	ScopeCache	cflow.scope_cache	FT_BYTES	cflow		0x0	Option Scope Cache
+F	ScopeTemplate	cflow.scope_template	FT_BYTES	cflow		0x0	Option Scope Template
+F	Padding	cflow.padding	FT_BYTES	cflow		0x0	
+F	Unknown Field Type	cflow.unknown_field_type	FT_BYTES	cflow		0x0	
+F	Total Field Count	cflow.template_ipfix_total_field_count	FT_UINT16	cflow	BASE_DEC	0x0	IPFIX Options Template Total Field Count
+F	Scope Field Count	cflow.template_ipfix_scope_field_count	FT_UINT16	cflow	BASE_DEC	0x0	IPFIX Options Template Scope Field Count
+F	Pen provided	cflow.template_ipfix_pen_provided	FT_BOOLEAN	cflow	16	0x8000	Is Template Enterprise Specific
+F	Type	cflow.template_ipfix_field_type	FT_UINT16	cflow	BASE_DEC	0x7fff	Template field type
+F	Type	cflow.template_cisco_field_type	FT_UINT16	cflow	BASE_DEC	0x7fff	Template field type
+F	Type	cflow.template_ipfix_field_type_enterprise	FT_UINT16	cflow	BASE_DEC	0x7fff	Template field type
+F	PEN	cflow.template_ipfix_field_pen	FT_UINT32	cflow	BASE_DEC	0x0	IPFIX Private Enterprise Number
+F	Expected Sequence Number	cflow.sequence_analysis.expected_sn	FT_UINT32	cflow	BASE_DEC	0x0	
+F	Previous Frame in Sequence	cflow.sequence_analysis.previous_frame	FT_FRAMENUM	cflow		0x0	
+F	Template Frame	cflow.template_frame	FT_FRAMENUM	cflow		0x0	
+F	Flow length invalid	cflow.flowset_length.invalid	FT_NONE	cflow		0x0	
+F	No flow information	cflow.no_flow_information	FT_NONE	cflow		0x0	
+F	No scope fields	cflow.template_ipfix_scope_field_count.none	FT_NONE	cflow		0x0	
+F	More IPFIX scopes than can be handled	cflow.template_ipfix_scope_field_count.too_many	FT_NONE	cflow		0x0	
+F	More options than can be handled	cflow.options.too_many	FT_NONE	cflow		0x0	
+F	More scopes than can be handled	cflow.scopes.too_many	FT_NONE	cflow		0x0	
+F	More entries than can be handled	cflow.entries.too_many	FT_NONE	cflow		0x0	
+F	FlowSets impossible	cflow.flowsets.impossible	FT_NONE	cflow		0x0	
+F	No template found	cflow.no_template_found	FT_NONE	cflow		0x0	
+F	Unexpected flow sequence for domain ID	cflow.unexpected_sequence_number	FT_NONE	cflow		0x0	
+F	Datagram version	sflow_245.version	FT_UINT32	sflow	BASE_DEC	0x0	sFlow datagram version
+F	Agent address type	sflow_245.agenttype	FT_UINT32	sflow	BASE_DEC	0x0	sFlow agent address type
+F	Agent address	sflow_245.agent	FT_IPv4	sflow		0x0	sFlow Agent IP address
+F	Agent address	sflow_245.agent.v6	FT_IPv6	sflow		0x0	sFlow Agent IPv6 address
+F	Sub-agent ID	sflow_245.sub_agent_id	FT_UINT32	sflow	BASE_DEC	0x0	sFlow sub-agent ID
+F	Sample length (byte)	sflow_5.sample_length	FT_UINT32	sflow	BASE_DEC	0x0	sFlow sample length
+F	Flow data length (byte)	sflow_5.flow_data_length	FT_UINT32	sflow	BASE_DEC	0x0	sFlow flow data length
+F	Sequence number	sflow_245.sequence_number	FT_UINT32	sflow	BASE_DEC	0x0	sFlow datagram sequence number
+F	SysUptime	sflow_245.sysuptime	FT_UINT32	sflow	BASE_DEC	0x0	System Uptime
+F	NumSamples	sflow_245.numsamples	FT_UINT32	sflow	BASE_DEC	0x0	Number of samples in sFlow datagram
+F	sFlow sample type	sflow_245.sampletype	FT_UINT32	sflow	BASE_DEC	0x0	Type of sFlow sample
+F	Precedence	sflow_245.ipv4_precedence_type	FT_UINT32	sflow	BASE_DEC	0xe0	IPv4 Precedence Type
+F	Format	sflow_245.flow_record_format	FT_UINT32	sflow	BASE_DEC	0xfff	Format of sFlow flow record
+F	Format	sflow_245.counters_record_format	FT_UINT32	sflow	BASE_DEC	0xfff	Format of sFlow counters record
+F	Header protocol	sflow_245.header_protocol	FT_UINT32	sflow	BASE_DEC	0x0	Protocol of sampled header
+F	Header of sampled packet	sflow_245.header	FT_BYTES	sflow		0x0	Data from sampled header
+F	Incoming 802.1Q VLAN	sflow_245.vlan.in	FT_UINT32	sflow	BASE_DEC	0x0	Incoming VLAN ID
+F	Outgoing 802.1Q VLAN	sflow_245.vlan.out	FT_UINT32	sflow	BASE_DEC	0x0	Outgoing VLAN ID
+F	Incoming 802.1p priority	sflow_245.pri.in	FT_UINT32	sflow	BASE_DEC	0x0	
+F	Outgoing 802.1p priority	sflow_245.pri.out	FT_UINT32	sflow	BASE_DEC	0x0	
+F	Next hop	sflow_245.nexthop	FT_IPv4	sflow		0x0	Next hop address
+F	Source IP address	sflow_245.ipv4_src	FT_IPv4	sflow		0x0	Source IPv4 address
+F	Destination IP address	sflow_245.ipv4_dst	FT_IPv4	sflow		0x0	Destination IPv4 address
+F	Next hop	sflow_245.nexthop.v6	FT_IPv6	sflow		0x0	Next hop address
+F	Source IP address	sflow_245.ipv6_src	FT_IPv6	sflow		0x0	Source IPv6 address
+F	Destination IP address	sflow_245.ipv6_dst	FT_IPv6	sflow		0x0	Destination IPv6 address
+F	Next hop source mask	sflow_245.nexthop.src_mask	FT_UINT32	sflow	BASE_DEC	0x0	Next hop source mask bits
+F	Next hop destination mask	sflow_245.nexthop.dst_mask	FT_UINT32	sflow	BASE_DEC	0x0	Next hop destination mask bits
+F	Interface index	sflow_245.ifindex	FT_UINT32	sflow	BASE_DEC	0x0	
+F	Interface Type	sflow_245.iftype	FT_UINT32	sflow	BASE_DEC	0x0	
+F	Interface Speed	sflow_245.ifspeed	FT_UINT64	sflow	BASE_DEC	0x0	
+F	Interface Direction	sflow_245.ifdirection	FT_UINT32	sflow	BASE_DEC	0x0	
+F	IfAdminStatus	sflow_245.ifadmin_status	FT_BOOLEAN	sflow	32	0x1	
+F	IfOperStatus	sflow_245.ifoper_status	FT_BOOLEAN	sflow	32	0x2	
+F	Input Octets	sflow_245.ifinoct	FT_UINT64	sflow	BASE_DEC	0x0	
+F	Input Packets	sflow_245.ifinpkt	FT_UINT32	sflow	BASE_DEC	0x0	
+F	Input Multicast Packets	sflow_245.ifinmcast	FT_UINT32	sflow	BASE_DEC	0x0	
+F	Input Broadcast Packets	sflow_245.ifinbcast	FT_UINT32	sflow	BASE_DEC	0x0	
+F	Input Discarded Packets	sflow_245.ifindisc	FT_UINT32	sflow	BASE_DEC	0x0	
+F	Input Errors	sflow_245.ifinerr	FT_UINT32	sflow	BASE_DEC	0x0	
+F	Input Unknown Protocol Packets	sflow_245.ifinunk	FT_UINT32	sflow	BASE_DEC	0x0	
+F	Output Octets	sflow_245.ifoutoct	FT_UINT64	sflow	BASE_DEC	0x0	
+F	Output Packets	sflow_245.ifoutpkt	FT_UINT32	sflow	BASE_DEC	0x0	
+F	Output Multicast Packets	sflow_245.ifoutmcast	FT_UINT32	sflow	BASE_DEC	0x0	
+F	Output Broadcast Packets	sflow_245.ifoutbcast	FT_UINT32	sflow	BASE_DEC	0x0	
+F	Output Discarded Packets	sflow_245.ifoutdisc	FT_UINT32	sflow	BASE_DEC	0x0	
+F	Output Errors	sflow_245.ifouterr	FT_UINT32	sflow	BASE_DEC	0x0	
+F	Promiscuous Mode	sflow_245.ifpromisc	FT_UINT32	sflow	BASE_DEC	0x0	
+F	Alignment Errors	sflow_245.dot3StatsAlignmentErrors	FT_UINT32	sflow	BASE_DEC	0x0	dot3 Stats Alignment Errors
+F	FCS Errors	sflow_245.dot3StatsFCSErrors	FT_UINT32	sflow	BASE_DEC	0x0	dot3 Stats FCS Errors
+F	Single Collision Frames	sflow_245.dot3StatsSingleCollisionFrames	FT_UINT32	sflow	BASE_DEC	0x0	dot3 Stats Single Collision Frames
+F	Multiple Collision Frames	sflow_245.dot3StatsMultipleCollisionFrames	FT_UINT32	sflow	BASE_DEC	0x0	dot3 Stats Multiple Collision Frames
+F	SQE Test Errors	sflow_245.dot3StatsSQETestErrors	FT_UINT32	sflow	BASE_DEC	0x0	dot3 Stats SQE Test Errors
+F	Deferred Transmissions	sflow_245.dot3StatsDeferredTransmissions	FT_UINT32	sflow	BASE_DEC	0x0	dot3 Stats Deferred Transmissions
+F	Late Collisions	sflow_245.dot3StatsLateCollisions	FT_UINT32	sflow	BASE_DEC	0x0	dot3 Stats Late Collisions
+F	Excessive Collisions	sflow_245.dot3StatsExcessiveCollisions	FT_UINT32	sflow	BASE_DEC	0x0	dot3 Stats Excessive Collisions
+F	Internal Mac Transmit Errors	sflow_245.dot3StatsInternalMacTransmitErrors	FT_UINT32	sflow	BASE_DEC	0x0	dot3 Stats Internal Mac Transmit Errors
+F	Carrier Sense Errors	sflow_245.dot3StatsCarrierSenseErrors	FT_UINT32	sflow	BASE_DEC	0x0	dot3 Stats Carrier Sense Errors
+F	Frame Too Longs	sflow_245.dot3StatsFrameTooLongs	FT_UINT32	sflow	BASE_DEC	0x0	dot3 Stats Frame Too Longs
+F	Internal Mac Receive Errors	sflow_245.dot3StatsInternalMacReceiveErrors	FT_UINT32	sflow	BASE_DEC	0x0	dot3 Stats Internal Mac Receive Errors
+F	Symbol Errors	sflow_245.dot3StatsSymbolErrors	FT_UINT32	sflow	BASE_DEC	0x0	dot3 Stats Symbol Errors
+F	Line Errors	sflow_245.dot5StatsLineErrors	FT_UINT32	sflow	BASE_DEC	0x0	dot5 Stats Line Errors
+F	Burst Errors	sflow_245.dot5StatsBurstErrors	FT_UINT32	sflow	BASE_DEC	0x0	dot5 Stats Burst Errors
+F	AC Errors	sflow_245.dot5StatsACErrors	FT_UINT32	sflow	BASE_DEC	0x0	dot5 Stats AC Errors
+F	Abort Trans Errors	sflow_245.dot5StatsAbortTransErrors	FT_UINT32	sflow	BASE_DEC	0x0	dot5 Stats Abort Trans Errors
+F	Internal Errors	sflow_245.dot5StatsInternalErrors	FT_UINT32	sflow	BASE_DEC	0x0	dot5 Stats Internal Errors
+F	Lost Frame Errors	sflow_245.dot5StatsLostFrameErrors	FT_UINT32	sflow	BASE_DEC	0x0	dot5 Stats Lost Frame Errors
+F	Receive Congestions	sflow_245.dot5StatsReceiveCongestions	FT_UINT32	sflow	BASE_DEC	0x0	dot5 Stats Receive Congestions
+F	Frame Copied Errors	sflow_245.dot5StatsFrameCopiedErrors	FT_UINT32	sflow	BASE_DEC	0x0	dot5 Stats Frame Copied Errors
+F	Token Errors	sflow_245.dot5StatsTokenErrors	FT_UINT32	sflow	BASE_DEC	0x0	dot5 Stats Token Errors
+F	Soft Errors	sflow_245.dot5StatsSoftErrors	FT_UINT32	sflow	BASE_DEC	0x0	dot5 Stats Soft Errors
+F	Hard Errors	sflow_245.dot5StatsHardErrors	FT_UINT32	sflow	BASE_DEC	0x0	dot5 Stats Hard Errors
+F	Signal Loss	sflow_245.dot5StatsSignalLoss	FT_UINT32	sflow	BASE_DEC	0x0	dot5 Stats Signal Loss
+F	Transmit Beacons	sflow_245.dot5StatsTransmitBeacons	FT_UINT32	sflow	BASE_DEC	0x0	dot5 Stats Transmit Beacons
+F	Recoveries	sflow_245.dot5StatsRecoveries	FT_UINT32	sflow	BASE_DEC	0x0	dot5 Stats Recoveries
+F	Lobe Wires	sflow_245.dot5StatsLobeWires	FT_UINT32	sflow	BASE_DEC	0x0	dot5 Stats Lobe Wires
+F	Removes	sflow_245.dot5StatsRemoves	FT_UINT32	sflow	BASE_DEC	0x0	dot5 Stats Removes
+F	Singles	sflow_245.dot5StatsSingles	FT_UINT32	sflow	BASE_DEC	0x0	dot5 Stats Singles
+F	Freq Errors	sflow_245.dot5StatsFreqErrors	FT_UINT32	sflow	BASE_DEC	0x0	dot5 Stats Freq Errors
+F	In High Priority Frames	sflow_245.dot12InHighPriorityFrames	FT_UINT32	sflow	BASE_DEC	0x0	dot12 Input High Priority Frames
+F	In High Priority Octets	sflow_245.dot12InHighPriorityOctets	FT_UINT64	sflow	BASE_DEC	0x0	dot12 Input High Priority Octets
+F	In Normal Priority Frames	sflow_245.dot12InNormPriorityFrames	FT_UINT32	sflow	BASE_DEC	0x0	dot12 Input Normal Priority Frames
+F	In Normal Priority Octets	sflow_245.dot12InNormPriorityOctets	FT_UINT64	sflow	BASE_DEC	0x0	dot12 Input Normal Priority Octets
+F	In IPM Errors	sflow_245.dot12InIPMErrors	FT_UINT32	sflow	BASE_DEC	0x0	dot12 Input IPM Errors
+F	In Oversize Frame Errors	sflow_245.dot12InOversizeFrameErrors	FT_UINT32	sflow	BASE_DEC	0x0	dot12 Input Oversize Frame Errors
+F	In Data Errors	sflow_245.dot12InDataErrors	FT_UINT32	sflow	BASE_DEC	0x0	dot12 Input Data Errors
+F	In Null Addressed Frames	sflow_245.dot12InNullAddressedFrames	FT_UINT32	sflow	BASE_DEC	0x0	dot12 Input Null Addressed Frames
+F	Out High Priority Frames	sflow_245.dot12OutHighPriorityFrames	FT_UINT32	sflow	BASE_DEC	0x0	dot12 Output High Priority Frames
+F	Out High Priority Octets	sflow_245.dot12OutHighPriorityOctets	FT_UINT64	sflow	BASE_DEC	0x0	dot12 Out High Priority Octets
+F	Transition Into Trainings	sflow_245.dot12TransitionIntoTrainings	FT_UINT32	sflow	BASE_DEC	0x0	dot12 Transition Into Trainings
+F	HC In High Priority Octets	sflow_245.dot12HCInHighPriorityOctets	FT_UINT64	sflow	BASE_DEC	0x0	dot12 HC Input High Priority Octets
+F	HC In Normal Priority Octets	sflow_245.dot12HCInNormPriorityOctets	FT_UINT64	sflow	BASE_DEC	0x0	dot12 HC Input Normal Priority Octets
+F	HC Out High Priority Octets	sflow_245.dot12HCOutHighPriorityOctets	FT_UINT64	sflow	BASE_DEC	0x0	dot12 HC Output High Priority Octets
+F	VLAN ID	sflow_245.vlan_id	FT_UINT32	sflow	BASE_DEC	0x0	
+F	Octets	sflow_245.octets	FT_UINT64	sflow	BASE_DEC	0x0	
+F	Unicast Packets	sflow_245.ucastPkts	FT_UINT32	sflow	BASE_DEC	0x0	
+F	Multicast Packets	sflow_245.multicastPkts	FT_UINT32	sflow	BASE_DEC	0x0	
+F	Broadcast Packets	sflow_245.broadcastPkts	FT_UINT32	sflow	BASE_DEC	0x0	
+F	Discards	sflow_245.discards	FT_UINT32	sflow	BASE_DEC	0x0	
+F	5s CPU Load (100 = 1%)	sflow_5.cpu_5s	FT_UINT32	sflow	BASE_DEC	0x0	Average CPU Load Over 5 Seconds (100 = 1%)
+F	1m CPU Load (100 = 1%)	sflow_5.cpu_1m	FT_UINT32	sflow	BASE_DEC	0x0	Average CPU Load Over 1 Minute (100 = 1%)
+F	5m CPU Load (100 = 1%)	sflow_5.cpu_5m	FT_UINT32	sflow	BASE_DEC	0x0	Average CPU Load Over 5 Minutes (100 = 1%)
+F	Total Memory	sflow_5.total_memory	FT_UINT64	sflow	BASE_DEC	0x0	
+F	Free Memory	sflow_5.free_memory	FT_UINT64	sflow	BASE_DEC	0x0	
+F	Frame Length	sflow_245.header.frame_length	FT_UINT32	sflow	BASE_DEC	0x0	
+F	Payload stripped	sflow_245.header.payload_stripped	FT_UINT32	sflow	BASE_DEC	0x0	
+F	Sampled header length	sflow_245.header.sampled_header_length	FT_UINT32	sflow	BASE_DEC	0x0	
+F	Length of MAC Packet	sflow_245.ethernet.length	FT_UINT32	sflow	BASE_DEC	0x0	
+F	Source MAC Address	sflow_245.ethernet.source_mac_address	FT_ETHER	sflow		0x0	
+F	Destination MAC Address	sflow_245.ethernet.destination_mac_address	FT_ETHER	sflow		0x0	
+F	Ethernet Packet Type	sflow_245.ethernet.packet_type	FT_UINT32	sflow	BASE_HEX	0x0	
+F	Length of IP Packet	sflow_245.ip.length	FT_UINT32	sflow	BASE_DEC	0x0	
+F	Source Port	sflow_245.ip.source_port	FT_UINT32	sflow	BASE_DEC	0x0	
+F	Destination Port	sflow.ip.destination_port	FT_UINT32	sflow	BASE_DEC	0x0	
+F	TCP Flag (CWR)	sflow_245.ip.tcp_flag.cwr	FT_BOOLEAN	sflow	32	0x80	
+F	TCP Flag (ECE)	sflow_245.ip.tcp_flag.ece	FT_BOOLEAN	sflow	32	0x40	
+F	TCP Flag (URG)	sflow_245.ip.tcp_flag.urg	FT_BOOLEAN	sflow	32	0x20	
+F	TCP Flag (ACK)	sflow_245.ip.tcp_flag.ack	FT_BOOLEAN	sflow	32	0x10	
+F	TCP Flag (PSH)	sflow_245.ip.tcp_flag.psh	FT_BOOLEAN	sflow	32	0x8	
+F	TCP Flag (RST)	sflow_245.ip.tcp_flag.rst	FT_BOOLEAN	sflow	32	0x4	
+F	TCP Flag (SYN)	sflow_245.ip.tcp_flag.syn	FT_BOOLEAN	sflow	32	0x2	
+F	TCP Flag (FIN)	sflow_245.ip.tcp_flag.fin	FT_BOOLEAN	sflow	32	0x1	
+F	Delay	sflow_245.ipv4_delay	FT_BOOLEAN	sflow	32	0x10	
+F	Throughput	sflow_245.ipv4_throughput	FT_BOOLEAN	sflow	32	0x8	
+F	Reliability	sflow_245.ipv4_reliability	FT_BOOLEAN	sflow	32	0x4	
+F	Cost (RFC1349)	sflow_245.ipv4_cost	FT_BOOLEAN	sflow	32	0x2	
+F	Priority	sflow_245.ipv6_priority	FT_UINT32	sflow	BASE_DEC	0x0	
+F	Sequence number	sflow.flow_sample.sequence_number	FT_UINT32	sflow	BASE_DEC	0x0	
+F	Source ID class	sflow.flow_sample.source_id_class	FT_UINT32	sflow	BASE_DEC	0xff000000	
+F	Sampling rate	sflow.flow_sample.sampling_rate	FT_UINT32	sflow	BASE_DEC	0x0	
+F	Sample pool	sflow.flow_sample.sample_pool	FT_UINT32	sflow	BASE_DEC	0x0	
+F	Dropped packets	sflow.flow_sample.dropped_packets	FT_UINT32	sflow	BASE_DEC	0x0	
+F	Input interface (ifIndex)	sflow.flow_sample.input_interface	FT_UINT32	sflow	BASE_DEC	0x0	
+F	Output interface expanded format	sflow.flow_sample.output_interface.expanded.format	FT_UINT32	sflow	BASE_DEC	0x0	
+F	Output interface (ifIndex)	sflow.flow_sample.output_interface	FT_UINT32	sflow	BASE_DEC	0x7fffffff	
+F	Output interface format	sflow.flow_sample.output_interface_format	FT_UINT32	sflow	BASE_DEC	0xc0000000	
+F	Output interface value	sflow.flow_sample.output_interface_value	FT_UINT32	sflow	BASE_DEC	0x3fffffff	
+F	Enterprise	sflow.enterprise	FT_UINT32	sflow	BASE_DEC	0xfffff000	
+F	Length	sflow.enterprise.length	FT_UINT32	sflow	BASE_DEC	0x0	
+F	Data	sflow.enterprise.data	FT_BYTES	sflow		0x0	
+F	Flow record	sflow.flow_sample.flow_record	FT_UINT32	sflow	BASE_DEC	0x0	
+F	Source ID type	sflow.flow_sample.source_id_type	FT_UINT32	sflow	BASE_DEC	0x0	
+F	Source ID index	sflow.flow_sample.source_id_index	FT_UINT32	sflow	BASE_DEC	0x0	
+F	Input interface format	sflow.flow_sample.input_interface_format	FT_UINT32	sflow	BASE_DEC	0x0	
+F	Input interface value	sflow.flow_sample.input_interface_value	FT_UINT32	sflow	BASE_DEC	0x0	
+F	Output interface expanded value	sflow.flow_sample.output_interface_expanded.value	FT_UINT32	sflow	BASE_DEC	0x0	
+F	Output interface packet discarded	sflow.flow_sample.output_interface_expanded.value_discarded	FT_UINT32	sflow	BASE_DEC	0x0	
+F	Output inferface number of interfaces	sflow.flow_sample.output_interface_expanded.number	FT_UINT32	sflow	BASE_DEC	0x0	
+F	Output interface ifIndex	sflow.flow_sample.output_interface_expanded.ifindex	FT_UINT32	sflow	BASE_DEC	0x0	
+F	Sequence number	sflow.counters_sample.sequence_number	FT_UINT32	sflow	BASE_DEC	0x0	
+F	Source ID class	sflow.counters_sample.source_id_class	FT_UINT32	sflow	BASE_DEC	0xff000000	
+F	Source ID type	sflow.counters_sample.source_id_type	FT_UINT32	sflow	BASE_DEC	0xff000000	
+F	Source ID index	sflow.counters_sample.source_id_index	FT_UINT32	sflow	BASE_DEC	0xffffff	
+F	Counters records	sflow.counters_sample.counters_records	FT_UINT32	sflow	BASE_DEC	0x0	
+F	IP Protocol	sflow.ip_protocol	FT_UINT32	sflow	BASE_DEC	0x0	
+F	Index	sflow.flow_sample.index	FT_UINT32	sflow	BASE_DEC	0xffffff	
+F	Unknown/invalid address type	sflow.invalid_address_type	FT_NONE	sflow		0x0	
+F	Unknown/invalid record type	sflow.unknown_record_format	FT_NONE	sflow		0x0	
+F	Response In	snmp.response_in	FT_FRAMENUM	snmp		0x0	The response to this SNMP request is in this frame
+F	Response To	snmp.response_to	FT_FRAMENUM	snmp		0x0	This is a response to the SNMP request in this frame
+F	Time	snmp.time	FT_RELATIVE_TIME	snmp		0x0	The time between the Request and the Response
+F	noSuchObject	snmp.noSuchObject	FT_NONE	snmp		0x0	
+F	noSuchInstance	snmp.noSuchInstance	FT_NONE	snmp		0x0	
+F	endOfMibView	snmp.endOfMibView	FT_NONE	snmp		0x0	
+F	Value (Integer32)	snmp.value.int	FT_INT64	snmp	BASE_DEC	0x0	
+F	Value (OctetString)	snmp.value.octets	FT_BYTES	snmp		0x0	
+F	Value (OID)	snmp.value.oid	FT_OID	snmp		0x0	
+F	Value (Null)	snmp.value.null	FT_NONE	snmp		0x0	
+F	Value (IpAddress)	snmp.value.ipv4	FT_IPv4	snmp		0x0	
+F	Value (IpAddress)	snmp.value.ipv6	FT_IPv6	snmp		0x0	
+F	Value (IpAddress)	snmp.value.addr	FT_BYTES	snmp		0x0	
+F	Value (Unsigned32)	snmp.value.u32	FT_INT64	snmp	BASE_DEC	0x0	
+F	Value (Gauge32)	snmp.value.g32	FT_INT64	snmp	BASE_DEC	0x0	
+F	Value (Unknown)	snmp.value.unk	FT_BYTES	snmp		0x0	
+F	Value (Counter32)	snmp.value.counter	FT_UINT64	snmp	BASE_DEC	0x0	
+F	Value (NSAP)	snmp.value.nsap	FT_UINT64	snmp	BASE_DEC	0x0	
+F	Value (Timeticks)	snmp.value.timeticks	FT_UINT64	snmp	BASE_DEC	0x0	
+F	Value (Opaque)	snmp.value.opaque	FT_BYTES	snmp		0x0	
+F	Object Name	snmp.name	FT_OID	snmp		0x0	
+F	Variable-binding-string	snmp.var-bind_str	FT_STRING	snmp		0x0	
+F	version	snmp.version	FT_INT32	snmp	BASE_DEC	0x0	
+F	community	snmp.community	FT_STRING	snmp		0x0	
+F	data	snmp.data	FT_UINT32	snmp	BASE_DEC	0x0	PDUs
+F	get-request	snmp.get_request_element	FT_NONE	snmp		0x0	GetRequest_PDU
+F	get-next-request	snmp.get_next_request_element	FT_NONE	snmp		0x0	GetNextRequest_PDU
+F	get-response	snmp.get_response_element	FT_NONE	snmp		0x0	GetResponse_PDU
+F	set-request	snmp.set_request_element	FT_NONE	snmp		0x0	SetRequest_PDU
+F	trap	snmp.trap_element	FT_NONE	snmp		0x0	Trap_PDU
+F	getBulkRequest	snmp.getBulkRequest_element	FT_NONE	snmp		0x0	GetBulkRequest_PDU
+F	informRequest	snmp.informRequest_element	FT_NONE	snmp		0x0	InformRequest_PDU
+F	snmpV2-trap	snmp.snmpV2_trap_element	FT_NONE	snmp		0x0	SNMPv2_Trap_PDU
+F	report	snmp.report_element	FT_NONE	snmp		0x0	Report_PDU
+F	request-id	snmp.request_id	FT_INT32	snmp	BASE_DEC	0x0	T_request_id
+F	error-status	snmp.error_status	FT_INT32	snmp	BASE_DEC	0x0	
+F	error-index	snmp.error_index	FT_INT32	snmp	BASE_DEC	0x0	INTEGER
+F	variable-bindings	snmp.variable_bindings	FT_UINT32	snmp	BASE_DEC	0x0	VarBindList
+F	non-repeaters	snmp.non_repeaters	FT_UINT32	snmp	BASE_DEC	0x0	INTEGER_0_2147483647
+F	max-repetitions	snmp.max_repetitions	FT_UINT32	snmp	BASE_DEC	0x0	INTEGER_0_2147483647
+F	enterprise	snmp.enterprise	FT_OID	snmp		0x0	EnterpriseOID
+F	agent-addr	snmp.agent_addr	FT_IPv4	snmp		0x0	NetworkAddress
+F	generic-trap	snmp.generic_trap	FT_INT32	snmp	BASE_DEC	0x0	GenericTrap
+F	specific-trap	snmp.specific_trap	FT_INT32	snmp	BASE_DEC	0x0	SpecificTrap
+F	time-stamp	snmp.time_stamp	FT_UINT32	snmp	BASE_DEC	0x0	TimeTicks
+F	Wrong tag for SNMP VarBind error value	snmp.varbind.wrong_tag	FT_NONE	snmp		0x0	
+F	Facility	syslog.facility	FT_UINT16	syslog	BASE_DEC	0x3f8	Message facility
+F	Level	syslog.level	FT_UINT16	syslog	BASE_DEC	0x7	Message level
+F	Version	syslog.version	FT_STRING	syslog		0x0	Syslog version
+F	Timestamp	syslog.timestamp	FT_ABSOLUTE_TIME	syslog		0x0	
+F	Timestamp (RFC3164)	syslog.timestamp_rfc3164	FT_STRING	syslog		0x0	
+F	Hostname	syslog.hostname	FT_STRING	syslog		0x0	The hostname that generated this message
+F	App Name	syslog.appname	FT_STRING	syslog		0x0	The name of the app that generated this message
+F	Process ID	syslog.procid	FT_STRING	syslog		0x0	The ID of the process that generated this message
+F	Message	syslog.msg	FT_STRING	syslog		0x0	
+F	Message ID	syslog.msgid	FT_STRING	syslog		0x0	
+F	Structured Data	syslog.sd	FT_NONE	syslog		0x0	
+F	Element	syslog.sd.element	FT_NONE	syslog		0x0	Structured Data Element
+F	Element Name	syslog.sd.element.name	FT_STRING	syslog		0x0	Structured Data Element Name
+F	Parameter	syslog.sd.param	FT_NONE	syslog		0x0	Structured Data Parameter
+F	Parameter Name	syslog.sd.param.name	FT_STRING	syslog		0x0	Structured Data Parameter Name
+F	Parameter Value	syslog.sd.param.value	FT_STRING	syslog		0x0	Structured Data Parameter Value
+F	Message conforms to neither RFC 5424 nor RFC 3164; trailing data appended	syslog.msg.nonconformant	FT_NONE	syslog		0x0	
+F	Marker	bgp.marker	FT_BYTES	bgp		0x0	Must be set to all ones (16 Bytes)
+F	Length	bgp.length	FT_UINT16	bgp	BASE_DEC	0x0	The total length of the message, including the header in octets
+F	Prefix Length	bgp.prefix_length	FT_UINT8	bgp	BASE_DEC	0x0	
+F	Type	bgp.type	FT_UINT8	bgp	BASE_DEC	0x0	BGP message type
+F	Version	bgp.open.version	FT_UINT8	bgp	BASE_DEC	0x0	The protocol version number
+F	My AS	bgp.open.myas	FT_UINT16	bgp	BASE_DEC	0x0	The Autonomous System number of the sender
+F	Hold Time	bgp.open.holdtime	FT_UINT16	bgp	BASE_DEC	0x0	The number of seconds the sender proposes for Hold Time
+F	BGP Identifier	bgp.open.identifier	FT_IPv4	bgp		0x0	The BGP Identifier of the sender
+F	Optional Parameters Length	bgp.open.opt.len	FT_UINT8	bgp	BASE_DEC	0x0	The total length of the Optional Parameters field in octets
+F	Optional Parameters	bgp.open.opt	FT_NONE	bgp		0x0	List of optional parameters
+F	Optional Parameter	bgp.open.opt.param	FT_NONE	bgp		0x0	
+F	Parameter Type	bgp.open.opt.param.type	FT_UINT8	bgp	BASE_DEC	0x0	Unambiguously identifies individual parameters
+F	Parameter Length	bgp.open.opt.param.len	FT_UINT8	bgp	BASE_DEC	0x0	Length of the Parameter Value
+F	Authentication Data	bgp.open.opt.param.auth	FT_BYTES	bgp		0x0	Deprecated
+F	Unknown	bgp.open.opt.param.unknown	FT_BYTES	bgp		0x0	Unknown Parameter
+F	Major error Code	bgp.notify.major_error	FT_UINT8	bgp	BASE_DEC	0x0	
+F	Minor error Code (Message Header)	bgp.notify.minor_error	FT_UINT8	bgp	BASE_DEC	0x0	
+F	Minor error Code (Open Message)	bgp.notify.minor_error_open	FT_UINT8	bgp	BASE_DEC	0x0	
+F	Minor error Code (Update Message)	bgp.notify.minor_error_update	FT_UINT8	bgp	BASE_DEC	0x0	
+F	Minor error Code (Hold Timer Expired)	bgp.notify.minor_error_expired	FT_UINT8	bgp	BASE_DEC	0x0	
+F	Minor error Code (State Machine)	bgp.notify.minor_error_state	FT_UINT8	bgp	BASE_DEC	0x0	
+F	Minor error Code (Cease)	bgp.notify.minor_error_cease	FT_UINT8	bgp	BASE_DEC	0x0	
+F	Minor error Code (Route-Refresh message)	bgp.notify.minor_error_route_refresh	FT_UINT8	bgp	BASE_DEC	0x0	
+F	Minor error Code (Unknown)	bgp.notify.minor_error_unknown	FT_UINT8	bgp	BASE_DEC	0x0	
+F	Data	bgp.notify.minor_data	FT_BYTES	bgp		0x0	
+F	Address family identifier (AFI)	bgp.route_refresh.afi	FT_UINT16	bgp	BASE_DEC	0x0	
+F	Subtype	bgp.route_refresh.subtype	FT_UINT8	bgp	BASE_DEC	0x0	
+F	Subsequent address family identifier (SAFI)	bgp.route_refresh.safi	FT_UINT8	bgp	BASE_DEC	0x0	
+F	Withdrawn Routes Length	bgp.update.withdrawn_routes.length	FT_UINT16	bgp	BASE_DEC	0x0	
+F	Withdrawn Routes	bgp.update.withdrawn_routes	FT_NONE	bgp		0x0	
+F	Aggregator AS	bgp.update.path_attribute.aggregator_as	FT_UINT32	bgp	BASE_DEC	0x0	
+F	Path attributes	bgp.update.path_attributes	FT_NONE	bgp		0x0	
+F	Total Path Attribute Length	bgp.update.path_attributes.length	FT_UINT16	bgp	BASE_DEC	0x0	
+F	Aggregator origin	bgp.update.path_attribute.aggregator_origin	FT_IPv4	bgp		0x0	
+F	AS Path segment	bgp.update.path_attribute.as_path_segment	FT_NONE	bgp		0x0	
+F	Segment type	bgp.update.path_attribute.as_path_segment.type	FT_UINT8	bgp	BASE_DEC	0x0	
+F	Segment length (number of ASN)	bgp.update.path_attribute.as_path_segment.length	FT_UINT8	bgp	BASE_DEC	0x0	
+F	AS2	bgp.update.path_attribute.as_path_segment.as2	FT_UINT16	bgp	BASE_DEC	0x0	
+F	AS4	bgp.update.path_attribute.as_path_segment.as4	FT_UINT32	bgp	BASE_DEC	0x0	
+F	Communities	bgp.update.path_attribute.communities	FT_NONE	bgp		0x0	
+F	Community	bgp.update.path_attribute.community	FT_NONE	bgp		0x0	
+F	Community Well-known	bgp.update.path_attribute.community_wellknown	FT_UINT32	bgp	BASE_HEX	0x0	Reserved
+F	Community AS	bgp.update.path_attribute.community_as	FT_UINT16	bgp	BASE_DEC	0x0	
+F	Community value	bgp.update.path_attribute.community_value	FT_UINT16	bgp	BASE_DEC	0x0	
+F	Local preference	bgp.update.path_attribute.local_pref	FT_UINT32	bgp	BASE_DEC	0x0	
+F	Multiple exit discriminator	bgp.update.path_attribute.multi_exit_disc	FT_UINT32	bgp	BASE_DEC	0x0	
+F	Next hop	bgp.update.path_attribute.next_hop	FT_IPv4	bgp		0x0	
+F	Origin	bgp.update.path_attribute.origin	FT_UINT8	bgp	BASE_DEC	0x0	
+F	Path Attribute	bgp.update.path_attribute	FT_NONE	bgp		0x0	
+F	Flags	bgp.update.path_attribute.flags	FT_UINT8	bgp	BASE_HEX	0x0	
+F	Optional	bgp.update.path_attribute.flags.optional	FT_BOOLEAN	bgp	8	0x80	
+F	Transitive	bgp.update.path_attribute.flags.transitive	FT_BOOLEAN	bgp	8	0x40	
+F	Partial	bgp.update.path_attribute.flags.partial	FT_BOOLEAN	bgp	8	0x20	
+F	Extended-Length	bgp.update.path_attribute.flags.extended_length	FT_BOOLEAN	bgp	8	0x10	
+F	Unused	bgp.update.path_attribute.flags.unused	FT_UINT8	bgp	BASE_HEX	0xf	
+F	Type Code	bgp.update.path_attribute.type_code	FT_UINT8	bgp	BASE_DEC	0x0	
+F	Length	bgp.update.path_attribute.length	FT_UINT16	bgp	BASE_DEC	0x0	
+F	Withdrawn prefix	bgp.withdrawn_prefix	FT_IPv4	bgp		0x0	
+F	Network Layer Reachability Information (NLRI)	bgp.update.nlri	FT_NONE	bgp		0x0	
+F	NLRI prefix	bgp.nlri_prefix	FT_IPv4	bgp		0x0	
+F	Response	http.response	FT_BOOLEAN	http	0	0x0	true if HTTP response
+F	Request	http.request	FT_BOOLEAN	http	0	0x0	true if HTTP request
+F	Response line	http.response.line	FT_STRING	http		0x0	
+F	Request line	http.request.line	FT_STRING	http		0x0	
+F	Request Method	http.request.method	FT_STRING	http		0x0	HTTP Request Method
+F	Request URI	http.request.uri	FT_STRING	http		0x0	HTTP Request-URI
+F	Request Version	http.request.version	FT_STRING	http		0x0	HTTP Request HTTP-Version
+F	Response Version	http.response.version	FT_STRING	http		0x0	HTTP Response HTTP-Version
+F	Full request URI	http.request.full_uri	FT_STRING	http		0x0	The full requested URI (including host name)
+F	Status Code	http.response.code	FT_UINT24	http	BASE_DEC	0x0	HTTP Response Status Code
+F	Status Code Description	http.response.code.desc	FT_STRING	http		0x0	HTTP Response Status Code Description
+F	Response Phrase	http.response.phrase	FT_STRING	http		0x0	HTTP Response Reason Phrase
+F	Content-Type	http.content_type	FT_STRING	http		0x0	HTTP Content-Type header
+F	Content-Length	http.content_length_header	FT_STRING	http		0x0	HTTP Content-Length header
+F	Content length	http.content_length	FT_UINT64	http	BASE_DEC	0x0	
+F	Content-Encoding	http.content_encoding	FT_STRING	http		0x0	HTTP Content-Encoding header
+F	Transfer-Encoding	http.transfer_encoding	FT_STRING	http		0x0	HTTP Transfer-Encoding header
+F	User-Agent	http.user_agent	FT_STRING	http		0x0	HTTP User-Agent header
+F	Host	http.host	FT_STRING	http		0x0	HTTP Host
+F	Connection	http.connection	FT_STRING	http		0x0	HTTP Connection
+F	Accept	http.accept	FT_STRING	http		0x0	HTTP Accept
+F	Accept-Language	http.accept_language	FT_STRING	http		0x0	HTTP Accept Language
+F	Accept Encoding	http.accept_encoding	FT_STRING	http		0x0	HTTP Accept Encoding
+F	Server	http.server	FT_STRING	http		0x0	HTTP Server
+F	Request in frame	http.request_in	FT_FRAMENUM	http		0x0	This packet is a response to the packet with this number
+F	Response in frame	http.response_in	FT_FRAMENUM	http		0x0	This packet will be responded in the packet with this number
+F	Time since request	http.time	FT_RELATIVE_TIME	http		0x0	Time since the request was sent
+F	trailer-part	http.chunked_trailer_part	FT_STRING	http		0x0	Optional trailer in a chunked body
+F	Chunk boundary	http.chunk_boundary	FT_BYTES	http		0x0	
+F	Chunk size	http.chunk_size	FT_UINT32	http	BASE_DEC	0x0	
+F	Chunk data	http.chunk_data	FT_BYTES	http		0x0	
+F	File Data	http.file_data	FT_BYTES	http		0x0	
+F	Excess data after a body (not a new request/response), previous Content-Length bogus?	http.excess_data	FT_NONE	http		0x0	
+F	Stream index	tls.stream	FT_UINT32	tls	BASE_DEC	0x0	
+F	Record Layer	tls.record	FT_NONE	tls		0x0	
+F	Content Type	tls.record.content_type	FT_UINT8	tls	BASE_DEC	0x0	
+F	Opaque Type	tls.record.opaque_type	FT_UINT8	tls	BASE_DEC	0x0	Always set to value 23, actual content type is known after decryption
+F	Version	tls.record.version	FT_UINT16	tls	BASE_HEX	0x0	Record layer version
+F	Length	tls.record.length	FT_UINT16	tls	BASE_DEC	0x0	Length of TLS record data
+F	Sequence Number	tls.record.sequence_number	FT_UINT64	tls	BASE_DEC	0x0	
+F	Padding Length	tls.record.padding_length	FT_UINT8	tls	BASE_DEC	0x0	Length of padding at end of record
+F	Record fragment length is too small or too large	tls.record.length.invalid	FT_NONE	tls		0x0	
+F	Encrypted Application Data	tls.app_data	FT_BYTES	tls		0x0	Payload is encrypted application data
+F	Application Data Protocol	tls.app_data_proto	FT_STRING	tls		0x0	
+F	Alert Message	tls.alert_message	FT_NONE	tls		0x0	
+F	Level	tls.alert_message.level	FT_UINT8	tls	BASE_DEC	0x0	Alert message level
+F	Description	tls.alert_message.desc	FT_UINT8	tls	BASE_DEC	0x0	Alert message description
+F	Handshake Protocol	tls.handshake	FT_NONE	tls		0x0	Handshake protocol message
+F	Handshake Type	tls.handshake.type	FT_UINT8	tls	BASE_DEC	0x0	Type of handshake message
+F	Length	tls.handshake.length	FT_UINT24	tls	BASE_DEC	0x0	Length of handshake message
+F	Verify Data	tls.handshake.verify_data	FT_BYTES	tls		0x0	Opaque verification data
+F	Key Update Request	tls.handshake.key_update.request_update	FT_UINT8	tls	BASE_DEC	0x0	Whether the receiver should also update its keys
+F	Session Ticket Lifetime Hint	tls.handshake.session_ticket_lifetime_hint	FT_UINT32	tls	BASE_DEC	0x0	New Session Ticket Lifetime Hint
+F	Session Ticket Age Add	tls.handshake.session_ticket_age_add	FT_UINT32	tls	BASE_DEC	0x0	Random 32-bit value to obscure age of ticket
+F	Session Ticket Nonce Length	tls.handshake.session_ticket_nonce_length	FT_UINT8	tls	BASE_DEC	0x0	
+F	Session Ticket Nonce	tls.handshake.session_ticket_nonce	FT_BYTES	tls		0x0	A unique per-ticket value
+F	Session Ticket Length	tls.handshake.session_ticket_length	FT_UINT16	tls	BASE_DEC	0x0	New Session Ticket Length
+F	Session Ticket	tls.handshake.session_ticket	FT_BYTES	tls		0x0	New Session Ticket
+F	Session ID Length	tls.handshake.session_id_length	FT_UINT16	tls	BASE_DEC	0x0	Length of session ID field
+F	Extensions Length	tls.handshake.extensions_length	FT_UINT16	tls	BASE_DEC	0x0	Length of hello extensions
+F	Extension	tls.handshake.extension	FT_NONE	tls		0x0	Hello extension
+F	Type	tls.handshake.extension.type	FT_UINT16	tls	BASE_DEC	0x0	Hello extension type
+F	Length	tls.handshake.extension.len	FT_UINT16	tls	BASE_DEC	0x0	Length of a hello extension
+F	Data	tls.handshake.extension.data	FT_BYTES	tls		0x0	Hello Extension data
+F	Supported Groups List Length	tls.handshake.extensions_supported_groups_length	FT_UINT16	tls	BASE_DEC	0x0	
+F	Supported Groups List	tls.handshake.extensions_supported_groups	FT_NONE	tls		0x0	List of supported groups (formerly Supported Elliptic Curves)
+F	Supported Group	tls.handshake.extensions_supported_group	FT_UINT16	tls	BASE_HEX	0x0	
+F	EC point formats Length	tls.handshake.extensions_ec_point_formats_length	FT_UINT8	tls	BASE_DEC	0x0	Length of elliptic curves point formats field
+F	EC point formats	tls.handshake.extensions_ec_point_formats	FT_NONE	tls		0x0	List of elliptic curves point format
+F	EC point format	tls.handshake.extensions_ec_point_format	FT_UINT8	tls	BASE_DEC	0x0	Elliptic curves point format
+F	ALPN Extension Length	tls.handshake.extensions_alpn_len	FT_UINT16	tls	BASE_DEC	0x0	Length of the ALPN Extension
+F	ALPN Protocol	tls.handshake.extensions_alpn_list	FT_NONE	tls		0x0	
+F	ALPN string length	tls.handshake.extensions_alpn_str_len	FT_UINT8	tls	BASE_DEC	0x0	Length of ALPN string
+F	ALPN Next Protocol	tls.handshake.extensions_alpn_str	FT_STRING	tls		0x0	
+F	Client Key Share Length	tls.handshake.extensions_key_share_client_length	FT_UINT16	tls	BASE_DEC	0x0	
+F	Group	tls.handshake.extensions_key_share_group	FT_UINT16	tls	BASE_DEC	0x0	
+F	Key Exchange Length	tls.handshake.extensions_key_share_key_exchange_length	FT_UINT16	tls	BASE_DEC	0x0	
+F	Key Exchange	tls.handshake.extensions_key_share_key_exchange	FT_BYTES	tls		0x0	
+F	Selected Group	tls.handshake.extensions_key_share_selected_group	FT_UINT16	tls	BASE_DEC	0x0	
+F	Supported Versions length	tls.handshake.extensions.supported_versions_len	FT_UINT8	tls	BASE_DEC	0x0	
+F	Supported Version	tls.handshake.extensions.supported_version	FT_UINT16	tls	BASE_HEX	0x0	
+F	Server Name list length	tls.handshake.extensions_server_name_list_len	FT_UINT16	tls	BASE_DEC	0x0	Length of server name list
+F	Server Name length	tls.handshake.extensions_server_name_len	FT_UINT16	tls	BASE_DEC	0x0	Length of server name string
+F	Server Name Type	tls.handshake.extensions_server_name_type	FT_UINT8	tls	BASE_DEC	0x0	
+F	Server Name	tls.handshake.extensions_server_name	FT_STRING	tls		0x0	
+F	Signature Hash Algorithms Length	tls.handshake.sig_hash_alg_len	FT_UINT16	tls	BASE_DEC	0x0	Length of Signature Hash Algorithms
+F	Signature Algorithms	tls.handshake.sig_hash_algs	FT_NONE	tls		0x0	List of supported Signature Algorithms
+F	Signature Algorithm	tls.handshake.sig_hash_alg	FT_UINT16	tls	BASE_HEX	0x0	
+F	Signature Hash Algorithm Hash	tls.handshake.sig_hash_hash	FT_UINT8	tls	BASE_DEC	0x0	Hash algorithm (TLS 1.2)
+F	Signature Hash Algorithm Signature	tls.handshake.sig_hash_sig	FT_UINT8	tls	BASE_DEC	0x0	Signature algorithm (TLS 1.2)
+F	Random	tls.handshake.random	FT_BYTES	tls		0x0	Random values used for deriving keys
+F	GMT Unix Time	tls.handshake.random_time	FT_ABSOLUTE_TIME	tls		0x0	Unix time field of random structure
+F	Random Bytes	tls.handshake.random_bytes	FT_BYTES	tls		0x0	Random values used for deriving keys
+F	Session ID	tls.handshake.session_id	FT_BYTES	tls		0x0	Identifies the SSL session, allowing later resumption
+F	Version	tls.handshake.version	FT_UINT16	tls	BASE_HEX	0x0	Maximum version supported by client [legacy_version if supported_versions ext is present]
+F	Cipher Suites Length	tls.handshake.cipher_suites_length	FT_UINT16	tls	BASE_DEC	0x0	Length of cipher suites field
+F	Cipher Suites	tls.handshake.ciphersuites	FT_NONE	tls		0x0	List of cipher suites supported by client
+F	Cipher Suite	tls.handshake.ciphersuite	FT_UINT16	tls	BASE_HEX	0x0	
+F	Compression Methods Length	tls.handshake.comp_methods_length	FT_UINT8	tls	BASE_DEC	0x0	Length of compression methods field
+F	Compression Methods	tls.handshake.comp_methods	FT_NONE	tls		0x0	List of compression methods supported by client
+F	Compression Method	tls.handshake.comp_method	FT_UINT8	tls	BASE_DEC	0x0	
+F	Reassembled PDU in frame	tls.reassembled_in	FT_FRAMENUM	tls		0x0	The PDU that doesn't end in this segment is reassembled in this frame
+F	Reassembled Handshake Message in frame	tls.handshake.reassembled_in	FT_FRAMENUM	tls		0x0	The handshake message is fully reassembled in this frame
+F	JA3 Fullstring	tls.handshake.ja3_full	FT_STRING	tls		0x0	
+F	JA3	tls.handshake.ja3	FT_STRING	tls		0x0	
+F	JA3S Fullstring	tls.handshake.ja3s_full	FT_STRING	tls		0x0	
+F	JA3S	tls.handshake.ja3s	FT_STRING	tls		0x0	
+F	JA4	tls.handshake.ja4	FT_STRING	tls		0x0	
+F	JA4_r	tls.handshake.ja4_r	FT_STRING	tls		0x0	

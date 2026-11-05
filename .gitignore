@@ -1,0 +1,13 @@
+# Rust build output
+/target/
+**/*.rs.bk
+
+# Local credentials and operating-system files
+.env
+.env.*
+!.env.example
+.DS_Store
+
+# Fuzzing build output and crash artifacts; the corpus is committed
+/fuzz/target/
+/fuzz/artifacts/

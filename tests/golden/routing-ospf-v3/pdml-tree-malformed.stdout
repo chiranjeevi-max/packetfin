@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<?xml-stylesheet type="text/xsl" href="pdml2html.xsl"?>
+<!-- normalized -->
+<pdml version="0" creator="creator" time="time" capture_file="tests/fixtures/routing-ospf-v3.pcap">
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="102">
+    <field name="num" pos="0" show="8" showname="Number" value="8" size="102"/>
+    <field name="len" pos="0" show="102" showname="Frame Length" value="66" size="102"/>
+    <field name="caplen" pos="0" show="102" showname="Captured Length" value="66" size="102"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:20.123463000 UTC" showname="Captured Time" value="1700000000.123463000" size="102"/>
+  </proto>
+  <proto name="frame" showname="Frame 8: Packet, 102 bytes on wire (816 bits), 102 bytes captured (816 bits)" size="102" pos="0">
+    <field name="filtered" value="frame" />
+  </proto>
+  <proto name="eth" showname="Ethernet II, Src: 02:00:00:00:00:01, Dst: 02:00:00:00:00:02" size="14" pos="0">
+    <field name="filtered" value="eth" />
+  </proto>
+  <proto name="ipv6" showname="Internet Protocol Version 6, Src: 2001:db8::1, Dst: 2001:db8::2" size="40" pos="14">
+    <field name="filtered" value="ipv6" />
+  </proto>
+  <proto name="ospf" showname="Open Shortest Path First" size="48" pos="54">
+    <field name="ospf.header" showname="OSPF Header" size="16" pos="54" show="" value="">
+      <field name="ospf.version" showname="Version: 3" size="1" pos="54" show="3" value="03"/>
+      <field name="ospf.msg" showname="Message Type: LS Update (4)" size="1" pos="55" show="4" value="04"/>
+      <field name="ospf.msg.lsupdate" showname="Link State Adv Update: True" hide="yes" size="1" pos="55" show="True" value="04"/>
+      <field name="ospf.packet_length" showname="Packet Length: 48" size="2" pos="56" show="48" value="0030"/>
+      <field name="ospf.srcrouter" showname="Source OSPF Router: 1.1.1.1" size="4" pos="58" show="1.1.1.1" value="01010101"/>
+      <field name="ospf.area_id" showname="Area ID: 0.0.0.0 (Backbone)" size="4" pos="62" show="0.0.0.0" value="00000000"/>
+      <field name="ospf.checksum" showname="Checksum: 0x0564 [correct]" size="2" pos="66" show="0x0564" value="0564"/>
+      <field name="ospf.v3.instance_id" showname="Instance ID: Base IPv6 Unicast AF (0)" size="1" pos="68" show="0" value="00"/>
+      <field name="ospf.reserved" showname="Reserved: 00" size="1" pos="69" show="00" value="00"/>
+    </field>
+    <field name="" show="LS Update Packet" size="32" pos="70" value="0000000100002009000000090101010180000001d72a001c0000200100000009">
+      <field name="ospf.ls.number_of_lsas" showname="Number of LSAs: 1" size="4" pos="70" show="1" value="00000001"/>
+      <field name="" show="LSA-type 9 (Intra-Area-Prefix-LSA), len 28" size="28" pos="74" value="00002009000000090101010180000001d72a001c0000200100000009">
+        <field name="ospf.lsa.age" showname=".000 0000 0000 0000 = LS Age (seconds): 0" size="2" pos="74" show="0" value="0" unmaskedvalue="0000"/>
+        <field name="ospf.v3.lsa.do_not_age" showname="0... .... .... .... = Do Not Age: False" size="2" pos="74" show="False" value="0" unmaskedvalue="0000"/>
+        <field name="ospf.v3.lsa" showname="LS Type: 0x2009" size="2" pos="76" show="0x2009" value="2009">
+          <field name="ospf.v3.lsa.u" showname="0... .... .... .... = LSA Handling: Store and flood the LSA as if the type is understood" size="2" pos="76" show="False" value="0" unmaskedvalue="2009"/>
+          <field name="ospf.v3.lsa.s12" showname=".01. .... .... .... = Flooding Scope: Area Scoping - Flooded only in originating area (0x1)" size="2" pos="76" show="0x0001" value="1" unmaskedvalue="2009"/>
+          <field name="ospf.v3.lsa.fc" showname="...0 0000 0000 1001 = Function Code: Intra-Area-Prefix-LSA (9)" size="2" pos="76" show="9" value="9" unmaskedvalue="2009"/>
+        </field>
+        <field name="ospf.v3.lsa.intraprefix" showname="Intra-Area-Prefix-LSA: True" hide="yes" size="2" pos="76" show="True" value="2009"/>
+        <field name="ospf.link_state_id" showname="Link State ID: 0.0.0.9" size="4" pos="78" show="0.0.0.9" value="00000009"/>
+        <field name="ospf.advrouter" showname="Advertising Router: 1.1.1.1" size="4" pos="82" show="1.1.1.1" value="01010101"/>
+        <field name="ospf.lsa.seqnum" showname="Sequence Number: 0x80000001" size="4" pos="86" show="0x80000001" value="80000001"/>
+        <field name="ospf.lsa.chksum" showname="Checksum: 0xd72a" size="2" pos="90" show="0xd72a" value="d72a"/>
+        <field name="ospf.lsa.length" showname="Length: 28" size="2" pos="92" show="28" value="001c"/>
+        <field name="ospf.v3.lsa.num_prefixes" showname="# prefixes: 0" size="2" pos="94" show="0" value="0000"/>
+        <field name="ospf.v3.lsa.referenced_ls_type" showname="Referenced LS type: Unknown (0x2001)" size="2" pos="96" show="0x2001" value="2001"/>
+        <field name="ospf.v3.lsa.referenced_link_state_id" showname="Referenced Link State ID: 0.0.0.9" size="4" pos="98" show="0.0.0.9" value="00000009"/>
+      </field>
+    </field>
+  </proto>
+  <proto name="_ws.malformed" showname="[Malformed Packet: OSPF]" size="0" pos="14">
+    <field name="filtered" value="_ws.malformed" />
+  </proto>
+</packet>
+
+
+</pdml>

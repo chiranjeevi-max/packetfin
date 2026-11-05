@@ -1,0 +1,13 @@
+    1   0.000000    192.0.2.1 → 198.51.100.2 ICMP 38 [Malformed Packet]
+    2   0.000001    192.0.2.1 → 198.51.100.2 ICMP 39 [Malformed Packet]
+    3   0.000002    192.0.2.1 → 198.51.100.2 ICMP 40 Echo (ping) request [Malformed Packet]
+    4   0.000003    192.0.2.1 → 198.51.100.2 ICMP 41 Echo (ping) request [Malformed Packet]
+    5   0.000004    192.0.2.1 → 198.51.100.2 ICMP 42 Echo (ping) request  id=0x1234, seq=1/256, ttl=64
+    6   0.000005    192.0.2.1 → 198.51.100.2 ICMP 43 Echo (ping) request  id=0x1234, seq=1/256, ttl=64
+    7   0.000006    192.0.2.1 → 198.51.100.2 ICMP 42 Destination unreachable (Port unreachable)
+    8   0.000007    192.0.2.1 → 198.51.100.2 ICMP 43 Destination unreachable (Port unreachable)
+    9   0.000008    192.0.2.1 → 198.51.100.2 ICMP 46 Destination unreachable (Port unreachable)
+   10   0.000009    192.0.2.1 → 198.51.100.2 ICMP 54 Destination unreachable (Port unreachable)
+   11   0.000010    192.0.2.1 → 198.51.100.2 ICMP 62 Destination unreachable (Port unreachable)
+   12   0.000011    192.0.2.1 → 198.51.100.2 ICMP 70 Destination unreachable (Port unreachable)
+   13   0.000012    192.0.2.1 → 198.51.100.2 ICMP 73 Destination unreachable (Fragmentation needed)

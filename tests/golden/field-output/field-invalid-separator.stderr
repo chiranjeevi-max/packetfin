@@ -1,0 +1,12 @@
+packetfin: "separator" is not a valid field output option=value pair.
+Packetfin: The available options for field output "E" are:
+bom=y|n    Prepend output with the UTF-8 BOM (def: N: no)
+header=y|n    Print field abbreviations as first line of output (def: N: no)
+separator=/t|/s|<character>   Set the separator to use;
+     "/t" = tab, "/s" = space (def: /t: tab)
+occurrence=f|l|a  Select the occurrence of a field to use;
+     "f" = first, "l" = last, "a" = all (def: a: all)
+aggregator=,|/s|<character>   Set the aggregator to use;
+     "," = comma, "/s" = space (def: ,: comma)
+quote=d|s|n   Print either d: double-quotes, s: single quotes or 
+     n: no quotes around field values (def: n: none)

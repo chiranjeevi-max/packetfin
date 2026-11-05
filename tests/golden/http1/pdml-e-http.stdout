@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<?xml-stylesheet type="text/xsl" href="pdml2html.xsl"?>
+<!-- normalized -->
+<pdml version="0" creator="creator" time="time" capture_file="tests/fixtures/http1.pcap">
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="193">
+    <field name="num" pos="0" show="1" showname="Number" value="1" size="193"/>
+    <field name="len" pos="0" show="193" showname="Frame Length" value="c1" size="193"/>
+    <field name="caplen" pos="0" show="193" showname="Captured Length" value="c1" size="193"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:20.123456000 UTC" showname="Captured Time" value="1700000000.123456000" size="193"/>
+  </proto>
+  <field name="http.request.method" value="GET"/>
+</packet>
+
+
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="190">
+    <field name="num" pos="0" show="2" showname="Number" value="2" size="190"/>
+    <field name="len" pos="0" show="190" showname="Frame Length" value="be" size="190"/>
+    <field name="caplen" pos="0" show="190" showname="Captured Length" value="be" size="190"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:20.123457000 UTC" showname="Captured Time" value="1700000000.123457000" size="190"/>
+  </proto>
+  <field name="http.response.code" value="200"/>
+</packet>
+
+
+</pdml>

@@ -1,0 +1,320 @@
+[
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "frame": {
+          "filtered": "frame"
+        },
+        "eth": {
+          "filtered": "eth"
+        },
+        "ip": {
+          "filtered": "ip"
+        },
+        "udp": {
+          "filtered": "udp"
+        },
+        "dhcpv6": {
+          "dhcpv6.msgtype": "1"
+        },
+        "_ws.malformed": {
+          "filtered": "_ws.malformed"
+        }
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "frame": {
+          "filtered": "frame"
+        },
+        "eth": {
+          "filtered": "eth"
+        },
+        "ip": {
+          "filtered": "ip"
+        },
+        "udp": {
+          "filtered": "udp"
+        },
+        "dhcpv6": {
+          "dhcpv6.msgtype": "1",
+          "dhcpv6.xid": "0x123456"
+        }
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "frame": {
+          "filtered": "frame"
+        },
+        "eth": {
+          "filtered": "eth"
+        },
+        "ip": {
+          "filtered": "ip"
+        },
+        "udp": {
+          "filtered": "udp"
+        },
+        "dhcpv6": {
+          "dhcpv6.msgtype": "1",
+          "dhcpv6.xid": "0x123456",
+          "dhcpv6.option.type_str": "Preference",
+          "dhcpv6.option.type_str_tree": {
+            "dhcpv6.option.type": "7",
+            "dhcpv6.option.length": "2",
+            "_ws.expert": {
+              "dhcpv6.malformed_option": "",
+              "_ws.expert.message": "PREFERENCE: malformed option",
+              "_ws.expert.severity": "8388608",
+              "_ws.expert.group": "117440512"
+            },
+            "_ws.malformed": "Malformed Packet"
+          }
+        }
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "frame": {
+          "filtered": "frame"
+        },
+        "eth": {
+          "filtered": "eth"
+        },
+        "ip": {
+          "filtered": "ip"
+        },
+        "udp": {
+          "filtered": "udp"
+        },
+        "dhcpv6": {
+          "dhcpv6.msgtype": "12",
+          "dhcpv6.hopcount": "0"
+        },
+        "_ws.malformed": {
+          "filtered": "_ws.malformed"
+        }
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "frame": {
+          "filtered": "frame"
+        },
+        "eth": {
+          "filtered": "eth"
+        },
+        "ip": {
+          "filtered": "ip"
+        },
+        "udp": {
+          "filtered": "udp"
+        },
+        "dhcpv6": {
+          "dhcpv6.msgtype": "1",
+          "dhcpv6.xid": "0x123456",
+          "dhcpv6.option.type_str": "Client Identifier",
+          "dhcpv6.option.type_str_tree": {
+            "dhcpv6.option.type": "1",
+            "dhcpv6.option.length": "16",
+            "dhcpv6.duid.bytes": "00:04:11:11:11:11:11:11:11:11:11:11:11:11:11:11",
+            "dhcpv6.duid.type": "4",
+            "_ws.expert": {
+              "dhcpv6.malformed_option": "",
+              "_ws.expert.message": "DUID: malformed option",
+              "_ws.expert.severity": "8388608",
+              "_ws.expert.group": "117440512"
+            },
+            "_ws.malformed": "Malformed Packet"
+          }
+        }
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "frame": {
+          "filtered": "frame"
+        },
+        "eth": {
+          "filtered": "eth"
+        },
+        "ip": {
+          "filtered": "ip"
+        },
+        "udp": {
+          "filtered": "udp"
+        },
+        "dhcpv6": {
+          "dhcpv6.msgtype": "1",
+          "dhcpv6.xid": "0x123456",
+          "dhcpv6.option.type_str": "Interface-Id",
+          "dhcpv6.option.type_str_tree": {
+            "dhcpv6.option.type": "18",
+            "dhcpv6.option.length": "0",
+            "_ws.expert": {
+              "dhcpv6.malformed_option": "",
+              "_ws.expert.message": "INTERFACE_ID: malformed option",
+              "_ws.expert.severity": "8388608",
+              "_ws.expert.group": "117440512"
+            },
+            "_ws.malformed": "Malformed Packet"
+          }
+        }
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "frame": {
+          "filtered": "frame"
+        },
+        "eth": {
+          "filtered": "eth"
+        },
+        "ip": {
+          "filtered": "ip"
+        },
+        "udp": {
+          "filtered": "udp"
+        },
+        "dhcpv6": {
+          "dhcpv6.msgtype": "1",
+          "dhcpv6.xid": "0x123456",
+          "dhcpv6.option.type_str": "Relay Message",
+          "dhcpv6.option.type_str_tree": {
+            "dhcpv6.option.type": "9",
+            "dhcpv6.option.length": "0",
+            "_ws.expert": {
+              "dhcpv6.malformed_option": "",
+              "_ws.expert.message": "RELAY-MSG: malformed option",
+              "_ws.expert.severity": "8388608",
+              "_ws.expert.group": "117440512"
+            },
+            "_ws.malformed": "Malformed Packet"
+          }
+        }
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "frame": {
+          "filtered": "frame"
+        },
+        "eth": {
+          "filtered": "eth"
+        },
+        "ip": {
+          "filtered": "ip"
+        },
+        "udp": {
+          "filtered": "udp"
+        },
+        "dhcpv6": {
+          "dhcpv6.msgtype": "1",
+          "dhcpv6.xid": "0x123456",
+          "dhcpv6.option.type_str": "Option Request",
+          "dhcpv6.option.type_str_tree": {
+            "dhcpv6.option.type": "6",
+            "dhcpv6.option.length": "3",
+            "dhcpv6.requested_option_code": "23"
+          }
+        },
+        "_ws.malformed": {
+          "filtered": "_ws.malformed"
+        }
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "frame": {
+          "filtered": "frame"
+        },
+        "eth": {
+          "filtered": "eth"
+        },
+        "ip": {
+          "filtered": "ip"
+        },
+        "udp": {
+          "filtered": "udp"
+        },
+        "dhcpv6": {
+          "dhcpv6.msgtype": "1",
+          "dhcpv6.xid": "0x123456",
+          "dhcpv6.option.type_str": "Status code",
+          "dhcpv6.option.type_str_tree": {
+            "dhcpv6.option.type": "13",
+            "dhcpv6.option.length": "1"
+          }
+        },
+        "_ws.malformed": {
+          "filtered": "_ws.malformed"
+        }
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "frame": {
+          "filtered": "frame"
+        },
+        "eth": {
+          "filtered": "eth"
+        },
+        "ip": {
+          "filtered": "ip"
+        },
+        "udp": {
+          "filtered": "udp"
+        },
+        "dhcpv6": {
+          "dhcpv6.msgtype": "1",
+          "dhcpv6.xid": "0x123456",
+          "dhcpv6.option.type_str": "Status code",
+          "dhcpv6.option.type_str_tree": {
+            "dhcpv6.option.type": "13",
+            "dhcpv6.option.length": "2",
+            "dhcpv6.status_code": "0"
+          }
+        }
+      }
+    }
+  }
+]

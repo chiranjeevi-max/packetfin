@@ -1,0 +1,142 @@
+[
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "ip.proto": [
+          "4",
+          "1"
+        ],
+        "ip.src": [
+          "192.0.2.1",
+          "192.0.2.1"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "ip.proto": [
+          "41"
+        ],
+        "ip.src": [
+          "192.0.2.1"
+        ],
+        "ipv6.src": [
+          "2001:db8::1"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "ip.proto": [
+          "4",
+          "4",
+          "1"
+        ],
+        "ip.src": [
+          "192.0.2.1",
+          "192.0.2.1",
+          "192.0.2.1"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "ip.proto": [
+          "4",
+          "1"
+        ],
+        "ip.src": [
+          "192.0.2.1"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "ip.proto": [
+          "41",
+          "1"
+        ],
+        "ip.src": [
+          "192.0.2.1",
+          "192.0.2.1"
+        ],
+        "ipv6.src": [
+          "2001:db8::1"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "ip.proto": [
+          "4"
+        ],
+        "ip.src": [
+          "192.0.2.1"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "ip.proto": [
+          "41"
+        ],
+        "ip.src": [
+          "192.0.2.1"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "ipv6.src": [
+          "2001:db8::1"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "ip.proto": [
+          "4",
+          "1"
+        ],
+        "ip.src": [
+          "192.0.2.1",
+          "192.0.2.1"
+        ]
+      }
+    }
+  }
+]

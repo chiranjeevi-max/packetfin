@@ -1,0 +1,29 @@
+[package]
+name = "packetfin"
+description = "Command-line packet analyzer that reads, decodes, filters and prints network packets."
+version = "0.1.0"
+edition = "2024"
+publish = false
+license = "MIT"
+
+[lints]
+workspace = true
+
+[dependencies]
+zeroize = "1.8.2"
+packetfin-core = { path = "../packetfin-core" }
+# Live capture is isolated in packetfin-pcap; the CLI only consumes its safe
+# API.
+packetfin-pcap = { path = "../packetfin-pcap" }
+# Safe local-time formatting for ring-buffer file names; `localtime_r` would
+# need an unsafe block, which the workspace forbids outside the live-capture
+# crate.
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
+
+[dev-dependencies]
+flate2 = { version = "1.1.10", default-features = false, features = ["rust_backend"] }
+packetfin-testkit = { path = "../packetfin-testkit" }
+
+[[bin]]
+name = "packetfin"
+path = "src/main.rs"

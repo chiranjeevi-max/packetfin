@@ -1,0 +1,70 @@
+#!/usr/bin/env bash
+# Check one commit message against the rules in CONTRIBUTING.md.
+#
+# Usage: tools/lint-commit FILE
+#
+# CI runs it on every commit in a pull request. It also works as a
+# commit-msg hook: ln -s ../../tools/lint-commit .git/hooks/commit-msg
+
+set -euo pipefail
+
+file=${1:?usage: tools/lint-commit FILE}
+status=0
+
+fail() {
+    printf 'lint-commit: %s\n' "$*" >&2
+    status=1
+}
+
+# Ignore comment lines and everything below git's scissors line.
+message=$(sed -e '/^# -* >8 -*$/,$d' -e '/^#/d' "$file")
+subject=$(printf '%s\n' "$message" | sed -n '1p')
+
+types='feat|fix|docs|style|refactor|perf|test|build|ci|chore'
+if ! printf '%s\n' "$subject" | grep -Eq "^($types)(\([a-z0-9][a-z0-9._/-]*\))?: [^ ]"; then
+    fail "subject must read 'type(scope): description'; type is one of ${types//|/, }"
+fi
+if [ "${#subject}" -gt 50 ]; then
+    fail "subject is ${#subject} characters; the limit is 50"
+fi
+if printf '%s\n' "$subject" | grep -q '[A-Z]'; then
+    fail "subject must be all lowercase"
+fi
+case $subject in
+    *.) fail "subject must not end with a period" ;;
+esac
+description=${subject#*: }
+case ${description%% *} in
+    added | adds | adding | fixed | fixes | fixing | updated | updates | updating | \
+    removed | removes | removing | changed | changes | changing | improved | improves | \
+    renamed | renames | moved | moves)
+        fail "write the subject in the imperative mood ('add', not '${description%% *}')"
+        ;;
+esac
+
+if [ -n "$(printf '%s\n' "$message" | sed -n '2p')" ]; then
+    fail "leave a blank line between the subject and the body"
+fi
+
+# Body lines wrap at 72 characters; trailers and URLs may run longer.
+line_number=0
+while IFS= read -r line; do
+    line_number=$((line_number + 1))
+    [ "$line_number" -gt 2 ] || continue
+    case $line in
+        *://*) continue ;;
+    esac
+    if printf '%s\n' "$line" |
+        grep -Eq '^(Signed-off-by|Co-authored-by|Reviewed-by|Acked-by|Tested-by|Reported-by|Fixes|Refs|Closes): '; then
+        continue
+    fi
+    if [ "${#line}" -gt 72 ]; then
+        fail "body line $line_number is ${#line} characters; wrap at 72"
+    fi
+done <<<"$message"
+
+if ! printf '%s\n' "$message" | grep -Eq '^Signed-off-by: .+ <[^>]+>$'; then
+    fail "missing Signed-off-by trailer; commit with 'git commit -s'"
+fi
+
+exit "$status"

@@ -1,0 +1,27 @@
+[
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "dns.response_in": [
+          "2"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "dns.response_to": [
+          "1"
+        ],
+        "dns.time": [
+          "1.000000000"
+        ]
+      }
+    }
+  }
+]

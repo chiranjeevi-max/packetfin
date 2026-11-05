@@ -1,0 +1,5 @@
+1	12,1	0	0x123456	fe80::1	fe80::2	9,1,6,18	24,10,2,4	Relay Message,Client Identifier,Option Request,Interface-Id		00030001020000000001	3					1			02:00:00:00:00:01	02:00:00:00:00:01									23					65746830								
+2	13,7	0	0x123456	fe80::1	fe80::2	9,13	10,2	Relay Message,Status code																								0										
+3	12	0		fe80::1																																						
+4	12,1	0	0x123456	fe80::1	fe80::2	1,9,1,6	10,24,10,2	Client Identifier,Relay Message,Client Identifier,Option Request		00030001020000000001,00030001020000000001	3,3					1,1			02:00:00:00:00:01,02:00:00:00:00:01	02:00:00:00:00:01,02:00:00:00:00:01									23													
+5	12,1,7	0	0x123456,0x123456	fe80::1	fe80::2	9,1,6,9,13	24,10,2,10,2	Relay Message,Client Identifier,Option Request,Relay Message,Status code		00030001020000000001	3					1			02:00:00:00:00:01	02:00:00:00:00:01									23			0										

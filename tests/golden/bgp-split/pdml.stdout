@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="utf-8"?>
+<?xml-stylesheet type="text/xsl" href="pdml2html.xsl"?>
+<!-- normalized -->
+<pdml version="0" creator="creator" time="time" capture_file="tests/fixtures/bgp-split.pcap">
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="64">
+    <field name="num" pos="0" show="1" showname="Number" value="1" size="64"/>
+    <field name="len" pos="0" show="64" showname="Frame Length" value="40" size="64"/>
+    <field name="caplen" pos="0" show="64" showname="Captured Length" value="40" size="64"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:20.123456000 UTC" showname="Captured Time" value="1700000000.123456000" size="64"/>
+  </proto>
+</packet>
+
+
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="108">
+    <field name="num" pos="0" show="2" showname="Number" value="2" size="108"/>
+    <field name="len" pos="0" show="108" showname="Frame Length" value="6c" size="108"/>
+    <field name="caplen" pos="0" show="108" showname="Captured Length" value="6c" size="108"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:20.123457000 UTC" showname="Captured Time" value="1700000000.123457000" size="108"/>
+  </proto>
+</packet>
+
+
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="73">
+    <field name="num" pos="0" show="3" showname="Number" value="3" size="73"/>
+    <field name="len" pos="0" show="73" showname="Frame Length" value="49" size="73"/>
+    <field name="caplen" pos="0" show="73" showname="Captured Length" value="49" size="73"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:20.123458000 UTC" showname="Captured Time" value="1700000000.123458000" size="73"/>
+  </proto>
+  <field name="tcp.segment_data" value="ffffffffffffffffffffffffffffffff004002"/>
+</packet>
+
+
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="99">
+    <field name="num" pos="0" show="4" showname="Number" value="4" size="99"/>
+    <field name="len" pos="0" show="99" showname="Frame Length" value="63" size="99"/>
+    <field name="caplen" pos="0" show="99" showname="Captured Length" value="63" size="99"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:20.123459000 UTC" showname="Captured Time" value="1700000000.123459000" size="99"/>
+  </proto>
+  <field name="tcp.pdu.size" value="64"/>
+  <field name="tcp.segment_data" value="0002080a001f400101004002060202fde8fde9400304c0000201c00808000100020003000418cb007118c63364"/>
+  <field name="tcp.segment" value="3"/>
+  <field name="tcp.segment" value="4"/>
+  <field name="bgp.type" value="2"/>
+</packet>
+
+
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="79">
+    <field name="num" pos="0" show="5" showname="Number" value="5" size="79"/>
+    <field name="len" pos="0" show="79" showname="Frame Length" value="4f" size="79"/>
+    <field name="caplen" pos="0" show="79" showname="Captured Length" value="4f" size="79"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:20.123460000 UTC" showname="Captured Time" value="1700000000.123460000" size="79"/>
+  </proto>
+  <field name="tcp.segment_data" value="ffffffffffffffffffffffffffffffff0040020002080a001f"/>
+</packet>
+
+
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="93">
+    <field name="num" pos="0" show="6" showname="Number" value="6" size="93"/>
+    <field name="len" pos="0" show="93" showname="Frame Length" value="5d" size="93"/>
+    <field name="caplen" pos="0" show="93" showname="Captured Length" value="5d" size="93"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:20.123461000 UTC" showname="Captured Time" value="1700000000.123461000" size="93"/>
+  </proto>
+  <field name="tcp.pdu.size" value="64"/>
+  <field name="tcp.segment_data" value="400101004002060202fde8fde9400304c0000201c00808000100020003000418cb007118c63364"/>
+  <field name="tcp.segment" value="5"/>
+  <field name="tcp.segment" value="6"/>
+  <field name="bgp.type" value="2"/>
+</packet>
+
+
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="79">
+    <field name="num" pos="0" show="7" showname="Number" value="7" size="79"/>
+    <field name="len" pos="0" show="79" showname="Frame Length" value="4f" size="79"/>
+    <field name="caplen" pos="0" show="79" showname="Captured Length" value="4f" size="79"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:20.123462000 UTC" showname="Captured Time" value="1700000000.123462000" size="79"/>
+  </proto>
+  <field name="tcp.segment_data" value="ffffffffffffffffffffffffffffffff0040020002080a001f"/>
+</packet>
+
+
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="112">
+    <field name="num" pos="0" show="8" showname="Number" value="8" size="112"/>
+    <field name="len" pos="0" show="112" showname="Frame Length" value="70" size="112"/>
+    <field name="caplen" pos="0" show="112" showname="Captured Length" value="70" size="112"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:20.123463000 UTC" showname="Captured Time" value="1700000000.123463000" size="112"/>
+  </proto>
+  <field name="tcp.pdu.size" value="64"/>
+  <field name="tcp.pdu.size" value="19"/>
+  <field name="tcp.segment_data" value="400101004002060202fde8fde9400304c0000201c00808000100020003000418cb007118c63364"/>
+  <field name="tcp.segment" value="7"/>
+  <field name="tcp.segment" value="8"/>
+  <field name="bgp.type" value="2"/>
+  <field name="bgp.type" value="4"/>
+</packet>
+
+
+</pdml>

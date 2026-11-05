@@ -1,0 +1,12 @@
+    1   0.000000  2001:db8::1 → 2001:db8::2  IPv6 64 IPv6 no next header
+    2   0.000001  2001:db8::1 → 2001:db8::2  IPv6 64 IPv6 hop-by-hop options[Malformed Packet]
+    3   0.000002  2001:db8::1 → 2001:db8::2  IPv6 64 IPv6 no next header
+    4   0.000003  2001:db8::1 → 2001:db8::2  IPv6 78 IPv6 hop-by-hop options[Malformed Packet]
+    5   0.000004  2001:db8::1 → 2001:db8::2  IPv6 78 IPv6 hop-by-hop options[Malformed Packet]
+    6   0.000005  2001:db8::1 → 2001:db8::2  IPv6 78 IPv6 hop-by-hop options[Malformed Packet]
+    7   0.000006  2001:db8::1 → 2001:db8::2  IPv6 78 IPv6 hop-by-hop options[Malformed Packet]
+    8   0.000007  2001:db8::1 → 2001:db8::2  IPv6 78 IPv6 hop-by-hop options[Malformed Packet]
+    9   0.000008  2001:db8::1 → 2001:db8::2  IPv6 78 IPv6 hop-by-hop options[Malformed Packet]
+   10   0.000009  2001:db8::1 → 2001:db8::2  IPv6 78 IPv6 hop-by-hop options[Malformed Packet]
+   11   0.000010  2001:db8::1 → 2001:db8::2  IPv6 78 IPv6 hop-by-hop options[Malformed Packet]
+   12   0.000011  2001:db8::1 → 2001:db8::2  IPv6 78 IPv6 hop-by-hop options[Malformed Packet]

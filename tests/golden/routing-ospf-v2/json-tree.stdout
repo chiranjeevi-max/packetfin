@@ -1,0 +1,186 @@
+[
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "frame": {
+          "filtered": "frame"
+        },
+        "eth": {
+          "filtered": "eth"
+        },
+        "ip": {
+          "filtered": "ip"
+        },
+        "ospf": {
+          "ospf.header": {
+            "ospf.version": "2",
+            "ospf.msg": "4",
+            "ospf.msg.lsupdate": "1",
+            "ospf.packet_length": "200",
+            "ospf.srcrouter": "1.1.1.1",
+            "ospf.area_id": "0.0.0.0",
+            "ospf.checksum": "0x4ed9",
+            "ospf.instance_id": "0",
+            "ospf.auth.type": "0",
+            "ospf.auth.none": "00:00:00:00:00:00:00:00"
+          },
+          "LS Update Packet": {
+            "ospf.ls.number_of_lsas": "5",
+            "LSA-type 1 (Router-LSA), len 48": {
+              "ospf.lsa.age": "0",
+              "ospf.lsa.donotage": "0",
+              "ospf.v2.options": "0x22",
+              "ospf.v2.options_tree": {
+                "ospf.v2.options.dn": "0",
+                "ospf.v2.options.o": "0",
+                "ospf.v2.options.dc": "1",
+                "ospf.v2.options.l": "0",
+                "ospf.v2.options.n": "0",
+                "ospf.v2.options.mc": "0",
+                "ospf.v2.options.e": "1",
+                "ospf.v2.options.mt": "0"
+              },
+              "ospf.lsa": "1",
+              "ospf.lsa.router": "1",
+              "ospf.lsa.id": "1.1.1.1",
+              "ospf.advrouter": "1.1.1.1",
+              "ospf.lsa.seqnum": "0x80000001",
+              "ospf.lsa.chksum": "0x6a13",
+              "ospf.lsa.length": "48",
+              "ospf.v2.router.lsa.flags": "0x03",
+              "ospf.v2.router.lsa.flags_tree": {
+                "ospf.v2.router.lsa.flags.h": "0",
+                "ospf.v2.router.lsa.flags.s": "0",
+                "ospf.v2.router.lsa.flags.n": "0",
+                "ospf.v2.router.lsa.flags.w": "0",
+                "ospf.v2.router.lsa.flags.v": "0",
+                "ospf.v2.router.lsa.flags.e": "1",
+                "ospf.v2.router.lsa.flags.b": "1"
+              },
+              "ospf.lsa.number_of_links": "2",
+              "Type: PTP      ID: 2.2.2.2         Data: 10.0.0.2        Metric: 10": {
+                "ospf.lsa.router.linkid": "2.2.2.2",
+                "ospf.lsa.router.linkdata": "10.0.0.2",
+                "ospf.lsa.router.linktype": "1",
+                "ospf.lsa.router.nummetrics": "0",
+                "ospf.lsa.router.metric0": "10"
+              },
+              "Type: Stub     ID: 192.168.1.0     Data: 255.255.255.0   Metric: 20": {
+                "ospf.lsa.router.linkid": "192.168.1.0",
+                "ospf.lsa.router.linkdata": "255.255.255.0",
+                "ospf.lsa.router.linktype": "3",
+                "ospf.lsa.router.nummetrics": "0",
+                "ospf.lsa.router.metric0": "20"
+              }
+            },
+            "LSA-type 2 (Network-LSA), len 32": {
+              "ospf.lsa.age": "0",
+              "ospf.lsa.donotage": "0",
+              "ospf.v2.options": "0x22",
+              "ospf.v2.options_tree": {
+                "ospf.v2.options.dn": "0",
+                "ospf.v2.options.o": "0",
+                "ospf.v2.options.dc": "1",
+                "ospf.v2.options.l": "0",
+                "ospf.v2.options.n": "0",
+                "ospf.v2.options.mc": "0",
+                "ospf.v2.options.e": "1",
+                "ospf.v2.options.mt": "0"
+              },
+              "ospf.lsa": "2",
+              "ospf.lsa.network": "1",
+              "ospf.lsa.id": "10.0.0.1",
+              "ospf.advrouter": "1.1.1.1",
+              "ospf.lsa.seqnum": "0x80000001",
+              "ospf.lsa.chksum": "0x3de1",
+              "ospf.lsa.length": "32",
+              "ospf.lsa.network.netmask": "255.255.255.0",
+              "ospf.lsa.network.attchrtr": "1.1.1.1",
+              "ospf.lsa.network.attchrtr": "2.2.2.2"
+            },
+            "LSA-type 3 (Summary-LSA (IP network)), len 28": {
+              "ospf.lsa.age": "0",
+              "ospf.lsa.donotage": "0",
+              "ospf.v2.options": "0x22",
+              "ospf.v2.options_tree": {
+                "ospf.v2.options.dn": "0",
+                "ospf.v2.options.o": "0",
+                "ospf.v2.options.dc": "1",
+                "ospf.v2.options.l": "0",
+                "ospf.v2.options.n": "0",
+                "ospf.v2.options.mc": "0",
+                "ospf.v2.options.e": "1",
+                "ospf.v2.options.mt": "0"
+              },
+              "ospf.lsa": "3",
+              "ospf.lsa.summary": "1",
+              "ospf.lsa.id": "192.168.2.0",
+              "ospf.advrouter": "1.1.1.1",
+              "ospf.lsa.seqnum": "0x80000001",
+              "ospf.lsa.chksum": "0xbcac",
+              "ospf.lsa.length": "28",
+              "ospf.lsa.asbr.netmask": "255.255.255.0",
+              "ospf.lsa.tos": "0",
+              "ospf.metric": "100"
+            },
+            "LSA-type 4 (Summary-LSA (ASBR)), len 28": {
+              "ospf.lsa.age": "0",
+              "ospf.lsa.donotage": "0",
+              "ospf.v2.options": "0x22",
+              "ospf.v2.options_tree": {
+                "ospf.v2.options.dn": "0",
+                "ospf.v2.options.o": "0",
+                "ospf.v2.options.dc": "1",
+                "ospf.v2.options.l": "0",
+                "ospf.v2.options.n": "0",
+                "ospf.v2.options.mc": "0",
+                "ospf.v2.options.e": "1",
+                "ospf.v2.options.mt": "0"
+              },
+              "ospf.lsa": "4",
+              "ospf.lsa.asbr": "1",
+              "ospf.lsa.id": "2.2.2.2",
+              "ospf.advrouter": "1.1.1.1",
+              "ospf.lsa.seqnum": "0x80000001",
+              "ospf.lsa.chksum": "0xfb02",
+              "ospf.lsa.length": "28",
+              "ospf.lsa.asbr.netmask": "0.0.0.0",
+              "ospf.lsa.tos": "0",
+              "ospf.metric": "50"
+            },
+            "LSA-type 5 (AS-External-LSA (ASBR)), len 36": {
+              "ospf.lsa.age": "0",
+              "ospf.lsa.donotage": "0",
+              "ospf.v2.options": "0x22",
+              "ospf.v2.options_tree": {
+                "ospf.v2.options.dn": "0",
+                "ospf.v2.options.o": "0",
+                "ospf.v2.options.dc": "1",
+                "ospf.v2.options.l": "0",
+                "ospf.v2.options.n": "0",
+                "ospf.v2.options.mc": "0",
+                "ospf.v2.options.e": "1",
+                "ospf.v2.options.mt": "0"
+              },
+              "ospf.lsa": "5",
+              "ospf.lsa.asext": "1",
+              "ospf.lsa.id": "172.16.0.0",
+              "ospf.advrouter": "1.1.1.1",
+              "ospf.lsa.seqnum": "0x80000001",
+              "ospf.lsa.chksum": "0xcaf0",
+              "ospf.lsa.length": "36",
+              "ospf.lsa.asext.netmask": "255.255.0.0",
+              "ospf.lsa.asext.type": "1",
+              "ospf.lsa.tos": "0",
+              "ospf.metric": "20",
+              "ospf.lsa.asext.fwdaddr": "10.1.1.1",
+              "ospf.lsa.asext.extrttag": "305419896"
+            }
+          }
+        }
+      }
+    }
+  }
+]

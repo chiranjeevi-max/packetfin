@@ -1,0 +1,2 @@
+    1   0.000000    192.0.2.1 → 198.51.100.2 ICMP 93 Destination unreachable (Port unreachable)
+    2   0.000001    192.0.2.1 → 198.51.100.2 ICMP 62 Destination unreachable (Port unreachable)

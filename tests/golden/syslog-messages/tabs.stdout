@@ -1,0 +1,2 @@
+    1	  0.000000	   192.0.2.1	→	198.51.100.2	Syslog	212	LOCAL4.NOTICE: 1 2023-11-14T22:13:20.123456Z host.example.com evntslog 1234 ID47 [exampleSDID@32473 iut="3" eventSource="Application" eventID="1011"] An application event log entry
+    2	  0.000001	   192.0.2.1	→	198.51.100.2	Syslog	102	AUTH.CRIT: 1 2023-11-14T22:13:21Z edge-1 su - ID48 - su root failed

@@ -1,0 +1,162 @@
+[
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "bfd.sta": [
+          "0x00"
+        ],
+        "bfd.flags": [
+          "0x00"
+        ],
+        "bfd.detect_time_multiplier": [
+          "3"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "bfd.sta": [
+          "0x03"
+        ],
+        "bfd.flags": [
+          "0xf8"
+        ],
+        "bfd.detect_time_multiplier": [
+          "3"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "bfd.sta": [
+          "0x00"
+        ],
+        "bfd.flags": [
+          "0x04"
+        ],
+        "bfd.detect_time_multiplier": [
+          "3"
+        ],
+        "bfd.auth.type": [
+          "1"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "bfd.sta": [
+          "0x00"
+        ],
+        "bfd.flags": [
+          "0x04"
+        ],
+        "bfd.detect_time_multiplier": [
+          "3"
+        ],
+        "bfd.auth.type": [
+          "2"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "bfd_echo.packet": [
+          "0102030405060708"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {}
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "bfd.sta": [
+          "0x00"
+        ],
+        "bfd.flags": [
+          "0x04"
+        ],
+        "bfd.detect_time_multiplier": [
+          "3"
+        ],
+        "bfd.auth.type": [
+          "2"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "bfd.sta": [
+          "0x00"
+        ],
+        "bfd.flags": [
+          "0x04"
+        ],
+        "bfd.detect_time_multiplier": [
+          "3"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "bfd.sta": [
+          "0x00"
+        ],
+        "bfd.flags": [
+          "0x00"
+        ],
+        "bfd.detect_time_multiplier": [
+          "3"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "bfd.flags": [
+          "0x80"
+        ],
+        "bfd.detect_time_multiplier": [
+          "3"
+        ]
+      }
+    }
+  }
+]

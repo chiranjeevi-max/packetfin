@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="utf-8"?>
+<?xml-stylesheet type="text/xsl" href="pdml2html.xsl"?>
+<!-- normalized -->
+<pdml version="0" creator="creator" time="time" capture_file="tests/fixtures/ipv6-fragments.pcap">
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="142">
+    <field name="num" pos="0" show="1" showname="Number" value="1" size="142"/>
+    <field name="len" pos="0" show="142" showname="Frame Length" value="8e" size="142"/>
+    <field name="caplen" pos="0" show="142" showname="Captured Length" value="8e" size="142"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:20.123456000 UTC" showname="Captured Time" value="1700000000.123456000" size="142"/>
+  </proto>
+  <field name="ipv6.reassembled.in" value="2"/>
+</packet>
+
+
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="82">
+    <field name="num" pos="0" show="2" showname="Number" value="2" size="82"/>
+    <field name="len" pos="0" show="82" showname="Frame Length" value="52" size="82"/>
+    <field name="caplen" pos="0" show="82" showname="Captured Length" value="52" size="82"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:20.123457000 UTC" showname="Captured Time" value="1700000000.123457000" size="82"/>
+  </proto>
+</packet>
+
+
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="82">
+    <field name="num" pos="0" show="3" showname="Number" value="3" size="82"/>
+    <field name="len" pos="0" show="82" showname="Frame Length" value="52" size="82"/>
+    <field name="caplen" pos="0" show="82" showname="Captured Length" value="52" size="82"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:20.123458000 UTC" showname="Captured Time" value="1700000000.123458000" size="82"/>
+  </proto>
+  <field name="ipv6.reassembled.in" value="4"/>
+</packet>
+
+
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="142">
+    <field name="num" pos="0" show="4" showname="Number" value="4" size="142"/>
+    <field name="len" pos="0" show="142" showname="Frame Length" value="8e" size="142"/>
+    <field name="caplen" pos="0" show="142" showname="Captured Length" value="8e" size="142"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:20.123459000 UTC" showname="Captured Time" value="1700000000.123459000" size="142"/>
+  </proto>
+</packet>
+
+
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="142">
+    <field name="num" pos="0" show="5" showname="Number" value="5" size="142"/>
+    <field name="len" pos="0" show="142" showname="Frame Length" value="8e" size="142"/>
+    <field name="caplen" pos="0" show="142" showname="Captured Length" value="8e" size="142"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:20.123460000 UTC" showname="Captured Time" value="1700000000.123460000" size="142"/>
+  </proto>
+  <field name="ipv6.reassembled.in" value="6"/>
+</packet>
+
+
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="154">
+    <field name="num" pos="0" show="6" showname="Number" value="6" size="154"/>
+    <field name="len" pos="0" show="154" showname="Frame Length" value="9a" size="154"/>
+    <field name="caplen" pos="0" show="154" showname="Captured Length" value="9a" size="154"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:20.123461000 UTC" showname="Captured Time" value="1700000000.123461000" size="154"/>
+  </proto>
+</packet>
+
+
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="75">
+    <field name="num" pos="0" show="7" showname="Number" value="7" size="75"/>
+    <field name="len" pos="0" show="75" showname="Frame Length" value="4b" size="75"/>
+    <field name="caplen" pos="0" show="75" showname="Captured Length" value="4b" size="75"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:20.123462000 UTC" showname="Captured Time" value="1700000000.123462000" size="75"/>
+  </proto>
+</packet>
+
+
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="142">
+    <field name="num" pos="0" show="8" showname="Number" value="8" size="142"/>
+    <field name="len" pos="0" show="142" showname="Frame Length" value="8e" size="142"/>
+    <field name="caplen" pos="0" show="142" showname="Captured Length" value="8e" size="142"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:20.123463000 UTC" showname="Captured Time" value="1700000000.123463000" size="142"/>
+  </proto>
+</packet>
+
+
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="82">
+    <field name="num" pos="0" show="9" showname="Number" value="9" size="82"/>
+    <field name="len" pos="0" show="82" showname="Frame Length" value="52" size="82"/>
+    <field name="caplen" pos="0" show="82" showname="Captured Length" value="52" size="82"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:20.123464000 UTC" showname="Captured Time" value="1700000000.123464000" size="82"/>
+  </proto>
+</packet>
+
+
+</pdml>

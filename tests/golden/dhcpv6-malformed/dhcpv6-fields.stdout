@@ -1,0 +1,10 @@
+1	1																																									
+2	1		0x123456																																							
+3	1		0x123456			7	2	Preference																																		1
+4	12	0																																								
+5	1		0x123456			1	16	Client Identifier		00041111111111111111111111111111	4																															1
+6	1		0x123456			18	0	Interface-Id																																		1
+7	1		0x123456			9	0	Relay Message																																		1
+8	1		0x123456			6	3	Option Request																					23													
+9	1		0x123456			13	1	Status code																																		
+10	1		0x123456			13	2	Status code																								0										

@@ -1,0 +1,10 @@
+
+Warns (2)
+=============
+   Frequency      Group           Protocol  Summary
+           2   Checksum               ICMP  Bad checksum [should be 0xe5ca]
+
+Comments (2)
+=============
+   Frequency      Group           Protocol  Summary
+           2    Comment             Packet  stats comment

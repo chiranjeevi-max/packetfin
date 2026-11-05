@@ -1,0 +1,3 @@
+0 (    1   0.000000  2001:db8::1 → 2001:db8::2  IPv6 58 IPv6 no next header) putline
+0 (    2   0.000001      fe80::1 → ff02::1      IPv6 54 IPv6 no next header) putline
+0 (    3   0.000002           :: → ::1          IPv6 54 IPv6 no next header) putline

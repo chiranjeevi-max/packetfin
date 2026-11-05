@@ -1,0 +1,8 @@
+    1   0.000000    192.0.2.1 → 192.0.2.2    DNS 85 Standard query 0x1234 A example.com
+    2   0.000001    192.0.2.1 → 192.0.2.2    DNS 85 Standard query 0x1234 A example.com
+    3   0.000002    192.0.2.2 → 192.0.2.1    DNS 101 Standard query response 0x1234 A example.com A 93.184.216.34
+    4   0.000003    192.0.2.1 → 192.0.2.2    DNS 114 Standard query 0x1235 A b.example, Standard query 0x1234 A example.com
+    5   0.000004    192.0.2.2 → 192.0.2.1    DNS 99 Standard query response 0x1235 A b.example A 1.2.3.4
+    6   0.000005    192.0.2.1 → 192.0.2.2    DNS 118 Standard query 0x1235 A b.example, Standard query 0x1236 A c.example
+    7   0.000006    192.0.2.1 → 192.0.2.2    DNS 56 [Malformed Packet]
+    8   0.000007    192.0.2.1 → 192.0.2.2    TCP 55 40000 → 53 [PSH, ACK] Seq=1188 Ack=1 Win=65535 Len=1

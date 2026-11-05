@@ -1,0 +1,2 @@
+    1   1.000000    192.0.2.1 → 198.51.100.2 DNS 71 Standard query 0x1002 A second.test
+    2   1.010000 198.51.100.2 → 192.0.2.1    DNS 87 Standard query response 0x1002 A second.test A 203.0.113.11

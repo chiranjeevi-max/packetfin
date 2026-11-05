@@ -1,0 +1,43 @@
+[
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "frame": {
+          "filtered": "frame"
+        },
+        "eth": {
+          "filtered": "eth"
+        },
+        "ip": {
+          "filtered": "ip"
+        },
+        "ospf": {
+          "ospf.header": {
+            "ospf.version": "2",
+            "ospf.msg": "3",
+            "ospf.msg.lsreq": "1",
+            "ospf.packet_length": "48",
+            "ospf.srcrouter": "1.1.1.1",
+            "ospf.area_id": "0.0.0.0",
+            "ospf.checksum": "0xe1be",
+            "ospf.instance_id": "0",
+            "ospf.auth.type": "0",
+            "ospf.auth.none": "00:00:00:00:00:00:00:00"
+          },
+          "Link State Request": {
+            "ospf.lsa": "1",
+            "ospf.link_state_id": "10.0.0.1",
+            "ospf.advrouter": "1.1.1.1"
+          },
+          "Link State Request": {
+            "ospf.lsa": "2",
+            "ospf.link_state_id": "10.0.0.2",
+            "ospf.advrouter": "2.2.2.2"
+          }
+        }
+      }
+    }
+  }
+]

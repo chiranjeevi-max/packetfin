@@ -1,0 +1,1157 @@
+//! `-z follow,*`: reconstruct a transport stream and print its chunks.
+//!
+//! The output rules:
+//! the header names the protocol, the stream filter and the two endpoints;
+//! ASCII chunks print `\t?<length>` then the bytes with non-printable octets
+//! replaced by `.`; raw chunks print lowercase hex; hex chunks print a
+//! classic dump whose offsets are per direction and never reset at a chunk
+//! boundary. TCP follows the sequence stream, keeps out-of-order segments
+//! until the gap fills or the peer acknowledges it, and inserts a
+//! `[N bytes missing in capture file]` record (including its trailing NUL)
+//! when an ACK proves the bytes were captured elsewhere. HTTP follows the
+//! message chunks its dissector produces and TLS follows decrypted
+//! application data, which Packetfin cannot decrypt yet, so a TLS follow
+//! prints an empty table.
+//!
+//! Every list is bounded: one follow specification retains at most
+//! [`SPEC_LIMIT`] bytes of chunk data and all of them together at most the
+//! statistics budget, capped at [`TOTAL_LIMIT`] (64 MiB by default). A cap
+//! drops the record that would cross it, keeps the chunks already collected
+//! and reports one notice, so hostile payloads cannot exhaust memory.
+
+use std::fmt;
+use std::net::{Ipv4Addr, Ipv6Addr};
+
+use crate::state::{StreamAddress, StreamKey};
+
+/// Per-follow-specification retained chunk bytes.
+pub(crate) const SPEC_LIMIT: usize = 16 * 1024 * 1024;
+
+/// Total retained chunk bytes across every follow specification.
+pub(crate) const TOTAL_LIMIT: usize = 64 * 1024 * 1024;
+
+/// Per-record bookkeeping: the direction byte, the chunk vector and its
+/// allocator slack are charged alongside the chunk bytes so a flood of tiny
+/// records cannot grow the table without bound.
+const RECORD_OVERHEAD: usize = std::mem::size_of::<Record>() + 32;
+
+/// Per-fragment bookkeeping for out-of-order TCP data.
+const FRAGMENT_OVERHEAD: usize = std::mem::size_of::<Fragment>() + 32;
+
+/// Separator rule printed above and below a follow stream.
+const SEPARATOR: &str = "===================================================================\n";
+
+/// One upper protocol a follow statistic understands.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum FollowProto {
+    /// `follow,tcp`.
+    Tcp,
+    /// `follow,udp`.
+    Udp,
+    /// `follow,tls`.
+    Tls,
+    /// `follow,http`.
+    Http,
+}
+
+impl FollowProto {
+    fn parse(text: &str) -> Option<Self> {
+        Some(match text {
+            "tcp" => Self::Tcp,
+            "udp" => Self::Udp,
+            "tls" => Self::Tls,
+            "http" => Self::Http,
+            _ => return None,
+        })
+    }
+
+    fn name(self) -> &'static str {
+        match self {
+            Self::Tcp => "tcp",
+            Self::Udp => "udp",
+            Self::Tls => "tls",
+            Self::Http => "http",
+        }
+    }
+
+    /// The field whose stream index selects the conversation.
+    fn stream_field(self) -> &'static str {
+        match self {
+            Self::Udp => "udp.stream",
+            Self::Tcp | Self::Http => "tcp.stream",
+            Self::Tls => "tls.stream",
+        }
+    }
+
+    /// The transport whose ports the address filter names.
+    fn port_field(self) -> &'static str {
+        match self {
+            Self::Udp => "udp",
+            Self::Tcp | Self::Tls | Self::Http => "tcp",
+        }
+    }
+}
+
+/// How one chunk is rendered.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum FollowMode {
+    /// Length-prefixed text with non-printable octets replaced by `.`.
+    Ascii,
+    /// Classic offset/hex/ASCII dump.
+    Hex,
+    /// Lowercase hexadecimal digits.
+    Raw,
+}
+
+impl FollowMode {
+    fn parse(text: &str) -> Option<Self> {
+        Some(match text {
+            "ascii" => Self::Ascii,
+            "hex" => Self::Hex,
+            "raw" => Self::Raw,
+            _ => return None,
+        })
+    }
+
+    fn name(self) -> &'static str {
+        match self {
+            Self::Ascii => "ascii",
+            Self::Hex => "hex",
+            Self::Raw => "raw",
+        }
+    }
+}
+
+/// One endpoint named on the command line.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct FollowEndpoint {
+    /// Address text as the user wrote it.
+    pub address: StreamAddress,
+    /// Transport port.
+    pub port: u16,
+}
+
+/// How the stream is selected.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum FollowSelector {
+    /// A `tcp.stream`, `udp.stream` or `tls.stream` index.
+    Stream(u32),
+    /// Two address/port endpoints, in either direction.
+    Address {
+        /// First endpoint from the command line.
+        first: FollowEndpoint,
+        /// Second endpoint from the command line.
+        second: FollowEndpoint,
+    },
+}
+
+/// One parsed `follow,` specification.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct FollowSpec {
+    /// Upper protocol.
+    pub proto: FollowProto,
+    /// Rendering mode.
+    pub mode: FollowMode,
+    /// Stream selector.
+    pub selector: FollowSelector,
+    /// First and last chunk printed, one-based and inclusive.
+    pub range: (u32, u32),
+}
+
+/// Parse `follow,<proto>,<mode>,<selector>[,<range>]`.
+pub(crate) fn parse(text: &str) -> Result<FollowSpec, String> {
+    let rest = text.strip_prefix("follow,").unwrap_or(text);
+    let Some((proto_text, rest)) = rest.split_once(',') else {
+        if FollowProto::parse(rest).is_some() {
+            // A protocol without a mode reports both the mode error and
+            // the address error.
+            return Err("Invalid display mode.\nInvalid address.".to_string());
+        }
+        return Err(super::unsupported(text));
+    };
+    let Some(proto) = FollowProto::parse(proto_text) else {
+        return Err(super::unsupported(text));
+    };
+    let (mode_text, rest) = rest.split_once(',').unwrap_or((rest, ""));
+    let Some(mode) = FollowMode::parse(mode_text) else {
+        return Err(
+            "Invalid display mode.\nInvalid address.\nInvalid range.\nInvalid parameter."
+                .to_string(),
+        );
+    };
+    let Some((selector, rest)) = parse_selector(rest) else {
+        return Err("Invalid address.".to_string());
+    };
+    if let FollowSelector::Address { first, second } = &selector
+        && std::mem::discriminant(&first.address) != std::mem::discriminant(&second.address)
+    {
+        return Err("Mismatched IP address types.".to_string());
+    }
+    let range = if rest.is_empty() {
+        parse_range(None)?
+    } else {
+        let Some(range_text) = rest.strip_prefix(',') else {
+            return Err("Invalid parameter.".to_string());
+        };
+        if range_text.contains(',') {
+            return Err("Invalid parameter.".to_string());
+        }
+        parse_range(Some(range_text))?
+    };
+    Ok(FollowSpec {
+        proto,
+        mode,
+        selector,
+        range,
+    })
+}
+
+fn parse_selector(text: &str) -> Option<(FollowSelector, &str)> {
+    if text.is_empty() {
+        return None;
+    }
+    let numeric_end = text.find(',').unwrap_or(text.len());
+    let numeric = text.get(..numeric_end)?;
+    if !numeric.is_empty() && numeric.bytes().all(|byte| byte.is_ascii_digit()) {
+        let index: u32 = numeric.parse().ok()?;
+        return Some((FollowSelector::Stream(index), text.get(numeric_end..)?));
+    }
+    let (first, rest) = parse_endpoint(text)?;
+    let rest = rest.strip_prefix(',')?;
+    let (second, rest) = parse_endpoint(rest)?;
+    Some((FollowSelector::Address { first, second }, rest))
+}
+
+/// Parse one endpoint and return the remaining text.
+fn parse_endpoint(text: &str) -> Option<(FollowEndpoint, &str)> {
+    if let Some(rest) = text.strip_prefix('[') {
+        let close = rest.find(']')?;
+        let address: Ipv6Addr = rest.get(..close)?.parse().ok()?;
+        let after = rest.get(close + 1..)?;
+        let after = after.strip_prefix(':')?;
+        let port_end = after.find(',').unwrap_or(after.len());
+        let port: u16 = after.get(..port_end)?.parse().ok()?;
+        let consumed = 1 + close + 1 + 1 + port_end;
+        return Some((
+            FollowEndpoint {
+                address: StreamAddress::Ipv6(address.octets()),
+                port,
+            },
+            text.get(consumed..)?,
+        ));
+    }
+    let colon = text.find(':')?;
+    let address: Ipv4Addr = text.get(..colon)?.parse().ok()?;
+    let after = text.get(colon + 1..)?;
+    let port_end = after.find(',').unwrap_or(after.len());
+    let port: u16 = after.get(..port_end)?.parse().ok()?;
+    let consumed = colon + 1 + port_end;
+    Some((
+        FollowEndpoint {
+            address: StreamAddress::Ipv4(address.octets()),
+            port,
+        },
+        text.get(consumed..)?,
+    ))
+}
+
+fn parse_range(text: Option<&str>) -> Result<(u32, u32), String> {
+    let Some(text) = text else {
+        return Ok((1, u32::MAX));
+    };
+    if text.is_empty() {
+        return Err("Invalid range.\nInvalid parameter.".to_string());
+    }
+    let (first, last) = match text.split_once('-') {
+        Some((first, last)) => (first, Some(last)),
+        None => (text, None),
+    };
+    if first.is_empty()
+        && let Some(last) = last
+        && parse_chunk(last).is_some()
+    {
+        // A range with no first chunk (`-N`) is valid and prints the table
+        // with no chunks, which a zero chunk range produces.
+        return Ok((0, 0));
+    }
+    if last.is_some_and(|last| last.is_empty() || last.contains('-')) {
+        return Err("Invalid parameter.".to_string());
+    }
+    let Some(first) = parse_chunk(first) else {
+        return Err("Invalid range.\nInvalid parameter.".to_string());
+    };
+    let last = match last {
+        Some(last) => match parse_chunk(last) {
+            Some(last) => last,
+            None => return Err("Invalid range.\nInvalid parameter.".to_string()),
+        },
+        None => first,
+    };
+    if first < 1 || first > last {
+        return Err("Invalid range value.".to_string());
+    }
+    Ok((first, last))
+}
+
+fn parse_chunk(text: &str) -> Option<u32> {
+    if text.is_empty() || !text.bytes().all(|byte| byte.is_ascii_digit()) {
+        return None;
+    }
+    text.parse().ok()
+}
+
+/// One output chunk.
+struct Record {
+    direction: u8,
+    data: Vec<u8>,
+}
+
+/// One direction of a followed TCP stream.
+#[derive(Default)]
+struct TcpHalf {
+    expected: Option<u32>,
+    fragments: Vec<Fragment>,
+}
+
+struct Fragment {
+    sequence: u32,
+    data: Vec<u8>,
+}
+
+/// Aggregation state for one `follow,` specification.
+pub(crate) struct State {
+    spec: FollowSpec,
+    records: Vec<Record>,
+    endpoints: Option<(StreamAddress, u16, StreamAddress, u16)>,
+    tcp: [TcpHalf; 2],
+    retained: usize,
+    limit: usize,
+    http_desegment: bool,
+    http_started: bool,
+    truncated: bool,
+}
+
+impl State {
+    /// Create empty follow state with the default per-specification cap.
+    #[cfg(test)]
+    pub(crate) fn new(spec: FollowSpec) -> Self {
+        Self::with_limit(spec, SPEC_LIMIT)
+    }
+
+    /// Create empty follow state capped by the statistics budget share.
+    pub(crate) fn with_limit(spec: FollowSpec, limit: usize) -> Self {
+        Self {
+            spec,
+            records: Vec::new(),
+            endpoints: None,
+            tcp: Default::default(),
+            retained: 0,
+            limit: limit.min(SPEC_LIMIT),
+            http_desegment: true,
+            http_started: false,
+            truncated: false,
+        }
+    }
+
+    /// Bytes retained by this state.
+    pub(crate) fn retained(&self) -> usize {
+        self.retained
+    }
+
+    /// Whether a cap dropped a record.
+    pub(crate) fn truncated(&self) -> bool {
+        self.truncated
+    }
+
+    /// Lower this state's cap so the whole run stays inside `remaining`.
+    pub(crate) fn allow(&mut self, remaining: usize) {
+        self.limit = self.retained.saturating_add(remaining).min(SPEC_LIMIT);
+    }
+
+    /// Feed one TCP segment.
+    pub(crate) fn tcp_event(
+        &mut self,
+        key: StreamKey,
+        _direction: u8,
+        sequence: u32,
+        acknowledgement: u32,
+        payload: &[u8],
+    ) {
+        if self.spec.proto == FollowProto::Http && !self.http_desegment {
+            if !self.selects(key) {
+                return;
+            }
+            if payload.is_empty() {
+                return;
+            }
+            if !self.http_started {
+                if !starts_with_http_start_line(payload) {
+                    return;
+                }
+                self.http_started = true;
+            }
+            self.establish(key);
+            let direction = self.direction_of(key);
+            for data in split_http_segments(payload) {
+                self.push(direction, data);
+            }
+            return;
+        }
+        if self.spec.proto != FollowProto::Tcp || !self.selects(key) {
+            return;
+        }
+        self.establish(key);
+        let is_server = self.direction_of(key);
+        let peer = usize::from(is_server) ^ 1;
+        // An ACK on this segment can prove bytes in the other direction were
+        // captured elsewhere even when this segment carries no data.
+        while self.fill_from_ack(peer, acknowledgement, true) {}
+        self.tcp_segment(is_server, sequence, payload);
+    }
+
+    /// Apply one segment to a direction's TCP stream.
+    fn tcp_segment(&mut self, direction: u8, sequence: u32, payload: &[u8]) {
+        let index = usize::from(direction.min(1));
+        let Some(half) = self.tcp.get(index) else {
+            return;
+        };
+        let Some(expected) = half.expected else {
+            if let Some(half) = self.tcp.get_mut(index) {
+                half.expected = Some(sequence);
+            }
+            if payload.is_empty() {
+                return;
+            }
+            self.push_tcp_data(direction, sequence, payload);
+            return;
+        };
+        if payload.is_empty() {
+            return;
+        }
+        let mut sequence = sequence;
+        let mut data = payload;
+        if lt_seq(sequence, expected) {
+            let end = sequence.wrapping_add(length_u32(data.len()));
+            if !gt_seq(end, expected) {
+                return;
+            }
+            let skip = usize::try_from(expected.wrapping_sub(sequence))
+                .unwrap_or(usize::MAX)
+                .min(data.len());
+            data = data.get(skip..).unwrap_or_default();
+            sequence = expected;
+        }
+        if data.is_empty() || lt_seq(sequence, expected) {
+            return;
+        }
+        self.push_tcp_data(direction, sequence, data);
+    }
+
+    fn push_tcp_data(&mut self, direction: u8, sequence: u32, data: &[u8]) {
+        let index = usize::from(direction.min(1));
+        let Some(half) = self.tcp.get(index) else {
+            return;
+        };
+        let expected = half.expected.unwrap_or(sequence);
+        if eq_seq(sequence, expected) {
+            self.push(direction, data.to_vec());
+            if let Some(half) = self.tcp.get_mut(index) {
+                half.expected = Some(expected.wrapping_add(length_u32(data.len())));
+            }
+            while self.fill_from_ack(index, 0, false) {}
+            return;
+        }
+        let Some(half) = self.tcp.get_mut(index) else {
+            return;
+        };
+        let charge = data.len().saturating_add(FRAGMENT_OVERHEAD);
+        if self.retained.saturating_add(charge) > self.limit {
+            self.truncated = true;
+            return;
+        }
+        self.retained += charge;
+        half.fragments.push(Fragment {
+            sequence,
+            data: data.to_vec(),
+        });
+        if half.fragments.len() > 4096
+            && let Some(fragment) = half.fragments.first()
+        {
+            self.retained = self
+                .retained
+                .saturating_sub(fragment.data.len().saturating_add(FRAGMENT_OVERHEAD));
+            half.fragments.remove(0);
+        }
+    }
+
+    /// Feed one UDP datagram.
+    pub(crate) fn udp_event(&mut self, key: StreamKey, payload: &[u8]) {
+        if self.spec.proto != FollowProto::Udp || !self.selects(key) {
+            return;
+        }
+        self.establish(key);
+        let direction = self.direction_of(key);
+        self.push(direction, payload.to_vec());
+    }
+
+    /// Feed one complete HTTP message.
+    pub(crate) fn http_event(&mut self, key: StreamKey, message: &[u8]) {
+        if self.spec.proto != FollowProto::Http || !self.http_desegment || !self.selects(key) {
+            return;
+        }
+        self.establish(key);
+        let direction = self.direction_of(key);
+        let records = if self.http_desegment {
+            split_http_records(message)
+        } else {
+            split_http_segments(message)
+        };
+        for data in records {
+            self.push(direction, data);
+        }
+    }
+
+    /// Whether HTTP messages were reassembled by the TCP dissector.
+    pub(crate) fn set_http_desegment(&mut self, desegment: bool) {
+        self.http_desegment = desegment;
+    }
+
+    /// Whether this specification follows `key`.
+    fn selects(&self, key: StreamKey) -> bool {
+        match &self.spec.selector {
+            FollowSelector::Stream(index) => key.index == *index,
+            FollowSelector::Address { first, second } => {
+                endpoint_matches(key.source, key.source_port, *first)
+                    && endpoint_matches(key.destination, key.destination_port, *second)
+                    || endpoint_matches(key.source, key.source_port, *second)
+                        && endpoint_matches(key.destination, key.destination_port, *first)
+            }
+        }
+    }
+
+    fn establish(&mut self, key: StreamKey) {
+        self.endpoints.get_or_insert((
+            key.source,
+            key.source_port,
+            key.destination,
+            key.destination_port,
+        ));
+    }
+
+    fn direction_of(&self, key: StreamKey) -> u8 {
+        match self.endpoints {
+            Some((source, port, _, _))
+                if endpoint_matches(
+                    key.source,
+                    key.source_port,
+                    FollowEndpoint {
+                        address: source,
+                        port,
+                    },
+                ) =>
+            {
+                0
+            }
+            _ => 1,
+        }
+    }
+
+    fn push(&mut self, direction: u8, data: Vec<u8>) -> bool {
+        let charge = data.len().saturating_add(RECORD_OVERHEAD);
+        if self.retained.saturating_add(charge) > self.limit {
+            self.truncated = true;
+            return false;
+        }
+        self.retained += charge;
+        self.records.push(Record { direction, data });
+        true
+    }
+
+    /// Apply every fragment an acknowledgement unlocks.
+    fn fill_from_ack(&mut self, direction: usize, acknowledged: u32, use_ack: bool) -> bool {
+        let half = self.tcp.get_mut(direction.min(1));
+        let Some(half) = half else {
+            return false;
+        };
+        let Some(expected) = half.expected else {
+            return false;
+        };
+        let mut lowest: Option<u32> = None;
+        let mut apply: Option<(usize, usize, bool)> = None;
+        for (index, fragment) in half.fragments.iter().enumerate() {
+            if lowest.is_none_or(|lowest| gt_seq(lowest, fragment.sequence)) {
+                lowest = Some(fragment.sequence);
+            }
+            if lt_seq(fragment.sequence, expected) {
+                let end = fragment
+                    .sequence
+                    .wrapping_add(length_u32(fragment.data.len()));
+                if gt_seq(end, expected) {
+                    let seen = usize::try_from(expected.wrapping_sub(fragment.sequence))
+                        .unwrap_or(usize::MAX)
+                        .min(fragment.data.len());
+                    apply = Some((index, seen, true));
+                    break;
+                }
+                apply = Some((index, 0, false));
+                break;
+            }
+            if eq_seq(fragment.sequence, expected) {
+                apply = Some((index, 0, true));
+                break;
+            }
+        }
+        if let Some((index, offset, append)) = apply {
+            let fragment = half.fragments.remove(index);
+            self.retained = self
+                .retained
+                .saturating_sub(fragment.data.len().saturating_add(FRAGMENT_OVERHEAD));
+            if append {
+                let data = fragment.data.get(offset..).unwrap_or_default().to_vec();
+                let length = length_u32(data.len());
+                self.push(u8::try_from(direction).unwrap_or(1), data);
+                if let Some(half) = self.tcp.get_mut(direction.min(1)) {
+                    half.expected = Some(expected.wrapping_add(length));
+                }
+            }
+            return true;
+        }
+        if use_ack
+            && let Some(lowest) = lowest
+            && gt_seq(acknowledged, lowest)
+        {
+            let missing = lowest.wrapping_sub(expected);
+            let text = format!("[{missing} bytes missing in capture file]");
+            let mut data = text.into_bytes();
+            // The record includes the terminating NUL byte.
+            data.push(0);
+            self.push(u8::try_from(direction).unwrap_or(1), data);
+            if let Some(half) = self.tcp.get_mut(direction.min(1)) {
+                half.expected = Some(lowest);
+            }
+            return true;
+        }
+        false
+    }
+
+    /// Render the stream table.
+    pub(crate) fn finish(&self, output: &mut dyn fmt::Write) -> fmt::Result {
+        write!(output, "\n{SEPARATOR}")?;
+        writeln!(
+            output,
+            "Follow: {},{}",
+            self.spec.proto.name(),
+            self.spec.mode.name()
+        )?;
+        writeln!(output, "Filter: {}", filter_text(&self.spec))?;
+        let (node0, node1) = self
+            .endpoints
+            .map(|(source, source_port, destination, destination_port)| {
+                (
+                    format_endpoint(source, source_port),
+                    format_endpoint(destination, destination_port),
+                )
+            })
+            .unwrap_or_else(|| (":0".to_string(), ":0".to_string()));
+        writeln!(output, "Node 0: {node0}")?;
+        writeln!(output, "Node 1: {node1}")?;
+        let (first, last) = self.spec.range;
+        let mut hex_offsets = [0_u32; 2];
+        for (index, record) in self.records.iter().enumerate() {
+            let chunk = u32::try_from(index.saturating_add(1)).unwrap_or(u32::MAX);
+            let direction = usize::from(record.direction.min(1));
+            if chunk < first || chunk > last {
+                if let Some(slot) = hex_offsets.get_mut(direction) {
+                    *slot = slot.wrapping_add(length_u32(record.data.len()));
+                }
+                continue;
+            }
+            match self.spec.mode {
+                FollowMode::Ascii => {
+                    if record.direction != 0 {
+                        output.write_char('\t')?;
+                    }
+                    writeln!(output, "{}", record.data.len())?;
+                    write_ascii(output, &record.data)?;
+                    output.write_char('\n')?;
+                }
+                FollowMode::Raw => {
+                    if record.direction != 0 {
+                        output.write_char('\t')?;
+                    }
+                    write_hex_digits(output, &record.data)?;
+                    output.write_char('\n')?;
+                }
+                FollowMode::Hex => {
+                    let offset = hex_offsets.get(direction).copied().unwrap_or(0);
+                    write_hex_dump(output, record.direction != 0, offset, &record.data)?;
+                    if let Some(slot) = hex_offsets.get_mut(direction) {
+                        *slot = offset.wrapping_add(length_u32(record.data.len()));
+                    }
+                }
+            }
+        }
+        write!(output, "{SEPARATOR}")
+    }
+}
+
+fn endpoint_matches(address: StreamAddress, port: u16, endpoint: FollowEndpoint) -> bool {
+    address == endpoint.address && port == endpoint.port
+}
+
+fn lt_seq(left: u32, right: u32) -> bool {
+    (left.wrapping_sub(right) as i32) < 0
+}
+
+fn gt_seq(left: u32, right: u32) -> bool {
+    (left.wrapping_sub(right) as i32) > 0
+}
+
+fn eq_seq(left: u32, right: u32) -> bool {
+    left == right
+}
+
+fn length_u32(length: usize) -> u32 {
+    u32::try_from(length).unwrap_or(u32::MAX)
+}
+
+/// The `Filter:` line a follow specification prints.
+pub(crate) fn filter_text(spec: &FollowSpec) -> String {
+    match &spec.selector {
+        FollowSelector::Stream(index) => {
+            format!("{} eq {index}", spec.proto.stream_field())
+        }
+        FollowSelector::Address { first, second } => {
+            let version = match first.address {
+                StreamAddress::Ipv6(_) => "v6",
+                StreamAddress::Ipv4(_) => "",
+            };
+            let ports = spec.proto.port_field();
+            format!(
+                "((ip{version}.src eq {a} and {ports}.srcport eq {ap}) and (ip{version}.dst eq {b} and {ports}.dstport eq {bp})) or ((ip{version}.src eq {b} and {ports}.srcport eq {bp}) and (ip{version}.dst eq {a} and {ports}.dstport eq {ap}))",
+                a = address_text(first.address),
+                ap = first.port,
+                b = address_text(second.address),
+                bp = second.port,
+            )
+        }
+    }
+}
+
+fn address_text(address: StreamAddress) -> String {
+    match address {
+        StreamAddress::Ipv4(bytes) => Ipv4Addr::from(bytes).to_string(),
+        StreamAddress::Ipv6(bytes) => Ipv6Addr::from(bytes).to_string(),
+    }
+}
+
+fn format_endpoint(address: StreamAddress, port: u16) -> String {
+    match address {
+        StreamAddress::Ipv4(bytes) => format!("{}:{port}", Ipv4Addr::from(bytes)),
+        StreamAddress::Ipv6(bytes) => format!("[{}]:{port}", Ipv6Addr::from(bytes)),
+    }
+}
+
+/// Render bytes in ASCII follow mode.
+fn write_ascii(output: &mut dyn fmt::Write, data: &[u8]) -> fmt::Result {
+    for byte in data {
+        let rendered = match byte {
+            b'\r' | b'\n' => char::from(*byte),
+            0x20..=0x7e => char::from(*byte),
+            _ => '.',
+        };
+        output.write_char(rendered)?;
+    }
+    Ok(())
+}
+
+fn write_hex_digits(output: &mut dyn fmt::Write, data: &[u8]) -> fmt::Result {
+    for byte in data {
+        write!(output, "{byte:02x}")?;
+    }
+    Ok(())
+}
+
+/// Render one classic hex dump line group.
+fn write_hex_dump(
+    output: &mut dyn fmt::Write,
+    prefix_tab: bool,
+    offset: u32,
+    data: &[u8],
+) -> fmt::Result {
+    let mut start = 0_usize;
+    while start < data.len() {
+        if prefix_tab {
+            output.write_char('\t')?;
+        }
+        let end = start.saturating_add(16).min(data.len());
+        let line = data.get(start..end).unwrap_or_default();
+        let line_offset = offset.saturating_add(u32::try_from(start).unwrap_or(u32::MAX));
+        write!(output, "{line_offset:08X}  ")?;
+        for index in 0..16 {
+            if index == 8 {
+                output.write_char(' ')?;
+            }
+            match line.get(index) {
+                Some(byte) => write!(output, "{byte:02x} ")?,
+                None => output.write_str("   ")?,
+            }
+        }
+        output.write_char(' ')?;
+        let mut text = String::new();
+        for (index, byte) in line.iter().enumerate() {
+            if index == 8 {
+                text.push(' ');
+            }
+            text.push(if (0x20..=0x7e).contains(byte) {
+                char::from(*byte)
+            } else {
+                '.'
+            });
+        }
+        // Trim the ASCII column's trailing space.
+        while text.ends_with(' ') {
+            text.pop();
+        }
+        output.write_str(&text)?;
+        output.write_char('\n')?;
+        start = start.saturating_add(16);
+    }
+    Ok(())
+}
+
+fn starts_with_http_start_line(bytes: &[u8]) -> bool {
+    const METHODS: [&[u8]; 9] = [
+        b"GET ",
+        b"POST ",
+        b"PUT ",
+        b"HEAD ",
+        b"DELETE ",
+        b"OPTIONS ",
+        b"PATCH ",
+        b"CONNECT ",
+        b"TRACE ",
+    ];
+    METHODS.iter().any(|method| bytes.starts_with(method)) || bytes.starts_with(b"HTTP/1.")
+}
+
+/// Split one un-reassembled HTTP segment into follow records.
+///
+/// With `tcp.desegment_tcp_streams` disabled the dissector sees one segment
+/// at a time. A request segment is queued whole, while a response header
+/// queues the header and an empty body when the announced length is nonzero.
+/// A body-only segment queues its bytes unchanged. Pipelined start lines are
+/// still separate records.
+fn split_http_segments(message: &[u8]) -> Vec<Vec<u8>> {
+    let mut records = Vec::new();
+    let mut offset = 0_usize;
+    while offset < message.len() {
+        let rest = message.get(offset..).unwrap_or_default();
+        let Some(header_length) = rest
+            .windows(4)
+            .position(|window| window == b"\r\n\r\n")
+            .map(|index| index + 4)
+        else {
+            records.push(rest.to_vec());
+            break;
+        };
+        let header = rest.get(..header_length).unwrap_or_default();
+        let response = header.starts_with(b"HTTP/1.");
+        records.push(header.to_vec());
+        let body = rest.get(header_length..).unwrap_or_default();
+        let (content_length, chunked, no_body) = http_framing(header);
+        if body.is_empty() {
+            if response && (chunked || content_length.is_some_and(|length| length > 0)) {
+                // Without reassembly the tap queues an empty body when a
+                // header announces one but its body is in another segment.
+                records.push(Vec::new());
+            }
+            break;
+        }
+        if chunked {
+            // The body segment keeps its chunk framing; only a dissected,
+            // reassembled message is de-chunked.
+            records.push(body.to_vec());
+            break;
+        }
+        let take = content_length.unwrap_or(body.len()).min(body.len());
+        if take > 0 {
+            records.push(body.get(..take).unwrap_or_default().to_vec());
+        }
+        offset = offset.saturating_add(header_length).saturating_add(take);
+        if take == 0 && !no_body {
+            break;
+        }
+    }
+    records
+}
+
+/// Split one HTTP byte run into follow records.
+///
+/// A message contributes its header lines as one record and its body as a
+/// second; a chunked body is de-chunked into one record even when it is
+/// empty. Pipelined messages in one delivery are split at each complete
+/// header, so a desegmented segment that carries two requests still prints
+/// two records.
+fn split_http_records(message: &[u8]) -> Vec<Vec<u8>> {
+    let mut records = Vec::new();
+    let mut offset = 0_usize;
+    while offset < message.len() {
+        let rest = message.get(offset..).unwrap_or_default();
+        let Some(header_length) = rest
+            .windows(4)
+            .position(|window| window == b"\r\n\r\n")
+            .map(|index| index + 4)
+        else {
+            records.push(rest.to_vec());
+            break;
+        };
+        let header = rest.get(..header_length).unwrap_or_default();
+        records.push(header.to_vec());
+        let body = rest.get(header_length..).unwrap_or_default();
+        if body.is_empty() {
+            break;
+        }
+        let (content_length, chunked, no_body) = http_framing(header);
+        if chunked {
+            let (data, consumed) = dechunk(body);
+            records.push(data);
+            if consumed == 0 {
+                break;
+            }
+            offset = offset
+                .saturating_add(header_length)
+                .saturating_add(consumed);
+        } else if no_body {
+            offset = offset.saturating_add(header_length);
+        } else {
+            let take = content_length.unwrap_or(body.len()).min(body.len());
+            if take > 0 {
+                records.push(body.get(..take).unwrap_or_default().to_vec());
+            }
+            offset = offset.saturating_add(header_length).saturating_add(take);
+        }
+    }
+    records
+}
+
+fn http_framing(header: &[u8]) -> (Option<usize>, bool, bool) {
+    let text = String::from_utf8_lossy(header);
+    let mut lines = text.split("\r\n");
+    let start = lines.next().unwrap_or_default();
+    let no_body = start
+        .strip_prefix("HTTP/1.")
+        .and_then(|rest| rest.split_ascii_whitespace().next())
+        .and_then(|code| code.parse::<u16>().ok())
+        .is_some_and(|code| (100..200).contains(&code) || code == 204 || code == 304);
+    let mut content_length = None;
+    let mut chunked = false;
+    for line in lines {
+        let Some((name, value)) = line.split_once(':') else {
+            continue;
+        };
+        if name.eq_ignore_ascii_case("content-length") {
+            content_length = value.trim().parse::<usize>().ok();
+        } else if name.eq_ignore_ascii_case("transfer-encoding")
+            && value
+                .split(',')
+                .any(|coding| coding.trim().eq_ignore_ascii_case("chunked"))
+        {
+            chunked = true;
+        }
+    }
+    (content_length, chunked, no_body)
+}
+
+/// Concatenate one chunked body's data and report the bytes consumed.
+///
+/// The de-chunked body is one record, not one per chunk, so a two-chunk
+/// response prints a single data block. An empty chunked body still queues
+/// an empty record.
+fn dechunk(body: &[u8]) -> (Vec<u8>, usize) {
+    let mut data = Vec::new();
+    let mut position = 0_usize;
+    loop {
+        let Some(line_end) = body
+            .get(position..)
+            .and_then(|rest| rest.windows(2).position(|window| window == b"\r\n"))
+            .map(|index| position.saturating_add(index))
+        else {
+            return (data, position);
+        };
+        let size_text = body
+            .get(position..line_end)
+            .unwrap_or_default()
+            .split(|byte| *byte == b';')
+            .next()
+            .unwrap_or_default();
+        let Ok(size_text) = std::str::from_utf8(size_text) else {
+            return (data, position);
+        };
+        let Ok(size) = usize::from_str_radix(size_text.trim(), 16) else {
+            return (data, position);
+        };
+        position = line_end.saturating_add(2);
+        if size == 0 {
+            // Skip optional trailer fields up to the empty line.
+            loop {
+                let Some(line_end) = body
+                    .get(position..)
+                    .and_then(|rest| rest.windows(2).position(|window| window == b"\r\n"))
+                    .map(|index| position.saturating_add(index))
+                else {
+                    return (data, body.len());
+                };
+                let trailer = body.get(position..line_end).unwrap_or_default();
+                position = line_end.saturating_add(2);
+                if trailer.is_empty() {
+                    return (data, position);
+                }
+            }
+        }
+        let Some(chunk) = body.get(position..position.saturating_add(size)) else {
+            return (data, position);
+        };
+        data.extend_from_slice(chunk);
+        position = position.saturating_add(size).saturating_add(2);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn key(index: u32, source: u8, destination: u8) -> StreamKey {
+        StreamKey {
+            index,
+            source: StreamAddress::Ipv4([10, 0, 0, source]),
+            source_port: 1000,
+            destination: StreamAddress::Ipv4([10, 0, 0, destination]),
+            destination_port: 2000,
+        }
+    }
+
+    fn reverse_key(index: u32, source: u8, destination: u8) -> StreamKey {
+        StreamKey {
+            index,
+            source: StreamAddress::Ipv4([10, 0, 0, source]),
+            source_port: 2000,
+            destination: StreamAddress::Ipv4([10, 0, 0, destination]),
+            destination_port: 1000,
+        }
+    }
+
+    fn follow(text: &str) -> State {
+        match parse(text) {
+            Ok(spec) => State::new(spec),
+            Err(error) => {
+                eprintln!("follow spec {text}: {error}");
+                std::process::exit(1);
+            }
+        }
+    }
+
+    #[test]
+    fn tcp_follow_fills_a_gap_from_the_peer_ack() {
+        let mut state = follow("follow,tcp,ascii,0");
+        state.tcp_event(key(0, 1, 2), 0, 1, 1, b"BBBB");
+        state.tcp_event(key(0, 1, 2), 0, 9, 1, b"CCCC");
+        state.tcp_event(key(0, 2, 1), 1, 1, 13, b"");
+        state.tcp_event(key(0, 1, 2), 0, 13, 1, b"DDDD");
+        let mut output = String::new();
+        state.finish(&mut output).unwrap_or(());
+        assert!(
+            output.contains(
+                "4
+BBBB"
+            ),
+            "{output}"
+        );
+        assert!(
+            output.contains(
+                "34
+[4 bytes missing in capture file]."
+            ),
+            "{output}"
+        );
+        assert!(
+            output.contains(
+                "4
+CCCC"
+            ),
+            "{output}"
+        );
+        assert!(
+            output.contains(
+                "4
+DDDD"
+            ),
+            "{output}"
+        );
+    }
+
+    #[test]
+    fn tcp_follow_ignores_fully_seen_retransmissions() {
+        let mut state = follow("follow,tcp,raw,0");
+        state.tcp_event(key(0, 1, 2), 0, 1, 1, b"abcdef");
+        state.tcp_event(key(0, 1, 2), 0, 1, 1, b"abcdef");
+        state.tcp_event(key(0, 1, 2), 0, 4, 1, b"defghi");
+        let mut output = String::new();
+        state.finish(&mut output).unwrap_or(());
+        assert_eq!(output.matches("616263646566").count(), 1, "{output}");
+        assert!(output.contains("676869"), "{output}");
+    }
+
+    #[test]
+    fn a_specification_cap_truncates_after_sixteen_mibibytes() {
+        let mut state = follow("follow,udp,raw,0");
+        let block = vec![0x41_u8; 1024 * 1024];
+        for _ in 0..17 {
+            state.udp_event(key(0, 1, 2), &block);
+        }
+        assert!(state.truncated());
+        assert!(state.retained() <= SPEC_LIMIT);
+    }
+
+    #[test]
+    fn retained_bytes_include_record_bookkeeping() {
+        let mut state = follow("follow,udp,raw,0");
+        state.udp_event(key(0, 1, 2), b"x");
+        assert!(
+            state.retained() > 1,
+            "a one-byte record charges its chunk vector: {}",
+            state.retained()
+        );
+    }
+
+    #[test]
+    fn address_selection_matches_either_direction() {
+        let mut state = follow("follow,udp,raw,10.0.0.1:1000,10.0.0.2:2000");
+        state.udp_event(reverse_key(4, 2, 1), b"reply");
+        let mut output = String::new();
+        state.finish(&mut output).unwrap_or(());
+        assert!(output.contains("Filter: ((ip.src eq 10.0.0.1"), "{output}");
+        assert!(output.contains("7265706c79"), "{output}");
+    }
+
+    #[test]
+    fn ranges_skip_records_but_keep_per_direction_hex_offsets() {
+        let mut state = follow("follow,tcp,hex,0,2-2");
+        state.tcp_event(key(0, 1, 2), 0, 1, 1, b"aaaa");
+        state.tcp_event(key(0, 2, 1), 1, 1, 5, b"bbbb");
+        let mut output = String::new();
+        state.finish(&mut output).unwrap_or(());
+        assert!(!output.contains("aaaa"), "{output}");
+        assert!(output.contains("\t00000000  62 62 62 62"), "{output}");
+    }
+
+    #[test]
+    fn hex_dump_uses_the_fixed_layout() {
+        let mut text = String::new();
+        write_hex_dump(&mut text, false, 0, b"one\ntwo\n").unwrap_or(());
+        assert_eq!(
+            text,
+            "00000000  6f 6e 65 0a 74 77 6f 0a                           one.two.\n"
+        );
+    }
+}

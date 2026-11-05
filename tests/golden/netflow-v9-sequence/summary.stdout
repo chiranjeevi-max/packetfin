@@ -1,0 +1,11 @@
+    1   0.000000    192.0.2.1 → 198.51.100.2 CFLOW 78 total: 1 (v9) record Obs-Domain-ID=    7 [Data-Template:256]
+    2   0.000001    192.0.2.1 → 198.51.100.2 CFLOW 74 total: 1 (v9) record Obs-Domain-ID=    7 [Data:256]
+    3   0.000002    192.0.2.1 → 198.51.100.2 CFLOW 74 total: 1 (v9) record Obs-Domain-ID=    7 [Data:256]
+    4   0.000003    192.0.2.1 → 198.51.100.2 CFLOW 62 total: 1 (v9) record Obs-Domain-ID=    7
+    5   0.000004    192.0.2.1 → 198.51.100.2 CFLOW 62 total: 1 (v9) record Obs-Domain-ID=    7
+    6   0.000005    192.0.2.1 → 198.51.100.2 CFLOW 70 total: 1 (v9) record Obs-Domain-ID=    7
+    7   0.000006    192.0.2.1 → 198.51.100.2 CFLOW 74 total: 1 (v9) record Obs-Domain-ID=    7 [Data:300]
+    8   0.000007    192.0.2.1 → 198.51.100.2 CFLOW 74 total: 1 (v9) record Obs-Domain-ID=    7 [Data:256]
+   10   0.000009    192.0.2.1 → 198.51.100.2 CFLOW 74 total: 1 (v9) record Obs-Domain-ID=    7 [Data:256]
+   11   0.000010    192.0.2.1 → 198.51.100.2 CFLOW 314 total: 1 (v9) record Obs-Domain-ID=    7 [Data-Template:257]
+   12   0.000011    192.0.2.1 → 198.51.100.2 CFLOW 70 total: 1 (v9) record Obs-Domain-ID=    7 [Data:257]

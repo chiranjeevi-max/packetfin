@@ -1,0 +1,8 @@
+    1   0.000000 02:00:00:00:00:01 → 02:00:00:00:00:02 IPv6 34 Invalid IPv6 header (20 bytes, need exactly 40)[Malformed Packet]
+    2   0.000001  2001:db8::1 → 02:00:00:00:00:02 IPv6 53 Invalid IPv6 header (39 bytes, need exactly 40)[Malformed Packet]
+    3   0.000002  2001:db8::1 → 2001:db8::2  IPv6 58 IPv6 no next header
+    4   0.000003  2001:db8::1 → 2001:db8::2  IPv6 58 IPv6 hop-by-hop options[Malformed Packet]
+    5   0.000004  2001:db8::1 → 2001:db8::2  IPv6 58 IPv6 hop-by-hop options[Malformed Packet]
+    6   0.000005  2001:db8::1 → 2001:db8::2  IPv6 70 IPv6 fragment (off=0 more=n ident=0x00000002 nxt=0) , IPv6 hop-by-hop options[Malformed Packet]
+    7   0.000006  2001:db8::1 → 2001:db8::2  IPv6 58 [Malformed Packet]
+    8   0.000007  2001:db8::1 → 2001:db8::2  IPv6 58 IPv6 routing[Malformed Packet: length of contained item exceeds length of containing item]

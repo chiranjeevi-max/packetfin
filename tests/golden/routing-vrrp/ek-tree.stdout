@@ -1,0 +1,2 @@
+{"index":{"_index":"packets-2023-11-14"}}
+{"timestamp":"1700000000123","layers":{"ip":{"filtered":"ip"},"vrrp":{"vrrp_vrrp_prio":"100","vrrp_vrrp_checksum":"24475","vrrp_vrrp_type":"1","vrrp_vrrp_ip_addr":"10.0.0.254","vrrp_vrrp_short_adver_int":"100","vrrp_vrrp_addr_count":"1","vrrp_vrrp_virt_rtr_id":"1","vrrp_vrrp_version":"3","vrrp_vrrp_typever":"49","vrrp_vrrp_reserved_mbz":"0","vrrp_vrrp_checksum_status":"1"},"frame":{"filtered":"frame"},"eth":{"filtered":"eth"}}}

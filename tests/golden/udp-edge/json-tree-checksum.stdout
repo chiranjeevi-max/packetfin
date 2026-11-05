@@ -1,0 +1,47 @@
+[
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "frame": {
+          "filtered": "frame"
+        },
+        "eth": {
+          "filtered": "eth"
+        },
+        "ip": {
+          "filtered": "ip"
+        },
+        "udp": {
+          "udp.srcport": "12345",
+          "udp.dstport": "9999",
+          "udp.port": "12345",
+          "udp.port": "9999",
+          "udp.length": "17",
+          "udp.checksum": "0x1234",
+          "udp.checksum_tree": {
+            "_ws.expert": {
+              "udp.checksum.bad": "",
+              "_ws.expert.message": "Bad checksum [should be 0xaea1]",
+              "_ws.expert.severity": "8388608",
+              "_ws.expert.group": "16777216"
+            },
+            "udp.checksum_calculated": "0xaea1"
+          },
+          "udp.checksum.status": "0",
+          "udp.stream": "0",
+          "udp.stream.pnum": "3",
+          "Timestamps": {
+            "udp.time_relative": "0.000002000",
+            "udp.time_delta": "0.000001000"
+          },
+          "udp.payload": "70:61:63:6b:65:74:66:69:6e"
+        },
+        "data": {
+          "filtered": "data"
+        }
+      }
+    }
+  }
+]

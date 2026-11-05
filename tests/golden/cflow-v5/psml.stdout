@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<psml version="0" creator="creator">
+<structure>
+<section>No.</section>
+<section>Time</section>
+<section>Source</section>
+<section>Destination</section>
+<section>Protocol</section>
+<section>Length</section>
+<section>Info</section>
+</structure>
+
+<packet>
+<section>1</section>
+<section>0.000000</section>
+<section>192.0.2.1</section>
+<section>198.51.100.2</section>
+<section>CFLOW</section>
+<section>162</section>
+<section>total: 2 (v5) flows</section>
+</packet>
+
+<packet>
+<section>2</section>
+<section>0.000001</section>
+<section>192.0.2.1</section>
+<section>198.51.100.2</section>
+<section>CFLOW</section>
+<section>66</section>
+<section>total: 0 (v5) flows</section>
+</packet>
+
+</psml>

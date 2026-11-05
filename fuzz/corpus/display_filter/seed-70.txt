@@ -1,0 +1,1 @@
+dns.qry.name matches"(x ei|||p|||l.en)atcp.srcport in {30778}or umle^*"

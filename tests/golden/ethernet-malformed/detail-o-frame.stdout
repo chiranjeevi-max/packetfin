@@ -1,0 +1,16 @@
+Frame 1: Packet, 11 bytes on wire (88 bits), 11 bytes captured (88 bits)
+    Encapsulation type: Ethernet (1)
+    Arrival Time: Nov 14, 2023 22:13:20.123456000 UTC
+    UTC Arrival Time: Nov 14, 2023 22:13:20.123456000 UTC
+    Epoch Arrival Time: 1700000000.123456000
+    [Time shift for this packet: 0.000000000 seconds]
+    [Time since reference or first frame: 0.000000000 seconds]
+    Frame Number: 1
+    Frame Length: 11 bytes (88 bits)
+    Capture Length: 11 bytes (88 bits)
+    [Frame is marked: False]
+    [Frame is ignored: False]
+    [Protocols in frame: eth]
+    Character encoding: ASCII (0)
+[Malformed Packet: Ethernet]
+

@@ -1,0 +1,806 @@
+[
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {}
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tcp.analysis": [
+          "1"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tcp.analysis": [
+          "1"
+        ],
+        "tcp.analysis.initial_rtt": [
+          "0.001000000"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tcp.analysis": [
+          "1"
+        ],
+        "tcp.analysis.initial_rtt": [
+          "0.001000000"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tcp.analysis": [
+          "1"
+        ],
+        "tcp.analysis.retransmission": [
+          "1"
+        ],
+        "tcp.analysis.initial_rtt": [
+          "0.001000000"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tcp.analysis": [
+          "1"
+        ],
+        "tcp.analysis.duplicate_ack_num": [
+          "1"
+        ],
+        "tcp.analysis.initial_rtt": [
+          "0.001000000"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {}
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tcp.analysis": [
+          "1"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tcp.analysis": [
+          "1"
+        ],
+        "tcp.analysis.initial_rtt": [
+          "0.001000000"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tcp.analysis": [
+          "1"
+        ],
+        "tcp.analysis.initial_rtt": [
+          "0.001000000"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tcp.analysis": [
+          "1"
+        ],
+        "tcp.analysis.duplicate_ack_num": [
+          "1"
+        ],
+        "tcp.analysis.initial_rtt": [
+          "0.001000000"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tcp.analysis": [
+          "1"
+        ],
+        "tcp.analysis.duplicate_ack_num": [
+          "2"
+        ],
+        "tcp.analysis.initial_rtt": [
+          "0.001000000"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tcp.analysis": [
+          "1"
+        ],
+        "tcp.analysis.duplicate_ack_num": [
+          "3"
+        ],
+        "tcp.analysis.initial_rtt": [
+          "0.001000000"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tcp.analysis": [
+          "1"
+        ],
+        "tcp.analysis.retransmission": [
+          "1"
+        ],
+        "tcp.analysis.initial_rtt": [
+          "0.001000000"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {}
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tcp.analysis": [
+          "1"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tcp.analysis": [
+          "1"
+        ],
+        "tcp.analysis.initial_rtt": [
+          "0.001000000"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tcp.analysis": [
+          "1"
+        ],
+        "tcp.analysis.initial_rtt": [
+          "0.001000000"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tcp.analysis": [
+          "1"
+        ],
+        "tcp.analysis.initial_rtt": [
+          "0.001000000"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tcp.analysis": [
+          "1"
+        ],
+        "tcp.analysis.retransmission": [
+          "1"
+        ],
+        "tcp.analysis.initial_rtt": [
+          "0.001000000"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {}
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tcp.analysis": [
+          "1"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tcp.analysis": [
+          "1"
+        ],
+        "tcp.analysis.initial_rtt": [
+          "0.001000000"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tcp.analysis": [
+          "1"
+        ],
+        "tcp.analysis.initial_rtt": [
+          "0.001000000"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tcp.analysis": [
+          "1"
+        ],
+        "tcp.analysis.initial_rtt": [
+          "0.001000000"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tcp.analysis": [
+          "1"
+        ],
+        "tcp.analysis.initial_rtt": [
+          "0.001000000"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tcp.analysis": [
+          "1"
+        ],
+        "tcp.analysis.initial_rtt": [
+          "0.001000000"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tcp.analysis": [
+          "1"
+        ],
+        "tcp.analysis.duplicate_ack_num": [
+          "1"
+        ],
+        "tcp.analysis.initial_rtt": [
+          "0.001000000"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {}
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tcp.analysis": [
+          "1"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tcp.analysis": [
+          "1"
+        ],
+        "tcp.analysis.initial_rtt": [
+          "0.001000000"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tcp.analysis": [
+          "1"
+        ],
+        "tcp.analysis.initial_rtt": [
+          "0.001000000"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tcp.analysis": [
+          "1"
+        ],
+        "tcp.analysis.initial_rtt": [
+          "0.001000000"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tcp.analysis": [
+          "1"
+        ],
+        "tcp.analysis.initial_rtt": [
+          "0.001000000"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tcp.analysis": [
+          "1"
+        ],
+        "tcp.analysis.initial_rtt": [
+          "0.001000000"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tcp.analysis": [
+          "1"
+        ],
+        "tcp.analysis.initial_rtt": [
+          "0.001000000"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {}
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tcp.analysis": [
+          "1"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tcp.analysis": [
+          "1"
+        ],
+        "tcp.analysis.initial_rtt": [
+          "0.001000000"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tcp.analysis": [
+          "1"
+        ],
+        "tcp.analysis.initial_rtt": [
+          "0.001000000"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tcp.analysis": [
+          "1"
+        ],
+        "tcp.analysis.initial_rtt": [
+          "0.001000000"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tcp.analysis": [
+          "1"
+        ],
+        "tcp.analysis.retransmission": [
+          "1"
+        ],
+        "tcp.analysis.initial_rtt": [
+          "0.001000000"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tcp.analysis": [
+          "1"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {}
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tcp.analysis": [
+          "1"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tcp.analysis": [
+          "1"
+        ],
+        "tcp.analysis.initial_rtt": [
+          "0.001000000"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tcp.analysis": [
+          "1"
+        ],
+        "tcp.analysis.initial_rtt": [
+          "0.001000000"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tcp.analysis": [
+          "1"
+        ],
+        "tcp.analysis.initial_rtt": [
+          "0.001000000"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tcp.analysis": [
+          "1"
+        ],
+        "tcp.analysis.initial_rtt": [
+          "0.001000000"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tcp.analysis": [
+          "1"
+        ],
+        "tcp.analysis.initial_rtt": [
+          "0.001000000"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {}
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tcp.analysis": [
+          "1"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tcp.analysis": [
+          "1"
+        ],
+        "tcp.analysis.initial_rtt": [
+          "0.001000000"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tcp.analysis": [
+          "1"
+        ],
+        "tcp.analysis.initial_rtt": [
+          "0.001000000"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tcp.analysis": [
+          "1"
+        ],
+        "tcp.analysis.duplicate_ack_num": [
+          "1"
+        ],
+        "tcp.analysis.initial_rtt": [
+          "0.001000000"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tcp.analysis": [
+          "1"
+        ],
+        "tcp.analysis.duplicate_ack_num": [
+          "2"
+        ],
+        "tcp.analysis.initial_rtt": [
+          "0.001000000"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {}
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tcp.analysis": [
+          "1"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tcp.analysis": [
+          "1"
+        ],
+        "tcp.analysis.initial_rtt": [
+          "0.001000000"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tcp.analysis": [
+          "1"
+        ],
+        "tcp.analysis.initial_rtt": [
+          "0.001000000"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {}
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tcp.analysis": [
+          "1"
+        ],
+        "tcp.analysis.retransmission": [
+          "1"
+        ],
+        "tcp.analysis.initial_rtt": [
+          "0.001000000"
+        ]
+      }
+    }
+  }
+]

@@ -1,0 +1,29 @@
+1	
+2	192.0.2.1
+3	192.0.2.1
+4	192.0.2.1
+5	
+6	192.0.2.1
+7	192.0.2.1
+8	192.0.2.1
+9	192.0.2.1
+
+===================================================================
+Protocol Hierarchy Statistics
+Filter: 
+
+frame                                    frames:9 bytes:495
+  eth                                    frames:9 bytes:495
+    arp                                  frames:1 bytes:42
+    ip                                   frames:6 bytes:317
+      icmp                               frames:2 bytes:84
+      udp                                frames:1 bytes:71
+        dns                              frames:1 bytes:71
+      tcp                                frames:3 bytes:162
+    ipv6                                 frames:1 bytes:90
+      udp                                frames:1 bytes:90
+        dns                              frames:1 bytes:90
+    vlan                                 frames:1 bytes:46
+      ip                                 frames:1 bytes:46
+        icmp                             frames:1 bytes:46
+===================================================================

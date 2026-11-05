@@ -1,0 +1,4 @@
+{"index":{"_index":"packets-2023-11-14"}}
+{"timestamp":"1700000000123","layers":{"tcp_srcport":["40000"],"tcp_dstport":["443"],"tcp_seq":["1000"]}}
+{"index":{"_index":"packets-2023-11-14"}}
+{"timestamp":"1700000000123","layers":{"tcp_srcport":["443"],"tcp_dstport":["40000"],"tcp_seq":["5000"]}}

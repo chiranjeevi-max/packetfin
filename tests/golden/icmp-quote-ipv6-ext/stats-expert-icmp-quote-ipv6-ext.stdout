@@ -1,0 +1,10 @@
+
+Warns (1)
+=============
+   Frequency      Group           Protocol  Summary
+           1   Checksum               ICMP  Bad checksum [should be 0xcfe5]
+
+Notes (1)
+=============
+   Frequency      Group           Protocol  Summary
+           1   Response               ICMP  Type indicates an error

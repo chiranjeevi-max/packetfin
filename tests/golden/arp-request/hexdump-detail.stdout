@@ -1,0 +1,17 @@
+Frame 1: Packet, 42 bytes on wire (336 bits), 42 bytes captured (336 bits)
+Ethernet II, Src: 02:00:00:00:00:01, Dst: 02:00:00:00:00:02
+Address Resolution Protocol (request)
+    Hardware type: Ethernet (1)
+    Protocol type: IPv4 (0x0800)
+    Hardware size: 6
+    Protocol size: 4
+    Opcode: request (1)
+    Sender MAC address: 02:00:00:00:00:01
+    Sender IP address: 192.0.2.1
+    Target MAC address: 00:00:00:00:00:00
+    Target IP address: 198.51.100.2
+
+0000  02 00 00 00 00 02 02 00 00 00 00 01 08 06 00 01   ................
+0010  08 00 06 04 00 01 02 00 00 00 00 01 c0 00 02 01   ................
+0020  00 00 00 00 00 00 c6 33 64 02                     .......3d.
+

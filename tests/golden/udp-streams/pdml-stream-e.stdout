@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="utf-8"?>
+<?xml-stylesheet type="text/xsl" href="pdml2html.xsl"?>
+<!-- normalized -->
+<pdml version="0" creator="creator" time="time" capture_file="tests/fixtures/udp-streams.pcap">
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="44">
+    <field name="num" pos="0" show="1" showname="Number" value="1" size="44"/>
+    <field name="len" pos="0" show="44" showname="Frame Length" value="2c" size="44"/>
+    <field name="caplen" pos="0" show="44" showname="Captured Length" value="2c" size="44"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:20.123456000 UTC" showname="Captured Time" value="1700000000.123456000" size="44"/>
+  </proto>
+  <field name="udp.stream" value="0"/>
+  <field name="udp.stream.pnum" value="1"/>
+</packet>
+
+
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="45">
+    <field name="num" pos="0" show="2" showname="Number" value="2" size="45"/>
+    <field name="len" pos="0" show="45" showname="Frame Length" value="2d" size="45"/>
+    <field name="caplen" pos="0" show="45" showname="Captured Length" value="2d" size="45"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:20.123457000 UTC" showname="Captured Time" value="1700000000.123457000" size="45"/>
+  </proto>
+  <field name="udp.stream" value="0"/>
+  <field name="udp.stream.pnum" value="2"/>
+</packet>
+
+
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="43">
+    <field name="num" pos="0" show="3" showname="Number" value="3" size="43"/>
+    <field name="len" pos="0" show="43" showname="Frame Length" value="2b" size="43"/>
+    <field name="caplen" pos="0" show="43" showname="Captured Length" value="2b" size="43"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:20.123458000 UTC" showname="Captured Time" value="1700000000.123458000" size="43"/>
+  </proto>
+  <field name="udp.stream" value="1"/>
+  <field name="udp.stream.pnum" value="1"/>
+</packet>
+
+
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="44">
+    <field name="num" pos="0" show="4" showname="Number" value="4" size="44"/>
+    <field name="len" pos="0" show="44" showname="Frame Length" value="2c" size="44"/>
+    <field name="caplen" pos="0" show="44" showname="Captured Length" value="2c" size="44"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:20.123459000 UTC" showname="Captured Time" value="1700000000.123459000" size="44"/>
+  </proto>
+  <field name="udp.stream" value="0"/>
+  <field name="udp.stream.pnum" value="3"/>
+</packet>
+
+
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="43">
+    <field name="num" pos="0" show="5" showname="Number" value="5" size="43"/>
+    <field name="len" pos="0" show="43" showname="Frame Length" value="2b" size="43"/>
+    <field name="caplen" pos="0" show="43" showname="Captured Length" value="2b" size="43"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:20.123460000 UTC" showname="Captured Time" value="1700000000.123460000" size="43"/>
+  </proto>
+  <field name="udp.stream" value="2"/>
+  <field name="udp.stream.pnum" value="1"/>
+</packet>
+
+
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="43">
+    <field name="num" pos="0" show="6" showname="Number" value="6" size="43"/>
+    <field name="len" pos="0" show="43" showname="Frame Length" value="2b" size="43"/>
+    <field name="caplen" pos="0" show="43" showname="Captured Length" value="2b" size="43"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:20.123461000 UTC" showname="Captured Time" value="1700000000.123461000" size="43"/>
+  </proto>
+  <field name="udp.stream" value="3"/>
+  <field name="udp.stream.pnum" value="1"/>
+</packet>
+
+
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="44">
+    <field name="num" pos="0" show="7" showname="Number" value="7" size="44"/>
+    <field name="len" pos="0" show="44" showname="Frame Length" value="2c" size="44"/>
+    <field name="caplen" pos="0" show="44" showname="Captured Length" value="2c" size="44"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:20.123462000 UTC" showname="Captured Time" value="1700000000.123462000" size="44"/>
+  </proto>
+  <field name="udp.stream" value="0"/>
+  <field name="udp.stream.pnum" value="4"/>
+</packet>
+
+
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="63">
+    <field name="num" pos="0" show="8" showname="Number" value="8" size="63"/>
+    <field name="len" pos="0" show="63" showname="Frame Length" value="3f" size="63"/>
+    <field name="caplen" pos="0" show="63" showname="Captured Length" value="3f" size="63"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:20.123463000 UTC" showname="Captured Time" value="1700000000.123463000" size="63"/>
+  </proto>
+  <field name="udp.stream" value="4"/>
+  <field name="udp.stream.pnum" value="1"/>
+</packet>
+
+
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="64">
+    <field name="num" pos="0" show="9" showname="Number" value="9" size="64"/>
+    <field name="len" pos="0" show="64" showname="Frame Length" value="40" size="64"/>
+    <field name="caplen" pos="0" show="64" showname="Captured Length" value="40" size="64"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:20.123464000 UTC" showname="Captured Time" value="1700000000.123464000" size="64"/>
+  </proto>
+  <field name="udp.stream" value="4"/>
+  <field name="udp.stream.pnum" value="2"/>
+</packet>
+
+
+</pdml>

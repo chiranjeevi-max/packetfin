@@ -1,0 +1,37 @@
+
+==============================================================================================================================================
+DNS:
+Packet Type                    Count         Average       Min Val       Max Val       Rate (ms)     Percent       Burst Rate    Burst Start  
+----------------------------------------------------------------------------------------------------------------------------------------------
+Total Packets                  1                                                                     100%          0.0100        0.000        
+Response                       1                                                                     100%          0.0100        0.000        
+ Query                         1                                                                     100.00%       0.0100        0.000        
+Query Type                     1                                                                     100%          0.0100        0.000        
+ SOA                           1                                                                     100.00%       0.0100        0.000        
+Answer Type                    0                                                                     100%          -             -            
+Query Name                     0                                                                     100%          -             -            
+Class                          1                                                                     100%          0.0100        0.000        
+ IN                            1                                                                     100.00%       0.0100        0.000        
+rcode                          1                                                                     100%          0.0100        0.000        
+ No error                      1                                                                     100.00%       0.0100        0.000        
+opcodes                        1                                                                     100%          0.0100        0.000        
+ Dynamic update                1                                                                     100.00%       0.0100        0.000        
+Payload size                   1             83.00         83            83                          100%          0.0100        0.000        
+Query Stats                    0                                                                     100%          -             -            
+ Qname Len                     1             11.00         11            11                                        0.0100        0.000        
+ Label Stats                   0                                                                                   -             -            
+  2nd Level                    1                                                                                   0.0100        0.000        
+  4th Level or more            0                                                                                   -             -            
+  3rd Level                    0                                                                                   -             -            
+  1st Level                    0                                                                                   -             -            
+Response Stats                 0                                                                     100%          -             -            
+ no. of questions              0                                                                                   -             -            
+ no. of authorities            0                                                                                   -             -            
+ no. of answers                0                                                                                   -             -            
+ no. of additionals            0                                                                                   -             -            
+Service Stats                  0                                                                     100%          -             -            
+ request-response time (msec)  0                                                                                   -             -            
+ no. of unsolicited responses  0                                                                                   -             -            
+ no. of retransmissions        0                                                                                   -             -            
+
+----------------------------------------------------------------------------------------------------------------------------------------------

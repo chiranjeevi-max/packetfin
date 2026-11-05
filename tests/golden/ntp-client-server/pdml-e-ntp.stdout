@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<?xml-stylesheet type="text/xsl" href="pdml2html.xsl"?>
+<!-- normalized -->
+<pdml version="0" creator="creator" time="time" capture_file="tests/fixtures/ntp-client-server.pcap">
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="90">
+    <field name="num" pos="0" show="1" showname="Number" value="1" size="90"/>
+    <field name="len" pos="0" show="90" showname="Frame Length" value="5a" size="90"/>
+    <field name="caplen" pos="0" show="90" showname="Captured Length" value="5a" size="90"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:20.123456000 UTC" showname="Captured Time" value="1700000000.123456000" size="90"/>
+  </proto>
+  <field name="ntp.flags" value="0x23"/>
+  <field name="ntp.xmt" value="NULL"/>
+  <field name="ntp.rootdelay" value="0"/>
+  <field name="ntp.refid" value="00000000"/>
+</packet>
+
+
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="110">
+    <field name="num" pos="0" show="2" showname="Number" value="2" size="110"/>
+    <field name="len" pos="0" show="110" showname="Frame Length" value="6e" size="110"/>
+    <field name="caplen" pos="0" show="110" showname="Captured Length" value="6e" size="110"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:20.123457000 UTC" showname="Captured Time" value="1700000000.123457000" size="110"/>
+  </proto>
+  <field name="ntp.flags" value="0x24"/>
+  <field name="ntp.xmt" value="2023-11-16T02:42:08.671111047Z"/>
+  <field name="ntp.rootdelay" value="256"/>
+  <field name="ntp.refid" value="c6336401"/>
+</packet>
+
+
+</pdml>

@@ -1,0 +1,13 @@
+================================================================================
+IPv4 Endpoints
+Filter:<No Filter>
+                       | Packets | |  Bytes  | | Tx Packets | | Tx Bytes | | Rx Packets | | Rx Bytes |
+10.1.0.1                        8   4116 bytes          5      3956 bytes           3      160 bytes   
+10.2.0.2                        8   4116 bytes          3      160 bytes            5      3956 bytes  
+10.3.0.3                        1   54 bytes            1      54 bytes             0      0 bytes     
+10.4.0.4                        1   54 bytes            0      0 bytes              1      54 bytes    
+10.5.0.5                        1   54 bytes            1      54 bytes             0      0 bytes     
+10.6.0.6                        1   54 bytes            0      0 bytes              1      54 bytes    
+203.0.113.1                     1   12 kB               1      12 kB                0      0 bytes     
+203.0.113.2                     1   12 kB               0      0 bytes              1      12 kB       
+================================================================================

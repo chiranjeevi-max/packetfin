@@ -1,0 +1,37 @@
+Frame 7: Packet, 60 bytes on wire (480 bits), 60 bytes captured (480 bits)
+    Encapsulation type: Ethernet (1)
+    Arrival Time: Nov 14, 2023 22:13:20.123462000 UTC
+    UTC Arrival Time: Nov 14, 2023 22:13:20.123462000 UTC
+    Epoch Arrival Time: 1700000000.123462000
+    [Time shift for this packet: 0.000000000 seconds]
+    [Time delta from previous captured frame: 1.000 microseconds]
+    [Time since reference or first frame: 6.000 microseconds]
+    Frame Number: 7
+    Frame Length: 60 bytes (480 bits)
+    Capture Length: 60 bytes (480 bits)
+    [Frame is marked: False]
+    [Frame is ignored: False]
+    [Protocols in frame: eth:data]
+    Character encoding: ASCII (0)
+Ethernet Unknown, Src: 02:00:00:00:00:01, Dst: 02:00:00:00:00:02
+Data (46 bytes)
+
+Frame 8: Packet, 60 bytes on wire (480 bits), 60 bytes captured (480 bits)
+    Encapsulation type: Ethernet (1)
+    Arrival Time: Nov 14, 2023 22:13:20.123463000 UTC
+    UTC Arrival Time: Nov 14, 2023 22:13:20.123463000 UTC
+    Epoch Arrival Time: 1700000000.123463000
+    [Time shift for this packet: 0.000000000 seconds]
+    [Time delta from previous captured frame: 1.000 microseconds]
+    [Time delta from previous displayed frame: 1.000 microseconds]
+    [Time since reference or first frame: 7.000 microseconds]
+    Frame Number: 8
+    Frame Length: 60 bytes (480 bits)
+    Capture Length: 60 bytes (480 bits)
+    [Frame is marked: False]
+    [Frame is ignored: False]
+    [Protocols in frame: eth:data]
+    Character encoding: ASCII (0)
+Ethernet Unknown, Src: 02:00:00:00:00:01, Dst: 02:00:00:00:00:02
+Data (46 bytes)
+

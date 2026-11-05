@@ -1,0 +1,2 @@
+packetfin: The specified ring buffer packet count is zero
+packetfin: Invalid or unknown -b arg "packets"

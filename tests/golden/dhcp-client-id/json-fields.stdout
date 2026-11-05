@@ -1,0 +1,69 @@
+[
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {}
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "dhcp.client_hardware_address": [
+          "010203040506"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {}
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "dhcp.client_id.iaid": [
+          "00000000"
+        ],
+        "dhcp.client_id.duid_type": [
+          "1"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "dhcp.client_id.iaid": [
+          "00000001"
+        ],
+        "dhcp.client_id.duid_type": [
+          "3"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "dhcp.client_id.iaid": [
+          "00000002"
+        ],
+        "dhcp.client_id.duid_type": [
+          "2"
+        ]
+      }
+    }
+  }
+]

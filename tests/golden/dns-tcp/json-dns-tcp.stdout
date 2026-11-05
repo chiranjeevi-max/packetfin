@@ -1,0 +1,118 @@
+[
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "dns.length": [
+          "29"
+        ],
+        "dns.id": [
+          "0x1234"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "dns.length": [
+          "29"
+        ],
+        "dns.id": [
+          "0x1234"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "dns.length": [
+          "45"
+        ],
+        "dns.id": [
+          "0x1234"
+        ],
+        "dns.response_to": [
+          "1"
+        ],
+        "dns.time": [
+          "0.000002000"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "dns.length": [
+          "27",
+          "29"
+        ],
+        "dns.id": [
+          "0x1235",
+          "0x1234"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "dns.length": [
+          "43"
+        ],
+        "dns.id": [
+          "0x1235"
+        ],
+        "dns.response_to": [
+          "4"
+        ],
+        "dns.time": [
+          "0.000001000"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "dns.length": [
+          "27",
+          "4",
+          "27"
+        ],
+        "dns.id": [
+          "0x1235",
+          "0x0002",
+          "0x1236"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {}
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {}
+    }
+  }
+]

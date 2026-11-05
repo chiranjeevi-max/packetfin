@@ -1,0 +1,136 @@
+[
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "ospf.version": [
+          "3"
+        ],
+        "ospf.v3.options": [
+          "0x000013"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "ospf.version": [
+          "3"
+        ],
+        "ospf.v3.lsa": [
+          "0x2001",
+          "0x2002"
+        ],
+        "ospf.v3.options": [
+          "0x000013"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "ospf.version": [
+          "3"
+        ],
+        "ospf.v3.lsa": [
+          "0x2001",
+          "0x0008"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "ospf.version": [
+          "3"
+        ],
+        "ospf.v3.lsa": [
+          "0x2001",
+          "0x2002",
+          "0x2003",
+          "0x2004",
+          "0x4005",
+          "0x0008",
+          "0x2009"
+        ],
+        "ospf.v3.address_prefix.ipv6": [
+          "2001:db8:1::",
+          "2001:db8:1::",
+          "2001:db8:2::",
+          "2001:db8:3::",
+          "2001:db8:4::"
+        ],
+        "ospf.v3.options": [
+          "0x002022",
+          "0x002022",
+          "0x002022",
+          "0x002022"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "ospf.version": [
+          "3"
+        ],
+        "ospf.v3.lsa": [
+          "0x2001",
+          "0x2002"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "ospf.version": [
+          "3"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "ospf.version": [
+          "3"
+        ],
+        "ospf.v3.lsa": [
+          "0x2009"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "ospf.version": [
+          "3"
+        ],
+        "ospf.v3.lsa": [
+          "0x2009"
+        ]
+      }
+    }
+  }
+]

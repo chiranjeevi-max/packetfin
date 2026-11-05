@@ -1,0 +1,560 @@
+#!/usr/bin/env python3
+"""Memory-ceiling regression matrix.
+
+Generates the large captures that are too big to commit, then measures peak
+resident memory of the release binary for:
+
+* the fixed one-frame baseline with the default ledgers;
+* the mixed ``-z conv,udp -z endpoints,udp`` case at 64 MiB state and 64 MiB
+  statistics (and its statistics-attributable part with no state);
+* 1,000,000 one-packet flows and 1,000,000 IPv4 fragments;
+* one 64 MiB HTTP object exported plain, over TLS 1.2 and chunked;
+* every rendered output mode of those objects (`-V`, `-x`, JSON, JSON raw,
+  EK and PDML).
+
+Every case fails when peak RSS exceeds the documented memory ceiling
+(``state + statistics + annotation + fixed baseline``) or when it regresses
+more than 10% against the recorded baseline. The object cases also verify the
+exported SHA-256 against the stored expected hashes.
+
+Usage:
+    cargo build --release
+    tools/memory
+    tools/memory --binary target/release/packetfin --repeats 3
+    tools/memory --captures /tmp/pf-memory --regenerate
+
+``tools/stress --memory`` runs this matrix with the stress campaign.
+"""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import os
+import re
+import shutil
+import struct
+import subprocess
+import sys
+import time
+from dataclasses import dataclass
+from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
+DEFAULT_BINARY = REPO_ROOT / "target" / "release" / "packetfin"
+DEFAULT_CAPTURES = Path("/tmp/packetfin-memory-captures")
+DEFAULT_REPEATS = 3
+MIB = 1024 * 1024
+OBJECT_BYTES = 64 * MIB
+
+# Default budgets: 256 MiB state, 64 MiB statistics, 64 MiB annotations.
+DEFAULT_CEILING = (256 + 64 + 64) * MIB
+TWO_LEDGER_CEILING = (64 + 64 + 64) * MIB
+
+# Recorded 2026-11-05 on macOS 27.2 arm64 (Apple M5 Pro, 24 GB). The
+# one-frame value is measured with all ledgers enabled at their defaults; it
+# did not move when each ledger was disabled individually (the empty capture
+# peaks at 8,552,448 B).
+RECORDED_BASELINE = 9_224_192
+
+# Peak RSS recorded for each case on the same host. A case fails when it
+# exceeds its baseline by more than 10%, matching the performance guard.
+RECORDED_PEAKS = {
+    "mixed-64-64": 108_969_984,
+    "mixed-stats-attributable": 57_769_984,
+    "plain64-export": 176_750_592,
+    "tls64-export": 220_807_168,
+    "chunked64-export": 313_901_056,
+    "flows-1m": 218_644_480,
+    "fragments-1m": 209_649_664,
+    "plain64-detail": 177_537_024,
+    "plain64-hexdump": 177_078_272,
+    "plain64-json": 178_765_824,
+    "plain64-jsonraw": 193_495_040,
+    "plain64-pdml": 177_766_400,
+    "plain64-ek": 178_028_544,
+    "tls64-detail": 221_413_376,
+    "tls64-hexdump": 221_265_920,
+    "tls64-json": 221_528_064,
+    "tls64-jsonraw": 221_446_144,
+    "tls64-pdml": 221_986_816,
+    "tls64-ek": 221_347_840,
+    "chunked64-detail": 315_457_536,
+    "chunked64-hexdump": 314_949_632,
+    "chunked64-json": 329_220_096,
+    "chunked64-jsonraw": 400_441_344,
+    "chunked64-pdml": 316_293_120,
+    "chunked64-ek": 321_110_016,
+    "plain64-fields-http.file_data": 176_979_968,
+    "plain64-fields-tcp.reassembled.data": 176_914_432,
+    "tls64-fields-http.file_data": 220_889_088,
+    "tls64-fields-tcp.reassembled.data": 220_987_392,
+    "chunked64-fields-http.file_data": 314_671_104,
+    "chunked64-fields-tcp.reassembled.data": 314_769_408,
+}
+
+OUTPUT_MODES = (
+    ("detail", ("-V",)),
+    ("hexdump", ("-x",)),
+    ("json", ("-T", "json")),
+    ("jsonraw", ("-T", "jsonraw")),
+    ("pdml", ("-T", "pdml")),
+    ("ek", ("-T", "ek")),
+)
+
+EXPORT_HASHES = {
+    "plain64": "601fc533f64b11042a9ae821c272064871306a99496652afb5758c8979d8834d",
+    "tls64": "dbfaca2662cb70b69dfefd5ac95d1f54a73663092d46cefdc9609dc695a12c98",
+    "chunked64": "351328edf1d6c2e4ffc45c55a2479daad4b73fb7e40ec80df740b4c8ae08a434",
+}
+
+
+@dataclass(frozen=True)
+class Case:
+    name: str
+    args: tuple[str, ...]
+    ceiling: int
+    baseline: int | None
+    export_capture: str | None = None
+
+
+def pcap_bytes(frames: list[bytes]) -> bytes:
+    out = bytearray(struct.pack("<IHHiIII", 0xA1B2C3D4, 2, 4, 0, 0, 65535, 1))
+    for index, frame in enumerate(frames):
+        out += struct.pack("<IIII", 1000 + index, 0, len(frame), len(frame))
+        out += frame
+    return bytes(out)
+
+
+def ethernet_ipv4_tcp(payload: bytes, sequence: int, sport: int, dport: int) -> bytes:
+    tcp_len = 20 + len(payload)
+    total = 20 + tcp_len
+    ip = bytearray(20)
+    ip[0] = 0x45
+    ip[2:4] = total.to_bytes(2, "big")
+    ip[4:6] = (1).to_bytes(2, "big")
+    ip[6:8] = (0x4000).to_bytes(2, "big")
+    ip[8] = 64
+    ip[9] = 6
+    ip[12:16] = bytes((10, 0, 0, 2))
+    ip[16:20] = bytes((10, 0, 0, 1))
+    tcp = bytearray(20)
+    tcp[0:2] = sport.to_bytes(2, "big")
+    tcp[2:4] = dport.to_bytes(2, "big")
+    tcp[4:8] = sequence.to_bytes(4, "big")
+    tcp[8:12] = (1).to_bytes(4, "big")
+    tcp[12] = 0x50
+    tcp[13] = 0x18
+    tcp[14:16] = (65535).to_bytes(2, "big")
+    eth = bytes((0x02, 0, 0, 0, 0, 2)) + bytes((0x02, 0, 0, 0, 0, 1))
+    eth += (0x0800).to_bytes(2, "big")
+    return eth + bytes(ip) + bytes(tcp) + payload
+
+
+def flow_frame(index: int) -> bytes:
+    frame = bytearray(42)
+    frame[0:6] = bytes((0x00, 0x11, 0x22, 0x33, 0x44, 0x55))
+    frame[6:12] = bytes((0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB))
+    frame[12:14] = (0x0800).to_bytes(2, "big")
+    ip = 14
+    frame[ip] = 0x45
+    frame[ip + 2 : ip + 4] = (28).to_bytes(2, "big")
+    frame[ip + 4 : ip + 6] = (index & 0xFFFF).to_bytes(2, "big")
+    frame[ip + 6 : ip + 8] = (0x4000).to_bytes(2, "big")
+    frame[ip + 8] = 64
+    frame[ip + 9] = 17
+    frame[ip + 12 : ip + 16] = bytes(
+        (10, (index >> 16) & 0xFF, (index >> 8) & 0xFF, index & 0xFF)
+    )
+    frame[ip + 16 : ip + 20] = bytes((203, 0, 113, 1))
+    udp = 34
+    frame[udp : udp + 2] = (5000).to_bytes(2, "big")
+    frame[udp + 2 : udp + 4] = (6000).to_bytes(2, "big")
+    frame[udp + 4 : udp + 6] = (8).to_bytes(2, "big")
+    return bytes(frame)
+
+
+def fragment_frame(index: int) -> bytes:
+    frame = bytearray(50)
+    frame[0:6] = bytes((0x02, 0, 0, 0, 0, 2))
+    frame[6:12] = bytes((0x02, 0, 0, 0, 0, 1))
+    frame[12:14] = (0x0800).to_bytes(2, "big")
+    ip = 14
+    frame[ip] = 0x45
+    frame[ip + 2 : ip + 4] = (36).to_bytes(2, "big")
+    frame[ip + 4 : ip + 6] = (index & 0xFFFF).to_bytes(2, "big")
+    frame[ip + 6 : ip + 8] = (0x2000).to_bytes(2, "big")  # MF, offset zero
+    frame[ip + 8] = 64
+    frame[ip + 9] = 17
+    frame[ip + 12 : ip + 16] = bytes(
+        (10, (index >> 16) & 0xFF, (index >> 8) & 0xFF, index & 0xFF)
+    )
+    frame[ip + 16 : ip + 20] = bytes((192, 0, 2, 1))
+    udp = 34
+    frame[udp : udp + 2] = (40000).to_bytes(2, "big")
+    frame[udp + 2 : udp + 4] = (33434).to_bytes(2, "big")
+    frame[udp + 4 : udp + 6] = (16).to_bytes(2, "big")
+    for offset in range(8):
+        frame[42 + offset] = (index * 31 + offset) & 0xFF
+    return bytes(frame)
+
+
+def write_capture(path: Path, frames: list[bytes]) -> None:
+    path.write_bytes(pcap_bytes(frames))
+
+
+def small_captures(captures: Path, regenerate: bool) -> None:
+    empty = captures / "empty.pcap"
+    if regenerate or not empty.is_file() or empty.stat().st_size != 24:
+        empty.write_bytes(pcap_bytes([]))
+    one = captures / "one.pcap"
+    one_size = 24 + 16 + 42
+    if regenerate or not one.is_file() or one.stat().st_size != one_size:
+        one.write_bytes(pcap_bytes([flow_frame(0)]))
+    flows = captures / "flows-1m.pcap"
+    flows_size = 24 + 1_000_000 * (16 + 42)
+    if regenerate or not flows.is_file() or flows.stat().st_size != flows_size:
+        flows.write_bytes(pcap_bytes([flow_frame(index) for index in range(1_000_000)]))
+    fragments = captures / "fragments-1m.pcap"
+    fragments_size = 24 + 1_000_000 * (16 + 50)
+    if (
+        regenerate
+        or not fragments.is_file()
+        or fragments.stat().st_size != fragments_size
+    ):
+        fragments.write_bytes(
+            pcap_bytes([fragment_frame(index) for index in range(1_000_000)])
+        )
+
+
+def large_captures(captures: Path, regenerate: bool) -> None:
+    expected = {
+        "plain64.pcap": 70_326_699,
+        "chunked64.pcap": 70_663_861,
+        "tls64.pcap": 70_669_350,
+        "tls64-keys.log": 176,
+    }
+    missing = [
+        name
+        for name, size in expected.items()
+        if regenerate
+        or not (captures / name).is_file()
+        or (captures / name).stat().st_size != size
+    ]
+    if not missing:
+        return
+    generator = REPO_ROOT / "target" / "release" / "gen-load"
+    command = (
+        [str(generator), str(captures)]
+        if generator.is_file()
+        else [
+            "cargo",
+            "run",
+            "--quiet",
+            "--release",
+            "-p",
+            "packetfin-testkit",
+            "--bin",
+            "gen-load",
+            "--",
+            str(captures),
+        ]
+    )
+    print(f"memory: generating large captures in {captures}", file=sys.stderr)
+    result = subprocess.run(command, cwd=REPO_ROOT)
+    if result.returncode != 0:
+        raise SystemExit("memory: gen-load failed")
+
+
+def time_command(binary: Path, arguments: tuple[str, ...]) -> list[str]:
+    time_binary = Path("/usr/bin/time")
+    if not time_binary.is_file():
+        raise SystemExit("memory: /usr/bin/time is required for peak-RSS measurement")
+    flag = "-l" if sys.platform == "darwin" else "-v"
+    return [str(time_binary), flag, str(binary), *arguments]
+
+
+def parse_rss(stderr: str) -> int:
+    match = re.search(r"(\d+)\s+maximum resident set size", stderr)
+    if match:
+        return int(match.group(1))
+    match = re.search(r"Maximum resident set size \(kbytes\):\s*(\d+)", stderr)
+    if match:
+        return int(match.group(1)) * 1024
+    raise SystemExit(f"memory: cannot parse peak RSS from:\\n{stderr[-2000:]}")
+
+
+def measure(binary: Path, arguments: tuple[str, ...]) -> int:
+    command = time_command(binary, arguments)
+    result = subprocess.run(
+        command,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,
+        text=True,
+        errors="replace",
+    )
+    if result.returncode not in (0,):
+        raise SystemExit(
+            f"memory: {' '.join(arguments)} exited {result.returncode}\\n"
+            f"{result.stderr[-2000:]}"
+        )
+    return parse_rss(result.stderr)
+
+
+def sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as source:
+        for block in iter(lambda: source.read(1 << 20), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def verify_export(captures: Path, name: str, binary: Path, extra: tuple[str, ...]) -> None:
+    export_dir = captures / f"out-{name}"
+    shutil.rmtree(export_dir, ignore_errors=True)
+    export_dir.mkdir(parents=True)
+    arguments = (
+        "-n",
+        "-q",
+        "-r",
+        str(captures / f"{name}.pcap"),
+        *extra,
+        "--export-objects",
+        f"http,{export_dir}",
+    )
+    result = subprocess.run(
+        [str(binary), *arguments],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,
+        text=True,
+        errors="replace",
+    )
+    if result.returncode != 0:
+        raise SystemExit(f"memory: export {name} exited {result.returncode}")
+    files = [path for path in export_dir.iterdir() if path.is_file()]
+    if len(files) != 1:
+        raise SystemExit(f"memory: export {name} wrote {len(files)} files")
+    digest = sha256_file(files[0])
+    if files[0].stat().st_size != OBJECT_BYTES or digest != EXPORT_HASHES[name]:
+        raise SystemExit(
+            f"memory: export {name} changed: {files[0].stat().st_size} bytes {digest}"
+        )
+
+
+def cases(captures: Path) -> list[Case]:
+    default_ceiling = DEFAULT_CEILING + RECORDED_BASELINE
+    two_ledger_ceiling = TWO_LEDGER_CEILING + RECORDED_BASELINE
+    flows = captures / "flows-1m.pcap"
+    fragments = captures / "fragments-1m.pcap"
+    keylog = captures / "tls64-keys.log"
+    cases = [
+        Case("one-frame", ("-n", "-q", "-r", str(captures / "one.pcap")), default_ceiling, None),
+        Case(
+            "mixed-stats-attributable",
+            (
+                "-n",
+                "-q",
+                "-r",
+                str(flows),
+                "-z",
+                "conv,udp",
+                "-z",
+                "endpoints,udp",
+                "--pf-state-budget",
+                "0",
+                "--pf-stats-budget",
+                str(64 * MIB),
+            ),
+            RECORDED_BASELINE + 64 * MIB,
+            RECORDED_PEAKS["mixed-stats-attributable"],
+        ),
+        Case(
+            "mixed-64-64",
+            (
+                "-n",
+                "-q",
+                "-r",
+                str(flows),
+                "-z",
+                "conv,udp",
+                "-z",
+                "endpoints,udp",
+                "--pf-state-budget",
+                str(64 * MIB),
+                "--pf-stats-budget",
+                str(64 * MIB),
+            ),
+            two_ledger_ceiling,
+            RECORDED_PEAKS["mixed-64-64"],
+        ),
+        Case(
+            "flows-1m",
+            ("-n", "-q", "-r", str(flows)),
+            default_ceiling,
+            RECORDED_PEAKS["flows-1m"],
+        ),
+        Case(
+            "fragments-1m",
+            ("-n", "-q", "-r", str(fragments)),
+            default_ceiling,
+            RECORDED_PEAKS["fragments-1m"],
+        ),
+        Case(
+            "plain64-export",
+            (
+                "-n",
+                "-q",
+                "-r",
+                str(captures / "plain64.pcap"),
+                "--export-objects",
+                f"http,{captures / 'out-plain64-peak'}",
+            ),
+            default_ceiling,
+            RECORDED_PEAKS["plain64-export"],
+            "plain64",
+        ),
+        Case(
+            "tls64-export",
+            (
+                "-n",
+                "-q",
+                "-r",
+                str(captures / "tls64.pcap"),
+                "-o",
+                f"tls.keylog_file:{keylog}",
+                "--export-objects",
+                f"http,{captures / 'out-tls64-peak'}",
+            ),
+            default_ceiling,
+            RECORDED_PEAKS["tls64-export"],
+            "tls64",
+        ),
+        Case(
+            "chunked64-export",
+            (
+                "-n",
+                "-q",
+                "-r",
+                str(captures / "chunked64.pcap"),
+                "--export-objects",
+                f"http,{captures / 'out-chunked64-peak'}",
+            ),
+            default_ceiling,
+            RECORDED_PEAKS["chunked64-export"],
+            "chunked64",
+        ),
+    ]
+    keylog_arg = ("-o", f"tls.keylog_file:{keylog}")
+    for name, path, extra in (
+        ("plain64", captures / "plain64.pcap", ()),
+        ("tls64", captures / "tls64.pcap", keylog_arg),
+        ("chunked64", captures / "chunked64.pcap", ()),
+    ):
+        for mode, mode_args in OUTPUT_MODES:
+            cases.append(
+                Case(
+                    f"{name}-{mode}",
+                    ("-n", "-r", str(path), *extra, *mode_args),
+                    default_ceiling,
+                    RECORDED_PEAKS.get(f"{name}-{mode}"),
+                )
+            )
+        for field in ("http.file_data", "tcp.reassembled.data"):
+            cases.append(
+                Case(
+                    f"{name}-fields-{field}",
+                    ("-n", "-r", str(path), *extra, "-T", "fields", "-e", field),
+                    default_ceiling,
+                    RECORDED_PEAKS.get(f"{name}-fields-{field}"),
+                )
+            )
+    return cases
+
+
+def clean_exports(captures: Path) -> None:
+    for name in ("plain64", "tls64", "chunked64"):
+        shutil.rmtree(captures / f"out-{name}", ignore_errors=True)
+        shutil.rmtree(captures / f"out-{name}-peak", ignore_errors=True)
+
+
+def main(argv: list[str]) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--binary", type=Path, default=DEFAULT_BINARY)
+    parser.add_argument("--captures", type=Path, default=DEFAULT_CAPTURES)
+    parser.add_argument("--repeats", type=int, default=DEFAULT_REPEATS)
+    parser.add_argument("--regenerate", action="store_true")
+    arguments = parser.parse_args(argv)
+    if arguments.repeats < 1:
+        parser.error("--repeats must be at least 1")
+    binary = arguments.binary
+    if not binary.is_absolute():
+        binary = (REPO_ROOT / binary).resolve()
+    if not binary.is_file() or not os.access(binary, os.X_OK):
+        raise SystemExit(f"memory: release binary is missing: {binary} (run cargo build --release)")
+    captures = arguments.captures
+    captures.mkdir(parents=True, exist_ok=True)
+
+    clean_exports(captures)
+    small_captures(captures, arguments.regenerate)
+    large_captures(captures, arguments.regenerate)
+
+    for name in ("plain64", "tls64", "chunked64"):
+        extra = (
+            ("-o", f"tls.keylog_file:{captures / 'tls64-keys.log'}")
+            if name == "tls64"
+            else ()
+        )
+        verify_export(captures, name, binary, extra)
+    clean_exports(captures)
+
+    baseline = measure(binary, ("-n", "-q", "-r", str(captures / "one.pcap")))
+    failures: list[str] = []
+    print(f"memory: fixed baseline {baseline} B (recorded {RECORDED_BASELINE} B)")
+    if baseline > RECORDED_BASELINE * 1.10:
+        failures.append(
+            f"one-frame baseline regressed: {baseline} > 110% of {RECORDED_BASELINE}"
+        )
+
+    print(
+        f"{'case':<26}{'peak B':>14}{'ceiling B':>14}{'baseline B':>14}  result"
+    )
+    for case in cases(captures):
+        peaks = []
+        for _ in range(arguments.repeats):
+            if case.export_capture is not None:
+                shutil.rmtree(captures / f"out-{case.export_capture}-peak", ignore_errors=True)
+            peaks.append(measure(binary, case.args))
+        peak = max(peaks)
+        reasons = []
+        if peak > case.ceiling:
+            reasons.append(f"above the memory ceiling by {peak - case.ceiling} B")
+        if case.baseline is not None and peak > int(case.baseline * 1.10):
+            reasons.append(f"regressed above 110% of {case.baseline} B")
+        result = "ok" if not reasons else "FAIL: " + "; ".join(reasons)
+        if reasons:
+            failures.append(f"{case.name}: {result} (peak {peak} B)")
+        baseline_text = "-" if case.baseline is None else str(case.baseline)
+        print(f"{case.name:<26}{peak:>14}{case.ceiling:>14}{baseline_text:>14}  {result}")
+        if case.export_capture is not None:
+            extra = (
+                ("-o", f"tls.keylog_file:{captures / 'tls64-keys.log'}")
+                if case.export_capture == "tls64"
+                else ()
+            )
+            verify_export(captures, case.export_capture, binary, extra)
+
+    clean_exports(captures)
+    if failures:
+        print("memory: FAIL", file=sys.stderr)
+        for failure in failures:
+            print(f"  {failure}", file=sys.stderr)
+        return 1
+    print("memory: all cases within the memory ceiling and recorded baselines")
+    return 0
+
+
+if __name__ == "__main__":
+    started = time.monotonic()
+    status = main(sys.argv[1:])
+    print(f"memory: {time.monotonic() - started:.1f} s", file=sys.stderr)
+    raise SystemExit(status)

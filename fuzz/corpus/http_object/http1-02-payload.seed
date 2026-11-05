@@ -1,0 +1,7 @@
+HTTP/1.1 200 OK
+Server: nginx/1.25
+Content-Type: text/html; charset=UTF-8
+Content-Length: 13
+Connection: keep-alive
+
+Hello, world!

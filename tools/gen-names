@@ -1,0 +1,98 @@
+#!/usr/bin/env bash
+# tools/gen-names — regenerate the committed OUI and service-name tables.
+#
+# Downloads the IEEE MA-L and IANA service-name registries, then runs the
+# gen-names binary in packetfin-testkit. The generated Rust files and
+# data/registry/PROVENANCE.md record the source URLs, retrieval date, source
+# SHA-256 and license. Pass local paths with --oui and --services to work
+# offline.
+#
+# The retrieval date defaults to the date already recorded in
+# data/registry/PROVENANCE.md, so a check or regeneration does not silently
+# change the snapshot date. Pass --date YYYY-MM-DD to record a new snapshot.
+#
+# --check regenerates into a temporary directory and compares it with the
+# committed files. It never writes the checkout, so drift leaves the working
+# tree untouched and exits 1.
+
+set -euo pipefail
+
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+repo_root="$(cd "$script_dir/.." && pwd)"
+cd "$repo_root"
+
+oui_url="https://standards-oui.ieee.org/oui/oui.csv"
+services_url="https://www.iana.org/assignments/service-names-port-numbers/service-names-port-numbers.csv"
+cache="$repo_root/target/registry"
+oui="$cache/oui.csv"
+services="$cache/service-names-port-numbers.csv"
+date=""
+offline=0
+check=0
+
+while (($#)); do
+    case "$1" in
+        --oui) oui="$2"; offline=1; shift 2 ;;
+        --services) services="$2"; offline=1; shift 2 ;;
+        --date) date="$2"; shift 2 ;;
+        --check) check=1; shift ;;
+        -h|--help)
+            sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'
+            exit 0
+            ;;
+        *)
+            printf 'gen-names: unknown option %s\n' "$1" >&2
+            exit 2
+            ;;
+    esac
+done
+
+committed_date="$(awk '/^- Retrieved: /{print $3; exit}' data/registry/PROVENANCE.md 2>/dev/null || true)"
+if [[ -z "$date" ]]; then
+    if [[ -z "$committed_date" ]]; then
+        printf 'gen-names: no --date and no committed retrieval date in data/registry/PROVENANCE.md\n' >&2
+        exit 2
+    fi
+    date="$committed_date"
+fi
+
+if ((offline == 0)); then
+    mkdir -p "$cache"
+    printf 'gen-names: downloading %s\n' "$oui_url" >&2
+    curl -fsSL --retry 3 --max-time 300 -o "$oui" "$oui_url"
+    printf 'gen-names: downloading %s\n' "$services_url" >&2
+    curl -fsSL --retry 3 --max-time 300 -o "$services" "$services_url"
+fi
+
+if ((check == 1)); then
+    out_dir="$(mktemp -d)"
+    trap 'rm -rf "$out_dir"' EXIT
+    provenance="$out_dir/PROVENANCE.md"
+else
+    out_dir="crates/packetfin-core/src/names"
+    provenance="data/registry/PROVENANCE.md"
+fi
+
+cargo run --quiet -p packetfin-testkit --bin gen-names -- \
+    --oui "$oui" \
+    --services "$services" \
+    --oui-url "$oui_url" \
+    --services-url "$services_url" \
+    --date "$date" \
+    --out "$out_dir" \
+    --provenance "$provenance"
+
+if ((check == 1)); then
+    status=0
+    for file in oui_data.rs services_data.rs; do
+        if ! cmp -s "$out_dir/$file" "crates/packetfin-core/src/names/$file"; then
+            printf 'gen-names: %s is not up to date\n' "$file" >&2
+            status=1
+        fi
+    done
+    if ! cmp -s "$out_dir/PROVENANCE.md" data/registry/PROVENANCE.md; then
+        printf 'gen-names: PROVENANCE.md is not up to date\n' >&2
+        status=1
+    fi
+    exit "$status"
+fi

@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<psml version="0" creator="creator">
+<structure>
+<section>No.</section>
+<section>Time</section>
+<section>Source</section>
+<section>Destination</section>
+<section>Protocol</section>
+<section>Length</section>
+<section>Info</section>
+</structure>
+
+<packet>
+<section>1</section>
+<section>0.000000</section>
+<section>2001:db8::1</section>
+<section>2001:db8::2</section>
+<section>IPv6</section>
+<section>58</section>
+<section>IPv6 no next header</section>
+</packet>
+
+<packet>
+<section>2</section>
+<section>0.000001</section>
+<section>fe80::1</section>
+<section>ff02::1</section>
+<section>IPv6</section>
+<section>54</section>
+<section>IPv6 no next header</section>
+</packet>
+
+<packet>
+<section>3</section>
+<section>0.000002</section>
+<section>::</section>
+<section>::1</section>
+<section>IPv6</section>
+<section>54</section>
+<section>IPv6 no next header</section>
+</packet>
+
+</psml>

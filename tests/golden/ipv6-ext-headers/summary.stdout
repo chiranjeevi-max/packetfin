@@ -1,0 +1,9 @@
+    1   0.000000  2001:db8::1 → 2001:db8::2  IPv6 70 IPv6 no next header
+    2   0.000001  2001:db8::1 → 2001:db8::2  IPv6 72 IPv6 no next header
+    3   0.000002  2001:db8::1 → 2001:db8::12 IPv6 94 IPv6 no next header
+    4   0.000003  2001:db8::1 → 2001:db8::2  IPv6 78 IPv6 no next header
+    5   0.000004  2001:db8::1 → 2001:db8::2  IPv6 78 IPv6 no next header
+    6   0.000005  2001:db8::1 → 2001:db8::2  IPv6 70 IPv6 no next header
+    7   0.000006  2001:db8::1 → 2001:db8::2  IPv6 62 IPv6 no next header
+    8   0.000007  2001:db8::1 → 2001:db8::2  IPv6 70 IPv6 no next header
+    9   0.000008  2001:db8::1 → 2001:db8::2  IPv6 70 IPv6 no next header

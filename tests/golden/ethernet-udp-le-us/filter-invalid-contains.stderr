@@ -1,0 +1,3 @@
+packetfin: ip.src (type=IPv4 address) cannot participate in contains comparison.
+    ip.src contains 192.0.2
+    ^~~~~~

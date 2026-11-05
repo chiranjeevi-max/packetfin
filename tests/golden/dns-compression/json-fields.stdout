@@ -1,0 +1,53 @@
+[
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "dns.id": [
+          "0x0002"
+        ],
+        "dns.qry.name": [
+          "example.com"
+        ],
+        "dns.count.answers": [
+          "3"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "dns.id": [
+          "0x0003"
+        ],
+        "dns.qry.name": [
+          "abc"
+        ],
+        "dns.count.answers": [
+          "0"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "dns.id": [
+          "0x0004"
+        ],
+        "dns.qry.name": [
+          "xyz"
+        ],
+        "dns.count.answers": [
+          "0"
+        ]
+      }
+    }
+  }
+]

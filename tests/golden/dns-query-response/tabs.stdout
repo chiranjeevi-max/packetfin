@@ -1,0 +1,2 @@
+    1	  0.000000	   192.0.2.1	→	198.51.100.2	DNS	89	Standard query 0x1234 A example.com OPT
+    2	  1.000000	   192.0.2.1	→	198.51.100.2	DNS	387	Standard query response 0x1234 A example.com A 192.0.2.1 AAAA 2001:db8::1 CNAME alias.example.com NS ns1.example.com PTR host.example.com MX 10 mail.example.com SOA ns1.example.com TXT SRV 10 20 8443 srv.example.com OPT

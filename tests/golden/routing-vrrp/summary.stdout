@@ -1,0 +1,9 @@
+    1   0.000000    192.0.2.1 → 198.51.100.2 VRRP 54 Announcement (v2)
+    2   0.000001    192.0.2.1 → 198.51.100.2 VRRP 54 Announcement (v2)
+    3   0.000002    192.0.2.1 → 198.51.100.2 VRRP 46 Announcement (v3)
+    4   0.000003    192.0.2.1 → 198.51.100.2 VRRP 46 Announcement (v3)
+    5   0.000004  2001:db8::1 → 2001:db8::2  VRRP 78 Announcement (v3)
+    6   0.000005    192.0.2.1 → 198.51.100.2 VRRP 54 Announcement (v2)
+    7   0.000006    192.0.2.1 → 198.51.100.2 VRRP 38 Announcement (v2)[Malformed Packet]
+    8   0.000007    192.0.2.1 → 198.51.100.2 VRRP 42 Announcement (v2)[Malformed Packet]
+    9   0.000008    192.0.2.1 → 198.51.100.2 VRRP 60 Announcement (v2)

@@ -1,0 +1,12 @@
+================================================================================
+TCP Endpoints
+Filter:<No Filter>
+                       |  Port  | | Packets | |  Bytes  | | Tx Packets | | Tx Bytes | | Rx Packets | | Rx Bytes |
+192.0.2.1                 40000           12   653 bytes           8      437 bytes            4      216 bytes   
+198.51.100.2                443           10   545 bytes           3      162 bytes            7      383 bytes   
+198.51.100.2                 80            2   108 bytes           1      54 bytes             1      54 bytes    
+203.0.113.9               40000            2   111 bytes           1      57 bytes             1      54 bytes    
+198.51.100.2               7777            2   111 bytes           1      54 bytes             1      57 bytes    
+2001:db8::1               40000            2   148 bytes           1      74 bytes             1      74 bytes    
+2001:db8::2                 443            2   148 bytes           1      74 bytes             1      74 bytes    
+================================================================================

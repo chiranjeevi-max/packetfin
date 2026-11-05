@@ -1,0 +1,280 @@
+[
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tcp.segment_data": [
+          "474554202f73706c697420485454502f312e310d"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tcp.segment_data": [
+          "0a486f73743a2073706c69742e6578616d706c650d0a0d0a"
+        ],
+        "tcp.reassembled.length": [
+          "44"
+        ],
+        "http.request.uri": [
+          "/split"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "http.request.uri": [
+          "/split"
+        ],
+        "http.response.code": [
+          "200"
+        ],
+        "http.file_data": [
+          "68656c6c6f"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tcp.segment_data": [
+          "504f5354202f626f647920485454502f312e310d0a486f73743a20780d0a436f6e74656e742d4c656e6774683a20350d0a0d0a6865"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tcp.segment_data": [
+          "6c6c6f"
+        ],
+        "tcp.reassembled.length": [
+          "56"
+        ],
+        "http.request.uri": [
+          "/body"
+        ],
+        "http.file_data": [
+          "68656c6c6f"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tcp.segment_data": [
+          "485454502f312e3120323030204f4b0d0a5472616e736665722d456e636f64696e673a206368756e6b65640d0a436f6e74656e742d547970653a20746578742f706c61696e0d0a0d0a350d0a4865"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tcp.segment_data": [
+          "6c6c6f0d0a360d0a20776f726c640d0a300d0a0d0a"
+        ],
+        "tcp.reassembled.length": [
+          "99"
+        ],
+        "http.request.uri": [
+          "/body"
+        ],
+        "http.response.code": [
+          "200"
+        ],
+        "http.file_data": [
+          "48656c6c6f20776f726c64"
+        ],
+        "http.chunk_size": [
+          "5",
+          "6",
+          "0"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "http.request.uri": [
+          "/a",
+          "/b"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "http.request.uri": [
+          "/b"
+        ],
+        "http.response.code": [
+          "200",
+          "200"
+        ],
+        "http.file_data": [
+          "61",
+          "62"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tcp.segment_data": [
+          "4745"
+        ],
+        "http.request.uri": [
+          "/a"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tcp.segment_data": [
+          "54202f6220485454502f312e310d0a486f73743a20780d0a0d0a"
+        ],
+        "tcp.reassembled.length": [
+          "28"
+        ],
+        "http.request.uri": [
+          "/b"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "http.request.uri": [
+          "/b"
+        ],
+        "http.response.code": [
+          "200"
+        ],
+        "http.file_data": [
+          "61"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "http.response.code": [
+          "200"
+        ],
+        "http.file_data": [
+          "62"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {}
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {}
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "http.response.code": [
+          "200"
+        ],
+        "http.file_data": [
+          "6f6b"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "http.request.uri": [
+          "/204"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tcp.segment_data": [
+          "485454502f312e3120323034204e6f20436f6e74656e740d0a436f6e74656e742d4c656e6774683a20350d0a"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tcp.segment_data": [
+          "0d0a"
+        ],
+        "tcp.reassembled.length": [
+          "46"
+        ],
+        "http.request.uri": [
+          "/204"
+        ],
+        "http.response.code": [
+          "204"
+        ]
+      }
+    }
+  }
+]

@@ -1,0 +1,9 @@
+
+===================================================================
+Follow: udp,raw
+Filter: ((ip.src eq 192.0.2.30 and udp.srcport eq 6000) and (ip.dst eq 198.51.100.40 and udp.dstport eq 7000)) or ((ip.src eq 198.51.100.40 and udp.srcport eq 7000) and (ip.dst eq 192.0.2.30 and udp.dstport eq 6000))
+Node 0: 192.0.2.30:6000
+Node 1: 198.51.100.40:7000
+50494e47
+	504f4e47
+===================================================================

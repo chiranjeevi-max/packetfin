@@ -1,0 +1,1 @@
+packetfin: The file "tests/fixtures/compressed-lz4-bad-header.lz4" cannot be decompressed; it may be damaged or corrupt.(ERROR_headerChecksum_invalid)

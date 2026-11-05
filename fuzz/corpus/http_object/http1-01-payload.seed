@@ -1,0 +1,7 @@
+GET /index.html HTTP/1.1
+Host: example.com
+User-Agent: probe/1.0
+Accept: */*
+Accept-Encoding: gzip, deflate
+Connection: keep-alive
+

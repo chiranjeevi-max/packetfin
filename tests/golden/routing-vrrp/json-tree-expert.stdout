@@ -1,0 +1,42 @@
+[
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "frame": {
+          "filtered": "frame"
+        },
+        "eth": {
+          "filtered": "eth"
+        },
+        "ip": {
+          "filtered": "ip"
+        },
+        "vrrp": {
+          "vrrp.typever": "33",
+          "vrrp.typever_tree": {
+            "vrrp.version": "2",
+            "vrrp.type": "1"
+          },
+          "vrrp.virt_rtr_id": "1",
+          "vrrp.prio": "100",
+          "vrrp.addr_count": "1",
+          "vrrp.auth_type": "0",
+          "vrrp.adver_int": "1",
+          "vrrp.checksum": "0x1234",
+          "vrrp.checksum_tree": {
+            "_ws.expert": {
+              "vrrp.checksum_bad.expert": "",
+              "_ws.expert.message": "Bad checksum [should be 0x6ffe]",
+              "_ws.expert.severity": "6291456",
+              "_ws.expert.group": "16777216"
+            }
+          },
+          "vrrp.checksum.status": "0",
+          "vrrp.ip_addr": "10.0.0.254"
+        }
+      }
+    }
+  }
+]

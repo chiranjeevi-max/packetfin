@@ -1,0 +1,10 @@
+
+===================================================================
+Protocol Hierarchy Statistics
+Filter: 
+
+frame                                    frames:1 bytes:85
+  eth                                    frames:1 bytes:85
+    ip                                   frames:1 bytes:85
+      icmp                               frames:1 bytes:85
+===================================================================

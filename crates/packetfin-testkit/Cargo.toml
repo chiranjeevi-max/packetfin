@@ -1,0 +1,23 @@
+[package]
+name = "packetfin-testkit"
+description = "Generated capture fixtures and expected-output test helpers for packetfin."
+version = "0.1.0"
+edition = "2024"
+publish = false
+license = "MIT"
+
+[lints]
+workspace = true
+
+[dependencies]
+aes = "0.8.4"
+aes-gcm = "0.10.3"
+cbc = "0.1.2"
+chacha20poly1305 = "0.10.1"
+hkdf = "0.12.4"
+hmac = "0.12.1"
+sha1 = "0.10.6"
+flate2 = { version = "1.1.10", default-features = false, features = ["rust_backend"] }
+lz4_flex = { version = "0.14.0", default-features = false, features = ["std", "frame", "safe-encode"] }
+sha2 = "0.10.9"
+twox-hash = { version = "2.1", default-features = false, features = ["std", "xxhash64"] }

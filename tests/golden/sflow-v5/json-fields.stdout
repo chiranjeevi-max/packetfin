@@ -1,0 +1,73 @@
+[
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "sflow_245.agent": [
+          "192.0.2.1"
+        ],
+        "sflow_245.numsamples": [
+          "4"
+        ],
+        "sflow.flow_sample.sequence_number": [
+          "7",
+          "9"
+        ],
+        "sflow_245.ifindex": [
+          "3",
+          "3"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "sflow_245.numsamples": [
+          "1"
+        ],
+        "sflow.flow_sample.sequence_number": [
+          "1"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "sflow_245.agent": [
+          "192.0.2.1"
+        ],
+        "sflow_245.numsamples": [
+          "1"
+        ],
+        "sflow.flow_sample.sequence_number": [
+          "11"
+        ],
+        "sflow.enterprise.data": [
+          "61626364",
+          "deadbeef"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "sflow_245.agent": [
+          "192.0.2.1"
+        ],
+        "sflow_245.numsamples": [
+          "1"
+        ]
+      }
+    }
+  }
+]

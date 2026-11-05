@@ -1,0 +1,240 @@
+[
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tcp.stream": [
+          "0"
+        ],
+        "tcp.stream.pnum": [
+          "1"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tcp.stream": [
+          "0"
+        ],
+        "tcp.stream.pnum": [
+          "2"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tcp.stream": [
+          "0"
+        ],
+        "tcp.stream.pnum": [
+          "3"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tcp.stream": [
+          "0"
+        ],
+        "tcp.stream.pnum": [
+          "4"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tcp.stream": [
+          "0"
+        ],
+        "tcp.stream.pnum": [
+          "5"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tcp.stream": [
+          "1"
+        ],
+        "tcp.stream.pnum": [
+          "1"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tcp.stream": [
+          "0"
+        ],
+        "tcp.stream.pnum": [
+          "6"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tcp.stream": [
+          "2"
+        ],
+        "tcp.stream.pnum": [
+          "1"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tcp.stream": [
+          "1"
+        ],
+        "tcp.stream.pnum": [
+          "2"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tcp.stream": [
+          "2"
+        ],
+        "tcp.stream.pnum": [
+          "2"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tcp.stream": [
+          "2"
+        ],
+        "tcp.stream.pnum": [
+          "3"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tcp.stream": [
+          "3"
+        ],
+        "tcp.stream.pnum": [
+          "1"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tcp.stream": [
+          "3"
+        ],
+        "tcp.stream.pnum": [
+          "2"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tcp.stream": [
+          "4"
+        ],
+        "tcp.stream.pnum": [
+          "1"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tcp.stream": [
+          "4"
+        ],
+        "tcp.stream.pnum": [
+          "2"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tcp.stream": [
+          "2"
+        ],
+        "tcp.stream.pnum": [
+          "4"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "udp.stream": [
+          "0"
+        ],
+        "udp.stream.pnum": [
+          "1"
+        ]
+      }
+    }
+  }
+]

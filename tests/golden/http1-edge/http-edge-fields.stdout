@@ -1,0 +1,13 @@
+1	HEAD					http://x/h			Host: x\r\n
+2		200	1	100		http://x/h			
+3	GET					http://x/304			Host: x\r\n
+4		304	3	100		http://x/304			
+5		304		5	616263				
+6	POST			3,5	68656c6c6f	http://x/dup			Host: x\r\n,Content-Length: 3\r\n,Content-Length: 5\r\n
+7	GET					http://x/chunk			Host: x\r\n
+8		200	7		61	http://x/chunk	X: y\r\n		
+9	CONNECT					example.com:443			Host: x\r\n
+10	GET				486f737420780d0a0d0a			1	
+11	GET					http://x/name			Bad Name: v\r\n,Host: x\r\n
+12		200		3	68656c6c6f				
+13		200		3	68656c				

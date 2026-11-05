@@ -1,0 +1,106 @@
+[
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {}
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "ipv6.fragment": [
+          "1",
+          "2"
+        ],
+        "ipv6.fragment.count": [
+          "2"
+        ],
+        "ipv6.reassembled.length": [
+          "100"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {}
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "ipv6.fragment": [
+          "4",
+          "3"
+        ],
+        "ipv6.fragment.count": [
+          "2"
+        ],
+        "ipv6.reassembled.length": [
+          "100"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {}
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "ipv6.fragment": [
+          "5"
+        ],
+        "ipv6.fragment.count": [
+          "2"
+        ],
+        "ipv6.fragment.overlap": [
+          "True"
+        ],
+        "ipv6.fragment.overlap.conflict": [
+          "True"
+        ],
+        "ipv6.fragment.error": [
+          "6"
+        ],
+        "ipv6.reassembled.length": [
+          "164"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {}
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {}
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {}
+    }
+  }
+]

@@ -1,0 +1,34 @@
+[
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "pkt_comment": {
+          "frame.comment": "first line",
+          "frame.comment_tree": {
+            "frame.comment": "first line",
+            "frame.comment": "second line",
+            "frame.comment": "\tthird with tab",
+            "frame.comment": "first line\nsecond line\n\tthird with tab",
+            "_ws.expert": {
+              "frame.comment.expert": "",
+              "_ws.expert.message": "first line\nsecond line\n\tthird with tab",
+              "_ws.expert.severity": "1048576",
+              "_ws.expert.group": "184549376"
+            }
+          }
+        },
+        "frame": {
+          "filtered": "frame"
+        },
+        "eth": {
+          "filtered": "eth"
+        },
+        "arp": {
+          "filtered": "arp"
+        }
+      }
+    }
+  }
+]

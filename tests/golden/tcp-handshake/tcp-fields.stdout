@@ -1,0 +1,6 @@
+1	40000	443	40000,443	1000	1000	1001	0	0	40	0x0002	False	False	False	False	False	False	False	False	True	False	··········S·	65535	0x757f	2		0	0	
+2	443	40000	443,40000	5000	5000	5001	1001	1001	40	0x0012	False	False	False	False	False	True	False	False	True	False	·······A··S·	65535	0x61e6	2		0	0	
+3	40000	443	40000,443	1001	1001	1001	5001	5001	20	0x0010	False	False	False	False	False	True	False	False	False	False	·······A····	65535	0x0e30	2		0	0	
+4	40000	443	40000,443	1001	1001	1006	5001	5001	20	0x0018	False	False	False	False	False	True	True	False	False	False	·······AP···	65535	0xca50	2		0	5	68656c6c6f
+5	40000	443	40000,443	1006	1006	1011	5001	5001	40	0x0018	False	False	False	False	False	True	True	False	False	False	·······AP···	65535	0xf4e9	2		0	5	776f726c64
+6	40000	443	40000,443	1011	1011	1012	5001	5001	20	0x0011	False	False	False	False	False	True	False	False	False	True	·······A···F	65535	0x0e25	2		0	0	

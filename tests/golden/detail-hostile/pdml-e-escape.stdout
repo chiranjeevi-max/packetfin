@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<?xml-stylesheet type="text/xsl" href="pdml2html.xsl"?>
+<!-- normalized -->
+<pdml version="0" creator="creator" time="time" capture_file="tests/fixtures/detail-hostile.pcapng">
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="42">
+    <field name="num" pos="0" show="1" showname="Number" value="1" size="42"/>
+    <field name="len" pos="0" show="42" showname="Frame Length" value="2a" size="42"/>
+    <field name="caplen" pos="0" show="42" showname="Captured Length" value="2a" size="42"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:20.123456000 UTC" showname="Captured Time" value="1700000000.123456000" size="42"/>
+  </proto>
+</packet>
+
+
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="42">
+    <field name="num" pos="0" show="2" showname="Number" value="2" size="42"/>
+    <field name="len" pos="0" show="42" showname="Frame Length" value="2a" size="42"/>
+    <field name="caplen" pos="0" show="42" showname="Captured Length" value="2a" size="42"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:21.123456000 UTC" showname="Captured Time" value="1700000001.123456000" size="42"/>
+  </proto>
+</packet>
+
+
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="42">
+    <field name="num" pos="0" show="3" showname="Number" value="3" size="42"/>
+    <field name="len" pos="0" show="42" showname="Frame Length" value="2a" size="42"/>
+    <field name="caplen" pos="0" show="42" showname="Captured Length" value="2a" size="42"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:22.123456000 UTC" showname="Captured Time" value="1700000002.123456000" size="42"/>
+  </proto>
+</packet>
+
+
+</pdml>

@@ -1,0 +1,278 @@
+[
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "frame.number": [
+          "1"
+        ],
+        "cflow.version": [
+          "10"
+        ],
+        "cflow.sequence": [
+          "1"
+        ],
+        "cflow.flowset_id": [
+          "2",
+          "256"
+        ],
+        "cflow.template_id": [
+          "256"
+        ],
+        "cflow.srcaddr": [
+          "192.0.2.5"
+        ],
+        "cflow.dstaddr": [
+          "198.51.100.6"
+        ],
+        "cflow.octets": [
+          "1000"
+        ],
+        "cflow.template_frame": [
+          "1"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "frame.number": [
+          "2"
+        ],
+        "cflow.version": [
+          "10"
+        ],
+        "cflow.sequence": [
+          "2"
+        ],
+        "cflow.flowset_id": [
+          "256"
+        ],
+        "cflow.srcaddr": [
+          "192.0.2.7"
+        ],
+        "cflow.dstaddr": [
+          "198.51.100.8"
+        ],
+        "cflow.octets": [
+          "2000"
+        ],
+        "cflow.template_frame": [
+          "1"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "frame.number": [
+          "3"
+        ],
+        "cflow.version": [
+          "10"
+        ],
+        "cflow.sequence": [
+          "4"
+        ],
+        "cflow.flowset_id": [
+          "256"
+        ],
+        "cflow.srcaddr": [
+          "192.0.2.9"
+        ],
+        "cflow.dstaddr": [
+          "198.51.100.10"
+        ],
+        "cflow.octets": [
+          "3000"
+        ],
+        "cflow.template_frame": [
+          "1"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "frame.number": [
+          "4"
+        ],
+        "cflow.version": [
+          "10"
+        ],
+        "cflow.sequence": [
+          "5"
+        ],
+        "cflow.flowset_id": [
+          "3",
+          "258"
+        ],
+        "cflow.template_id": [
+          "258"
+        ],
+        "cflow.srcaddr": [
+          "192.0.2.7"
+        ],
+        "cflow.octets": [
+          "42",
+          "999"
+        ],
+        "cflow.template_frame": [
+          "4"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "frame.number": [
+          "5"
+        ],
+        "cflow.version": [
+          "10"
+        ],
+        "cflow.sequence": [
+          "6"
+        ],
+        "cflow.flowset_id": [
+          "258"
+        ],
+        "cflow.srcaddr": [
+          "192.0.2.8"
+        ],
+        "cflow.octets": [
+          "43",
+          "1000"
+        ],
+        "cflow.template_frame": [
+          "4"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "frame.number": [
+          "6"
+        ],
+        "cflow.version": [
+          "10"
+        ],
+        "cflow.sequence": [
+          "7"
+        ],
+        "cflow.flowset_id": [
+          "256"
+        ],
+        "cflow.srcaddr": [
+          "192.0.2.11"
+        ],
+        "cflow.dstaddr": [
+          "198.51.100.12"
+        ],
+        "cflow.octets": [
+          "4000"
+        ],
+        "cflow.template_frame": [
+          "1"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "frame.number": [
+          "7"
+        ],
+        "cflow.version": [
+          "10"
+        ],
+        "cflow.sequence": [
+          "8"
+        ],
+        "cflow.flowset_id": [
+          "300"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "frame.number": [
+          "8"
+        ],
+        "cflow.version": [
+          "10"
+        ],
+        "cflow.sequence": [
+          "9"
+        ],
+        "cflow.flowset_id": [
+          "256"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "frame.number": [
+          "9"
+        ],
+        "cflow.version": [
+          "10"
+        ],
+        "cflow.sequence": [
+          "10"
+        ],
+        "cflow.flowset_id": [
+          "256"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "frame.number": [
+          "10"
+        ],
+        "cflow.version": [
+          "10"
+        ],
+        "cflow.sequence": [
+          "11"
+        ],
+        "cflow.flowset_id": [
+          "256"
+        ]
+      }
+    }
+  }
+]

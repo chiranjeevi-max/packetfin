@@ -1,0 +1,4 @@
+192.0.2.1 host.example
+# comment
+8.8.8.8 dns.google alias
+00:11:22:33:44:55 mac.example

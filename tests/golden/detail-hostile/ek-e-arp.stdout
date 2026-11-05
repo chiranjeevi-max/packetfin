@@ -1,0 +1,6 @@
+{"index":{"_index":"packets-2023-11-14"}}
+{"timestamp":"1700000000123","layers":{"arp_opcode":["1"],"arp_src_proto_ipv4":["192.0.2.1"]}}
+{"index":{"_index":"packets-2023-11-14"}}
+{"timestamp":"1700000001123","layers":{"arp_opcode":["1"],"arp_src_proto_ipv4":["192.0.2.1"]}}
+{"index":{"_index":"packets-2023-11-14"}}
+{"timestamp":"1700000002123","layers":{"arp_opcode":["1"],"arp_src_proto_ipv4":["192.0.2.1"]}}

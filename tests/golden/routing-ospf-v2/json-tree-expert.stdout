@@ -1,0 +1,67 @@
+[
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "frame": {
+          "filtered": "frame"
+        },
+        "eth": {
+          "filtered": "eth"
+        },
+        "ip": {
+          "filtered": "ip"
+        },
+        "ospf": {
+          "ospf.header": {
+            "ospf.version": "2",
+            "ospf.msg": "4",
+            "ospf.msg.lsupdate": "1",
+            "ospf.packet_length": "48",
+            "ospf.srcrouter": "1.1.1.1",
+            "ospf.area_id": "0.0.0.0",
+            "ospf.checksum": "0x8b4d",
+            "ospf.instance_id": "0",
+            "ospf.auth.type": "0",
+            "ospf.auth.none": "00:00:00:00:00:00:00:00"
+          },
+          "LS Update Packet": {
+            "ospf.ls.number_of_lsas": "1",
+            "LSA-type 1 (Router-LSA), len 0": {
+              "ospf.lsa.age": "0",
+              "ospf.lsa.donotage": "0",
+              "ospf.v2.options": "0x22",
+              "ospf.v2.options_tree": {
+                "ospf.v2.options.dn": "0",
+                "ospf.v2.options.o": "0",
+                "ospf.v2.options.dc": "1",
+                "ospf.v2.options.l": "0",
+                "ospf.v2.options.n": "0",
+                "ospf.v2.options.mc": "0",
+                "ospf.v2.options.e": "1",
+                "ospf.v2.options.mt": "0"
+              },
+              "ospf.lsa": "1",
+              "ospf.lsa.router": "1",
+              "ospf.lsa.id": "1.1.1.1",
+              "ospf.advrouter": "1.1.1.1",
+              "ospf.lsa.seqnum": "0x80000001",
+              "ospf.lsa.chksum": "0xca74",
+              "ospf.lsa.length": "0",
+              "ospf.lsa.length_tree": {
+                "_ws.expert": {
+                  "ospf.lsa.invalid_length": "",
+                  "_ws.expert.message": "Invalid LSA length (0) for type Router-LSA, expected >= (24)",
+                  "_ws.expert.severity": "8388608",
+                  "_ws.expert.group": "117440512"
+                },
+                "_ws.malformed": "Malformed Packet"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+]

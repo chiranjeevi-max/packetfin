@@ -1,0 +1,9 @@
+================================================================================
+UDP Endpoints
+Filter:<No Filter>
+                       |  Port  | | Packets | |  Bytes  | | Tx Packets | | Tx Bytes | | Rx Packets | | Rx Bytes |
+192.0.2.1                 12345            6   306 bytes           6      306 bytes            0      0 bytes     
+198.51.100.2               9999            6   306 bytes           0      0 bytes              6      306 bytes   
+2001:db8::1               12345            4   284 bytes           4      284 bytes            0      0 bytes     
+2001:db8::2                9999            4   284 bytes           0      0 bytes              4      284 bytes   
+================================================================================

@@ -1,0 +1,116 @@
+[
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "ip.src": [
+          "192.0.2.1"
+        ],
+        "ip.dst": [
+          "198.51.100.2"
+        ],
+        "ip.proto": [
+          "253"
+        ],
+        "ip.len": [
+          "20"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "ip.src": [
+          "192.0.2.1"
+        ],
+        "ip.dst": [
+          "198.51.100.2"
+        ],
+        "ip.proto": [
+          "253"
+        ],
+        "ip.len": [
+          "30"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "ip.src": [
+          "192.0.2.1"
+        ],
+        "ip.dst": [
+          "198.51.100.2"
+        ],
+        "ip.proto": [
+          "253"
+        ],
+        "ip.len": [
+          "60"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "ip.src": [
+          "192.0.2.1"
+        ],
+        "ip.proto": [
+          "253"
+        ],
+        "ip.len": [
+          "20"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "ip.src": [
+          "192.0.2.1"
+        ],
+        "ip.proto": [
+          "253"
+        ],
+        "ip.len": [
+          "30"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "ip.src": [
+          "192.0.2.1"
+        ],
+        "ip.dst": [
+          "198.51.100.2"
+        ],
+        "ip.proto": [
+          "253"
+        ],
+        "ip.len": [
+          "60"
+        ]
+      }
+    }
+  }
+]

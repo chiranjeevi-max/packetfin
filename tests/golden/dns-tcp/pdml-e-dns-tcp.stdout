@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<?xml-stylesheet type="text/xsl" href="pdml2html.xsl"?>
+<!-- normalized -->
+<pdml version="0" creator="creator" time="time" capture_file="tests/fixtures/dns-tcp.pcap">
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="85">
+    <field name="num" pos="0" show="1" showname="Number" value="1" size="85"/>
+    <field name="len" pos="0" show="85" showname="Frame Length" value="55" size="85"/>
+    <field name="caplen" pos="0" show="85" showname="Captured Length" value="55" size="85"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:20.123456000 UTC" showname="Captured Time" value="1700000000.123456000" size="85"/>
+  </proto>
+  <field name="dns.length" value="29"/>
+</packet>
+
+
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="85">
+    <field name="num" pos="0" show="2" showname="Number" value="2" size="85"/>
+    <field name="len" pos="0" show="85" showname="Frame Length" value="55" size="85"/>
+    <field name="caplen" pos="0" show="85" showname="Captured Length" value="55" size="85"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:20.123457000 UTC" showname="Captured Time" value="1700000000.123457000" size="85"/>
+  </proto>
+  <field name="dns.length" value="29"/>
+</packet>
+
+
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="101">
+    <field name="num" pos="0" show="3" showname="Number" value="3" size="101"/>
+    <field name="len" pos="0" show="101" showname="Frame Length" value="65" size="101"/>
+    <field name="caplen" pos="0" show="101" showname="Captured Length" value="65" size="101"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:20.123458000 UTC" showname="Captured Time" value="1700000000.123458000" size="101"/>
+  </proto>
+  <field name="dns.length" value="45"/>
+  <field name="dns.response_to" value="1"/>
+</packet>
+
+
+</pdml>

@@ -1,0 +1,2 @@
+    1   0.000000    192.0.2.1 → 224.0.0.252  LLMNR 64 Standard query 0x0abc A host
+    2   1.000000 198.51.100.9 → 192.0.2.1    LLMNR 80 Standard query response 0x0abc A host A 203.0.113.9

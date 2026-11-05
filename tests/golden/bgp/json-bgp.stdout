@@ -1,0 +1,80 @@
+[
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "bgp.type": [
+          "1"
+        ],
+        "bgp.open.myas": [
+          "64512"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "bgp.type": [
+          "4"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "bgp.type": [
+          "2"
+        ],
+        "bgp.update.path_attribute.origin": [
+          "0"
+        ],
+        "bgp.prefix_length": [
+          "8",
+          "24",
+          "24"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "bgp.type": [
+          "3"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "bgp.type": [
+          "5"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "bgp.type": [
+          "4",
+          "4"
+        ]
+      }
+    }
+  }
+]

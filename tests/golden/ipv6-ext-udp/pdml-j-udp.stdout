@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<?xml-stylesheet type="text/xsl" href="pdml2html.xsl"?>
+<!-- normalized -->
+<pdml version="0" creator="creator" time="time" capture_file="tests/fixtures/ipv6-ext-udp.pcap">
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="70">
+    <field name="num" pos="0" show="1" showname="Number" value="1" size="70"/>
+    <field name="len" pos="0" show="70" showname="Frame Length" value="46" size="70"/>
+    <field name="caplen" pos="0" show="70" showname="Captured Length" value="46" size="70"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:20.123456000 UTC" showname="Captured Time" value="1700000000.123456000" size="70"/>
+  </proto>
+  <proto name="frame" showname="Frame 1: Packet, 70 bytes on wire (560 bits), 70 bytes captured (560 bits)" size="70" pos="0">
+    <field name="filtered" value="frame" />
+  </proto>
+  <proto name="eth" showname="Ethernet II, Src: 02:00:00:00:00:01, Dst: 02:00:00:00:00:02" size="14" pos="0">
+    <field name="filtered" value="eth" />
+  </proto>
+  <proto name="ipv6" showname="Internet Protocol Version 6, Src: 2001:db8::1, Dst: 2001:db8::2" size="48" pos="14">
+    <field name="filtered" value="ipv6" />
+  </proto>
+  <proto name="udp" showname="User Datagram Protocol, Src Port: 12345, Dst Port: 9999" size="8" pos="62">
+    <field name="udp.srcport" showname="Source Port: 12345" size="2" pos="62" show="12345" value="3039"/>
+    <field name="udp.dstport" showname="Destination Port: 9999" size="2" pos="64" show="9999" value="270f"/>
+    <field name="udp.port" showname="Source or Destination Port: 12345" hide="yes" size="2" pos="62" show="12345" value="3039"/>
+    <field name="udp.port" showname="Source or Destination Port: 9999" hide="yes" size="2" pos="64" show="9999" value="270f"/>
+    <field name="udp.length" showname="Length: 8" size="2" pos="66" show="8" value="0008"/>
+    <field name="udp.checksum" showname="Checksum: 0x4d21 [unverified]" size="2" pos="68" show="0x4d21" value="4d21"/>
+    <field name="udp.checksum.status" showname="Checksum Status: Unverified" size="0" pos="68" show="2"/>
+    <field name="udp.stream" showname="Stream index: 0" size="0" pos="70" show="0"/>
+    <field name="udp.stream.pnum" showname="Stream Packet Number: 1" size="0" pos="62" show="1"/>
+    <field name="" show="Timestamps" size="0" pos="62">
+      <field name="filtered" value="text" />
+    </field>
+  </proto>
+</packet>
+
+
+</pdml>

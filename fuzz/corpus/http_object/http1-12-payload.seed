@@ -1,0 +1,4 @@
+GET /zero HTTP/1.1
+Host: x
+Content-Length: 0
+

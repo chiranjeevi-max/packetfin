@@ -1,0 +1,294 @@
+[
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tcp.segment_data": [
+          "160301"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tcp.segment_data": [
+          "009d0100009903031111111111111111111111111111111111111111111111111111111111111111202222222222222222222222222222222222222222222222222222222222222222000a130113021303c02bc02f0100004600000010000e00000b6578616d706c652e636f6d001000050003026832000d00080006040308040401000a00080006001d00170018000b000403000102002b00050403040303"
+        ],
+        "tcp.reassembled.length": [
+          "162"
+        ],
+        "tls.record.content_type": [
+          "22"
+        ],
+        "tls.handshake.type": [
+          "1"
+        ],
+        "tls.handshake.extensions_server_name": [
+          "example.com"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tcp.segment_data": [
+          "160301009d0100009903031111111111111111111111111111111111111111111111111111111111111111202222222222222222222222222222222222222222222222222222222222222222000a130113"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tcp.segment_data": [
+          "021303c02bc02f0100004600000010000e00000b6578616d706c652e636f6d001000050003026832000d00080006040308040401000a00080006001d00170018000b000403000102002b00050403040303"
+        ],
+        "tcp.reassembled.length": [
+          "162"
+        ],
+        "tls.record.content_type": [
+          "22"
+        ],
+        "tls.handshake.type": [
+          "1"
+        ],
+        "tls.handshake.extensions_server_name": [
+          "example.com"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tls.record.content_type": [
+          "22",
+          "21"
+        ],
+        "tls.handshake.type": [
+          "1"
+        ],
+        "tls.handshake.extensions_server_name": [
+          "example.com"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tcp.segment_data": [
+          "160303007a"
+        ],
+        "tls.record.content_type": [
+          "22"
+        ],
+        "tls.handshake.type": [
+          "1"
+        ],
+        "tls.handshake.extensions_server_name": [
+          "example.com"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tcp.segment_data": [
+          "0200007603033333333333333333333333333333333333333333333333333333333333333333202222222222222222222222222222222222222222222222222222222222222222130100002e002b0002030400330024001d00204444444444444444444444444444444444444444444444444444444444444444"
+        ],
+        "tcp.reassembled.length": [
+          "127"
+        ],
+        "tls.record.content_type": [
+          "22"
+        ],
+        "tls.handshake.type": [
+          "2"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tls.record.content_type": [
+          "22",
+          "22"
+        ],
+        "tls.handshake.type": [
+          "1"
+        ],
+        "tls.handshake.extensions_server_name": [
+          "example.com"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tls.record.content_type": [
+          "22"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tls.record.content_type": [
+          "22"
+        ],
+        "tls.handshake.type": [
+          "1"
+        ],
+        "tls.handshake.extensions_server_name": [
+          "example.com"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tls.record.content_type": [
+          "22"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tls.record.content_type": [
+          "22"
+        ],
+        "tls.handshake.type": [
+          "2"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tls.record.content_type": [
+          "22"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tls.record.content_type": [
+          "22"
+        ],
+        "tls.handshake.type": [
+          "2"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tls.record.content_type": [
+          "22"
+        ],
+        "tls.handshake.type": [
+          "1"
+        ],
+        "tls.handshake.extensions_server_name": [
+          "example.com"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tls.record.content_type": [
+          "22"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tls.record.content_type": [
+          "22"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tls.record.content_type": [
+          "22"
+        ],
+        "tls.handshake.type": [
+          "1"
+        ],
+        "tls.handshake.extensions_server_name": [
+          "example.com"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tls.record.content_type": [
+          "22"
+        ],
+        "tls.handshake.type": [
+          "2"
+        ]
+      }
+    }
+  }
+]

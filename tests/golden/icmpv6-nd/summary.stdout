@@ -1,0 +1,5 @@
+    1   0.000000  2001:db8::1 → 2001:db8::2  ICMPv6 86 Router Solicitation[Malformed Packet]
+    2   0.000001  2001:db8::1 → 2001:db8::2  ICMPv6 118 Router Advertisement from 02:00:00:00:00:01
+    3   0.000002  2001:db8::1 → 2001:db8::2  ICMPv6 86 Neighbor Solicitation for fe80::1 from 02:00:00:00:00:01
+    4   0.000003  2001:db8::1 → 2001:db8::2  ICMPv6 86 Neighbor Advertisement fe80::1 (sol, ovr) is at 02:00:00:00:00:01
+    5   0.000004  2001:db8::1 → 2001:db8::2  ICMPv6 150 Redirect

@@ -1,0 +1,52 @@
+[
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "frame": {
+          "filtered": "frame"
+        },
+        "eth": {
+          "filtered": "eth"
+        },
+        "ip": {
+          "filtered": "ip"
+        },
+        "udp": {
+          "filtered": "udp"
+        },
+        "bfd": {
+          "bfd.version": "1",
+          "bfd.diag": "0x00",
+          "bfd.sta": "0x00",
+          "bfd.flags": "0x04",
+          "bfd.flags_tree": {
+            "bfd.flags.p": "0",
+            "bfd.flags.f": "0",
+            "bfd.flags.c": "0",
+            "bfd.flags.a": "1",
+            "bfd.flags.d": "0",
+            "bfd.flags.m": "0"
+          },
+          "bfd.detect_time_multiplier": "3",
+          "bfd.message_length": "24",
+          "bfd.my_discriminator": "0x11223344",
+          "bfd.your_discriminator": "0x55667788",
+          "bfd.desired_min_tx_interval": "1000000",
+          "bfd.required_min_rx_interval": "1000000",
+          "bfd.required_min_echo_interval": "0",
+          "Authentication: Length of the BFD frame is invalid (24)": {
+            "_ws.expert": {
+              "bfd.auth.no_data": "",
+              "_ws.expert.message": "Authentication: Length of the BFD frame is invalid (24)",
+              "_ws.expert.severity": "6291456",
+              "_ws.expert.group": "117440512"
+            },
+            "_ws.malformed": "Malformed Packet"
+          }
+        }
+      }
+    }
+  }
+]

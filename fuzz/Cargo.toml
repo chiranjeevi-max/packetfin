@@ -1,0 +1,182 @@
+[package]
+name = "packetfin-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2024"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+packetfin-core = { path = "../crates/packetfin-core", features = ["fuzzing"] }
+
+[[bin]]
+name = "decompress_capture"
+path = "fuzz_targets/decompress_capture.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "read_capture"
+path = "fuzz_targets/read_capture.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "display_filter"
+path = "fuzz_targets/display_filter.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "dns_payload"
+path = "fuzz_targets/dns_payload.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "l2_control"
+path = "fuzz_targets/l2_control.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "services_payload"
+path = "fuzz_targets/services_payload.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "snmp_ber"
+path = "fuzz_targets/snmp_ber.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "tunnels"
+path = "fuzz_targets/tunnels.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "decode_packet"
+path = "fuzz_targets/decode_packet.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "routing_payload"
+path = "fuzz_targets/routing_payload.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "stats_spec"
+path = "fuzz_targets/stats_spec.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "decode_stream"
+path = "fuzz_targets/decode_stream.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "netflow_templates"
+path = "fuzz_targets/netflow_templates.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "rewrite_capture"
+path = "fuzz_targets/rewrite_capture.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "names_cli"
+path = "fuzz_targets/names_cli.rs"
+test = false
+doc = false
+bench = false
+
+[workspace]
+
+[[bin]]
+name = "dns_tcp"
+path = "fuzz_targets/dns_tcp.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "http_tls_bgp"
+path = "fuzz_targets/http_tls_bgp.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "http_object"
+path = "fuzz_targets/http_object.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "export_name"
+path = "fuzz_targets/export_name.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "stats_follow"
+path = "fuzz_targets/stats_follow.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "stats_tree"
+path = "fuzz_targets/stats_tree.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "tls_keylog"
+path = "fuzz_targets/tls_keylog.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "tls_records"
+path = "fuzz_targets/tls_records.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "tls_fragments"
+path = "fuzz_targets/tls_fragments.rs"
+test = false
+doc = false
+bench = false

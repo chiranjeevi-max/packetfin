@@ -1,0 +1,217 @@
+Frame 4: Packet, 386 bytes on wire (3088 bits), 386 bytes captured (3088 bits)
+Ethernet II, Src: 02:00:00:00:00:01, Dst: 02:00:00:00:00:02
+Internet Protocol Version 6, Src: 2001:db8::1, Dst: 2001:db8::2
+Open Shortest Path First
+    OSPF Header
+        Version: 3
+        Message Type: LS Update (4)
+        Packet Length: 332
+        Source OSPF Router: 1.1.1.1
+        Area ID: 0.0.0.0 (Backbone)
+        Checksum: 0xb573 [correct]
+        Instance ID: Base IPv6 Unicast AF (0)
+        Reserved: 00
+    LS Update Packet
+        Number of LSAs: 7
+        LSA-type 1 (Router-LSA), len 40
+            .000 0000 0000 0000 = LS Age (seconds): 0
+            0... .... .... .... = Do Not Age: False
+            LS Type: 0x2001
+                0... .... .... .... = LSA Handling: Store and flood the LSA as if the type is understood
+                .01. .... .... .... = Flooding Scope: Area Scoping - Flooded only in originating area (0x1)
+                ...0 0000 0000 0001 = Function Code: Router-LSA (1)
+            Link State ID: 0.0.0.0
+            Advertising Router: 1.1.1.1
+            Sequence Number: 0x80000001
+            Checksum: 0x3798
+            Length: 40
+            Flags: 0x03, (E) AS boundary router, (B) Area border router
+                .... 0... = (W) Wild-card multicast receiver: No
+                .... .0.. = (V) Virtual link endpoint: No
+                .... ..1. = (E) AS boundary router: Yes
+                .... ...1 = (B) Area border router: Yes
+            Options: 0x002022, DC, E
+                .... .... .... .0.. .... .... = AT: Not set
+                .... .... .... ..0. .... .... = L: Not set
+                .... .... .... ...0 .... .... = AF: Not set
+                .... .... .... .... ..1. .... = DC: Set
+                .... .... .... .... ...0 .... = R: Not set
+                .... .... .... .... .... 0... = N: Not set
+                .... .... .... .... .... .0.. = MC: Not set
+                .... .... .... .... .... ..1. = E: Set
+                .... .... .... .... .... ...0 = V6: Not set
+            Router Interfaces
+                Entry #1
+                    Type: Point-to-point connection to another router (1)
+                    Reserved: 00
+                    Metric: 10
+                    Interface ID: 4
+                    Neighbor Interface ID: 5
+                    Neighbor Router ID: 2.2.2.2
+        LSA-type 2 (Network-LSA), len 32
+            .000 0000 0000 0000 = LS Age (seconds): 0
+            0... .... .... .... = Do Not Age: False
+            LS Type: 0x2002
+                0... .... .... .... = LSA Handling: Store and flood the LSA as if the type is understood
+                .01. .... .... .... = Flooding Scope: Area Scoping - Flooded only in originating area (0x1)
+                ...0 0000 0000 0010 = Function Code: Network-LSA (2)
+            Link State ID: 4.0.0.0
+            Advertising Router: 1.1.1.1
+            Sequence Number: 0x80000001
+            Checksum: 0x9352
+            Length: 32
+            Reserved: 00
+            Options: 0x002022, DC, E
+                .... .... .... .0.. .... .... = AT: Not set
+                .... .... .... ..0. .... .... = L: Not set
+                .... .... .... ...0 .... .... = AF: Not set
+                .... .... .... .... ..1. .... = DC: Set
+                .... .... .... .... ...0 .... = R: Not set
+                .... .... .... .... .... 0... = N: Not set
+                .... .... .... .... .... .0.. = MC: Not set
+                .... .... .... .... .... ..1. = E: Set
+                .... .... .... .... .... ...0 = V6: Not set
+            Attached Router: 1.1.1.1
+            Attached Router: 2.2.2.2
+        LSA-type 3 (Inter-Area-Prefix-LSA), len 36
+            .000 0000 0000 0000 = LS Age (seconds): 0
+            0... .... .... .... = Do Not Age: False
+            LS Type: 0x2003
+                0... .... .... .... = LSA Handling: Store and flood the LSA as if the type is understood
+                .01. .... .... .... = Flooding Scope: Area Scoping - Flooded only in originating area (0x1)
+                ...0 0000 0000 0011 = Function Code: Inter-Area-Prefix-LSA (3)
+            Link State ID: 0.0.0.1
+            Advertising Router: 1.1.1.1
+            Sequence Number: 0x80000001
+            Checksum: 0xabf8
+            Length: 36
+            Reserved: 00
+            Metric: 100
+            PrefixLength: 64
+            PrefixOptions: 0x01, (NU) NoUnicast
+                .... 0... = (P) Propagate: Not set
+                .... .0.. = (MC) Multicast: Not set
+                .... ..0. = (LA) Local Address: Not set
+                .... ...1 = (NU) NoUnicast: Set
+            Reserved: 0000
+            Address Prefix: 2001:db8:1::
+        LSA-type 4 (Inter-Area-Router-LSA), len 32
+            .000 0000 0000 0000 = LS Age (seconds): 0
+            0... .... .... .... = Do Not Age: False
+            LS Type: 0x2004
+                0... .... .... .... = LSA Handling: Store and flood the LSA as if the type is understood
+                .01. .... .... .... = Flooding Scope: Area Scoping - Flooded only in originating area (0x1)
+                ...0 0000 0000 0100 = Function Code: Inter-Area-Router-LSA (4)
+            Link State ID: 0.0.0.2
+            Advertising Router: 1.1.1.1
+            Sequence Number: 0x80000001
+            Checksum: 0xc7ef
+            Length: 32
+            Reserved: 00
+            Options: 0x002022, DC, E
+                .... .... .... .0.. .... .... = AT: Not set
+                .... .... .... ..0. .... .... = L: Not set
+                .... .... .... ...0 .... .... = AF: Not set
+                .... .... .... .... ..1. .... = DC: Set
+                .... .... .... .... ...0 .... = R: Not set
+                .... .... .... .... .... 0... = N: Not set
+                .... .... .... .... .... .0.. = MC: Not set
+                .... .... .... .... .... ..1. = E: Set
+                .... .... .... .... .... ...0 = V6: Not set
+            Reserved: 00
+            Metric: 50
+            Destination Router ID: 2.2.2.2
+        LSA-type 5 (AS-External-LSA), len 60
+            .000 0000 0000 0000 = LS Age (seconds): 0
+            0... .... .... .... = Do Not Age: False
+            LS Type: 0x4005
+                0... .... .... .... = LSA Handling: Store and flood the LSA as if the type is understood
+                .10. .... .... .... = Flooding Scope: AS Scoping - Flooded throughout AS (0x2)
+                ...0 0000 0000 0101 = Function Code: AS-External-LSA (5)
+            Link State ID: 0.0.0.3
+            Advertising Router: 1.1.1.1
+            Sequence Number: 0x80000001
+            Checksum: 0x8407
+            Length: 60
+            Flags: 0x07, (E) External Metric, (F) Forwarding Address, (T) External Route Tag
+                .... .1.. = (E) External Metric: Type 2
+                .... ..1. = (F) Forwarding Address: Present
+                .... ...1 = (T) External Route Tag: Present
+            Metric: 20
+            PrefixLength: 64
+            PrefixOptions: 0x00
+                .... 0... = (P) Propagate: Not set
+                .... .0.. = (MC) Multicast: Not set
+                .... ..0. = (LA) Local Address: Not set
+                .... ...0 = (NU) NoUnicast: Not set
+            Referenced LS type: Unknown (0x2001)
+            Address Prefix: 2001:db8:1::
+            Forwarding Address: 2001:db8::1
+            External Route Tag: 305419896
+            Referenced Link State ID: 0.0.0.9
+        LSA-type 8 (Link-LSA), len 56
+            .000 0000 0000 0000 = LS Age (seconds): 0
+            0... .... .... .... = Do Not Age: False
+            LS Type: 0x0008
+                0... .... .... .... = LSA Handling: Store and flood the LSA as if the type is understood
+                .00. .... .... .... = Flooding Scope: Link-Local Scoping - Flooded only on originating link (0x0)
+                ...0 0000 0000 1000 = Function Code: Link-LSA (8)
+            Link State ID: 4.0.0.0
+            Advertising Router: 1.1.1.1
+            Sequence Number: 0x80000001
+            Checksum: 0x9ea8
+            Length: 56
+            Router Priority: 1
+            Options: 0x002022, DC, E
+                .... .... .... .0.. .... .... = AT: Not set
+                .... .... .... ..0. .... .... = L: Not set
+                .... .... .... ...0 .... .... = AF: Not set
+                .... .... .... .... ..1. .... = DC: Set
+                .... .... .... .... ...0 .... = R: Not set
+                .... .... .... .... .... 0... = N: Not set
+                .... .... .... .... .... .0.. = MC: Not set
+                .... .... .... .... .... ..1. = E: Set
+                .... .... .... .... .... ...0 = V6: Not set
+            Link-local Interface Address: fe80::1
+            # prefixes: 1
+            PrefixLength: 64
+            PrefixOptions: 0x01, (NU) NoUnicast
+                .... 0... = (P) Propagate: Not set
+                .... .0.. = (MC) Multicast: Not set
+                .... ..0. = (LA) Local Address: Not set
+                .... ...1 = (NU) NoUnicast: Set
+            Reserved: 0000
+            Address Prefix: 2001:db8:2::
+        LSA-type 9 (Intra-Area-Prefix-LSA), len 56
+            .000 0000 0000 0000 = LS Age (seconds): 0
+            0... .... .... .... = Do Not Age: False
+            LS Type: 0x2009
+                0... .... .... .... = LSA Handling: Store and flood the LSA as if the type is understood
+                .01. .... .... .... = Flooding Scope: Area Scoping - Flooded only in originating area (0x1)
+                ...0 0000 0000 1001 = Function Code: Intra-Area-Prefix-LSA (9)
+            Link State ID: 0.0.0.4
+            Advertising Router: 1.1.1.1
+            Sequence Number: 0x80000001
+            Checksum: 0x8702
+            Length: 56
+            # prefixes: 2
+            Referenced LS type: Unknown (0x2001)
+            Referenced Link State ID: 0.0.0.0
+            Referenced Advertising Router: 1.1.1.1
+            PrefixLength: 64
+            PrefixOptions: 0x01, (NU) NoUnicast
+                .... 0... = (P) Propagate: Not set
+                .... .0.. = (MC) Multicast: Not set
+                .... ..0. = (LA) Local Address: Not set
+                .... ...1 = (NU) NoUnicast: Set
+            Metric: 10
+            Address Prefix: 2001:db8:3::
+            PrefixLength: 48
+            PrefixOptions: 0x00
+                .... 0... = (P) Propagate: Not set
+                .... .0.. = (MC) Multicast: Not set
+                .... ..0. = (LA) Local Address: Not set
+                .... ...0 = (NU) NoUnicast: Not set
+            Metric: 20
+            Address Prefix: 2001:db8:4::
+

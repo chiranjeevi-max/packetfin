@@ -1,0 +1,15 @@
+Frame 1: Packet, 62 bytes on wire (496 bits), 62 bytes captured (496 bits)
+Ethernet II, Src: 02:00:00:00:00:01, Dst: 02:00:00:00:00:02
+Internet Protocol Version 6, Src: 2001:db8::1, Dst: 2001:db8::2
+Internet Control Message Protocol v6
+    Type: Echo (ping) request (128)
+    Code: 0
+    Checksum: 0x1234 incorrect, should be 0x120f
+        [Expert Info (Warning/Checksum): Bad checksum [should be 0x120f]]
+            [Bad checksum [should be 0x120f]]
+            [Severity level: Warning]
+            [Group: Checksum]
+    [Checksum Status: Bad]
+    Identifier: 0x1234
+    Sequence: 5
+

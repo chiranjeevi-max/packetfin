@@ -1,0 +1,146 @@
+[
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "vrrp.version": [
+          "2"
+        ],
+        "vrrp.checksum.status": [
+          "1"
+        ],
+        "vrrp.ip_addr": [
+          "10.0.0.254"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "vrrp.version": [
+          "2"
+        ],
+        "vrrp.checksum.status": [
+          "1"
+        ],
+        "vrrp.ip_addr": [
+          "10.0.0.254"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "vrrp.version": [
+          "3"
+        ],
+        "vrrp.checksum.status": [
+          "1"
+        ],
+        "vrrp.ip_addr": [
+          "10.0.0.254"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "vrrp.version": [
+          "3"
+        ],
+        "vrrp.checksum.status": [
+          "1"
+        ],
+        "vrrp.ip_addr": [
+          "10.0.0.253"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "vrrp.version": [
+          "3"
+        ],
+        "vrrp.checksum.status": [
+          "1"
+        ],
+        "vrrp.ipv6_addr": [
+          "::1"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "vrrp.version": [
+          "2"
+        ],
+        "vrrp.checksum.status": [
+          "0"
+        ],
+        "vrrp.ip_addr": [
+          "10.0.0.254"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "vrrp.version": [
+          "2"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "vrrp.version": [
+          "2"
+        ],
+        "vrrp.checksum.status": [
+          "0"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "vrrp.version": [
+          "2"
+        ],
+        "vrrp.checksum.status": [
+          "1"
+        ],
+        "vrrp.ip_addr": [
+          "10.0.0.254"
+        ]
+      }
+    }
+  }
+]

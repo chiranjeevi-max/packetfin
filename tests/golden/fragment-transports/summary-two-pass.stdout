@@ -1,0 +1,4 @@
+    1   0.000000    192.0.2.1 → 198.51.100.2 IPv4 114 Fragmented IP protocol (proto=TCP 6, off=0, ID=7101) [Reassembled in #2]
+    2   0.000001    192.0.2.1 → 198.51.100.2 TCP 54 1234 → 80 [PSH, ACK] Seq=1 Ack=1 Win=65535 Len=80
+    3   0.000002    192.0.2.1 → 198.51.100.2 IPv4 114 Fragmented IP protocol (proto=UDP 17, off=0, ID=7102) [Reassembled in #4]
+    4   0.000003    192.0.2.1 → 198.51.100.2 DNS 71 Standard query response 0x1234 A example.com A 192.0.2.1 A 192.0.2.1 A 192.0.2.1 A 192.0.2.1 A 192.0.2.1

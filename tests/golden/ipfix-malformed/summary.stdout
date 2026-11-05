@@ -1,0 +1,5 @@
+    1   0.000000    192.0.2.1 → 198.51.100.2 CFLOW 74 IPFIX partial flow (32/1 bytes) Obs-Domain-ID=   42 [Data-Template:256]
+    2   0.000001    192.0.2.1 → 198.51.100.2 CFLOW 74 IPFIX partial flow (32/500 bytes) Obs-Domain-ID=   42 [Data-Template:256]
+    3   0.000002    192.0.2.1 → 198.51.100.2 CFLOW 66 IPFIX partial flow (24/0 bytes) Obs-Domain-ID=   42
+    4   0.000003    192.0.2.1 → 198.51.100.2 CFLOW 62 IPFIX flow (  20 bytes) Obs-Domain-ID=   42
+    5   0.000004    192.0.2.1 → 198.51.100.2 CFLOW 66 IPFIX flow (  24 bytes) Obs-Domain-ID=   42

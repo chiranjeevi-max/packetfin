@@ -1,0 +1,58 @@
+[
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "cflow.version": [
+          "5"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "cflow.version": [
+          "5"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "cflow.version": [
+          "5"
+        ],
+        "cflow.count": [
+          "1"
+        ],
+        "cflow.sysuptime": [
+          "1.000000000"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "cflow.version": [
+          "5"
+        ],
+        "cflow.count": [
+          "1"
+        ],
+        "cflow.sysuptime": [
+          "1.000000000"
+        ]
+      }
+    }
+  }
+]

@@ -1,0 +1,93 @@
+[
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "dhcpv6.msgtype": [
+          "1"
+        ],
+        "dhcpv6.xid": [
+          "0x123456"
+        ],
+        "dhcpv6.iaaddr.ip": [
+          "2001:db8::100",
+          "2001:db8::200"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "dhcpv6.msgtype": [
+          "2"
+        ],
+        "dhcpv6.xid": [
+          "0x123456"
+        ],
+        "dhcpv6.iaaddr.ip": [
+          "2001:db8::100"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "dhcpv6.msgtype": [
+          "1"
+        ],
+        "dhcpv6.xid": [
+          "0x123457"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "dhcpv6.msgtype": [
+          "1"
+        ],
+        "dhcpv6.xid": [
+          "0x123458"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "dhcpv6.msgtype": [
+          "1"
+        ],
+        "dhcpv6.xid": [
+          "0x123459"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "dhcpv6.msgtype": [
+          "1"
+        ],
+        "dhcpv6.xid": [
+          "0x12345a"
+        ]
+      }
+    }
+  }
+]

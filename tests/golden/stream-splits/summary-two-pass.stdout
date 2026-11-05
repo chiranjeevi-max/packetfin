@@ -1,0 +1,16 @@
+    1   0.000000    192.0.2.1 → 192.0.2.2    TCP 55 40100 → 53 [PSH, ACK] Seq=1 Ack=1 Win=65535 Len=1 [TCP PDU reassembled in 2]
+    2   0.000001    192.0.2.1 → 192.0.2.2    DNS 84 Standard query 0x1234 A example.com
+    3   0.000002    192.0.2.1 → 192.0.2.2    TCP 56 40101 → 53 [PSH, ACK] Seq=1 Ack=1 Win=65535 Len=2 [TCP PDU reassembled in 4]
+    4   0.000003    192.0.2.1 → 192.0.2.2    DNS 83 Standard query 0x1234 A example.com
+    5   0.000004    192.0.2.1 → 192.0.2.2    TCP 57 40102 → 443 [PSH, ACK] Seq=1 Ack=1 Win=65535 Len=3 [TCP PDU reassembled in 6]
+    6   0.000005    192.0.2.1 → 192.0.2.2    TLSv1.2 213 Client Hello (SNI=example.com)
+    7   0.000006    192.0.2.1 → 192.0.2.2    TCP 135 40103 → 443 [PSH, ACK] Seq=1 Ack=1 Win=65535 Len=81 [TCP PDU reassembled in 8]
+    8   0.000007    192.0.2.1 → 192.0.2.2    TLSv1.2 135 Client Hello (SNI=example.com)
+    9   0.000008    192.0.2.1 → 192.0.2.2    TCP 88 40104 → 80 [PSH, ACK] Seq=1 Ack=1 Win=65535 Len=34 [TCP PDU reassembled in 10]
+   10   0.000009    192.0.2.1 → 192.0.2.2    HTTP 88 GET /split HTTP/1.1 
+   11   0.000010    192.0.2.1 → 192.0.2.2    TCP 100 40105 → 80 [PSH, ACK] Seq=1 Ack=1 Win=65535 Len=46 [TCP PDU reassembled in 12]
+   12   0.000011    192.0.2.1 → 192.0.2.2    HTTP 76 GET /split HTTP/1.1 
+   13   0.000012    192.0.2.1 → 192.0.2.2    TCP 64 40106 → 179 [PSH, ACK] Seq=1 Ack=1 Win=65535 Len=10
+   14   0.000013    192.0.2.1 → 192.0.2.2    TCP 108 40106 → 179 [PSH, ACK] Seq=11 Ack=1 Win=65535 Len=54
+   15   0.000014    192.0.2.1 → 192.0.2.2    TCP 73 40107 → 179 [PSH, ACK] Seq=1 Ack=1 Win=65535 Len=19 [TCP PDU reassembled in 16]
+   16   0.000015    192.0.2.1 → 192.0.2.2    BGP 99 UPDATE Message

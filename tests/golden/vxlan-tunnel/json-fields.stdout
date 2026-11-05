@@ -1,0 +1,97 @@
+[
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "vxlan.vni": [
+          "100"
+        ],
+        "vxlan.flags": [
+          "0x0800"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "vxlan.vni": [
+          "100"
+        ],
+        "vxlan.flags": [
+          "0x8848"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "vxlan.flags": [
+          "0x0800"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "vxlan.vni": [
+          "100"
+        ],
+        "vxlan.flags": [
+          "0x0800"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "vxlan.vni": [
+          "100"
+        ],
+        "vxlan.flags": [
+          "0x0800"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "vxlan.vni": [
+          "100"
+        ],
+        "vxlan.flags": [
+          "0x0800"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "vxlan.vni": [
+          "100"
+        ],
+        "vxlan.flags": [
+          "0x0800"
+        ]
+      }
+    }
+  }
+]

@@ -1,0 +1,3 @@
+ip.check_checksum:TRUE
+nameres.mac_name:FALSE
+cflow.netflow.ports:2055,2056

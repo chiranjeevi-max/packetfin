@@ -1,0 +1,19 @@
+
+========================================================
+| IO Statistics                                        |
+|                                                      |
+| Duration: 3.000000 secs                              |
+| Interval: 1 secs                                     |
+|                                                      |
+| Col  1: MAX(frame.time_relative)frame.time_relative  |
+|      2: MIN(frame.time_relative)frame.time_relative  |
+|      3: AVG(frame.time_relative)frame.time_relative  |
+|      4: SUM(frame.time_relative)frame.time_relative  |
+|------------------------------------------------------|
+|          |1         |2         |3         |4         |
+| Interval |    MAX   |    MIN   |    AVG   |    SUM   |
+|------------------------------------------------------|
+|  0 <> 1  | 0.250000 | 0.000000 | 0.125000 | 0.250000 |
+|  1 <> 2  | 1.000000 | 1.000000 | 1.000000 | 1.000000 |
+|  2 <> Dur| 2.500000 | 2.500000 | 2.500000 | 2.500000 |
+========================================================

@@ -1,0 +1,118 @@
+Frame 1: Packet, 74 bytes on wire (592 bits), 74 bytes captured (592 bits)
+Ethernet II, Src: 02:00:00:00:00:01, Dst: 02:00:00:00:00:02
+Internet Protocol Version 4, Src: 192.0.2.1, Dst: 198.51.100.2
+User Datagram Protocol, Src Port: 40000, Dst Port: 4739
+Cisco NetFlow/IPFIX
+    Version: 10
+    Length: 1
+    Timestamp: Nov 14, 2023 22:13:20.000000000 UTC
+        ExportTime: 1700000000
+    FlowSequence: 1
+    Observation Domain Id: 42
+    Set 1 [id=2] (Data Template): 256
+        FlowSet Id: Data Template (V10 [IPFIX]) (2)
+        FlowSet Length: 16
+        Template (Id = 256, Count = 2)
+            Template Id: 256
+            Field Count: 2
+            Field (1/2): IP_SRC_ADDR
+                0... .... .... .... = Pen provided: No
+                .000 0000 0000 1000 = Type: IP_SRC_ADDR (8)
+                Length: 4
+            Field (2/2): IP_DST_ADDR
+                0... .... .... .... = Pen provided: No
+                .000 0000 0000 1100 = Type: IP_DST_ADDR (12)
+                Length: 4
+
+Frame 2: Packet, 74 bytes on wire (592 bits), 74 bytes captured (592 bits)
+Ethernet II, Src: 02:00:00:00:00:01, Dst: 02:00:00:00:00:02
+Internet Protocol Version 4, Src: 192.0.2.1, Dst: 198.51.100.2
+User Datagram Protocol, Src Port: 40000, Dst Port: 4739
+Cisco NetFlow/IPFIX
+    Version: 10
+    Length: 500
+    Timestamp: Nov 14, 2023 22:13:20.000000000 UTC
+        ExportTime: 1700000000
+    FlowSequence: 2 (expected 1)
+        [Expert Info (Warning/Sequence): Unexpected flow sequence for domain ID 42 (expected 1, got 2)]
+            [Unexpected flow sequence for domain ID 42 (expected 1, got 2)]
+            [Severity level: Warning]
+            [Group: Sequence]
+    Observation Domain Id: 42
+    Set 1 [id=2] (Data Template): 256
+        FlowSet Id: Data Template (V10 [IPFIX]) (2)
+        FlowSet Length: 16
+        Template (Id = 256, Count = 2)
+            Template Id: 256
+            Field Count: 2
+            Field (1/2): IP_SRC_ADDR
+                0... .... .... .... = Pen provided: No
+                .000 0000 0000 1000 = Type: IP_SRC_ADDR (8)
+                Length: 4
+            Field (2/2): IP_DST_ADDR
+                0... .... .... .... = Pen provided: No
+                .000 0000 0000 1100 = Type: IP_DST_ADDR (12)
+                Length: 4
+    [Expected Sequence Number: 1]
+    [Previous Frame in Sequence: 1]
+
+Frame 3: Packet, 66 bytes on wire (528 bits), 66 bytes captured (528 bits)
+Ethernet II, Src: 02:00:00:00:00:01, Dst: 02:00:00:00:00:02
+Internet Protocol Version 4, Src: 192.0.2.1, Dst: 198.51.100.2
+User Datagram Protocol, Src Port: 40000, Dst Port: 4739
+Cisco NetFlow/IPFIX
+    Version: 10
+    Length: 0
+    Timestamp: Nov 14, 2023 22:13:20.000000000 UTC
+        ExportTime: 1700000000
+    FlowSequence: 3
+    Observation Domain Id: 42
+    FlowSets impossible - PDU Count is 0
+        [Expert Info (Warning/Malformed): FlowSets impossible - PDU Count is 0]
+            [FlowSets impossible - PDU Count is 0]
+            [Severity level: Warning]
+            [Group: Malformed]
+
+Frame 4: Packet, 62 bytes on wire (496 bits), 62 bytes captured (496 bits)
+Ethernet II, Src: 02:00:00:00:00:01, Dst: 02:00:00:00:00:02
+Internet Protocol Version 4, Src: 192.0.2.1, Dst: 198.51.100.2
+User Datagram Protocol, Src Port: 40000, Dst Port: 4739
+Cisco NetFlow/IPFIX
+    Version: 10
+    Length: 20
+    Timestamp: Nov 14, 2023 22:13:20.000000000 UTC
+        ExportTime: 1700000000
+    FlowSequence: 4 (expected 2)
+        [Expert Info (Warning/Sequence): Unexpected flow sequence for domain ID 42 (expected 2, got 4)]
+            [Unexpected flow sequence for domain ID 42 (expected 2, got 4)]
+            [Severity level: Warning]
+            [Group: Sequence]
+    Observation Domain Id: 42
+    Set 1 [id=2]
+        FlowSet Id: Data Template (V10 [IPFIX]) (2)
+        FlowSet Length: 3
+            [Expert Info (Warning/Malformed): Flowset Length (3) too short]
+                [Flowset Length (3) too short]
+                [Severity level: Warning]
+                [Group: Malformed]
+    [Expected Sequence Number: 2]
+    [Previous Frame in Sequence: 2]
+
+Frame 5: Packet, 66 bytes on wire (528 bits), 66 bytes captured (528 bits)
+Ethernet II, Src: 02:00:00:00:00:01, Dst: 02:00:00:00:00:02
+Internet Protocol Version 4, Src: 192.0.2.1, Dst: 198.51.100.2
+User Datagram Protocol, Src Port: 40000, Dst Port: 4739
+Cisco NetFlow/IPFIX
+    Version: 10
+    Length: 24
+    Timestamp: Nov 14, 2023 22:13:20.000000000 UTC
+        ExportTime: 1700000000
+    FlowSequence: 5 (expected 4)
+        [Expert Info (Warning/Sequence): Unexpected flow sequence for domain ID 42 (expected 4, got 5)]
+            [Unexpected flow sequence for domain ID 42 (expected 4, got 5)]
+            [Severity level: Warning]
+            [Group: Sequence]
+    Observation Domain Id: 42
+    [Expected Sequence Number: 4]
+    [Previous Frame in Sequence: 4]
+

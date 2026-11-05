@@ -1,0 +1,118 @@
+Frame 1: Packet, 34 bytes on wire (272 bits), 34 bytes captured (272 bits)
+    Encapsulation type: Ethernet (1)
+    Arrival Time: Nov 14, 2023 22:13:20.123456000 UTC
+    UTC Arrival Time: Nov 14, 2023 22:13:20.123456000 UTC
+    Epoch Arrival Time: 1700000000.123456000
+    [Time shift for this packet: 0.000000000 seconds]
+    [Time since reference or first frame: 0.000000000 seconds]
+    Frame Number: 1
+    Frame Length: 34 bytes (272 bits)
+    Capture Length: 34 bytes (272 bits)
+    [Frame is marked: False]
+    [Frame is ignored: False]
+    [Protocols in frame: eth:ethertype:ipv6]
+    Character encoding: ASCII (0)
+Ethernet II, Src: 02:00:00:00:00:01, Dst: 02:00:00:00:00:02
+Internet Protocol Version 6
+[Malformed Packet: IPv6]
+
+Frame 3: Packet, 58 bytes on wire (464 bits), 58 bytes captured (464 bits)
+    Encapsulation type: Ethernet (1)
+    Arrival Time: Nov 14, 2023 22:13:20.123458000 UTC
+    UTC Arrival Time: Nov 14, 2023 22:13:20.123458000 UTC
+    Epoch Arrival Time: 1700000000.123458000
+    [Time shift for this packet: 0.000000000 seconds]
+    [Time delta from previous captured frame: 1.000 microseconds]
+    [Time delta from previous displayed frame: 2.000 microseconds]
+    [Time since reference or first frame: 2.000 microseconds]
+    Frame Number: 3
+    Frame Length: 58 bytes (464 bits)
+    Capture Length: 58 bytes (464 bits)
+    [Frame is marked: False]
+    [Frame is ignored: False]
+    [Protocols in frame: eth:ethertype:ipv6:data]
+    Character encoding: ASCII (0)
+Ethernet II, Src: 02:00:00:00:00:01, Dst: 02:00:00:00:00:02
+Internet Protocol Version 6, Src: 2001:db8::1, Dst: 2001:db8::2
+Data (4 bytes)
+
+Frame 4: Packet, 58 bytes on wire (464 bits), 58 bytes captured (464 bits)
+    Encapsulation type: Ethernet (1)
+    Arrival Time: Nov 14, 2023 22:13:20.123459000 UTC
+    UTC Arrival Time: Nov 14, 2023 22:13:20.123459000 UTC
+    Epoch Arrival Time: 1700000000.123459000
+    [Time shift for this packet: 0.000000000 seconds]
+    [Time delta from previous captured frame: 1.000 microseconds]
+    [Time delta from previous displayed frame: 1.000 microseconds]
+    [Time since reference or first frame: 3.000 microseconds]
+    Frame Number: 4
+    Frame Length: 58 bytes (464 bits)
+    Capture Length: 58 bytes (464 bits)
+    [Frame is marked: False]
+    [Frame is ignored: False]
+    [Protocols in frame: eth:ethertype:ipv6:ipv6.hopopts]
+    Character encoding: ASCII (0)
+Ethernet II, Src: 02:00:00:00:00:01, Dst: 02:00:00:00:00:02
+Internet Protocol Version 6, Src: 2001:db8::1, Dst: 2001:db8::2
+[Malformed Packet: IPv6 Hop-by-Hop]
+
+Frame 5: Packet, 58 bytes on wire (464 bits), 58 bytes captured (464 bits)
+    Encapsulation type: Ethernet (1)
+    Arrival Time: Nov 14, 2023 22:13:20.123460000 UTC
+    UTC Arrival Time: Nov 14, 2023 22:13:20.123460000 UTC
+    Epoch Arrival Time: 1700000000.123460000
+    [Time shift for this packet: 0.000000000 seconds]
+    [Time delta from previous captured frame: 1.000 microseconds]
+    [Time delta from previous displayed frame: 1.000 microseconds]
+    [Time since reference or first frame: 4.000 microseconds]
+    Frame Number: 5
+    Frame Length: 58 bytes (464 bits)
+    Capture Length: 58 bytes (464 bits)
+    [Frame is marked: False]
+    [Frame is ignored: False]
+    [Protocols in frame: eth:ethertype:ipv6:ipv6.hopopts]
+    Character encoding: ASCII (0)
+Ethernet II, Src: 02:00:00:00:00:01, Dst: 02:00:00:00:00:02
+Internet Protocol Version 6, Src: 2001:db8::1, Dst: 2001:db8::2
+[Malformed Packet: IPv6 Hop-by-Hop]
+
+Frame 6: Packet, 70 bytes on wire (560 bits), 70 bytes captured (560 bits)
+    Encapsulation type: Ethernet (1)
+    Arrival Time: Nov 14, 2023 22:13:20.123461000 UTC
+    UTC Arrival Time: Nov 14, 2023 22:13:20.123461000 UTC
+    Epoch Arrival Time: 1700000000.123461000
+    [Time shift for this packet: 0.000000000 seconds]
+    [Time delta from previous captured frame: 1.000 microseconds]
+    [Time delta from previous displayed frame: 1.000 microseconds]
+    [Time since reference or first frame: 5.000 microseconds]
+    Frame Number: 6
+    Frame Length: 70 bytes (560 bits)
+    Capture Length: 70 bytes (560 bits)
+    [Frame is marked: False]
+    [Frame is ignored: False]
+    [Protocols in frame: eth:ethertype:ipv6:ipv6.fraghdr:ipv6.hopopts]
+    Character encoding: ASCII (0)
+Ethernet II, Src: 02:00:00:00:00:01, Dst: 02:00:00:00:00:02
+Internet Protocol Version 6, Src: 2001:db8::1, Dst: 2001:db8::2
+[Malformed Packet: IPv6 Hop-by-Hop]
+
+Frame 7: Packet, 58 bytes on wire (464 bits), 58 bytes captured (464 bits)
+    Encapsulation type: Ethernet (1)
+    Arrival Time: Nov 14, 2023 22:13:20.123462000 UTC
+    UTC Arrival Time: Nov 14, 2023 22:13:20.123462000 UTC
+    Epoch Arrival Time: 1700000000.123462000
+    [Time shift for this packet: 0.000000000 seconds]
+    [Time delta from previous captured frame: 1.000 microseconds]
+    [Time delta from previous displayed frame: 1.000 microseconds]
+    [Time since reference or first frame: 6.000 microseconds]
+    Frame Number: 7
+    Frame Length: 58 bytes (464 bits)
+    Capture Length: 58 bytes (464 bits)
+    [Frame is marked: False]
+    [Frame is ignored: False]
+    [Protocols in frame: eth:ethertype:ipv6:ipv6.fraghdr]
+    Character encoding: ASCII (0)
+Ethernet II, Src: 02:00:00:00:00:01, Dst: 02:00:00:00:00:02
+Internet Protocol Version 6, Src: 2001:db8::1, Dst: 2001:db8::2
+[Malformed Packet: IPv6 Fragment]
+

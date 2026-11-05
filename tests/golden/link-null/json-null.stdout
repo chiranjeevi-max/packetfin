@@ -1,0 +1,25 @@
+[
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "frame": {
+          "filtered": "frame"
+        },
+        "null": {
+          "null.family": "2"
+        },
+        "ip": {
+          "filtered": "ip"
+        },
+        "udp": {
+          "filtered": "udp"
+        },
+        "data": {
+          "filtered": "data"
+        }
+      }
+    }
+  }
+]

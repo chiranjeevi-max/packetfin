@@ -1,0 +1,3 @@
+packetfin: "bogus.field" is not a valid protocol or protocol field.
+    bogus.field==1
+    ^~~~~~~~~~~

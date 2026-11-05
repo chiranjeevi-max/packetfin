@@ -1,0 +1,2096 @@
+#!/usr/bin/env python3
+"""Bounded adversarial stress harness for packetfin.
+
+Mutates the generated captures in tests/fixtures, runs the release binary over
+a fixed option matrix, and classifies every run as ok, crash, hang, rss_limit
+or unexpected. Findings are saved with a minimized input and the exact command
+that reproduces them.
+
+Usage:
+    cargo build --release
+    tools/stress                       # 10 minutes, 200k-run cap, seed 1
+    tools/stress --minutes 2 --max-cases 5000
+    tools/stress --binary path/to/packetfin --out /tmp/pf-stress
+    tools/stress --minutes 0 --max-cases 4410000  # complete planned sweep
+    tools/stress --self-test
+    tools/stress --minutes 10 --memory   # releases also run the memory-ceiling matrix
+
+Modes cover summary, fields, hexdump, detail, JSON, PDML, EK, display-filter
+(-Y), stdin (-r -), a -c limit, a 4 KiB state budget and the default
+name-resolution path; every mode except "names" passes -n. These are
+file-replay modes, so capture writing, live capture (ring buffer and -a
+autostop) and -o preferences are not exercised here.
+
+Release gate: a release ships only after a release build runs
+`tools/stress --minutes 10` with zero crashes, hangs, rss_limit and unexpected
+exits. Report each finding with its reproducer directory and keep it until a
+fix and a regression test close it.
+
+Mutation classes per capture: every-byte truncation, all eight bit positions
+per byte (a deterministic 256-offset sample above 64 KiB), 24 random
+multi-byte edits, and length-field extrema, including compressed-stream
+fields, for pcap, pcapng, gzip, zstd and lz4 headers, records, blocks and
+trailer lengths. Each fixture contributes at most 400 length mutations. Inputs
+are generated in the output directory; the fixture tree is read-only.
+
+--self-test validates fixture discovery, mutation schedule determinism,
+truncation and bit-flip coverage, length-mutation serialization, process
+classification and RSS limits, output-path safety, bounded campaigns,
+reproducer minimization and SIGINT handling, using generated captures and stub
+binaries. It needs no packetfin build and does not touch repository fixtures.
+
+Outputs under --out: report.json (machine-readable summary), results.jsonl
+(one line per run), and repro/<id>/{case.bin,original.bin,case.json} for each
+finding, with the exact command and minimized input. Randomness derives from
+--seed, and both --minutes and --max-cases bound the campaign. A time-bounded
+campaign samples the byte sweeps; report.json shows planned versus executed
+offsets. The default 200,000-run cap also bounds --minutes 0, so a complete
+sweep needs an explicit --max-cases (about 4,410,000 for the current fixtures
+at seed 1: eight bit flips per byte and twelve modes expand the plan).
+Combine --seed with --max-cases for an exactly reproducible sequence. The
+first unmutated pass runs every fixture before mutations; use a max-cases
+above roughly 600 to reach mutated inputs. Uploads and network access do not
+exist.
+"""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import os
+import random
+import resource
+import shlex
+import shutil
+import signal
+import subprocess
+import sys
+import tempfile
+import time
+from dataclasses import dataclass
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Iterable, Iterator, Sequence
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
+DEFAULT_BINARY = REPO_ROOT / "target" / "release" / "packetfin"
+DEFAULT_FIXTURES = REPO_ROOT / "tests" / "fixtures"
+DEFAULT_OUT = REPO_ROOT / "target" / "stress" / "latest"
+STRESS_ROOT = REPO_ROOT / "target" / "stress"
+CAPTURE_SUFFIXES = (".pcap", ".pcapng", ".gz", ".zst", ".lz4")
+LARGE_FILE = 64 * 1024
+MAX_LENGTH_MUTATIONS = 400
+RANDOM_MUTATIONS_PER_FILE = 24
+LENGTH_MUTATIONS_FIRST = 12
+LARGE_FILE_SAMPLES = 256
+STDERR_LIMIT = 64 * 1024
+STDERR_EXCERPT = 4096
+RSS_POLL_SECONDS = 0.10
+MINIMIZE_RUN_LIMIT = 300
+MINIMIZE_TIMEOUT_CAP = 2.0
+MINIMIZE_SECONDS = 20.0
+
+
+@dataclass(frozen=True)
+class Mode:
+    name: str
+    args: tuple[str, ...]
+    sample: int = 1
+    stdin_input: bool = False
+    capture_stdout: bool = False
+
+
+# Every mode except "names" disables name resolution. Output-heavy and
+# stateful paths are sampled by the deterministic input ordinal. "stdin"
+# feeds the capture through a regular file on standard input; "names" omits
+# -n so the default resolution path is parsed and exercised.
+MODES = (
+    Mode("summary", ("-n",)),
+    Mode("fields", ("-n", "-T", "fields", "-e", "frame.number"), capture_stdout=True),
+    Mode("hexdump", ("-n", "-x"), sample=4),
+    Mode("detail", ("-n", "-V"), sample=8),
+    Mode("json", ("-n", "-T", "json", "-e", "frame.number"), sample=4),
+    Mode("pdml", ("-n", "-T", "pdml"), sample=12),
+    Mode("ek", ("-n", "-T", "ek"), sample=12),
+    Mode("filter", ("-n", "-Y", "frame.number == 1"), sample=4),
+    Mode("stdin", ("-n", "-r", "-"), sample=4, stdin_input=True),
+    Mode("limit", ("-n", "-c", "1", "-T", "fields", "-e", "frame.number"), sample=8),
+    Mode(
+        "state",
+        ("-n", "--pf-state-budget", "4096", "-T", "fields",
+         "-e", "frame.number", "-e", "tcp.stream"),
+        sample=8,
+    ),
+    Mode("names", ("-T", "fields", "-e", "frame.number"), sample=8),
+)
+MODES_BY_NAME = {mode.name: mode for mode in MODES}
+ANOMALIES = ("crash", "hang", "rss_limit", "unexpected")
+
+
+@dataclass(frozen=True)
+class Fixture:
+    name: str
+    data: bytes
+    format: str
+    sha256: str
+
+
+@dataclass(frozen=True)
+class Mutation:
+    kind: str
+    seed_name: str
+    slug: str
+    params: tuple
+
+
+@dataclass
+class CampaignConfig:
+    binary: Path
+    fixtures_dir: Path
+    out: Path
+    minutes: float
+    max_cases: int
+    seed: int
+    timeout_seconds: float
+    rss_mb: int
+    max_findings: int
+    minimize: bool
+    expected_exits: tuple[int, ...]
+    fixtures: list[Fixture] | None = None
+    force: bool = False
+    quiet: bool = False
+
+
+def sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as source:
+        for block in iter(lambda: source.read(1 << 20), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def sha256_bytes(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
+
+
+def capture_format(data: bytes) -> str:
+    if data[:4] == b"\x0a\x0d\x0d\x0a":
+        return "pcapng"
+    if len(data) >= 4:
+        magic = int.from_bytes(data[:4], "big")
+        if magic in (0xA1B2C3D4, 0xD4C3B2A1, 0xA1B23C4D, 0x4D3CB2A1):
+            return "pcap"
+    if data[:2] == b"\x1f\x8b":
+        return "gzip"
+    if data[:4] == b"\x28\xb5\x2f\xfd":
+        return "zstd"
+    if data[:4] in (b"\x04\x22\x4d\x18", b"\x02\x21\x4c\x18"):
+        return "lz4"
+    return "unknown"
+
+
+def discover_fixtures(fixtures_dir: Path) -> list[Fixture]:
+    fixtures: list[Fixture] = []
+    if not fixtures_dir.is_dir():
+        raise SystemExit(f"stress: fixtures directory does not exist: {fixtures_dir}")
+    for path in sorted(fixtures_dir.rglob("*")):
+        if not path.is_file() or path.suffix not in CAPTURE_SUFFIXES:
+            continue
+        data = path.read_bytes()
+        fixtures.append(
+            Fixture(
+                name=path.relative_to(fixtures_dir).as_posix(),
+                data=data,
+                format=capture_format(data),
+                sha256=sha256_bytes(data),
+            )
+        )
+    if not fixtures:
+        raise SystemExit(f"stress: no capture fixtures under {fixtures_dir}")
+    return fixtures
+
+
+def extreme_values(width: int, current: int) -> list[int]:
+    limit = (1 << (8 * width)) - 1
+    if width == 1:
+        fixed = [0, 1, 2, 3, 4, 7, 8, 15, 16, 31, 32, 63, 64, 127, 128, 0xFE, limit]
+    elif width == 2:
+        fixed = [0, 1, 2, 3, 4, 7, 8, 15, 16, 0xFF, 0x100, 0x7FFF, 0x8000, 0xFFFE, limit]
+    elif width == 4:
+        fixed = [
+            0, 1, 2, 3, 4, 7, 8, 15, 16, 31, 32,
+            0xFF, 0x100, 0xFFFF, 0x10000,
+            0x7FFFFFFF, 0x80000000, 0xFFFFFFFE, limit,
+        ]
+    else:
+        fixed = [
+            0, 1, 2, 3, 4, 7, 8, 15, 16, 31, 32,
+            0xFF, 0x100, 0xFFFF, 0x10000, 0xFFFFFFFF, 0x100000000,
+            0x7FFFFFFFFFFFFFFF, 0x8000000000000000,
+            0xFFFFFFFFFFFFFFFE, limit,
+        ]
+    values = [value & limit for value in fixed]
+    for delta in (-1, 1):
+        values.append((current + delta) & limit)
+    values.append(current & limit)
+    seen: set[int] = set()
+    ordered: list[int] = []
+    for value in values:
+        if value not in seen:
+            seen.add(value)
+            ordered.append(value)
+    return ordered
+
+
+def add_length_mutations(
+    mutations: list[Mutation],
+    seed_name: str,
+    fields: list[tuple[int, int, int, str, str]],
+) -> None:
+    """fields: (offset, width, current, endian, label)."""
+    seen: set[tuple[int, int, bytes]] = set()
+    for offset, width, current, endian, label in fields:
+        for value in extreme_values(width, current):
+            encoded = value.to_bytes(width, endian)
+            key = (offset, width, encoded)
+            if key in seen:
+                continue
+            seen.add(key)
+            mutations.append(
+                Mutation(
+                    "length",
+                    seed_name,
+                    f"len-{label}-{offset}-{value:x}",
+                    (offset, encoded),
+                )
+            )
+            if len(mutations) >= MAX_LENGTH_MUTATIONS:
+                return
+
+
+def pcap_length_fields(data: bytes) -> list[tuple[int, int, int, str, str]]:
+    magic = int.from_bytes(data[:4], "big")
+    if magic in (0xA1B2C3D4, 0xA1B23C4D):
+        endian = "big"
+    else:
+        endian = "little"
+    fields: list[tuple[int, int, int, str, str]] = []
+    if len(data) >= 20:
+        snaplen = int.from_bytes(data[16:20], endian)
+        fields.append((16, 4, snaplen, endian, "snaplen"))
+    offset = 24
+    records = 0
+    while offset + 16 <= len(data) and records < 4096:
+        captured = int.from_bytes(data[offset + 8 : offset + 12], endian)
+        original = int.from_bytes(data[offset + 12 : offset + 16], endian)
+        fields.append((offset + 8, 4, captured, endian, "incl"))
+        fields.append((offset + 12, 4, original, endian, "orig"))
+        next_offset = offset + 16 + captured
+        if next_offset <= offset or next_offset > len(data):
+            break
+        offset = next_offset
+        records += 1
+    return fields
+
+
+def pcapng_length_fields(data: bytes) -> list[tuple[int, int, int, str, str]]:
+    fields: list[tuple[int, int, int, str, str]] = []
+    endian = "little"
+    offset = 0
+    blocks = 0
+    while offset + 12 <= len(data) and blocks < 4096:
+        if offset + 12 <= len(data) and data[offset : offset + 4] == b"\x0a\x0d\x0d\x0a":
+            bom = data[offset + 8 : offset + 12]
+            if bom == b"\x1a\x2b\x3c\x4d":
+                endian = "little"
+            elif bom == b"\x4d\x3c\x2b\x1a":
+                endian = "big"
+        block_type = int.from_bytes(data[offset : offset + 4], endian)
+        total_length = int.from_bytes(data[offset + 4 : offset + 8], endian)
+        fields.append((offset + 4, 4, total_length, endian, "block-len"))
+        if block_type == 0x0A0D0D0A and offset + 24 <= len(data):
+            section_length = int.from_bytes(data[offset + 16 : offset + 24], endian)
+            fields.append((offset + 16, 8, section_length, endian, "section-len"))
+        elif block_type == 0x00000001 and offset + 16 <= len(data):
+            snaplen = int.from_bytes(data[offset + 12 : offset + 16], endian)
+            fields.append((offset + 12, 4, snaplen, endian, "snaplen"))
+        elif block_type == 0x00000006 and offset + 28 <= len(data):
+            captured = int.from_bytes(data[offset + 20 : offset + 24], endian)
+            original = int.from_bytes(data[offset + 24 : offset + 28], endian)
+            fields.append((offset + 20, 4, captured, endian, "captured-len"))
+            fields.append((offset + 24, 4, original, endian, "original-len"))
+        elif block_type == 0x00000002 and offset + 28 <= len(data):
+            captured = int.from_bytes(data[offset + 20 : offset + 24], endian)
+            original = int.from_bytes(data[offset + 24 : offset + 28], endian)
+            fields.append((offset + 20, 4, captured, endian, "captured-len"))
+            fields.append((offset + 24, 4, original, endian, "original-len"))
+        elif block_type == 0x00000003 and offset + 12 <= len(data):
+            original = int.from_bytes(data[offset + 8 : offset + 12], endian)
+            fields.append((offset + 8, 4, original, endian, "original-len"))
+        if total_length < 12 or total_length % 4 or offset + total_length <= offset:
+            break
+        offset += total_length
+        blocks += 1
+    return fields
+
+
+def gzip_length_fields(data: bytes) -> list[tuple[int, int, int, str, str]]:
+    if len(data) < 18 or data[:2] != b"\x1f\x8b":
+        return []
+    fields: list[tuple[int, int, int, str, str]] = [
+        (len(data) - 8, 4, int.from_bytes(data[-8:-4], "little"), "little", "gzip-crc"),
+        (len(data) - 4, 4, int.from_bytes(data[-4:], "little"), "little", "gzip-isize"),
+    ]
+    flags = data[3]
+    if flags & 0x04 and len(data) >= 12:
+        xlen = int.from_bytes(data[10:12], "little")
+        fields.append((10, 2, xlen, "little", "gzip-xlen"))
+    return fields
+
+
+def zstd_length_fields(data: bytes) -> list[tuple[int, int, int, str, str]]:
+    if len(data) < 6 or data[:4] != b"\x28\xb5\x2f\xfd":
+        return []
+    descriptor = data[4]
+    fcs_flag = descriptor >> 6
+    single_segment = bool(descriptor & 0x20)
+    checksum = bool(descriptor & 0x04)
+    dictionary_flag = descriptor & 0x03
+    fields: list[tuple[int, int, int, str, str]] = [
+        (4, 1, descriptor, "little", "zstd-descriptor")
+    ]
+    offset = 5
+    if not single_segment:
+        if offset < len(data):
+            fields.append((offset, 1, data[offset], "little", "zstd-window"))
+        offset += 1
+    dictionary_size = (0, 1, 2, 4)[dictionary_flag]
+    if dictionary_size:
+        if offset + dictionary_size <= len(data):
+            fields.append((
+                offset,
+                dictionary_size,
+                int.from_bytes(data[offset : offset + dictionary_size], "little"),
+                "little",
+                "zstd-dict-id",
+            ))
+        offset += dictionary_size
+    if fcs_flag == 0:
+        fcs_size = 1 if single_segment else 0
+    else:
+        fcs_size = (2, 4, 8)[fcs_flag - 1]
+    if fcs_size and offset + fcs_size <= len(data):
+        fields.append((
+            offset,
+            fcs_size,
+            int.from_bytes(data[offset : offset + fcs_size], "little"),
+            "little",
+            "zstd-content-size",
+        ))
+    if checksum and len(data) >= 4:
+        fields.append((
+            len(data) - 4,
+            4,
+            int.from_bytes(data[-4:], "little"),
+            "little",
+            "zstd-checksum",
+        ))
+    return fields
+
+
+def lz4_length_fields(data: bytes) -> list[tuple[int, int, int, str, str]]:
+    if len(data) < 7 or data[:4] != b"\x04\x22\x4d\x18":
+        return []
+    flags = data[4]
+    block_descriptor = data[5]
+    fields: list[tuple[int, int, int, str, str]] = [
+        (5, 1, block_descriptor, "little", "lz4-block-descriptor")
+    ]
+    offset = 6
+    if flags & 0x08:
+        if offset + 8 <= len(data):
+            fields.append((
+                offset,
+                8,
+                int.from_bytes(data[offset : offset + 8], "little"),
+                "little",
+                "lz4-content-size",
+            ))
+        offset += 8
+    if flags & 0x01 and offset + 4 <= len(data):
+        fields.append((
+            offset,
+            4,
+            int.from_bytes(data[offset : offset + 4], "little"),
+            "little",
+            "lz4-dict-id",
+        ))
+    return fields
+
+
+def length_mutations(name: str, data: bytes, fmt: str) -> list[Mutation]:
+    mutations: list[Mutation] = []
+    if fmt == "pcap":
+        add_length_mutations(mutations, name, pcap_length_fields(data))
+    elif fmt == "pcapng":
+        add_length_mutations(mutations, name, pcapng_length_fields(data))
+    elif fmt == "gzip":
+        add_length_mutations(mutations, name, gzip_length_fields(data))
+    elif fmt == "zstd":
+        add_length_mutations(mutations, name, zstd_length_fields(data))
+    elif fmt == "lz4":
+        add_length_mutations(mutations, name, lz4_length_fields(data))
+    return mutations
+
+
+def sampled_offsets(length: int) -> list[int]:
+    if length <= LARGE_FILE:
+        return list(range(length))
+    offsets = {0, 1, 2, 3, 4, 7, 8, 15, 16, 23, 24, 31, 32, 63, 64, 65, 127, 128, 255, 256}
+    offsets.add(length - 1)
+    step = max(1, length // LARGE_FILE_SAMPLES)
+    offsets.update(range(0, length, step))
+    return sorted(offset for offset in offsets if 0 <= offset < length)
+
+
+def mutation_counts(data: bytes, fmt: str) -> dict[str, int]:
+    length = len(data)
+    sampled = length if length <= LARGE_FILE else len(sampled_offsets(length))
+    return {
+        "smoke": 1,
+        "length": len(length_mutations("", data, fmt)),
+        "random": RANDOM_MUTATIONS_PER_FILE,
+        "truncate": sampled,
+        "bitflip": sampled * 8,
+    }
+
+
+def random_mutation(rng: random.Random, data: bytes) -> bytes:
+    buffer = bytearray(data)
+    for _ in range(rng.randint(1, 4)):
+        operation = rng.choice(
+            ("xor-run", "set-run", "insert", "delete", "truncate", "duplicate")
+        )
+        if operation in ("xor-run", "set-run") and buffer:
+            position = rng.randrange(len(buffer))
+            length = min(rng.randint(1, 16), len(buffer) - position)
+            if operation == "xor-run":
+                mask = rng.randrange(1, 256)
+                for index in range(position, position + length):
+                    buffer[index] ^= mask
+            else:
+                payload = rng.randbytes(length)
+                buffer[position : position + length] = payload
+        elif operation == "insert":
+            position = rng.randrange(len(buffer) + 1)
+            payload = rng.randbytes(rng.randint(1, 32))
+            buffer[position:position] = payload
+        elif operation == "delete" and buffer:
+            position = rng.randrange(len(buffer))
+            length = min(rng.randint(1, 32), len(buffer) - position)
+            del buffer[position : position + length]
+        elif operation == "truncate":
+            del buffer[rng.randrange(len(buffer) + 1) :]
+        elif operation == "duplicate" and buffer:
+            source = rng.randrange(len(buffer))
+            length = min(rng.randint(1, 16), len(buffer) - source)
+            position = rng.randrange(len(buffer) + 1)
+            buffer[position:position] = buffer[source : source + length]
+    return bytes(buffer)
+
+
+def random_seed(seed: int, name: str, index: int) -> random.Random:
+    material = f"{seed}\0{name}\0{index}".encode()
+    return random.Random(int.from_bytes(hashlib.sha256(material).digest()[:16], "big"))
+
+
+def iter_mutations(fixture: Fixture, seed: int) -> Iterator[Mutation]:
+    name = fixture.name
+    data = fixture.data
+    length = len(data)
+    yield Mutation("smoke", name, "smoke", ())
+    structural = length_mutations(name, data, fixture.format)
+    for mutation in structural[:LENGTH_MUTATIONS_FIRST]:
+        yield mutation
+    for index in range(RANDOM_MUTATIONS_PER_FILE):
+        yield Mutation("random", name, f"rand-{index}", (index,))
+    if length <= LARGE_FILE:
+        offsets: Iterable[int] = range(length)
+    else:
+        offsets = sampled_offsets(length)
+    # Interleave the structural tail with the byte sweeps so record and block
+    # length fields are reached before the sweep is exhausted. Every offset is
+    # flipped at all eight bit positions, subject only to the time budget.
+    tail = iter(structural[LENGTH_MUTATIONS_FIRST:])
+    for offset in offsets:
+        yield Mutation("truncate", name, f"trunc-{offset}", (offset,))
+        try:
+            yield next(tail)
+        except StopIteration:
+            pass
+        for bit in range(8):
+            yield Mutation("bitflip", name, f"bit-{offset}-{bit}", (offset, 1 << bit))
+    for mutation in tail:
+        yield mutation
+
+
+def iter_scheduled_mutations(fixtures: Sequence[Fixture], seed: int) -> Iterator[Mutation]:
+    """Round-robin each fixture's deterministic sequence so coverage is spread."""
+    active = [(fixture, iter_mutations(fixture, seed)) for fixture in fixtures]
+    while active:
+        remaining: list[tuple[Fixture, Iterator[Mutation]]] = []
+        for fixture, iterator in active:
+            try:
+                mutation = next(iterator)
+            except StopIteration:
+                continue
+            remaining.append((fixture, iterator))
+            yield mutation
+        active = remaining
+
+
+def apply_mutation(fixture: Fixture, mutation: Mutation, seed: int) -> bytes:
+    data = fixture.data
+    if mutation.kind == "smoke":
+        return data
+    if mutation.kind == "truncate":
+        return data[: mutation.params[0]]
+    if mutation.kind == "bitflip":
+        offset, mask = mutation.params
+        buffer = bytearray(data)
+        buffer[offset] ^= mask
+        return bytes(buffer)
+    if mutation.kind == "random":
+        return random_mutation(random_seed(seed, fixture.name, mutation.params[0]), data)
+    if mutation.kind == "length":
+        offset, encoded = mutation.params
+        buffer = bytearray(data)
+        buffer[offset : offset + len(encoded)] = encoded
+        return bytes(buffer)
+    raise ValueError(f"unknown mutation kind: {mutation.kind}")
+
+
+def modes_for(ordinal: int) -> list[Mode]:
+    return [mode for mode in MODES if ordinal % mode.sample == 0]
+
+
+def read_rss_kb(pid: int) -> int:
+    """Best-effort current RSS of a live process, in KiB."""
+    if sys.platform.startswith("linux"):
+        try:
+            status = Path(f"/proc/{pid}/status").read_text(encoding="ascii", errors="replace")
+        except OSError:
+            return 0
+        for line in status.splitlines():
+            if line.startswith("VmRSS:"):
+                fields = line.split()
+                if len(fields) >= 2 and fields[1].isdigit():
+                    return int(fields[1])
+        return 0
+    try:
+        completed = subprocess.run(
+            ["ps", "-o", "rss=", "-p", str(pid)],
+            capture_output=True,
+            text=True,
+            timeout=1.0,
+            env={"PATH": os.environ.get("PATH", "/usr/bin:/bin"), "LC_ALL": "C"},
+        )
+    except (OSError, subprocess.SubprocessError):
+        return 0
+    if completed.returncode != 0:
+        return 0
+    text = completed.stdout.strip()
+    return int(text) if text.isdigit() else 0
+
+
+def process_peak_kb(raw: int) -> int:
+    return raw // 1024 if sys.platform == "darwin" else raw
+
+
+def child_environment() -> dict[str, str]:
+    return {
+        "PATH": os.environ.get("PATH", "/usr/bin:/bin"),
+        "LC_ALL": "C",
+        "LANG": "C",
+        "TZ": "UTC",
+    }
+
+
+def safe_kill(pid: int) -> None:
+    try:
+        os.kill(pid, signal.SIGKILL)
+    except ProcessLookupError:
+        pass
+
+
+def _spawn_failure(message: str) -> dict:
+    return {
+        "exit": None,
+        "signal": None,
+        "timed_out": False,
+        "rss_exceeded": False,
+        "stderr": f"stress: {message}".encode(),
+        "stderr_truncated": False,
+        "duration_ms": 0.0,
+        "peak_rss_kb": 0,
+        "stdout_lines": 0,
+        "spawn_error": message,
+    }
+
+
+def run_process(
+    binary: Path,
+    mode: Mode,
+    input_path: Path,
+    timeout_seconds: float,
+    rss_limit_kb: int,
+    work_dir: Path,
+) -> dict:
+    """Run one case under a wall timeout and an RSS limit.
+
+    Linux gets a hard RLIMIT_AS cap. On every platform the exact child
+    ru_maxrss from wait4 is checked afterwards; macOS additionally samples ps
+    because the kernel refuses a lowered RLIMIT_AS there. A KeyboardInterrupt
+    kills and reaps the child before propagating.
+    """
+    argv = [str(binary), *mode.args]
+    if not mode.stdin_input:
+        argv.extend(["-r", str(input_path)])
+    environment = child_environment()
+    started = time.monotonic()
+    try:
+        error_read, error_write = os.pipe()
+        stdout_read = stdout_write = None
+        if mode.capture_stdout:
+            stdout_read, stdout_write = os.pipe()
+    except OSError as error:
+        return _spawn_failure(f"cannot create pipe: {error}")
+    try:
+        pid = os.fork()
+    except OSError as error:
+        for descriptor in (error_read, error_write, stdout_read, stdout_write):
+            if descriptor is not None:
+                os.close(descriptor)
+        return _spawn_failure(f"cannot fork: {error}")
+    if pid == 0:  # child
+        try:
+            os.close(error_read)
+            if stdout_read is not None:
+                os.close(stdout_read)
+            if mode.stdin_input:
+                stdin = os.open(input_path, os.O_RDONLY)
+            else:
+                stdin = os.open(os.devnull, os.O_RDONLY)
+            os.dup2(stdin, 0)
+            os.close(stdin)
+            if stdout_write is not None:
+                os.dup2(stdout_write, 1)
+                os.close(stdout_write)
+            else:
+                devnull = os.open(os.devnull, os.O_WRONLY)
+                os.dup2(devnull, 1)
+                os.close(devnull)
+            os.dup2(error_write, 2)
+            os.close(error_write)
+            try:
+                resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
+            except (OSError, ValueError):
+                pass
+            if sys.platform.startswith("linux"):
+                try:
+                    resource.setrlimit(
+                        resource.RLIMIT_AS, (rss_limit_kb * 1024, rss_limit_kb * 1024)
+                    )
+                except (OSError, ValueError):
+                    pass
+            os.chdir(work_dir)
+            os.execve(str(binary), argv, environment)
+        except BaseException:
+            os._exit(127)
+    os.close(error_write)
+    os.set_blocking(error_read, False)
+    if stdout_write is not None:
+        os.close(stdout_write)
+        os.set_blocking(stdout_read, False)
+    stderr = bytearray()
+    stderr_truncated = False
+    stdout_newlines = 0
+    stdout_last_byte = None
+    timed_out = False
+    rss_exceeded = False
+    observed_peak_kb = 0
+    deadline = started + timeout_seconds
+    status = None
+    usage = None
+    reaped = False
+    next_rss = started + RSS_POLL_SECONDS
+
+    def drain(descriptor: int, is_stdout: bool) -> None:
+        nonlocal stderr_truncated, stdout_newlines, stdout_last_byte
+        while True:
+            try:
+                chunk = os.read(descriptor, 65536)
+            except BlockingIOError:
+                return
+            except OSError:
+                return
+            if not chunk:
+                return
+            if is_stdout:
+                stdout_newlines += chunk.count(b"\n")
+                stdout_last_byte = chunk[-1]
+            else:
+                if len(stderr) < STDERR_LIMIT:
+                    stderr.extend(chunk[: STDERR_LIMIT - len(stderr)])
+                if len(stderr) >= STDERR_LIMIT:
+                    stderr_truncated = True
+
+    try:
+        while True:
+            drain(error_read, False)
+            if stdout_read is not None:
+                drain(stdout_read, True)
+            try:
+                waited, wait_status, wait_usage = os.wait4(pid, os.WNOHANG)
+            except ChildProcessError:
+                waited, wait_status, wait_usage = pid, 0, None
+            if waited == pid:
+                status, usage = wait_status, wait_usage
+                reaped = True
+                break
+            now = time.monotonic()
+            if now >= next_rss:
+                rss_kb = read_rss_kb(pid)
+                observed_peak_kb = max(observed_peak_kb, rss_kb)
+                if rss_limit_kb and rss_kb > rss_limit_kb:
+                    rss_exceeded = True
+                    safe_kill(pid)
+                next_rss = now + RSS_POLL_SECONDS
+            if now >= deadline:
+                timed_out = True
+                safe_kill(pid)
+            time.sleep(0.001)
+    finally:
+        if not reaped:
+            safe_kill(pid)
+            try:
+                _, status, usage = os.wait4(pid, 0)
+            except ChildProcessError:
+                pass
+            reaped = True
+        drain(error_read, False)
+        if stdout_read is not None:
+            drain(stdout_read, True)
+        for descriptor in (error_read, stdout_read):
+            if descriptor is not None:
+                try:
+                    os.close(descriptor)
+                except OSError:
+                    pass
+
+    duration_ms = (time.monotonic() - started) * 1000.0
+    if status is not None and os.WIFSIGNALED(status):
+        exit_code = -os.WTERMSIG(status)
+        signal_number = os.WTERMSIG(status)
+    elif status is not None:
+        exit_code = os.WEXITSTATUS(status)
+        signal_number = None
+    else:  # pragma: no cover - wait4 always returns a status here
+        exit_code = None
+        signal_number = None
+    peak_rss_kb = observed_peak_kb
+    if usage is not None:
+        peak_rss_kb = max(peak_rss_kb, process_peak_kb(usage.ru_maxrss))
+    if rss_limit_kb and peak_rss_kb > rss_limit_kb:
+        rss_exceeded = True
+    stdout_lines = stdout_newlines
+    if stdout_last_byte is not None and stdout_last_byte != 0x0A:
+        stdout_lines += 1
+    return {
+        "exit": exit_code,
+        "signal": signal_number,
+        "timed_out": timed_out,
+        "rss_exceeded": rss_exceeded,
+        "stderr": bytes(stderr),
+        "stderr_truncated": stderr_truncated,
+        "duration_ms": duration_ms,
+        "peak_rss_kb": peak_rss_kb,
+        "stdout_lines": stdout_lines,
+        "spawn_error": None,
+    }
+
+
+def classify(result: dict, expected_exits: Sequence[int]) -> str:
+    if result.get("spawn_error"):
+        return "unexpected"
+    if result["timed_out"]:
+        return "hang"
+    if result["rss_exceeded"]:
+        return "rss_limit"
+    exit_code = result["exit"]
+    lowered = result["stderr"].lower()
+    if b"memory allocation of" in lowered and b"failed" in lowered:
+        return "rss_limit"
+    if exit_code is not None and exit_code < 0:
+        return "crash"
+    if exit_code == 101 or b"panicked at" in lowered or b"fatal runtime error" in lowered:
+        return "crash"
+    if exit_code in expected_exits:
+        return "ok"
+    return "unexpected"
+
+
+def mode_args_text(binary: Path, mode: Mode, input_path: Path) -> str:
+    command = shlex.join([str(binary), *mode.args])
+    if mode.stdin_input:
+        return f"{command} < {shlex.quote(str(input_path))}"
+    return shlex.join([str(binary), *mode.args, "-r", str(input_path)])
+
+
+def jsonable_params(params: tuple) -> list:
+    """Convert mutation parameters, including length-mutation bytes, to JSON."""
+    values: list = []
+    for value in params:
+        if isinstance(value, bytes):
+            values.append(value.hex())
+        elif isinstance(value, (tuple, list)):
+            values.append(jsonable_params(tuple(value)))
+        else:
+            values.append(value)
+    return values
+
+
+def signature(finding: dict) -> tuple:
+    return (
+        finding["classification"],
+        finding["exit"],
+        finding["signal"],
+        finding["mode"],
+        finding["mutation"]["kind"],
+        finding["mutation"]["slug"],
+        finding["input_sha256"],
+        finding["seed_fixture"],
+    )
+
+
+def preserves(candidate: str, target: str) -> bool:
+    if target == "unexpected":
+        return candidate == "unexpected"
+    return candidate == target
+
+
+def minimize_input(
+    data: bytes,
+    target: str,
+    target_exit: int | None,
+    binary: Path,
+    mode: Mode,
+    campaign_timeout: float,
+    rss_limit_kb: int,
+    expected_exits: Sequence[int],
+    work_dir: Path,
+    deadline: float,
+) -> tuple[bytes, int, bool, dict | None, bool]:
+    """Delta-debug the input while the same classification reproduces.
+
+    A hang must be minimized with the campaign timeout: a shorter timeout
+    would turn a merely slow input into a false hang. Every candidate is
+    verified once more at the campaign timeout before it is saved.
+    """
+    candidate_path = work_dir / "min-candidate.bin"
+    runs = 0
+    exhausted = False
+    timeout = campaign_timeout if target == "hang" else min(
+        campaign_timeout, MINIMIZE_TIMEOUT_CAP
+    )
+
+    def matches(result: dict) -> bool:
+        classification = classify(result, expected_exits)
+        if target == "unexpected" and target_exit is not None:
+            return classification == target and result["exit"] == target_exit
+        return preserves(classification, target)
+
+    def reproduces(payload: bytes) -> bool:
+        nonlocal runs, exhausted
+        if runs >= MINIMIZE_RUN_LIMIT or time.monotonic() >= deadline:
+            exhausted = True
+            return False
+        candidate_path.write_bytes(payload)
+        result = run_process(
+            binary, mode, candidate_path, timeout, rss_limit_kb, work_dir
+        )
+        runs += 1
+        return matches(result)
+
+    best = data
+    chunk = max(1, len(best) // 2)
+    while chunk >= 1 and not exhausted:
+        start = 0
+        removed_any = False
+        while start < len(best) and not exhausted:
+            candidate = best[:start] + best[start + chunk :]
+            if candidate != best and reproduces(candidate):
+                best = candidate
+                removed_any = True
+            else:
+                start += chunk
+        if not removed_any:
+            chunk //= 2
+
+    if target == "hang" and not best and data:
+        best = data
+    final_result = None
+    verified = False
+    if runs < MINIMIZE_RUN_LIMIT:
+        candidate_path.write_bytes(best)
+        final_result = run_process(
+            binary, mode, candidate_path, campaign_timeout, rss_limit_kb, work_dir
+        )
+        runs += 1
+        if matches(final_result) and not (target == "hang" and not best and data):
+            verified = True
+        else:
+            final_result = None
+    if final_result is None and best != data:
+        best = data
+    return best, runs, exhausted, final_result, verified
+
+
+def _within(path: Path, parent: Path) -> bool:
+    return path == parent or parent in path.parents
+
+
+def prepare_output(out: Path, fixtures_dir: Path, force: bool) -> None:
+    """Create the output directory, refusing paths whose deletion is unsafe.
+
+    Only a directory carrying the tool's marker is replaced unconditionally.
+    --force may replace a marker-less directory outside the repository or
+    under target/stress, never the fixture tree, a repository ancestor, or a
+    path containing .git.
+    """
+    out = out.resolve()
+    fixtures = fixtures_dir.resolve()
+    repository = REPO_ROOT.resolve()
+    if out.parent == out:
+        raise SystemExit(f"stress: refusing to use a filesystem root as --out: {out}")
+    if ".git" in out.parts:
+        raise SystemExit(f"stress: refusing to use a path containing .git as --out: {out}")
+    if _within(repository, out):
+        raise SystemExit(f"stress: --out must not be the repository root or an ancestor: {out}")
+    if _within(out, fixtures) or _within(fixtures, out):
+        raise SystemExit(f"stress: --out overlaps the fixture tree ({fixtures}): {out}")
+    if out.exists() and not out.is_dir():
+        raise SystemExit(f"stress: --out exists and is not a directory: {out}")
+    marker = out / ".stress-run"
+    tool_owned = marker.is_file()
+    nonempty = out.is_dir() and any(out.iterdir())
+    if nonempty and not tool_owned:
+        raise SystemExit(
+            f"stress: refusing to overwrite a directory without a stress marker: {out}\n"
+            "Only directories created by tools/stress (containing .stress-run) are replaced."
+        )
+    if tool_owned and not _within(out, STRESS_ROOT) and not force:
+        raise SystemExit(
+            f"stress: refusing to replace a marked directory outside target/stress: {out}\n"
+            "Pass --force for a marked directory you created elsewhere."
+        )
+    try:
+        if out.exists():
+            shutil.rmtree(out)
+        out.mkdir(parents=True)
+        marker.write_text("tools/stress output; safe to replace\n", encoding="utf-8")
+    except OSError as error:
+        raise SystemExit(f"stress: cannot prepare output directory {out}: {error}")
+
+
+def git_metadata(repo: Path) -> dict:
+    metadata: dict = {"commit": None, "dirty": None}
+    try:
+        commit = subprocess.run(
+            ["git", "-C", str(repo), "rev-parse", "HEAD"],
+            capture_output=True,
+            text=True,
+            errors="replace",
+            timeout=5,
+            env=child_environment(),
+        )
+        if commit.returncode == 0:
+            metadata["commit"] = commit.stdout.strip()
+        status = subprocess.run(
+            ["git", "-C", str(repo), "status", "--porcelain"],
+            capture_output=True,
+            text=True,
+            errors="replace",
+            timeout=5,
+            env=child_environment(),
+        )
+        if status.returncode == 0:
+            metadata["dirty"] = bool(status.stdout.strip())
+    except (OSError, subprocess.SubprocessError, UnicodeDecodeError):
+        pass
+    return metadata
+
+
+def write_summary(report: dict) -> None:
+    executed = report["executed"]
+    classifications = executed["by_classification"]
+    print("")
+    print(f"fixtures        {len(report['fixtures']['files'])} files, "
+          f"{report['fixtures']['total_bytes']} bytes")
+    print(f"planned inputs  {report['planned']['inputs_total']:,} "
+          f"({report['planned']['inputs_by_kind']})")
+    print(f"executed        {executed['runs']:,} runs / "
+          f"{executed['inputs']:,} inputs in {report['budget']['elapsed_seconds']:.1f}s "
+          f"({report['stopped_by']})")
+    print("classifications " + ", ".join(
+        f"{name}={classifications.get(name, 0):,}"
+        for name in ("ok", *ANOMALIES)
+    ))
+    coverage = report["coverage"]
+    print("coverage        " + ", ".join(
+        f"{kind}={coverage[kind]['executed_inputs']:,}/"
+        f"{coverage[kind]['planned_inputs']:,}"
+        for kind in ("truncate", "bitflip", "random", "length", "smoke")
+    ))
+    throughput = report["throughput"]
+    print(f"throughput      {throughput['packets']:,} packets in "
+          f"{throughput['seconds']:.1f}s fields time = "
+          f"{throughput['packets_per_second']:,.1f} packets/s")
+    rss = report["rss"]
+    print(f"peak RSS        {rss['peak_kb'] / 1024.0:.1f} MiB "
+          f"({rss['enforcement']})")
+    finding_notes = []
+    if report["findings_truncated"]:
+        finding_notes.append(f"{report['findings_truncated']} unique not saved")
+    if report["findings_deduplicated"]:
+        finding_notes.append(f"{report['findings_deduplicated']} duplicates")
+    if report["finding_errors"]:
+        finding_notes.append(f"{len(report['finding_errors'])} save errors")
+    print(f"findings        {len(report['findings'])}"
+          + (f" ({', '.join(finding_notes)})" if finding_notes else ""))
+    print(f"report          {report['outputs']['report']}")
+    if report["findings"]:
+        print("")
+        print("reproducers:")
+        for finding in report["findings"]:
+            print(f"  {finding['classification']:<10} {finding['mode']:<8} "
+                  f"{finding['command']}")
+
+
+def run_campaign(config: CampaignConfig) -> dict:
+    started_wall = datetime.now(timezone.utc)
+    started = time.monotonic()
+    deadline = started + config.minutes * 60.0 if config.minutes > 0 else float("inf")
+    rss_limit_kb = config.rss_mb * 1024
+    fixtures = config.fixtures or discover_fixtures(config.fixtures_dir)
+    prepare_output(config.out, config.fixtures_dir, config.force)
+    work_dir = config.out / "work"
+    repro_dir = config.out / "repro"
+    work_dir.mkdir()
+    repro_dir.mkdir()
+    results_path = config.out / "results.jsonl"
+    results = results_path.open("w", encoding="utf-8", buffering=1)
+
+    per_fixture_counts = [
+        mutation_counts(fixture.data, fixture.format) for fixture in fixtures
+    ]
+    planned_by_kind = {
+        kind: sum(counts[kind] for counts in per_fixture_counts)
+        for kind in ("smoke", "length", "random", "truncate", "bitflip")
+    }
+    planned_inputs = sum(planned_by_kind.values())
+    planned_runs = planned_inputs * len(MODES)
+    for mode in MODES:
+        planned_runs -= planned_inputs - (planned_inputs + mode.sample - 1) // mode.sample
+
+    executed_by_kind = {kind: 0 for kind in planned_by_kind}
+    executed_by_mode = {mode.name: 0 for mode in MODES}
+    executed_by_classification = {name: 0 for name in ("ok", *ANOMALIES)}
+    findings: list[dict] = []
+    finding_signatures: set[tuple] = set()
+    finding_errors: list[dict] = []
+    findings_truncated = 0
+    findings_deduplicated = 0
+    anomaly_observations = 0
+    slowest: list[dict] = []
+    peak_rss_kb = 0
+    peak_rss_case = None
+    field_packets = 0
+    field_seconds = 0.0
+    runs = 0
+    inputs = 0
+    minimize_runs = 0
+    minimize_exhausted = 0
+    interrupted = False
+    current_path = work_dir / "current.bin"
+    scheduled = iter_scheduled_mutations(fixtures, config.seed)
+    fixture_by_name = {fixture.name: fixture for fixture in fixtures}
+    stopped_by = "schedule"
+
+    def interrupt_handler(_signum: int, _frame) -> None:
+        raise KeyboardInterrupt
+
+    previous_sigterm = signal.getsignal(signal.SIGTERM)
+    signal.signal(signal.SIGTERM, interrupt_handler)
+
+    try:
+        for ordinal, mutation in enumerate(scheduled):
+            if config.max_cases > 0 and runs >= config.max_cases:
+                stopped_by = "max_cases"
+                break
+            if time.monotonic() >= deadline:
+                stopped_by = "minutes"
+                break
+            fixture = fixture_by_name[mutation.seed_name]
+            payload = apply_mutation(fixture, mutation, config.seed)
+            current_path.write_bytes(payload)
+            digest = sha256_bytes(payload)
+            touched = False
+            for mode in modes_for(ordinal):
+                if config.max_cases > 0 and runs >= config.max_cases:
+                    stopped_by = "max_cases"
+                    break
+                if time.monotonic() >= deadline:
+                    stopped_by = "minutes"
+                    break
+                result = run_process(
+                    config.binary,
+                    mode,
+                    current_path,
+                    config.timeout_seconds,
+                    rss_limit_kb,
+                    work_dir,
+                )
+                classification = classify(result, config.expected_exits)
+                runs += 1
+                touched = True
+                executed_by_mode[mode.name] += 1
+                executed_by_classification[classification] += 1
+                if mode.name == "fields" and classification == "ok":
+                    field_packets += result["stdout_lines"]
+                    field_seconds += result["duration_ms"] / 1000.0
+                stderr_excerpt = result["stderr"][:STDERR_EXCERPT].decode(
+                    "utf-8", errors="replace"
+                )
+                record = {
+                    "input": f"{ordinal:07d}",
+                    "fixture": fixture.name,
+                    "mutation": mutation.kind,
+                    "slug": mutation.slug,
+                    "mode": mode.name,
+                    "classification": classification,
+                    "exit": result["exit"],
+                    "signal": result["signal"],
+                    "duration_ms": round(result["duration_ms"], 3),
+                    "peak_rss_kb": result["peak_rss_kb"],
+                    "stdout_lines": result["stdout_lines"],
+                    "input_sha256": digest,
+                    "input_size": len(payload),
+                }
+                if classification != "ok":
+                    record["stderr"] = stderr_excerpt
+                    if result["stderr_truncated"]:
+                        record["stderr_truncated"] = True
+                    if result["spawn_error"]:
+                        record["spawn_error"] = result["spawn_error"]
+                results.write(json.dumps(record, sort_keys=True) + "\n")
+                if result["peak_rss_kb"] > peak_rss_kb:
+                    peak_rss_kb = result["peak_rss_kb"]
+                    peak_rss_case = record
+                slowest.append(
+                    {
+                        "input": record["input"],
+                        "fixture": fixture.name,
+                        "mutation": mutation.kind,
+                        "mode": mode.name,
+                        "duration_ms": record["duration_ms"],
+                    }
+                )
+                slowest.sort(key=lambda item: item["duration_ms"], reverse=True)
+                del slowest[10:]
+                if classification in ANOMALIES:
+                    anomaly_observations += 1
+                    candidate = {
+                        "classification": classification,
+                        "exit": result["exit"],
+                        "signal": result["signal"],
+                        "mode": mode.name,
+                        "seed_fixture": fixture.name,
+                        "mutation": {
+                            "kind": mutation.kind,
+                            "slug": mutation.slug,
+                            "params": jsonable_params(mutation.params),
+                        },
+                        "input_sha256": digest,
+                        "input_size": len(payload),
+                        "stderr": stderr_excerpt,
+                        "timeout_seconds": config.timeout_seconds,
+                    }
+                    key = signature(candidate)
+                    if key in finding_signatures:
+                        findings_deduplicated += 1
+                        continue
+                    finding_signatures.add(key)
+                    if len(findings) >= config.max_findings:
+                        findings_truncated += 1
+                        continue
+                    finding_id = f"{len(findings) + 1:03d}-{classification}-{mode.name}"
+                    case_dir = repro_dir / finding_id
+                    case_dir.mkdir()
+                    original_path = case_dir / "original.bin"
+                    original_path.write_bytes(payload)
+                    minimized_path = case_dir / "case.bin"
+                    minimized = payload
+                    minimized_runs = 0
+                    exhausted = False
+                    minimized_result = None
+                    verified = not config.minimize
+                    try:
+                        if config.minimize:
+                            minimize_deadline = min(
+                                deadline, time.monotonic() + MINIMIZE_SECONDS
+                            )
+                            (
+                                minimized,
+                                minimized_runs,
+                                exhausted,
+                                minimized_result,
+                                verified,
+                            ) = minimize_input(
+                                payload,
+                                classification,
+                                result["exit"] if classification == "unexpected" else None,
+                                config.binary,
+                                mode,
+                                config.timeout_seconds,
+                                rss_limit_kb,
+                                config.expected_exits,
+                                work_dir,
+                                minimize_deadline,
+                            )
+                            minimize_runs += minimized_runs
+                            if exhausted:
+                                minimize_exhausted += 1
+                        minimized_path.write_bytes(minimized)
+                        command = mode_args_text(config.binary, mode, minimized_path)
+                        candidate.update(
+                            {
+                                "id": finding_id,
+                                "reproducer": str(minimized_path),
+                                "original": str(original_path),
+                                "minimized_size": len(minimized),
+                                "minimize_runs": minimized_runs,
+                                "minimize_exhausted": exhausted,
+                                "reproducer_verified": verified,
+                                "command": command,
+                                "original_exit": result["exit"],
+                                "original_signal": result["signal"],
+                                "original_stderr": stderr_excerpt,
+                            }
+                        )
+                        if minimized_result is not None:
+                            candidate["exit"] = minimized_result["exit"]
+                            candidate["signal"] = minimized_result["signal"]
+                            candidate["stderr"] = minimized_result["stderr"][
+                                :STDERR_EXCERPT
+                            ].decode("utf-8", errors="replace")
+                            candidate["reproducer_duration_ms"] = round(
+                                minimized_result["duration_ms"], 3
+                            )
+                        (case_dir / "case.json").write_text(
+                            json.dumps(candidate, indent=2, sort_keys=True) + "\n",
+                            encoding="utf-8",
+                        )
+                        findings.append(candidate)
+                    except Exception as error:  # keep the campaign and report alive
+                        shutil.rmtree(case_dir, ignore_errors=True)
+                        finding_errors.append(
+                            {
+                                "id": finding_id,
+                                "classification": classification,
+                                "mode": mode.name,
+                                "fixture": fixture.name,
+                                "mutation": mutation.slug,
+                                "error": f"{type(error).__name__}: {error}",
+                            }
+                        )
+            if touched:
+                executed_by_kind[mutation.kind] += 1
+                inputs += 1
+            if not config.quiet and runs and runs % 5000 == 0:
+                elapsed = time.monotonic() - started
+                print(
+                    f"stress: {runs:,} runs, {elapsed:.1f}s, "
+                    f"{len(findings)} findings",
+                    file=sys.stderr,
+                    flush=True,
+                )
+    except KeyboardInterrupt:
+        interrupted = True
+        stopped_by = "interrupt"
+    finally:
+        signal.signal(signal.SIGTERM, previous_sigterm)
+        results.close()
+
+    elapsed = time.monotonic() - started
+    coverage = {}
+    for kind in planned_by_kind:
+        coverage[kind] = {
+            "planned_inputs": planned_by_kind[kind],
+            "executed_inputs": executed_by_kind[kind],
+            "complete": executed_by_kind[kind] == planned_by_kind[kind],
+        }
+    binary_digest = sha256_file(config.binary) if config.binary.is_file() else None
+    report = {
+        "schema": 2,
+        "tool": "tools/stress",
+        "generated_at": started_wall.isoformat(),
+        "command": shlex.join([sys.executable, *sys.argv]),
+        "host": {
+            "platform": sys.platform,
+            "machine": os.uname().machine,
+            "python": sys.version.split()[0],
+            "cpu_count": os.cpu_count(),
+        },
+        "git": git_metadata(REPO_ROOT),
+        "binary": {
+            "path": str(config.binary),
+            "sha256": binary_digest,
+            "size": config.binary.stat().st_size if config.binary.is_file() else None,
+        },
+        "fixtures": {
+            "dir": str(config.fixtures_dir),
+            "count": len(fixtures),
+            "total_bytes": sum(len(fixture.data) for fixture in fixtures),
+            "formats": {
+                fmt: sum(1 for fixture in fixtures if fixture.format == fmt)
+                for fmt in sorted({fixture.format for fixture in fixtures})
+            },
+            "files": [
+                {
+                    "name": fixture.name,
+                    "size": len(fixture.data),
+                    "format": fixture.format,
+                    "sha256": fixture.sha256,
+                }
+                for fixture in fixtures
+            ],
+        },
+        "modes": [
+            {
+                "name": mode.name,
+                "args": list(mode.args),
+                "sample": mode.sample,
+                "stdin_input": mode.stdin_input,
+            }
+            for mode in MODES
+        ],
+        "budget": {
+            "minutes": config.minutes,
+            "max_cases": config.max_cases,
+            "seed": config.seed,
+            "timeout_seconds": config.timeout_seconds,
+            "rss_limit_mib": config.rss_mb,
+            "started_at": started_wall.isoformat(),
+            "elapsed_seconds": round(elapsed, 3),
+        },
+        "expected_exits": list(config.expected_exits),
+        "planned": {
+            "inputs_by_kind": planned_by_kind,
+            "inputs_total": planned_inputs,
+            "runs_total": planned_runs,
+            "length_mutations_per_fixture_cap": MAX_LENGTH_MUTATIONS,
+        },
+        "executed": {
+            "inputs": inputs,
+            "runs": runs,
+            "by_mode": executed_by_mode,
+            "by_classification": executed_by_classification,
+            "by_kind": executed_by_kind,
+        },
+        "coverage": coverage,
+        "stopped_by": stopped_by,
+        "interrupted": interrupted,
+        "throughput": {
+            "basis": "ok -T fields runs with captured stdout",
+            "packets": field_packets,
+            "seconds": round(field_seconds, 3),
+            "packets_per_second": (
+                round(field_packets / field_seconds, 1) if field_seconds else 0.0
+            ),
+        },
+        "rss": {
+            "limit_mib": config.rss_mb,
+            "enforcement": (
+                "RLIMIT_AS + /proc sampling + wait4 ru_maxrss"
+                if sys.platform.startswith("linux")
+                else "wait4 ru_maxrss + ps sampling (Darwin rejects RLIMIT_AS)"
+            ),
+            "peak_kb": peak_rss_kb,
+            "peak_case": peak_rss_case,
+        },
+        "slowest": slowest,
+        "findings": findings,
+        "findings_saved": len(findings),
+        "findings_truncated": findings_truncated,
+        "findings_deduplicated": findings_deduplicated,
+        "findings_seen": anomaly_observations,
+        "finding_errors": finding_errors,
+        "minimize_runs": minimize_runs,
+        "minimize_exhausted": minimize_exhausted,
+        "outputs": {
+            "report": str(config.out / "report.json"),
+            "results": str(results_path),
+            "reproducers": str(repro_dir),
+        },
+        "status": (
+            "fail"
+            if findings or findings_truncated or finding_errors or interrupted
+            else "pass"
+        ),
+    }
+    report_path = config.out / "report.json"
+    temporary = config.out / "report.json.tmp"
+    temporary.write_text(
+        json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
+    temporary.replace(report_path)
+    write_summary(report)
+    return report
+
+
+def build_self_test_capture() -> bytes:
+    """One Ethernet/IPv4/UDP frame in a classic little-endian pcap."""
+    frame = bytearray(42)
+    frame[0:6] = b"\x02\x00\x00\x00\x00\x01"
+    frame[6:12] = b"\x02\x00\x00\x00\x00\x02"
+    frame[12:14] = (0x0800).to_bytes(2, "big")
+    frame[14] = 0x45
+    frame[16:18] = (28).to_bytes(2, "big")
+    frame[22] = 64
+    frame[23] = 17
+    frame[26:30] = bytes((192, 0, 2, 1))
+    frame[30:34] = bytes((192, 0, 2, 2))
+    header = (
+        (0xA1B2C3D4).to_bytes(4, "big")
+        + (2).to_bytes(2, "little")
+        + (4).to_bytes(2, "little")
+        + (0).to_bytes(4, "little")
+        + (0).to_bytes(4, "little")
+        + (65535).to_bytes(4, "little")
+        + (1).to_bytes(4, "little")
+    )
+    record = (
+        (0).to_bytes(4, "little")
+        + (0).to_bytes(4, "little")
+        + len(frame).to_bytes(4, "little")
+        + len(frame).to_bytes(4, "little")
+        + bytes(frame)
+    )
+    return header + record
+
+
+def write_stub(path: Path, mode: str, pid_path: Path | None = None) -> None:
+    pid_line = (
+        f"open({str(pid_path)!r}, 'w').write(str(os.getpid()))\n"
+        if pid_path is not None
+        else ""
+    )
+    bodies = {
+        "ok": "sys.exit(0)\n",
+        "lines": "sys.stdout.write('1\\n2\\n3\\n')\nsys.exit(0)\n",
+        "panic": (
+            "sys.stderr.write(\"thread 'main' panicked at stub.rs:1:1:\\nboom\\n\")\n"
+            "sys.exit(101)\n"
+        ),
+        "signal": "os.kill(os.getpid(), signal.SIGSEGV)\n",
+        "hang": pid_line + "time.sleep(60)\n",
+        "unexpected": "sys.exit(7)\n",
+        "rss": (
+            "try:\n"
+            "    block = bytearray(128 * 1024 * 1024)\n"
+            "    block[::4096] = b'x' * len(block[::4096])\n"
+            "except MemoryError:\n"
+            "    sys.stderr.write('memory allocation of 134217728 bytes failed\\n')\n"
+            "    sys.stderr.flush()\n"
+            "    os.abort()\n"
+            "sys.exit(0)\n"
+        ),
+        "slow-hang": (
+            "size = 0\n"
+            "if '-r' in sys.argv:\n"
+            "    path = sys.argv[sys.argv.index('-r') + 1]\n"
+            "    if path != '-':\n"
+            "        size = os.path.getsize(path)\n"
+            "time.sleep(60 if size >= 40 else 2.1)\n"
+        ),
+    }
+    path.write_text(
+        "#!/usr/bin/env python3\n"
+        "import os, signal, sys, time\n"
+        + bodies[mode],
+        encoding="utf-8",
+    )
+    path.chmod(0o755)
+
+
+def self_test() -> int:
+    checks: list[tuple[str, bool, str]] = []
+
+    def check(name: str, condition: bool, detail: str = "") -> None:
+        checks.append((name, bool(condition), detail))
+
+    temporary = Path(tempfile.mkdtemp(prefix="packetfin-stress-self-"))
+    try:
+        fixture_dir = temporary / "fixtures"
+        fixture_dir.mkdir()
+        capture = build_self_test_capture()
+        fixture_path = fixture_dir / "tiny.pcap"
+        fixture_path.write_bytes(capture)
+        fixture_digest = sha256_bytes(capture)
+
+        nested = fixture_dir / "nested"
+        nested.mkdir()
+        nested_path = nested / "tiny.pcap"
+        nested_path.write_bytes(capture)
+        recursive = discover_fixtures(fixture_dir)
+        check(
+            "fixture discovery is recursive and uses relative names",
+            {fixture.name for fixture in recursive}
+            == {"tiny.pcap", "nested/tiny.pcap"},
+            str([fixture.name for fixture in recursive]),
+        )
+        shutil.rmtree(nested)
+        fixtures = discover_fixtures(fixture_dir)
+        check(
+            "synthetic fixture parses as pcap",
+            len(fixtures) == 1 and fixtures[0].format == "pcap",
+            f"found {len(fixtures)}",
+        )
+
+        first = list(iter_scheduled_mutations(fixtures, 7))
+        second = list(iter_scheduled_mutations(fixtures, 7))
+        third = list(iter_scheduled_mutations(fixtures, 8))
+        check(
+            "same seed produces identical mutation schedule",
+            [(m.kind, m.slug) for m in first] == [(m.kind, m.slug) for m in second],
+        )
+        check(
+            "different seed changes random mutations",
+            apply_mutation(fixtures[0], next(m for m in first if m.kind == "random"), 7)
+            != apply_mutation(fixtures[0], next(m for m in third if m.kind == "random"), 8),
+        )
+
+        truncation_lengths = []
+        for mutation in first:
+            if mutation.kind == "truncate":
+                truncation_lengths.append(apply_mutation(fixtures[0], mutation, 7))
+        check(
+            "every byte of a small capture is truncated",
+            len(truncation_lengths) == len(capture)
+            and sorted(len(payload) for payload in truncation_lengths)
+            == list(range(len(capture))),
+            f"{len(truncation_lengths)} truncations for {len(capture)} bytes",
+        )
+
+        bitflips = [m for m in first if m.kind == "bitflip"]
+        masks = {(m.params[0], m.params[1]) for m in bitflips}
+        check(
+            "every byte is flipped at all eight bit positions",
+            len(bitflips) == len(capture) * 8
+            and masks == {(offset, 1 << bit)
+                          for offset in range(len(capture)) for bit in range(8)},
+            f"{len(bitflips)} flips for {len(capture)} bytes",
+        )
+
+        length_mutations_seen = [m for m in first if m.kind == "length"]
+        serialized = json.loads(
+            json.dumps({"params": jsonable_params(length_mutations_seen[0].params)})
+        )
+        check(
+            "length mutation parameters serialize as JSON",
+            serialized["params"]
+            == [value.hex() if isinstance(value, bytes) else value
+                for value in length_mutations_seen[0].params],
+            str(serialized),
+        )
+
+        stub_dir = temporary / "stubs"
+        stub_dir.mkdir()
+        modes = {
+            name: stub_dir / name
+            for name in (
+                "ok", "lines", "panic", "signal", "hang",
+                "unexpected", "rss", "slow-hang",
+            )
+        }
+        for name, path in modes.items():
+            write_stub(path, name)
+        work_dir = temporary / "work"
+        work_dir.mkdir()
+
+        expectations = {
+            "ok": "ok",
+            "lines": "ok",
+            "panic": "crash",
+            "signal": "crash",
+            "hang": "hang",
+            "unexpected": "unexpected",
+        }
+        for name, expected in expectations.items():
+            result = run_process(
+                modes[name],
+                MODES_BY_NAME["fields"],
+                fixture_path,
+                0.4,
+                64 * 1024,
+                work_dir,
+            )
+            observed = classify(result, (0, 3, 14))
+            check(
+                f"stub {name} classified as {expected}",
+                observed == expected,
+                f"observed {observed}, exit {result['exit']}, signal {result['signal']}",
+            )
+
+        rss_result = run_process(
+            modes["rss"],
+            MODES_BY_NAME["fields"],
+            fixture_path,
+            2.0,
+            64 * 1024,
+            work_dir,
+        )
+        check(
+            "rss stub trips the 64 MiB RSS limit on both limit paths",
+            classify(rss_result, (0, 3, 14)) == "rss_limit",
+            f"peak {rss_result['peak_rss_kb']} KiB, stderr "
+            f"{rss_result['stderr'][:80]!r}",
+        )
+
+        line_result = run_process(
+            modes["lines"],
+            MODES_BY_NAME["fields"],
+            fixture_path,
+            0.4,
+            64 * 1024,
+            work_dir,
+        )
+        check(
+            "fields stdout packet counting works",
+            line_result["stdout_lines"] == 3,
+            f"{line_result['stdout_lines']} lines",
+        )
+
+        # Output safety: fixture overlap, repository root, .git, regular files.
+        def expect_refusal(name: str, out: Path, force: bool = True) -> None:
+            try:
+                prepare_output(out, fixture_dir, force)
+            except SystemExit:
+                check(name, not (out / ".stress-run").exists() or out != fixture_dir)
+            else:
+                check(name, False, "prepare_output accepted an unsafe path")
+
+        expect_refusal("refuses --out overlapping the fixture tree", fixture_dir)
+        expect_refusal("refuses --out as a fixture ancestor", fixture_dir.parent)
+        expect_refusal("refuses --out as the repository root", REPO_ROOT)
+        git_path = temporary / ".git" / "stress-out"
+        expect_refusal("refuses --out under .git", git_path)
+        regular = temporary / "regular-file"
+        regular.write_text("keep", encoding="utf-8")
+        expect_refusal("refuses --out that is a regular file", regular)
+        check(
+            "regular file survives the refusal",
+            regular.read_text(encoding="utf-8") == "keep",
+        )
+        check(
+            "fixture bytes survive the refusal",
+            sha256_bytes(fixture_path.read_bytes()) == fixture_digest,
+        )
+        forced = temporary / "forced-out"
+        forced.mkdir()
+        (forced / "keep").write_text("remove", encoding="utf-8")
+        expect_refusal("--force never deletes a marker-less directory", forced)
+        check(
+            "marker-less directory survives --force",
+            (forced / "keep").read_text(encoding="utf-8") == "remove",
+        )
+        marked = temporary / "marked-out"
+        marked.mkdir()
+        (marked / ".stress-run").write_text("tool output\n", encoding="utf-8")
+        (marked / "keep").write_text("remove", encoding="utf-8")
+        try:
+            prepare_output(marked, fixture_dir, False)
+        except SystemExit:
+            refused_unforced = True
+        else:
+            refused_unforced = False
+        check(
+            "marked outside-repository output needs --force",
+            refused_unforced and (marked / "keep").exists(),
+        )
+        prepare_output(marked, fixture_dir, True)
+        check(
+            "--force replaces a marked outside-repository directory",
+            (marked / ".stress-run").is_file() and not (marked / "keep").exists(),
+        )
+
+        # Campaign integration: classification, boundedness, reproducer,
+        # B1 length serialization, dedup accounting and machine-readable output.
+        def campaign(
+            stub: str,
+            out_name: str,
+            max_cases: int,
+            max_findings: int = 4,
+            timeout_seconds: float = 0.4,
+        ) -> dict:
+            config = CampaignConfig(
+                binary=modes[stub],
+                fixtures_dir=fixture_dir,
+                out=temporary / out_name,
+                minutes=2.0,
+                max_cases=max_cases,
+                seed=11,
+                timeout_seconds=timeout_seconds,
+                rss_mb=64,
+                max_findings=max_findings,
+                minimize=True,
+                expected_exits=(0, 3, 14),
+                quiet=True,
+            )
+            return run_campaign(config)
+
+        panicked = campaign("panic", "panic-out", 20, max_findings=20)
+        length_findings = [
+            finding for finding in panicked["findings"]
+            if finding["mutation"]["kind"] == "length"
+        ]
+        case_ok = False
+        if length_findings:
+            case_file = Path(length_findings[0]["reproducer"]).parent / "case.json"
+            case_ok = case_file.is_file()
+            if case_ok:
+                case = json.loads(case_file.read_text())
+                case_ok = (
+                    case["reproducer_verified"]
+                    and case["mutation"]["kind"] == "length"
+                    and isinstance(case["mutation"]["params"][1], str)
+                )
+        check(
+            "campaign detects panic as crash",
+            panicked["status"] == "fail"
+            and panicked["executed"]["by_classification"]["crash"] > 0,
+            f"status {panicked['status']}",
+        )
+        check(
+            "length finding saves case.json without aborting the report",
+            case_ok and not panicked["finding_errors"],
+            str(panicked["finding_errors"]),
+        )
+        check(
+            "campaign writes a minimized reproducer",
+            bool(panicked["findings"])
+            and Path(panicked["findings"][0]["reproducer"]).is_file()
+            and panicked["findings"][0]["minimized_size"] < len(capture),
+            f"{panicked['findings'][0]['minimized_size'] if panicked['findings'] else 'none'} bytes",
+        )
+        check(
+            "reproducer command names the stub and input",
+            bool(panicked["findings"])
+            and "panic" in panicked["findings"][0]["command"]
+            and "case.bin" in panicked["findings"][0]["command"],
+        )
+
+        deduped = campaign("panic", "dedup-out", 20, max_findings=2)
+        check(
+            "dedup accounting preserves distinct findings",
+            deduped["findings_saved"] == 2
+            and deduped["findings_truncated"] == 18
+            and deduped["findings_deduplicated"] == 0
+            and deduped["findings_seen"] == 20,
+            f"saved={deduped['findings_saved']} truncated={deduped['findings_truncated']} "
+            f"dedup={deduped['findings_deduplicated']} seen={deduped['findings_seen']}",
+        )
+
+        hung = campaign("hang", "hang-out", 1, max_findings=1)
+        check(
+            "campaign detects a hang",
+            hung["executed"]["by_classification"]["hang"] > 0,
+            str(hung["executed"]["by_classification"]),
+        )
+        check(
+            "hang reproducer is non-empty and verified",
+            bool(hung["findings"])
+            and hung["findings"][0]["minimized_size"] > 0
+            and hung["findings"][0]["reproducer_verified"],
+            str(hung["findings"][0] if hung["findings"] else {}),
+        )
+
+        slow = campaign(
+            "slow-hang", "slow-hang-out", 1, max_findings=1, timeout_seconds=2.2
+        )
+        slow_ok = bool(slow["findings"]) and slow["findings"][0]["minimized_size"] >= 40
+        if slow_ok:
+            candidate = Path(slow["findings"][0]["reproducer"])
+            verify = run_process(
+                modes["slow-hang"],
+                MODES_BY_NAME["summary"],
+                candidate,
+                2.2,
+                64 * 1024,
+                work_dir,
+            )
+            slow_ok = classify(verify, (0, 3, 14)) == "hang"
+        check(
+            "hang minimization uses the campaign timeout and rejects slow exits",
+            slow_ok and slow["findings"][0]["reproducer_verified"],
+            str(slow["findings"][0] if slow["findings"] else {}),
+        )
+
+        clean = campaign("ok", "ok-out", 7)
+        check(
+            "max-cases bounds the campaign",
+            clean["executed"]["runs"] == 7,
+            f"{clean['executed']['runs']} runs",
+        )
+        check(
+            "clean campaign passes",
+            clean["status"] == "pass",
+            str(clean["executed"]["by_classification"]),
+        )
+        rerun = campaign("ok", "ok-out-2", 7)
+        first_lines = [
+            json.loads(line)
+            for line in Path(clean["outputs"]["results"]).read_text().splitlines()
+        ]
+        second_lines = [
+            json.loads(line)
+            for line in Path(rerun["outputs"]["results"]).read_text().splitlines()
+        ]
+        check(
+            "max-cases campaign is deterministic including mutation digests",
+            [
+                (record["input"], record["mode"], record["input_sha256"])
+                for record in first_lines
+            ]
+            == [
+                (record["input"], record["mode"], record["input_sha256"])
+                for record in second_lines
+            ],
+        )
+
+        throughput = campaign("lines", "lines-out", 2, max_findings=0)
+        check(
+            "report measures fields packets per second",
+            throughput["throughput"]["packets"] == 3
+            and throughput["throughput"]["packets_per_second"] > 0,
+            str(throughput["throughput"]),
+        )
+
+        unexpected = campaign("unexpected", "unexpected-out", 3)
+        check(
+            "campaign detects unexpected exit",
+            unexpected["executed"]["by_classification"]["unexpected"] > 0,
+            str(unexpected["executed"]["by_classification"]),
+        )
+
+        # SIGINT: the child must be killed and a partial report must survive.
+        pid_path = temporary / "hang-child.pid"
+        interrupt_stub = stub_dir / "hang-pid"
+        write_stub(interrupt_stub, "hang", pid_path)
+        interrupt_out = temporary / "interrupt-out"
+        harness = subprocess.Popen(
+            [
+                sys.executable,
+                str(Path(__file__).resolve()),
+                "--binary", str(interrupt_stub),
+                "--fixtures", str(fixture_dir),
+                "--out", str(interrupt_out),
+                "--minutes", "2",
+                "--max-cases", "100",
+                "--timeout", "5",
+                "--rss-mb", "128",
+                "--quiet",
+            ],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
+            env=child_environment(),
+        )
+        child_pid = None
+        for _ in range(100):
+            if pid_path.is_file():
+                text = pid_path.read_text(encoding="utf-8").strip()
+                child_pid = int(text) if text.isdigit() else None
+                break
+            time.sleep(0.05)
+        harness.send_signal(signal.SIGINT)
+        try:
+            harness.wait(timeout=15)
+        except subprocess.TimeoutExpired:
+            harness.kill()
+            harness.wait(timeout=5)
+        interrupted_report = None
+        report_path = interrupt_out / "report.json"
+        if report_path.is_file():
+            interrupted_report = json.loads(report_path.read_text(encoding="utf-8"))
+        child_gone = False
+        if child_pid is not None:
+            for _ in range(40):
+                try:
+                    os.kill(child_pid, 0)
+                except ProcessLookupError:
+                    child_gone = True
+                    break
+                time.sleep(0.05)
+        check(
+            "SIGINT kills the child",
+            child_gone,
+            f"child_pid={child_pid}",
+        )
+        check(
+            "SIGINT writes a partial report",
+            interrupted_report is not None
+            and interrupted_report["stopped_by"] == "interrupt"
+            and interrupted_report["status"] == "fail"
+            and (interrupt_out / "results.jsonl").is_file(),
+            str(interrupted_report and interrupted_report["stopped_by"]),
+        )
+
+        check(
+            "fixture bytes are unchanged",
+            sha256_bytes(fixture_path.read_bytes()) == fixture_digest,
+        )
+        report = json.loads(Path(clean["outputs"]["report"]).read_text())
+        check(
+            "report.json is valid and records the seed",
+            report["budget"]["seed"] == 11 and report["schema"] == 2,
+        )
+        check(
+            "results.jsonl has one line per run",
+            len(Path(clean["outputs"]["results"]).read_text().splitlines())
+            == clean["executed"]["runs"],
+        )
+    finally:
+        shutil.rmtree(temporary, ignore_errors=True)
+
+    failed = [name for name, passed, _ in checks if not passed]
+    for name, passed, detail in checks:
+        print(f"{'ok  ' if passed else 'FAIL'} {name}"
+              + (f" ({detail})" if not passed and detail else ""))
+    print(f"\nself-test: {len(checks) - len(failed)}/{len(checks)} checks passed")
+    return 0 if not failed else 1
+
+
+def parse_expected_exits(text: str) -> tuple[int, ...]:
+    try:
+        values = tuple(int(part, 0) for part in text.split(",") if part.strip())
+    except ValueError:
+        raise argparse.ArgumentTypeError("expected exits must be comma-separated integers")
+    if not values:
+        raise argparse.ArgumentTypeError("expected exits must not be empty")
+    return values
+
+
+def parse_arguments(argv: Sequence[str]) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Bounded adversarial stress harness for packetfin.",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    parser.add_argument("--binary", type=Path, default=DEFAULT_BINARY,
+                        help="packetfin binary; relative paths resolve from the repository root")
+    parser.add_argument("--fixtures", type=Path, default=DEFAULT_FIXTURES,
+                        help="generated capture fixture directory (read-only)")
+    parser.add_argument("--out", type=Path, default=DEFAULT_OUT,
+                        help="output directory; replaced when it carries a stress marker; "
+                             "relative paths resolve from the repository root")
+    parser.add_argument("--minutes", type=float, default=10.0,
+                        help="wall-clock budget in minutes; 0 disables only the time bound")
+    parser.add_argument("--max-cases", type=int, default=200_000,
+                        help="maximum runs; 0 disables the count bound")
+    parser.add_argument("--seed", type=int, default=1, help="deterministic mutation seed")
+    parser.add_argument("--timeout", type=float, default=10.0,
+                        help="per-run timeout in seconds")
+    parser.add_argument("--rss-mb", type=int, default=512,
+                        help="per-run RSS limit in MiB")
+    parser.add_argument("--max-findings", type=int, default=20,
+                        help="maximum unique reproducers saved")
+    parser.add_argument("--expect-exit", type=parse_expected_exits, default=(0, 3, 14),
+                        help="comma-separated acceptable exit codes")
+    parser.add_argument("--no-minimize", dest="minimize", action="store_false",
+                        help="keep the original reproducer input without delta-debugging")
+    parser.add_argument("--force", action="store_true",
+                        help="replace a marked output directory outside target/stress")
+    parser.add_argument("--quiet", action="store_true", help="suppress progress lines")
+    parser.add_argument("--memory", action="store_true",
+                        help="run tools/memory after the campaign; fails on a memory-"
+                             "ceiling or recorded-baseline regression")
+    parser.add_argument("--self-test", action="store_true",
+                        help="run harness self-tests with stub commands and exit")
+    arguments = parser.parse_args(argv)
+    if arguments.minutes < 0:
+        parser.error("--minutes must be non-negative")
+    if arguments.max_cases < 0:
+        parser.error("--max-cases must be non-negative")
+    if arguments.minutes == 0 and arguments.max_cases == 0:
+        parser.error("at least one of --minutes or --max-cases must bound the run")
+    if arguments.timeout <= 0:
+        parser.error("--timeout must be positive")
+    if arguments.rss_mb <= 0:
+        parser.error("--rss-mb must be positive")
+    if arguments.max_findings < 0:
+        parser.error("--max-findings must be non-negative")
+    if not arguments.binary.is_absolute():
+        arguments.binary = (REPO_ROOT / arguments.binary).resolve()
+    if not arguments.fixtures.is_absolute():
+        arguments.fixtures = (REPO_ROOT / arguments.fixtures).resolve()
+    if arguments.out is not None and not arguments.out.is_absolute():
+        arguments.out = (REPO_ROOT / arguments.out).resolve()
+    return arguments
+
+
+def main(argv: Sequence[str]) -> int:
+    arguments = parse_arguments(argv)
+    if arguments.self_test:
+        return self_test()
+    if not arguments.binary.is_file():
+        raise SystemExit(
+            f"stress: binary does not exist: {arguments.binary}\n"
+            "Run cargo build --release first, or pass --binary."
+        )
+    if not os.access(arguments.binary, os.X_OK):
+        raise SystemExit(f"stress: binary is not executable: {arguments.binary}")
+    config = CampaignConfig(
+        binary=arguments.binary,
+        fixtures_dir=arguments.fixtures,
+        out=arguments.out,
+        minutes=arguments.minutes,
+        max_cases=arguments.max_cases,
+        seed=arguments.seed,
+        timeout_seconds=arguments.timeout,
+        rss_mb=arguments.rss_mb,
+        max_findings=arguments.max_findings,
+        minimize=arguments.minimize,
+        expected_exits=arguments.expect_exit,
+        force=arguments.force,
+        quiet=arguments.quiet,
+    )
+    report = run_campaign(config)
+    if report.get("interrupted"):
+        return 130
+    if report["status"] != "pass":
+        return 1
+    if arguments.memory:
+        memory = REPO_ROOT / "tools" / "memory"
+        result = subprocess.run(
+            [sys.executable, str(memory), "--binary", str(arguments.binary)],
+            cwd=REPO_ROOT,
+        )
+        if result.returncode != 0:
+            print("stress: memory matrix failed", file=sys.stderr)
+            return 1
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main(sys.argv[1:]))

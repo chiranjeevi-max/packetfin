@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<?xml-stylesheet type="text/xsl" href="pdml2html.xsl"?>
+<!-- normalized -->
+<pdml version="0" creator="creator" time="time" capture_file="tests/fixtures/lldp-malformed.pcap">
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="34">
+    <field name="num" pos="0" show="5" showname="Number" value="5" size="34"/>
+    <field name="len" pos="0" show="34" showname="Frame Length" value="22" size="34"/>
+    <field name="caplen" pos="0" show="34" showname="Captured Length" value="22" size="34"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:20.123460000 UTC" showname="Captured Time" value="1700000000.123460000" size="34"/>
+  </proto>
+  <proto name="frame" showname="Frame 5: Packet, 34 bytes on wire (272 bits), 34 bytes captured (272 bits)" size="34" pos="0">
+    <field name="filtered" value="frame" />
+  </proto>
+  <proto name="eth" showname="Ethernet II, Src: 02:00:00:00:00:01, Dst: 01:80:c2:00:00:0e" size="14" pos="0">
+    <field name="filtered" value="eth" />
+  </proto>
+  <proto name="lldp" showname="Link Layer Discovery Protocol" size="20" pos="14">
+    <field name="" show="Chassis Subtype = MAC address" size="7" pos="14" value="02050400112233">
+      <field name="lldp.tlv.type" showname="0000 001. .... .... = TLV Type: Chassis Id (1)" size="2" pos="14" show="1" value="1" unmaskedvalue="0205"/>
+      <field name="lldp.tlv.len" showname=".... ...0 0000 0101 = TLV Length: 5" size="2" pos="14" show="5" value="5" unmaskedvalue="0205">
+        <field name="_ws.expert" showname="Expert Info (Warning/Malformed): Invalid Chassis ID Length (5) for Type (MAC address), expected (7)" size="0" pos="14">
+          <field name="lldp.incorrect_length" showname="Invalid Chassis ID Length (5) for Type (MAC address), expected (7)" size="0" pos="0" show="" value=""/>
+          <field name="_ws.expert.message" showname="Message: Invalid Chassis ID Length (5) for Type (MAC address), expected (7)" hide="yes" size="0" pos="0" show="Invalid Chassis ID Length (5) for Type (MAC address), expected (7)"/>
+          <field name="_ws.expert.severity" showname="Severity level: Warning" size="0" pos="0" show="6291456"/>
+          <field name="_ws.expert.group" showname="Group: Malformed" size="0" pos="0" show="117440512"/>
+        </field>
+        <proto name="_ws.malformed" showname="Malformed Packet" hide="yes" size="0" pos="14"/>
+      </field>
+      <field name="lldp.chassis.subtype" showname="Chassis Id Subtype: MAC address (4)" size="1" pos="16" show="4" value="04"/>
+    </field>
+  </proto>
+</packet>
+
+
+</pdml>

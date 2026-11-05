@@ -1,0 +1,11 @@
+    1   0.000000    192.0.2.1 → 192.0.2.2    TLSv1.2 221 [Client Hello Fragment], Client Hello (SNI=example.com)
+    2   0.000001    192.0.2.1 → 192.0.2.2    TLSv1.3 115 Hello Retry Request
+    3   0.000002    192.0.2.1 → 192.0.2.2    SSL 59 [Malformed Packet]
+    4   0.000003    192.0.2.1 → 192.0.2.2    SSL 59 [Malformed Packet]
+    5   0.000004    192.0.2.1 → 192.0.2.2    SSL 59 [Malformed Packet]
+    6   0.000005    192.0.2.1 → 192.0.2.2    TLSv1.2 61 [Malformed Packet]
+    7   0.000006    192.0.2.1 → 192.0.2.2    TLSv1.2 60 Encrypted Alert
+    8   0.000007    192.0.2.1 → 192.0.2.2    TLSv1 119 [Client Hello Fragment]
+    9   0.000008    192.0.2.1 → 192.0.2.2    TLSv1.2 156 Client Hello (SNI=example.com)
+   10   0.000009    192.0.2.1 → 192.0.2.2    TLSv1.3 119 [Client Hello Fragment]
+   11   0.000010    192.0.2.2 → 192.0.2.1    TLSv1.3 181 Server Hello

@@ -1,0 +1,8 @@
+    1   0.000000    192.0.2.1 → 192.0.2.2    TCP 64 40500 → 179 [PSH, ACK] Seq=1 Ack=1 Win=65535 Len=10
+    2   0.000001    192.0.2.1 → 192.0.2.2    TCP 108 40500 → 179 [PSH, ACK] Seq=11 Ack=1 Win=65535 Len=54
+    3   0.000002    192.0.2.1 → 192.0.2.2    TCP 73 40501 → 179 [PSH, ACK] Seq=1 Ack=1 Win=65535 Len=19 [TCP PDU reassembled in 4]
+    4   0.000003    192.0.2.1 → 192.0.2.2    BGP 99 UPDATE Message
+    5   0.000004    192.0.2.1 → 192.0.2.2    TCP 79 40502 → 179 [PSH, ACK] Seq=1 Ack=1 Win=65535 Len=25 [TCP PDU reassembled in 6]
+    6   0.000005    192.0.2.1 → 192.0.2.2    BGP 93 UPDATE Message
+    7   0.000006    192.0.2.1 → 192.0.2.2    TCP 79 40503 → 179 [PSH, ACK] Seq=1 Ack=1 Win=65535 Len=25 [TCP PDU reassembled in 8]
+    8   0.000007    192.0.2.1 → 192.0.2.2    BGP 112 UPDATE Message, KEEPALIVE Message

@@ -1,0 +1,45 @@
+Frame 1: Packet, 78 bytes on wire (624 bits), 78 bytes captured (624 bits)
+Ethernet II, Src: 02:00:00:00:00:01, Dst: 02:00:00:00:00:02
+Internet Protocol Version 4, Src: 192.0.2.1, Dst: 198.51.100.2
+User Datagram Protocol, Src Port: 40000, Dst Port: 2055
+Cisco NetFlow/IPFIX
+    Version: 9
+    Count: 1
+    SysUptime: 1 second
+    Timestamp: Nov 14, 2023 22:13:20.000000000 UTC
+        CurrentSecs: 1700000000
+    FlowSequence: 1
+    SourceId: 7
+    FlowSet 1 [id=0] (Data Template): 256
+        FlowSet Id: Data Template (V9) (0)
+        FlowSet Length: 16
+        Template (Id = 256, Count = 2)
+            Template Id: 256
+            Field Count: 2
+            Field (1/2): IP_SRC_ADDR
+                Type: IP_SRC_ADDR (8)
+                Length: 4
+            Field (2/2): IP_DST_ADDR
+                Type: IP_DST_ADDR (12)
+                Length: 4
+
+Frame 2: Packet, 74 bytes on wire (592 bits), 74 bytes captured (592 bits)
+Ethernet II, Src: 02:00:00:00:00:01, Dst: 02:00:00:00:00:02
+Internet Protocol Version 4, Src: 192.0.2.1, Dst: 198.51.100.2
+User Datagram Protocol, Src Port: 40000, Dst Port: 2055
+Cisco NetFlow/IPFIX
+    Version: 9
+    Count: 1
+    SysUptime: 1.001000000 seconds
+    Timestamp: Nov 14, 2023 22:13:21.000000000 UTC
+        CurrentSecs: 1700000001
+    FlowSequence: 2
+    SourceId: 7
+    FlowSet 1 [id=256] (1 flows)
+        FlowSet Id: (Data) (256)
+        FlowSet Length: 12
+        [Template Frame: 1]
+        Flow 1
+            SrcAddr: 10.0.0.1
+            DstAddr: 10.0.0.2
+

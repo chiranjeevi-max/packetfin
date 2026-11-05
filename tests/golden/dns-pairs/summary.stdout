@@ -1,0 +1,6 @@
+    1   0.000000    192.0.2.1 → 198.51.100.2 DNS 70 Standard query 0x1001 A pairs.test
+    2   0.000000 198.51.100.2 → 192.0.2.1    DNS 86 Standard query response 0x1001 A pairs.test A 203.0.113.10
+    3   1.000000    192.0.2.1 → 198.51.100.2 DNS 71 Standard query 0x1002 A second.test
+    4   1.010000 198.51.100.2 → 192.0.2.1    DNS 87 Standard query response 0x1002 A second.test A 203.0.113.11
+    5   2.000000    192.0.2.1 → 198.51.100.2 DNS 70 Standard query 0x1003 A third.test
+    6   2.010000 198.51.100.2 → 192.0.2.1    DNS 86 Standard query response 0x1003 A third.test A 203.0.113.12

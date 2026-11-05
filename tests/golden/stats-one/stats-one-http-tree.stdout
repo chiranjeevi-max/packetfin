@@ -1,0 +1,17 @@
+
+=======================================================================================================================================
+HTTP / Packet Counter:
+Packet Type             Count         Average       Min Val       Max Val       Rate (ms)     Percent       Burst Rate    Burst Start  
+---------------------------------------------------------------------------------------------------------------------------------------
+Total HTTP Packets      0                                                                     100%          -             -            
+ Other HTTP Packets     0                                                                                   -             -            
+ HTTP Response Packets  0                                                                                   -             -            
+  ???: broken           0                                                                                   -             -            
+  5xx: Server Error     0                                                                                   -             -            
+  4xx: Client Error     0                                                                                   -             -            
+  3xx: Redirection      0                                                                                   -             -            
+  2xx: Success          0                                                                                   -             -            
+  1xx: Informational    0                                                                                   -             -            
+ HTTP Request Packets   0                                                                                   -             -            
+
+---------------------------------------------------------------------------------------------------------------------------------------

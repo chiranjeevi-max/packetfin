@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<?xml-stylesheet type="text/xsl" href="pdml2html.xsl"?>
+<!-- normalized -->
+<pdml version="0" creator="creator" time="time" capture_file="tests/fixtures/dns-compression.pcap">
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="125">
+    <field name="num" pos="0" show="1" showname="Number" value="1" size="125"/>
+    <field name="len" pos="0" show="125" showname="Frame Length" value="7d" size="125"/>
+    <field name="caplen" pos="0" show="125" showname="Captured Length" value="7d" size="125"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:20.000000000 UTC" showname="Captured Time" value="1700000000.000000000" size="125"/>
+  </proto>
+  <field name="dns.qry.name" value="example.com"/>
+</packet>
+
+
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="65">
+    <field name="num" pos="0" show="2" showname="Number" value="2" size="65"/>
+    <field name="len" pos="0" show="65" showname="Frame Length" value="41" size="65"/>
+    <field name="caplen" pos="0" show="65" showname="Captured Length" value="41" size="65"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:21.000000000 UTC" showname="Captured Time" value="1700000001.000000000" size="65"/>
+  </proto>
+  <field name="dns.qry.name" value="abc"/>
+</packet>
+
+
+</pdml>

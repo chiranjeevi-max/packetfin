@@ -1,0 +1,203 @@
+[
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "ospf.msg": [
+          "1"
+        ],
+        "ospf.srcrouter": [
+          "1.1.1.1"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "ospf.msg": [
+          "2"
+        ],
+        "ospf.srcrouter": [
+          "1.1.1.1"
+        ],
+        "ospf.lsa": [
+          "1",
+          "2"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "ospf.msg": [
+          "3"
+        ],
+        "ospf.srcrouter": [
+          "1.1.1.1"
+        ],
+        "ospf.lsa": [
+          "1",
+          "2"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "ospf.msg": [
+          "4"
+        ],
+        "ospf.srcrouter": [
+          "1.1.1.1"
+        ],
+        "ospf.lsa": [
+          "1",
+          "2",
+          "3",
+          "4",
+          "5"
+        ],
+        "ospf.metric": [
+          "100",
+          "50",
+          "20"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "ospf.msg": [
+          "5"
+        ],
+        "ospf.srcrouter": [
+          "1.1.1.1"
+        ],
+        "ospf.lsa": [
+          "1",
+          "2"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "ospf.msg": [
+          "1"
+        ],
+        "ospf.srcrouter": [
+          "1.1.1.1"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "ospf.msg": [
+          "1"
+        ],
+        "ospf.srcrouter": [
+          "1.1.1.1"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "ospf.msg": [
+          "4"
+        ],
+        "ospf.srcrouter": [
+          "1.1.1.1"
+        ],
+        "ospf.lsa": [
+          "1"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "ospf.msg": [
+          "1"
+        ],
+        "ospf.srcrouter": [
+          "1.1.1.1"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "ospf.msg": [
+          "1"
+        ],
+        "ospf.srcrouter": [
+          "1.1.1.1"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "ospf.msg": [
+          "4"
+        ],
+        "ospf.srcrouter": [
+          "1.1.1.1"
+        ],
+        "ospf.lsa": [
+          "3"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "ospf.msg": [
+          "4"
+        ],
+        "ospf.srcrouter": [
+          "1.1.1.1"
+        ],
+        "ospf.lsa": [
+          "2"
+        ]
+      }
+    }
+  }
+]

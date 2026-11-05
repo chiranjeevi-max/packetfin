@@ -1,0 +1,148 @@
+<?xml version="1.0" encoding="utf-8"?>
+<?xml-stylesheet type="text/xsl" href="pdml2html.xsl"?>
+<!-- normalized -->
+<pdml version="0" creator="creator" time="time" capture_file="tests/fixtures/dhcp-malformed.pcap">
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="142">
+    <field name="num" pos="0" show="1" showname="Number" value="1" size="142"/>
+    <field name="len" pos="0" show="142" showname="Frame Length" value="8e" size="142"/>
+    <field name="caplen" pos="0" show="142" showname="Captured Length" value="8e" size="142"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:20.123456000 UTC" showname="Captured Time" value="1700000000.123456000" size="142"/>
+  </proto>
+  <field name="dhcp.id" value="0x12345678"/>
+</packet>
+
+
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="282">
+    <field name="num" pos="0" show="2" showname="Number" value="2" size="282"/>
+    <field name="len" pos="0" show="282" showname="Frame Length" value="11a" size="282"/>
+    <field name="caplen" pos="0" show="282" showname="Captured Length" value="11a" size="282"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:20.123457000 UTC" showname="Captured Time" value="1700000000.123457000" size="282"/>
+  </proto>
+  <field name="dhcp.id" value="0x12345678"/>
+</packet>
+
+
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="283">
+    <field name="num" pos="0" show="3" showname="Number" value="3" size="283"/>
+    <field name="len" pos="0" show="283" showname="Frame Length" value="11b" size="283"/>
+    <field name="caplen" pos="0" show="283" showname="Captured Length" value="11b" size="283"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:20.123458000 UTC" showname="Captured Time" value="1700000000.123458000" size="283"/>
+  </proto>
+  <field name="dhcp.id" value="0x12345678"/>
+</packet>
+
+
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="288">
+    <field name="num" pos="0" show="4" showname="Number" value="4" size="288"/>
+    <field name="len" pos="0" show="288" showname="Frame Length" value="120" size="288"/>
+    <field name="caplen" pos="0" show="288" showname="Captured Length" value="120" size="288"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:20.123459000 UTC" showname="Captured Time" value="1700000000.123459000" size="288"/>
+  </proto>
+  <field name="dhcp.id" value="0x12345678"/>
+</packet>
+
+
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="291">
+    <field name="num" pos="0" show="5" showname="Number" value="5" size="291"/>
+    <field name="len" pos="0" show="291" showname="Frame Length" value="123" size="291"/>
+    <field name="caplen" pos="0" show="291" showname="Captured Length" value="123" size="291"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:20.123460000 UTC" showname="Captured Time" value="1700000000.123460000" size="291"/>
+  </proto>
+  <field name="dhcp.id" value="0x12345678"/>
+</packet>
+
+
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="285">
+    <field name="num" pos="0" show="6" showname="Number" value="6" size="285"/>
+    <field name="len" pos="0" show="285" showname="Frame Length" value="11d" size="285"/>
+    <field name="caplen" pos="0" show="285" showname="Captured Length" value="11d" size="285"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:20.123461000 UTC" showname="Captured Time" value="1700000000.123461000" size="285"/>
+  </proto>
+  <field name="dhcp.id" value="0x12345678"/>
+</packet>
+
+
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="289">
+    <field name="num" pos="0" show="7" showname="Number" value="7" size="289"/>
+    <field name="len" pos="0" show="289" showname="Frame Length" value="121" size="289"/>
+    <field name="caplen" pos="0" show="289" showname="Captured Length" value="121" size="289"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:20.123462000 UTC" showname="Captured Time" value="1700000000.123462000" size="289"/>
+  </proto>
+  <field name="dhcp.id" value="0x12345678"/>
+</packet>
+
+
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="307">
+    <field name="num" pos="0" show="8" showname="Number" value="8" size="307"/>
+    <field name="len" pos="0" show="307" showname="Frame Length" value="133" size="307"/>
+    <field name="caplen" pos="0" show="307" showname="Captured Length" value="133" size="307"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:20.123463000 UTC" showname="Captured Time" value="1700000000.123463000" size="307"/>
+  </proto>
+  <field name="dhcp.id" value="0x12345678"/>
+</packet>
+
+
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="290">
+    <field name="num" pos="0" show="9" showname="Number" value="9" size="290"/>
+    <field name="len" pos="0" show="290" showname="Frame Length" value="122" size="290"/>
+    <field name="caplen" pos="0" show="290" showname="Captured Length" value="122" size="290"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:20.123464000 UTC" showname="Captured Time" value="1700000000.123464000" size="290"/>
+  </proto>
+  <field name="dhcp.id" value="0x12345678"/>
+</packet>
+
+
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="295">
+    <field name="num" pos="0" show="10" showname="Number" value="a" size="295"/>
+    <field name="len" pos="0" show="295" showname="Frame Length" value="127" size="295"/>
+    <field name="caplen" pos="0" show="295" showname="Captured Length" value="127" size="295"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:20.123465000 UTC" showname="Captured Time" value="1700000000.123465000" size="295"/>
+  </proto>
+  <field name="dhcp.id" value="0x12345678"/>
+</packet>
+
+
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="286">
+    <field name="num" pos="0" show="11" showname="Number" value="b" size="286"/>
+    <field name="len" pos="0" show="286" showname="Frame Length" value="11e" size="286"/>
+    <field name="caplen" pos="0" show="286" showname="Captured Length" value="11e" size="286"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:20.123466000 UTC" showname="Captured Time" value="1700000000.123466000" size="286"/>
+  </proto>
+  <field name="dhcp.id" value="0x12345678"/>
+</packet>
+
+
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="286">
+    <field name="num" pos="0" show="12" showname="Number" value="c" size="286"/>
+    <field name="len" pos="0" show="286" showname="Frame Length" value="11e" size="286"/>
+    <field name="caplen" pos="0" show="286" showname="Captured Length" value="11e" size="286"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:20.123467000 UTC" showname="Captured Time" value="1700000000.123467000" size="286"/>
+  </proto>
+  <field name="dhcp.id" value="0x12345678"/>
+</packet>
+
+
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="306">
+    <field name="num" pos="0" show="13" showname="Number" value="d" size="306"/>
+    <field name="len" pos="0" show="306" showname="Frame Length" value="132" size="306"/>
+    <field name="caplen" pos="0" show="306" showname="Captured Length" value="132" size="306"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:20.123468000 UTC" showname="Captured Time" value="1700000000.123468000" size="306"/>
+  </proto>
+  <field name="dhcp.id" value="0x12345678"/>
+</packet>
+
+
+</pdml>

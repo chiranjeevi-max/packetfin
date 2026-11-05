@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<psml version="0" creator="creator">
+<structure>
+<section>No.</section>
+<section>Time</section>
+<section>Source</section>
+<section>Destination</section>
+<section>Protocol</section>
+<section>Length</section>
+<section>Info</section>
+</structure>
+
+<packet>
+<section>1</section>
+<section>0.000000</section>
+<section>Cisco_11:22:33</section>
+<section>Broadcast</section>
+<section>ARP</section>
+<section>42</section>
+<section>Who has 192.0.2.9? Tell 192.0.2.1</section>
+</packet>
+
+<packet>
+<section>2</section>
+<section>0.000001</section>
+<section>Apple_01:02:03</section>
+<section>Cisco_11:22:33</section>
+<section>ARP</section>
+<section>42</section>
+<section>192.0.2.9 is at 00:1b:63:01:02:03</section>
+</packet>
+
+</psml>

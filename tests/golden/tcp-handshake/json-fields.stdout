@@ -1,0 +1,104 @@
+[
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tcp.seq": [
+          "1000"
+        ],
+        "tcp.ack": [
+          "0"
+        ],
+        "tcp.flags": [
+          "0x0002"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tcp.seq": [
+          "5000"
+        ],
+        "tcp.ack": [
+          "1001"
+        ],
+        "tcp.flags": [
+          "0x0012"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tcp.seq": [
+          "1001"
+        ],
+        "tcp.ack": [
+          "5001"
+        ],
+        "tcp.flags": [
+          "0x0010"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tcp.seq": [
+          "1001"
+        ],
+        "tcp.ack": [
+          "5001"
+        ],
+        "tcp.flags": [
+          "0x0018"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tcp.seq": [
+          "1006"
+        ],
+        "tcp.ack": [
+          "5001"
+        ],
+        "tcp.flags": [
+          "0x0018"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tcp.seq": [
+          "1011"
+        ],
+        "tcp.ack": [
+          "5001"
+        ],
+        "tcp.flags": [
+          "0x0011"
+        ]
+      }
+    }
+  }
+]

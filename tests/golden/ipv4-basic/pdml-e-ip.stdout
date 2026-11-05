@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<?xml-stylesheet type="text/xsl" href="pdml2html.xsl"?>
+<!-- normalized -->
+<pdml version="0" creator="creator" time="time" capture_file="tests/fixtures/ipv4-basic.pcap">
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="43">
+    <field name="num" pos="0" show="1" showname="Number" value="1" size="43"/>
+    <field name="len" pos="0" show="43" showname="Frame Length" value="2b" size="43"/>
+    <field name="caplen" pos="0" show="43" showname="Captured Length" value="2b" size="43"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:20.123456000 UTC" showname="Captured Time" value="1700000000.123456000" size="43"/>
+  </proto>
+  <field name="ip.src" value="192.0.2.1"/>
+  <field name="ip.dst" value="198.51.100.2"/>
+  <field name="ip.proto" value="253"/>
+</packet>
+
+
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="43">
+    <field name="num" pos="0" show="2" showname="Number" value="2" size="43"/>
+    <field name="len" pos="0" show="43" showname="Frame Length" value="2b" size="43"/>
+    <field name="caplen" pos="0" show="43" showname="Captured Length" value="2b" size="43"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:20.123457000 UTC" showname="Captured Time" value="1700000000.123457000" size="43"/>
+  </proto>
+  <field name="ip.src" value="192.0.2.1"/>
+  <field name="ip.dst" value="198.51.100.2"/>
+  <field name="ip.proto" value="253"/>
+</packet>
+
+
+</pdml>

@@ -1,0 +1,6 @@
+    1   0.000000    192.0.2.1 → 198.51.100.2 DHCP 295 DHCP Discover - Transaction ID 0x12345678
+    2   0.000001    192.0.2.1 → 198.51.100.2 DHCP 295 DHCP Discover - Transaction ID 0x12345678
+    3   0.000002    192.0.2.1 → 198.51.100.2 DHCP 295 DHCP Discover - Transaction ID 0x12345678
+    4   0.000003    192.0.2.1 → 198.51.100.2 DHCP 307 DHCP Discover - Transaction ID 0x12345678
+    5   0.000004    192.0.2.1 → 198.51.100.2 DHCP 303 DHCP Discover - Transaction ID 0x12345678
+    6   0.000005    192.0.2.1 → 198.51.100.2 DHCP 302 DHCP Discover - Transaction ID 0x12345678

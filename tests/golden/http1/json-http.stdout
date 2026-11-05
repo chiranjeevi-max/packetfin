@@ -1,0 +1,161 @@
+[
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "http.request.uri": [
+          "/index.html"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "http.request.uri": [
+          "/index.html"
+        ],
+        "http.response.code": [
+          "200"
+        ],
+        "http.request_in": [
+          "1"
+        ],
+        "http.content_length": [
+          "13"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "http.request.uri": [
+          "/a"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "http.request.uri": [
+          "/b"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "http.request.uri": [
+          "/b"
+        ],
+        "http.response.code": [
+          "200"
+        ],
+        "http.request_in": [
+          "4"
+        ],
+        "http.content_length": [
+          "1"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "http.response.code": [
+          "200"
+        ],
+        "http.content_length": [
+          "1"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "http.response.code": [
+          "200"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "http.request.uri": [
+          "/bad"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "http.request.uri": [
+          "/name"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "http.request.uri": [
+          "/long"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "http.request.uri": [
+          "/p"
+        ],
+        "http.content_length": [
+          "3"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "http.request.uri": [
+          "/zero"
+        ],
+        "http.content_length": [
+          "0"
+        ]
+      }
+    }
+  }
+]

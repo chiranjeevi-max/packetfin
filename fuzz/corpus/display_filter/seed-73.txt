@@ -1,0 +1,1 @@
+len(ipv6.routing) == 3

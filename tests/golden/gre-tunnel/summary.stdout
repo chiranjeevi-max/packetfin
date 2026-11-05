@@ -1,0 +1,10 @@
+    1   0.000000    192.0.2.1 → 198.51.100.2 ICMP 72 Echo (ping) request  id=0x1234, seq=1/256, ttl=64
+    2   0.000001    192.0.2.1 → 198.51.100.2 ICMP 84 Echo (ping) request  id=0x1234, seq=1/256, ttl=64
+    3   0.000002    192.0.2.1 → 198.51.100.2 ICMP 76 Echo (ping) request  id=0x1234, seq=1/256, ttl=64
+    4   0.000003    192.0.2.1 → 198.51.100.2 ICMP 88 Echo (ping) request  id=0x1234, seq=1/256, ttl=64
+    5   0.000004    192.0.2.1 → 198.51.100.2 ICMP 80 Echo (ping) request  id=0x1234, seq=1/256, ttl=64
+    6   0.000005    192.0.2.1 → 198.51.100.2 GRE 42 Encapsulated 0x1234 (unknown)
+    7   0.000006    192.0.2.1 → 198.51.100.2 GRE 40 Encapsulated IP[Malformed Packet]
+    8   0.000007    192.0.2.1 → 198.51.100.2 GRE 38 Encapsulated IP
+    9   0.000008    192.0.2.1 → 198.51.100.2 ICMP 96 Echo (ping) request  id=0x1234, seq=1/256, ttl=64
+   10   0.000009    192.0.2.1 → 198.51.100.2 ICMP 78 Echo (ping) request  id=0x1234, seq=1/256, ttl=64

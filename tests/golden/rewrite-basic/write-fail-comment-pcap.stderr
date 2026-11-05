@@ -1,0 +1,3 @@
+packetfin: Capture comments can only be written to files of the following types:
+    pcapng - Packetfin/... - pcapng
+    erf - Endace ERF capture

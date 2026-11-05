@@ -1,0 +1,80 @@
+[
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "dhcpv6.msgtype": [
+          "12",
+          "1"
+        ],
+        "dhcpv6.linkaddr": [
+          "fe80::1"
+        ],
+        "dhcpv6.interface_id": [
+          "65746830"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "dhcpv6.msgtype": [
+          "13",
+          "7"
+        ],
+        "dhcpv6.linkaddr": [
+          "fe80::1"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "dhcpv6.msgtype": [
+          "12"
+        ],
+        "dhcpv6.linkaddr": [
+          "fe80::1"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "dhcpv6.msgtype": [
+          "12",
+          "1"
+        ],
+        "dhcpv6.linkaddr": [
+          "fe80::1"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "dhcpv6.msgtype": [
+          "12",
+          "1",
+          "7"
+        ],
+        "dhcpv6.linkaddr": [
+          "fe80::1"
+        ]
+      }
+    }
+  }
+]

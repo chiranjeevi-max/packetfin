@@ -1,0 +1,7 @@
+    1   0.000000    192.0.2.1 → 198.51.100.2 NTP 43 NTP Version 4, server[Malformed Packet]
+    2   0.000001    192.0.2.1 → 198.51.100.2 NTP 45 NTP Version 4, server[Malformed Packet]
+    3   0.000002    192.0.2.1 → 198.51.100.2 NTP 50 NTP Version 4, server[Malformed Packet]
+    4   0.000003    192.0.2.1 → 198.51.100.2 NTP 60 NTP Version 4, server[Malformed Packet]
+    5   0.000004    192.0.2.1 → 198.51.100.2 NTP 86 NTP Version 4, server[Malformed Packet]
+    6   0.000005    192.0.2.1 → 198.51.100.2 NTP 91 NTP Version 4, server
+    7   0.000006    192.0.2.1 → 198.51.100.2 UDP 42 123 → 123 Len=0

@@ -1,0 +1,8 @@
+    1   0.000000    192.0.2.1 → 192.0.2.2    TLSv1.2 216 Client Hello (SNI=example.com)
+    2   0.000001    192.0.2.2 → 192.0.2.1    TLSv1.3 181 Server Hello
+    3   0.000002    192.0.2.2 → 192.0.2.1    TLSv1.3 68 Alert (Level: Fatal, Description: Handshake Failure), Alert (Level: Warning, Description: Close Notify)
+    4   0.000003    192.0.2.1 → 192.0.2.2    TLSv1.3 59 [Malformed Packet]
+    5   0.000004    192.0.2.1 → 192.0.2.2    TLSv1.3 64 [Client Hello Fragment]
+    6   0.000005    192.0.2.1 → 192.0.2.2    TLSv1.3 75 Application Data
+    7   0.000006    192.0.2.1 → 192.0.2.2    TLSv1.3 58 
+    8   0.000007    192.0.2.1 → 192.0.2.2    TCP 65 40001 → 443 [PSH, ACK] Seq=1000 Ack=1 Win=65535 Len=11

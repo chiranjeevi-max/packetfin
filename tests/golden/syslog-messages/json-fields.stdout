@@ -1,0 +1,122 @@
+[
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "syslog.facility": [
+          "20"
+        ],
+        "syslog.hostname": [
+          "host.example.com"
+        ],
+        "syslog.timestamp": [
+          "2023-11-14T22:13:20.123456000+0000"
+        ],
+        "syslog.msg": [
+          "An application event log entry"
+        ],
+        "syslog.sd.element.name": [
+          "exampleSDID@32473"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "syslog.facility": [
+          "4"
+        ],
+        "syslog.hostname": [
+          "edge-1"
+        ],
+        "syslog.timestamp": [
+          "2023-11-14T22:13:21.000000000+0000"
+        ],
+        "syslog.msg": [
+          "su root failed"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "syslog.facility": [
+          "4"
+        ],
+        "syslog.hostname": [
+          "mymachine"
+        ],
+        "syslog.msg": [
+          " 'su root' failed for lonvick"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "syslog.facility": [
+          "1"
+        ],
+        "syslog.hostname": [
+          "host"
+        ],
+        "syslog.timestamp": [
+          "2023-11-14T20:13:22.000000000+0000"
+        ],
+        "syslog.msg": [
+          "[meta@1 key=\"value\" seq=\"42\"][other@2 x=\"y\"]hello"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "syslog.facility": [
+          "4"
+        ],
+        "syslog.hostname": [
+          "host"
+        ],
+        "syslog.timestamp": [
+          "2023-11-14T22:13:24.000000000+0000"
+        ],
+        "syslog.msg": [
+          "caf�� ����"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "syslog.facility": [
+          "0"
+        ],
+        "syslog.hostname": [
+          "h"
+        ],
+        "syslog.timestamp": [
+          "2023-11-14T22:13:25.000000000+0000"
+        ],
+        "syslog.msg": [
+          "hi"
+        ]
+      }
+    }
+  }
+]

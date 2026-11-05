@@ -1,0 +1,12 @@
+Frame 5: Packet, 34 bytes on wire (272 bits), 34 bytes captured (272 bits)
+Ethernet II, Src: 02:00:00:00:00:01, Dst: 01:80:c2:00:00:0e
+Link Layer Discovery Protocol
+    Chassis Subtype = MAC address
+        0000 001. .... .... = TLV Type: Chassis Id (1)
+        .... ...0 0000 0101 = TLV Length: 5
+            [Expert Info (Warning/Malformed): Invalid Chassis ID Length (5) for Type (MAC address), expected (7)]
+                [Invalid Chassis ID Length (5) for Type (MAC address), expected (7)]
+                [Severity level: Warning]
+                [Group: Malformed]
+        Chassis Id Subtype: MAC address (4)
+

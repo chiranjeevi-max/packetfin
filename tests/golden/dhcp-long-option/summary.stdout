@@ -1,0 +1,5 @@
+    1   0.000000    192.0.2.1 → 198.51.100.2 DHCP 296 DHCP Offer    - Transaction ID 0x12345678
+    2   0.000001    192.0.2.1 → 198.51.100.2 DHCP 289 DHCP ACK      - Transaction ID 0x12345678
+    3   0.000002    192.0.2.1 → 198.51.100.2 DHCP 296 DHCP Discover - Transaction ID 0x12345678
+    4   0.000003    192.0.2.1 → 198.51.100.2 DHCP 295 DHCP Offer    - Transaction ID 0x12345678
+    5   0.000004    192.0.2.1 → 198.51.100.2 DHCP 289 DHCP Offer    - Transaction ID 0x12345678

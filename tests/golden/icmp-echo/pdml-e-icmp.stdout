@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="utf-8"?>
+<?xml-stylesheet type="text/xsl" href="pdml2html.xsl"?>
+<!-- normalized -->
+<pdml version="0" creator="creator" time="time" capture_file="tests/fixtures/icmp-echo.pcap">
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="50">
+    <field name="num" pos="0" show="1" showname="Number" value="1" size="50"/>
+    <field name="len" pos="0" show="50" showname="Frame Length" value="32" size="50"/>
+    <field name="caplen" pos="0" show="50" showname="Captured Length" value="32" size="50"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:20.123456000 UTC" showname="Captured Time" value="1700000000.123456000" size="50"/>
+  </proto>
+  <field name="icmp.type" value="8"/>
+  <field name="icmp.seq" value="1"/>
+</packet>
+
+
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="50">
+    <field name="num" pos="0" show="2" showname="Number" value="2" size="50"/>
+    <field name="len" pos="0" show="50" showname="Frame Length" value="32" size="50"/>
+    <field name="caplen" pos="0" show="50" showname="Captured Length" value="32" size="50"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:20.123457000 UTC" showname="Captured Time" value="1700000000.123457000" size="50"/>
+  </proto>
+  <field name="icmp.type" value="0"/>
+  <field name="icmp.seq" value="1"/>
+</packet>
+
+
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="54">
+    <field name="num" pos="0" show="3" showname="Number" value="3" size="54"/>
+    <field name="len" pos="0" show="54" showname="Frame Length" value="36" size="54"/>
+    <field name="caplen" pos="0" show="54" showname="Captured Length" value="36" size="54"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:20.123458000 UTC" showname="Captured Time" value="1700000000.123458000" size="54"/>
+  </proto>
+  <field name="icmp.type" value="13"/>
+  <field name="icmp.seq" value="9"/>
+</packet>
+
+
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="42">
+    <field name="num" pos="0" show="4" showname="Number" value="4" size="42"/>
+    <field name="len" pos="0" show="42" showname="Frame Length" value="2a" size="42"/>
+    <field name="caplen" pos="0" show="42" showname="Captured Length" value="2a" size="42"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:20.123459000 UTC" showname="Captured Time" value="1700000000.123459000" size="42"/>
+  </proto>
+  <field name="icmp.type" value="9"/>
+</packet>
+
+
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="42">
+    <field name="num" pos="0" show="5" showname="Number" value="5" size="42"/>
+    <field name="len" pos="0" show="42" showname="Frame Length" value="2a" size="42"/>
+    <field name="caplen" pos="0" show="42" showname="Captured Length" value="2a" size="42"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:20.123460000 UTC" showname="Captured Time" value="1700000000.123460000" size="42"/>
+  </proto>
+  <field name="icmp.type" value="10"/>
+</packet>
+
+
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="54">
+    <field name="num" pos="0" show="6" showname="Number" value="6" size="54"/>
+    <field name="len" pos="0" show="54" showname="Frame Length" value="36" size="54"/>
+    <field name="caplen" pos="0" show="54" showname="Captured Length" value="36" size="54"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:20.123461000 UTC" showname="Captured Time" value="1700000000.123461000" size="54"/>
+  </proto>
+  <field name="icmp.type" value="8"/>
+  <field name="icmp.seq" value="1"/>
+</packet>
+
+
+</pdml>

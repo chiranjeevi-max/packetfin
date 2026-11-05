@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="utf-8"?>
+<psml version="0" creator="creator">
+<structure>
+<section>No.</section>
+<section>Time</section>
+<section>Source</section>
+<section>Destination</section>
+<section>Protocol</section>
+<section>Length</section>
+<section>Info</section>
+</structure>
+
+<packet>
+<section>1</section>
+<section>0.000000</section>
+<section>192.0.2.1</section>
+<section>192.0.2.2</section>
+<section>TLSv1.3</section>
+<section>216</section>
+<section>Client Hello (SNI=example.com)</section>
+</packet>
+
+<packet>
+<section>2</section>
+<section>0.000001</section>
+<section>192.0.2.2</section>
+<section>192.0.2.1</section>
+<section>TLSv1.3</section>
+<section>181</section>
+<section>Server Hello</section>
+</packet>
+
+<packet>
+<section>3</section>
+<section>0.000002</section>
+<section>192.0.2.2</section>
+<section>192.0.2.1</section>
+<section>TLSv1.3</section>
+<section>68</section>
+<section>Alert (Level: Fatal, Description: Handshake Failure), Alert (Level: Warning, Description: Close Notify)</section>
+</packet>
+
+<packet>
+<section>4</section>
+<section>0.000003</section>
+<section>192.0.2.1</section>
+<section>192.0.2.2</section>
+<section>TLSv1.3</section>
+<section>59</section>
+<section>[Malformed Packet]</section>
+</packet>
+
+<packet>
+<section>5</section>
+<section>0.000004</section>
+<section>192.0.2.1</section>
+<section>192.0.2.2</section>
+<section>TLSv1.3</section>
+<section>64</section>
+<section>[Client Hello Fragment]</section>
+</packet>
+
+<packet>
+<section>6</section>
+<section>0.000005</section>
+<section>192.0.2.1</section>
+<section>192.0.2.2</section>
+<section>TLSv1.3</section>
+<section>75</section>
+<section>Application Data</section>
+</packet>
+
+<packet>
+<section>7</section>
+<section>0.000006</section>
+<section>192.0.2.1</section>
+<section>192.0.2.2</section>
+<section>TCP</section>
+<section>58</section>
+<section>40000 → 443 [PSH, ACK] Seq=199 Ack=1 Win=65535 Len=4</section>
+</packet>
+
+<packet>
+<section>8</section>
+<section>0.000007</section>
+<section>192.0.2.1</section>
+<section>192.0.2.2</section>
+<section>TCP</section>
+<section>65</section>
+<section>40001 → 443 [PSH, ACK] Seq=1 Ack=1 Win=65535 Len=11</section>
+</packet>
+
+</psml>

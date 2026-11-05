@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<?xml-stylesheet type="text/xsl" href="pdml2html.xsl"?>
+<!-- normalized -->
+<pdml version="0" creator="creator" time="time" capture_file="tests/fixtures/ipv4-basic.pcap">
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="43">
+    <field name="num" pos="0" show="1" showname="Number" value="1" size="43"/>
+    <field name="len" pos="0" show="43" showname="Frame Length" value="2b" size="43"/>
+    <field name="caplen" pos="0" show="43" showname="Captured Length" value="2b" size="43"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:20.123456000 UTC" showname="Captured Time" value="1700000000.123456000" size="43"/>
+  </proto>
+  <proto name="frame" showname="Frame 1: Packet, 43 bytes on wire (344 bits), 43 bytes captured (344 bits)" size="43" pos="0">
+    <field name="filtered" value="frame" />
+  </proto>
+  <proto name="eth" showname="Ethernet II, Src: 02:00:00:00:00:01, Dst: 02:00:00:00:00:02" size="14" pos="0">
+    <field name="filtered" value="eth" />
+  </proto>
+  <proto name="ip" showname="Internet Protocol Version 4, Src: 192.0.2.1, Dst: 198.51.100.2" size="20" pos="14">
+    <field name="filtered" value="ip" />
+  </proto>
+  <proto name="fake-field-wrapper">
+    <field name="data" value="7061636b657466696e">
+      <field name="data.data" showname="Data: 7061636b657466696e" size="9" pos="34" show="70:61:63:6b:65:74:66:69:6e" value="7061636b657466696e"/>
+      <field name="data.len" showname="Length: 9" size="0" pos="34" show="9"/>
+  </field>
+  </proto>
+</packet>
+
+
+</pdml>

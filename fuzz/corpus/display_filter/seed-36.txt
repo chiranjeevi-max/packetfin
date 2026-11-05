@@ -1,0 +1,1 @@
+dns.qry.name[-4:] == ".com"

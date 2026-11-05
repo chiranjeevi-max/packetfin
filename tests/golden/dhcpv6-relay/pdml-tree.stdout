@@ -1,0 +1,253 @@
+<?xml version="1.0" encoding="utf-8"?>
+<?xml-stylesheet type="text/xsl" href="pdml2html.xsl"?>
+<!-- normalized -->
+<pdml version="0" creator="creator" time="time" capture_file="tests/fixtures/dhcpv6-relay.pcap">
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="112">
+    <field name="num" pos="0" show="1" showname="Number" value="1" size="112"/>
+    <field name="len" pos="0" show="112" showname="Frame Length" value="70" size="112"/>
+    <field name="caplen" pos="0" show="112" showname="Captured Length" value="70" size="112"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:20.123456000 UTC" showname="Captured Time" value="1700000000.123456000" size="112"/>
+  </proto>
+  <proto name="frame" showname="Frame 1: Packet, 112 bytes on wire (896 bits), 112 bytes captured (896 bits)" size="112" pos="0">
+    <field name="filtered" value="frame" />
+  </proto>
+  <proto name="eth" showname="Ethernet II, Src: 02:00:00:00:00:01, Dst: 02:00:00:00:00:02" size="14" pos="0">
+    <field name="filtered" value="eth" />
+  </proto>
+  <proto name="ip" showname="Internet Protocol Version 4, Src: 192.0.2.1, Dst: 198.51.100.2" size="20" pos="14">
+    <field name="filtered" value="ip" />
+  </proto>
+  <proto name="udp" showname="User Datagram Protocol, Src Port: 547, Dst Port: 547" size="8" pos="34">
+    <field name="filtered" value="udp" />
+  </proto>
+  <proto name="dhcpv6" showname="DHCPv6" size="70" pos="42">
+    <field name="dhcpv6.msgtype" showname="Message type: Relay-forw (12)" size="1" pos="42" show="12" value="0c"/>
+    <field name="dhcpv6.hopcount" showname="Hopcount: 0" size="1" pos="43" show="0" value="00"/>
+    <field name="dhcpv6.linkaddr" showname="Link address: fe80::1" size="16" pos="44" show="fe80::1" value="fe800000000000000000000000000001"/>
+    <field name="dhcpv6.peeraddr" showname="Peer address: fe80::2" size="16" pos="60" show="fe80::2" value="fe800000000000000000000000000002"/>
+    <field name="dhcpv6.option.type_str" showname="Relay Message" size="28" pos="76" show="Relay Message" value="00090018011234560001000a00030001020000000001000600020017">
+      <field name="dhcpv6.option.type" showname="Option: Relay Message (9)" size="2" pos="76" show="9" value="0009"/>
+      <field name="dhcpv6.option.length" showname="Length: 24" size="2" pos="78" show="24" value="0018"/>
+      <proto name="dhcpv6" showname="DHCPv6" size="24" pos="80">
+        <field name="dhcpv6.msgtype" showname="Message type: Solicit (1)" size="1" pos="80" show="1" value="01"/>
+        <field name="dhcpv6.xid" showname="Transaction ID: 0x123456" size="3" pos="81" show="0x123456" value="123456"/>
+        <field name="dhcpv6.option.type_str" showname="Client Identifier" size="14" pos="84" show="Client Identifier" value="0001000a00030001020000000001">
+          <field name="dhcpv6.option.type" showname="Option: Client Identifier (1)" size="2" pos="84" show="1" value="0001"/>
+          <field name="dhcpv6.option.length" showname="Length: 10" size="2" pos="86" show="10" value="000a"/>
+          <field name="dhcpv6.duid.bytes" showname="DUID: 00030001020000000001" size="10" pos="88" show="00:03:00:01:02:00:00:00:00:01" value="00030001020000000001"/>
+          <field name="dhcpv6.duid.type" showname="DUID Type: link-layer address (3)" size="2" pos="88" show="3" value="0003"/>
+          <field name="dhcpv6.duidll.hwtype" showname="Hardware type: Ethernet (1)" size="2" pos="90" show="1" value="0001"/>
+          <field name="dhcpv6.duidll.link_layer_addr" showname="Link-layer address: 02:00:00:00:00:01" size="6" pos="92" show="02:00:00:00:00:01" value="020000000001"/>
+          <field name="dhcpv6.duidll.link_layer_addr_ether" showname="Link-layer address (Ethernet): 02:00:00:00:00:01" size="6" pos="92" show="02:00:00:00:00:01" value="020000000001"/>
+        </field>
+        <field name="dhcpv6.option.type_str" showname="Option Request" size="6" pos="98" show="Option Request" value="000600020017">
+          <field name="dhcpv6.option.type" showname="Option: Option Request (6)" size="2" pos="98" show="6" value="0006"/>
+          <field name="dhcpv6.option.length" showname="Length: 2" size="2" pos="100" show="2" value="0002"/>
+          <field name="dhcpv6.requested_option_code" showname="Requested Option code: DNS recursive name server (23)" size="2" pos="102" show="23" value="0017"/>
+        </field>
+      </proto>
+    </field>
+    <field name="dhcpv6.option.type_str" showname="Interface-Id" size="8" pos="104" show="Interface-Id" value="0012000465746830">
+      <field name="dhcpv6.option.type" showname="Option: Interface-Id (18)" size="2" pos="104" show="18" value="0012"/>
+      <field name="dhcpv6.option.length" showname="Length: 4" size="2" pos="106" show="4" value="0004"/>
+      <field name="dhcpv6.interface_id" showname="Interface-ID: 65746830" size="4" pos="108" show="65:74:68:30" value="65746830"/>
+    </field>
+  </proto>
+</packet>
+
+
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="90">
+    <field name="num" pos="0" show="2" showname="Number" value="2" size="90"/>
+    <field name="len" pos="0" show="90" showname="Frame Length" value="5a" size="90"/>
+    <field name="caplen" pos="0" show="90" showname="Captured Length" value="5a" size="90"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:20.123457000 UTC" showname="Captured Time" value="1700000000.123457000" size="90"/>
+  </proto>
+  <proto name="frame" showname="Frame 2: Packet, 90 bytes on wire (720 bits), 90 bytes captured (720 bits)" size="90" pos="0">
+    <field name="filtered" value="frame" />
+  </proto>
+  <proto name="eth" showname="Ethernet II, Src: 02:00:00:00:00:01, Dst: 02:00:00:00:00:02" size="14" pos="0">
+    <field name="filtered" value="eth" />
+  </proto>
+  <proto name="ip" showname="Internet Protocol Version 4, Src: 192.0.2.1, Dst: 198.51.100.2" size="20" pos="14">
+    <field name="filtered" value="ip" />
+  </proto>
+  <proto name="udp" showname="User Datagram Protocol, Src Port: 547, Dst Port: 547" size="8" pos="34">
+    <field name="filtered" value="udp" />
+  </proto>
+  <proto name="dhcpv6" showname="DHCPv6" size="48" pos="42">
+    <field name="dhcpv6.msgtype" showname="Message type: Relay-reply (13)" size="1" pos="42" show="13" value="0d"/>
+    <field name="dhcpv6.hopcount" showname="Hopcount: 0" size="1" pos="43" show="0" value="00"/>
+    <field name="dhcpv6.linkaddr" showname="Link address: fe80::1" size="16" pos="44" show="fe80::1" value="fe800000000000000000000000000001"/>
+    <field name="dhcpv6.peeraddr" showname="Peer address: fe80::2" size="16" pos="60" show="fe80::2" value="fe800000000000000000000000000002"/>
+    <field name="dhcpv6.option.type_str" showname="Relay Message" size="14" pos="76" show="Relay Message" value="0009000a07123456000d00020000">
+      <field name="dhcpv6.option.type" showname="Option: Relay Message (9)" size="2" pos="76" show="9" value="0009"/>
+      <field name="dhcpv6.option.length" showname="Length: 10" size="2" pos="78" show="10" value="000a"/>
+      <proto name="dhcpv6" showname="DHCPv6" size="10" pos="80">
+        <field name="dhcpv6.msgtype" showname="Message type: Reply (7)" size="1" pos="80" show="7" value="07"/>
+        <field name="dhcpv6.xid" showname="Transaction ID: 0x123456" size="3" pos="81" show="0x123456" value="123456"/>
+        <field name="dhcpv6.option.type_str" showname="Status code" size="6" pos="84" show="Status code" value="000d00020000">
+          <field name="dhcpv6.option.type" showname="Option: Status code (13)" size="2" pos="84" show="13" value="000d"/>
+          <field name="dhcpv6.option.length" showname="Length: 2" size="2" pos="86" show="2" value="0002"/>
+          <field name="dhcpv6.status_code" showname="Status Code: Success (0)" size="2" pos="88" show="0" value="0000"/>
+        </field>
+      </proto>
+    </field>
+  </proto>
+</packet>
+
+
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="75">
+    <field name="num" pos="0" show="3" showname="Number" value="3" size="75"/>
+    <field name="len" pos="0" show="75" showname="Frame Length" value="4b" size="75"/>
+    <field name="caplen" pos="0" show="75" showname="Captured Length" value="4b" size="75"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:20.123458000 UTC" showname="Captured Time" value="1700000000.123458000" size="75"/>
+  </proto>
+  <proto name="frame" showname="Frame 3: Packet, 75 bytes on wire (600 bits), 75 bytes captured (600 bits)" size="75" pos="0">
+    <field name="filtered" value="frame" />
+  </proto>
+  <proto name="eth" showname="Ethernet II, Src: 02:00:00:00:00:01, Dst: 02:00:00:00:00:02" size="14" pos="0">
+    <field name="filtered" value="eth" />
+  </proto>
+  <proto name="ip" showname="Internet Protocol Version 4, Src: 192.0.2.1, Dst: 198.51.100.2" size="20" pos="14">
+    <field name="filtered" value="ip" />
+  </proto>
+  <proto name="udp" showname="User Datagram Protocol, Src Port: 547, Dst Port: 547" size="8" pos="34">
+    <field name="filtered" value="udp" />
+  </proto>
+  <proto name="dhcpv6" showname="DHCPv6" size="33" pos="42">
+    <field name="dhcpv6.msgtype" showname="Message type: Relay-forw (12)" size="1" pos="42" show="12" value="0c"/>
+    <field name="dhcpv6.hopcount" showname="Hopcount: 0" size="1" pos="43" show="0" value="00"/>
+    <field name="dhcpv6.linkaddr" showname="Link address: fe80::1" size="16" pos="44" show="fe80::1" value="fe800000000000000000000000000001"/>
+  </proto>
+  <proto name="_ws.malformed" showname="[Malformed Packet: DHCPv6]" size="0" pos="14">
+    <field name="filtered" value="_ws.malformed" />
+  </proto>
+</packet>
+
+
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="118">
+    <field name="num" pos="0" show="4" showname="Number" value="4" size="118"/>
+    <field name="len" pos="0" show="118" showname="Frame Length" value="76" size="118"/>
+    <field name="caplen" pos="0" show="118" showname="Captured Length" value="76" size="118"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:20.123459000 UTC" showname="Captured Time" value="1700000000.123459000" size="118"/>
+  </proto>
+  <proto name="frame" showname="Frame 4: Packet, 118 bytes on wire (944 bits), 118 bytes captured (944 bits)" size="118" pos="0">
+    <field name="filtered" value="frame" />
+  </proto>
+  <proto name="eth" showname="Ethernet II, Src: 02:00:00:00:00:01, Dst: 02:00:00:00:00:02" size="14" pos="0">
+    <field name="filtered" value="eth" />
+  </proto>
+  <proto name="ip" showname="Internet Protocol Version 4, Src: 192.0.2.1, Dst: 198.51.100.2" size="20" pos="14">
+    <field name="filtered" value="ip" />
+  </proto>
+  <proto name="udp" showname="User Datagram Protocol, Src Port: 547, Dst Port: 547" size="8" pos="34">
+    <field name="filtered" value="udp" />
+  </proto>
+  <proto name="dhcpv6" showname="DHCPv6" size="76" pos="42">
+    <field name="dhcpv6.msgtype" showname="Message type: Relay-forw (12)" size="1" pos="42" show="12" value="0c"/>
+    <field name="dhcpv6.hopcount" showname="Hopcount: 0" size="1" pos="43" show="0" value="00"/>
+    <field name="dhcpv6.linkaddr" showname="Link address: fe80::1" size="16" pos="44" show="fe80::1" value="fe800000000000000000000000000001"/>
+    <field name="dhcpv6.peeraddr" showname="Peer address: fe80::2" size="16" pos="60" show="fe80::2" value="fe800000000000000000000000000002"/>
+    <field name="dhcpv6.option.type_str" showname="Client Identifier" size="14" pos="76" show="Client Identifier" value="0001000a00030001020000000001">
+      <field name="dhcpv6.option.type" showname="Option: Client Identifier (1)" size="2" pos="76" show="1" value="0001"/>
+      <field name="dhcpv6.option.length" showname="Length: 10" size="2" pos="78" show="10" value="000a"/>
+      <field name="dhcpv6.duid.bytes" showname="DUID: 00030001020000000001" size="10" pos="80" show="00:03:00:01:02:00:00:00:00:01" value="00030001020000000001"/>
+      <field name="dhcpv6.duid.type" showname="DUID Type: link-layer address (3)" size="2" pos="80" show="3" value="0003"/>
+      <field name="dhcpv6.duidll.hwtype" showname="Hardware type: Ethernet (1)" size="2" pos="82" show="1" value="0001"/>
+      <field name="dhcpv6.duidll.link_layer_addr" showname="Link-layer address: 02:00:00:00:00:01" size="6" pos="84" show="02:00:00:00:00:01" value="020000000001"/>
+      <field name="dhcpv6.duidll.link_layer_addr_ether" showname="Link-layer address (Ethernet): 02:00:00:00:00:01" size="6" pos="84" show="02:00:00:00:00:01" value="020000000001"/>
+    </field>
+    <field name="dhcpv6.option.type_str" showname="Relay Message" size="28" pos="90" show="Relay Message" value="00090018011234560001000a00030001020000000001000600020017">
+      <field name="dhcpv6.option.type" showname="Option: Relay Message (9)" size="2" pos="90" show="9" value="0009"/>
+      <field name="dhcpv6.option.length" showname="Length: 24" size="2" pos="92" show="24" value="0018"/>
+      <proto name="dhcpv6" showname="DHCPv6" size="24" pos="94">
+        <field name="dhcpv6.msgtype" showname="Message type: Solicit (1)" size="1" pos="94" show="1" value="01"/>
+        <field name="dhcpv6.xid" showname="Transaction ID: 0x123456" size="3" pos="95" show="0x123456" value="123456"/>
+        <field name="dhcpv6.option.type_str" showname="Client Identifier" size="14" pos="98" show="Client Identifier" value="0001000a00030001020000000001">
+          <field name="dhcpv6.option.type" showname="Option: Client Identifier (1)" size="2" pos="98" show="1" value="0001"/>
+          <field name="dhcpv6.option.length" showname="Length: 10" size="2" pos="100" show="10" value="000a"/>
+          <field name="dhcpv6.duid.bytes" showname="DUID: 00030001020000000001" size="10" pos="102" show="00:03:00:01:02:00:00:00:00:01" value="00030001020000000001"/>
+          <field name="dhcpv6.duid.type" showname="DUID Type: link-layer address (3)" size="2" pos="102" show="3" value="0003"/>
+          <field name="dhcpv6.duidll.hwtype" showname="Hardware type: Ethernet (1)" size="2" pos="104" show="1" value="0001"/>
+          <field name="dhcpv6.duidll.link_layer_addr" showname="Link-layer address: 02:00:00:00:00:01" size="6" pos="106" show="02:00:00:00:00:01" value="020000000001"/>
+          <field name="dhcpv6.duidll.link_layer_addr_ether" showname="Link-layer address (Ethernet): 02:00:00:00:00:01" size="6" pos="106" show="02:00:00:00:00:01" value="020000000001"/>
+        </field>
+        <field name="dhcpv6.option.type_str" showname="Option Request" size="6" pos="112" show="Option Request" value="000600020017">
+          <field name="dhcpv6.option.type" showname="Option: Option Request (6)" size="2" pos="112" show="6" value="0006"/>
+          <field name="dhcpv6.option.length" showname="Length: 2" size="2" pos="114" show="2" value="0002"/>
+          <field name="dhcpv6.requested_option_code" showname="Requested Option code: DNS recursive name server (23)" size="2" pos="116" show="23" value="0017"/>
+        </field>
+      </proto>
+    </field>
+  </proto>
+</packet>
+
+
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="118">
+    <field name="num" pos="0" show="5" showname="Number" value="5" size="118"/>
+    <field name="len" pos="0" show="118" showname="Frame Length" value="76" size="118"/>
+    <field name="caplen" pos="0" show="118" showname="Captured Length" value="76" size="118"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:20.123460000 UTC" showname="Captured Time" value="1700000000.123460000" size="118"/>
+  </proto>
+  <proto name="frame" showname="Frame 5: Packet, 118 bytes on wire (944 bits), 118 bytes captured (944 bits)" size="118" pos="0">
+    <field name="filtered" value="frame" />
+  </proto>
+  <proto name="eth" showname="Ethernet II, Src: 02:00:00:00:00:01, Dst: 02:00:00:00:00:02" size="14" pos="0">
+    <field name="filtered" value="eth" />
+  </proto>
+  <proto name="ip" showname="Internet Protocol Version 4, Src: 192.0.2.1, Dst: 198.51.100.2" size="20" pos="14">
+    <field name="filtered" value="ip" />
+  </proto>
+  <proto name="udp" showname="User Datagram Protocol, Src Port: 547, Dst Port: 547" size="8" pos="34">
+    <field name="filtered" value="udp" />
+  </proto>
+  <proto name="dhcpv6" showname="DHCPv6" size="76" pos="42">
+    <field name="dhcpv6.msgtype" showname="Message type: Relay-forw (12)" size="1" pos="42" show="12" value="0c"/>
+    <field name="dhcpv6.hopcount" showname="Hopcount: 0" size="1" pos="43" show="0" value="00"/>
+    <field name="dhcpv6.linkaddr" showname="Link address: fe80::1" size="16" pos="44" show="fe80::1" value="fe800000000000000000000000000001"/>
+    <field name="dhcpv6.peeraddr" showname="Peer address: fe80::2" size="16" pos="60" show="fe80::2" value="fe800000000000000000000000000002"/>
+    <field name="dhcpv6.option.type_str" showname="Relay Message" size="28" pos="76" show="Relay Message" value="00090018011234560001000a00030001020000000001000600020017">
+      <field name="dhcpv6.option.type" showname="Option: Relay Message (9)" size="2" pos="76" show="9" value="0009"/>
+      <field name="dhcpv6.option.length" showname="Length: 24" size="2" pos="78" show="24" value="0018"/>
+      <proto name="dhcpv6" showname="DHCPv6" size="24" pos="80">
+        <field name="dhcpv6.msgtype" showname="Message type: Solicit (1)" size="1" pos="80" show="1" value="01"/>
+        <field name="dhcpv6.xid" showname="Transaction ID: 0x123456" size="3" pos="81" show="0x123456" value="123456"/>
+        <field name="dhcpv6.option.type_str" showname="Client Identifier" size="14" pos="84" show="Client Identifier" value="0001000a00030001020000000001">
+          <field name="dhcpv6.option.type" showname="Option: Client Identifier (1)" size="2" pos="84" show="1" value="0001"/>
+          <field name="dhcpv6.option.length" showname="Length: 10" size="2" pos="86" show="10" value="000a"/>
+          <field name="dhcpv6.duid.bytes" showname="DUID: 00030001020000000001" size="10" pos="88" show="00:03:00:01:02:00:00:00:00:01" value="00030001020000000001"/>
+          <field name="dhcpv6.duid.type" showname="DUID Type: link-layer address (3)" size="2" pos="88" show="3" value="0003"/>
+          <field name="dhcpv6.duidll.hwtype" showname="Hardware type: Ethernet (1)" size="2" pos="90" show="1" value="0001"/>
+          <field name="dhcpv6.duidll.link_layer_addr" showname="Link-layer address: 02:00:00:00:00:01" size="6" pos="92" show="02:00:00:00:00:01" value="020000000001"/>
+          <field name="dhcpv6.duidll.link_layer_addr_ether" showname="Link-layer address (Ethernet): 02:00:00:00:00:01" size="6" pos="92" show="02:00:00:00:00:01" value="020000000001"/>
+        </field>
+        <field name="dhcpv6.option.type_str" showname="Option Request" size="6" pos="98" show="Option Request" value="000600020017">
+          <field name="dhcpv6.option.type" showname="Option: Option Request (6)" size="2" pos="98" show="6" value="0006"/>
+          <field name="dhcpv6.option.length" showname="Length: 2" size="2" pos="100" show="2" value="0002"/>
+          <field name="dhcpv6.requested_option_code" showname="Requested Option code: DNS recursive name server (23)" size="2" pos="102" show="23" value="0017"/>
+        </field>
+      </proto>
+    </field>
+    <field name="dhcpv6.option.type_str" showname="Relay Message" size="14" pos="104" show="Relay Message" value="0009000a07123456000d00020000">
+      <field name="dhcpv6.option.type" showname="Option: Relay Message (9)" size="2" pos="104" show="9" value="0009"/>
+      <field name="dhcpv6.option.length" showname="Length: 10" size="2" pos="106" show="10" value="000a"/>
+      <proto name="dhcpv6" showname="DHCPv6" size="10" pos="108">
+        <field name="dhcpv6.msgtype" showname="Message type: Reply (7)" size="1" pos="108" show="7" value="07"/>
+        <field name="dhcpv6.xid" showname="Transaction ID: 0x123456" size="3" pos="109" show="0x123456" value="123456"/>
+        <field name="dhcpv6.option.type_str" showname="Status code" size="6" pos="112" show="Status code" value="000d00020000">
+          <field name="dhcpv6.option.type" showname="Option: Status code (13)" size="2" pos="112" show="13" value="000d"/>
+          <field name="dhcpv6.option.length" showname="Length: 2" size="2" pos="114" show="2" value="0002"/>
+          <field name="dhcpv6.status_code" showname="Status Code: Success (0)" size="2" pos="116" show="0" value="0000"/>
+        </field>
+      </proto>
+    </field>
+  </proto>
+</packet>
+
+
+</pdml>

@@ -1,0 +1,215 @@
+[
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tcp.segment_data": [
+          "00"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tcp.pdu.size": [
+          "31"
+        ],
+        "tcp.segment_data": [
+          "1d123401000001000000000000076578616d706c6503636f6d0000010001"
+        ],
+        "tcp.reassembled.length": [
+          "31"
+        ],
+        "dns.length": [
+          "29"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tcp.segment_data": [
+          "001d"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tcp.pdu.size": [
+          "31"
+        ],
+        "tcp.segment_data": [
+          "123401000001000000000000076578616d706c6503636f6d0000010001"
+        ],
+        "tcp.reassembled.length": [
+          "31"
+        ],
+        "dns.length": [
+          "29"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tcp.segment_data": [
+          "160301"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tcp.segment_data": [
+          "009d0100009903031111111111111111111111111111111111111111111111111111111111111111202222222222222222222222222222222222222222222222222222222222222222000a130113021303c02bc02f0100004600000010000e00000b6578616d706c652e636f6d001000050003026832000d00080006040308040401000a00080006001d00170018000b000403000102002b00050403040303"
+        ],
+        "tcp.reassembled.length": [
+          "162"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tcp.segment_data": [
+          "160301009d0100009903031111111111111111111111111111111111111111111111111111111111111111202222222222222222222222222222222222222222222222222222222222222222000a130113"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tcp.segment_data": [
+          "021303c02bc02f0100004600000010000e00000b6578616d706c652e636f6d001000050003026832000d00080006040308040401000a00080006001d00170018000b000403000102002b00050403040303"
+        ],
+        "tcp.reassembled.length": [
+          "162"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tcp.segment_data": [
+          "474554202f73706c697420485454502f312e310d0a486f73743a2073706c69742e65"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tcp.segment_data": [
+          "78616d706c650d0a436f6e74656e742d4c656e6774683a20350d0a0d0a68656c6c6f"
+        ],
+        "tcp.reassembled.length": [
+          "68"
+        ],
+        "http.request.uri": [
+          "/split"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tcp.segment_data": [
+          "474554202f73706c697420485454502f312e310d0a486f73743a2073706c69742e6578616d706c650d0a436f6e74"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tcp.segment_data": [
+          "656e742d4c656e6774683a20350d0a0d0a68656c6c6f"
+        ],
+        "tcp.reassembled.length": [
+          "68"
+        ],
+        "http.request.uri": [
+          "/split"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {}
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {}
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tcp.segment_data": [
+          "ffffffffffffffffffffffffffffffff004002"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "tcp.pdu.size": [
+          "64"
+        ],
+        "tcp.segment_data": [
+          "0002080a001f400101004002060202fde8fde9400304c0000201c00808000100020003000418cb007118c63364"
+        ],
+        "tcp.reassembled.length": [
+          "64"
+        ],
+        "bgp.type": [
+          "2"
+        ]
+      }
+    }
+  }
+]

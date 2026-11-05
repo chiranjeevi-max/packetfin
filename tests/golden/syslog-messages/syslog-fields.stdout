@@ -1,0 +1,6 @@
+1	20	5	1	2023-11-14T22:13:20.123456000+0000		host.example.com	evntslog	1234	An application event log entry	ID47	1	1	exampleSDID@32473	1,1,1	iut,eventSource,eventID	3,Application,1011	
+2	4	2	1	2023-11-14T22:13:21.000000000+0000		edge-1	su	-	su root failed	ID48	1						
+3	4	2			Oct 11 22:14:15	mymachine		su	 'su root' failed for lonvick								
+4	1	5	1	2023-11-14T20:13:22.000000000+0000		host	app	99	[meta@1 key="value" seq="42"][other@2 x="y"]hello	MSG							1
+5	4	2	1	2023-11-14T22:13:24.000000000+0000		host	app	7	caf�� ����	ID50	1						
+6	0	0	1	2023-11-14T22:13:25.000000000+0000		h	a	p	hi	m	1						

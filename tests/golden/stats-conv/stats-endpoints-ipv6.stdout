@@ -1,0 +1,7 @@
+================================================================================
+IPv6 Endpoints
+Filter:<No Filter>
+                       | Packets | |  Bytes  | | Tx Packets | | Tx Bytes | | Rx Packets | | Rx Bytes |
+2001:db8::10                    1   67 bytes            1      67 bytes             0      0 bytes     
+2001:db8::20                    1   67 bytes            0      0 bytes              1      67 bytes    
+================================================================================

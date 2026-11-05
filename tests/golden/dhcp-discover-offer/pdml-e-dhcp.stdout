@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<?xml-stylesheet type="text/xsl" href="pdml2html.xsl"?>
+<!-- normalized -->
+<pdml version="0" creator="creator" time="time" capture_file="tests/fixtures/dhcp-discover-offer.pcap">
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="379">
+    <field name="num" pos="0" show="1" showname="Number" value="1" size="379"/>
+    <field name="len" pos="0" show="379" showname="Frame Length" value="17b" size="379"/>
+    <field name="caplen" pos="0" show="379" showname="Captured Length" value="17b" size="379"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:20.123456000 UTC" showname="Captured Time" value="1700000000.123456000" size="379"/>
+  </proto>
+  <field name="dhcp.id" value="0x12345678"/>
+</packet>
+
+
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="351">
+    <field name="num" pos="0" show="2" showname="Number" value="2" size="351"/>
+    <field name="len" pos="0" show="351" showname="Frame Length" value="15f" size="351"/>
+    <field name="caplen" pos="0" show="351" showname="Captured Length" value="15f" size="351"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:20.123457000 UTC" showname="Captured Time" value="1700000000.123457000" size="351"/>
+  </proto>
+  <field name="dhcp.id" value="0x12345678"/>
+</packet>
+
+
+</pdml>

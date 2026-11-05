@@ -1,0 +1,18 @@
+1	22		1				
+2	22		2				
+3	20						
+4	22	0	8				
+5	22	1	20	aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa			
+6	20						
+7	22	0	20	bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb			
+8	23	0			Hypertext Transfer Protocol	/before	
+9	23	0			Hypertext Transfer Protocol	/before	200
+10							
+11	22	1					
+12	22	2	24				
+13	23	1			Hypertext Transfer Protocol		
+14							
+15	23	2			Hypertext Transfer Protocol	/after	
+16	23	0			Hypertext Transfer Protocol		
+17							
+18	23	1			Hypertext Transfer Protocol	/after	200

@@ -1,0 +1,1 @@
+upper(frame.interface_name) == "ETH0"

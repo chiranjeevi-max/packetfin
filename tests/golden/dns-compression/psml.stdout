@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<psml version="0" creator="creator">
+<structure>
+<section>No.</section>
+<section>Time</section>
+<section>Source</section>
+<section>Destination</section>
+<section>Protocol</section>
+<section>Length</section>
+<section>Info</section>
+</structure>
+
+<packet>
+<section>1</section>
+<section>0.000000</section>
+<section>192.0.2.1</section>
+<section>198.51.100.2</section>
+<section>DNS</section>
+<section>125</section>
+<section>Standard query response 0x0002 A example.com A 192.0.2.10 CNAME example.com NS ns1.example.com</section>
+</packet>
+
+<packet>
+<section>2</section>
+<section>1.000000</section>
+<section>192.0.2.1</section>
+<section>198.51.100.2</section>
+<section>DNS</section>
+<section>65</section>
+<section>Standard query 0x0003 A abc</section>
+</packet>
+
+</psml>

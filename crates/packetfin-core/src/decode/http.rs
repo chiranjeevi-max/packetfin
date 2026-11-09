@@ -19,14 +19,11 @@
 use crate::decode::DecodeContext;
 use crate::export::ObjectName;
 use crate::fields;
-use crate::http_syntax::{MAX_HEADER_BYTES, StartLine, parse_start_line};
+use crate::http_syntax::{
+    Answer, BodyPlan, ChunkScanner, ChunkStep, Framing, HeaderBudget, HeaderLine, StartLine,
+    continuation_at, next_line, parse_header_line, parse_start_line,
+};
 use crate::tree::{Bytes, ExpertInfo, Group, HexShowname, Node, Range, Severity, Value};
-
-/// Header lines retained for one message.
-///
-/// The cap keeps a hostile message from producing unbounded string fields; a
-/// longer block is left undecoded.
-const MAX_HEADER_LINES: usize = 256;
 
 /// Unnamed start-line or chunk field, which PDML prints with `name=""`.
 static UNNAMED_FIELD: fields::FieldDef = fields::FieldDef {
@@ -58,7 +55,7 @@ static CHUNKED_BODY: fields::FieldDef = fields::FieldDef {
 /// version instead of matching a fixed method list; a rejected payload keeps
 /// its existing output.
 pub(crate) fn looks_like_http(data: &[u8]) -> bool {
-    let Some((line, _)) = split_line(data) else {
+    let Some((line, _)) = next_line(data, 0) else {
         return false;
     };
     parse_start_line(line).is_some()
@@ -106,7 +103,7 @@ pub(crate) fn looks_like_http_stream_prefix(data: &[u8]) -> bool {
 /// The start line of an incomplete HTTP message, which sets the Info column
 /// before the whole header block arrives.
 pub(crate) fn partial_info(data: &[u8]) -> Option<String> {
-    let (line, _) = split_line(data)?;
+    let (line, _) = next_line(data, 0)?;
     match parse_start_line(line)? {
         StartLine::Request {
             method,
@@ -145,9 +142,15 @@ pub(crate) fn decode(context: &mut DecodeContext<'_>, parent: &mut Node, data: &
             context
                 .protocol_stack
                 .push(fields::HTTP_PROTOCOL.filter_name);
-            if let Some((skip, body)) = continuation_body(data) {
+            if let Some(continuation) = continuation_at(data) {
                 let excess = context.http_pdu_offset > 0;
-                add_continuation(context, parent, body, base.saturating_add(skip), excess);
+                add_continuation(
+                    context,
+                    parent,
+                    continuation.body,
+                    base.saturating_add(continuation.skip),
+                    excess,
+                );
                 context.columns.info = Some("Continuation".to_string());
             }
             context.depth = context.depth.saturating_sub(1);
@@ -217,19 +220,6 @@ pub(crate) fn decode(context: &mut DecodeContext<'_>, parent: &mut Node, data: &
     }
 }
 
-/// One parsed header line.
-struct Header<'a> {
-    name: &'a str,
-    value: &'a str,
-    raw: &'a [u8],
-    /// Offset of the line within the message, after the start line.
-    offset: usize,
-    /// Whether the line has a colon separator at all.
-    colon: bool,
-    /// Whether the part before the colon is a valid header name.
-    valid: bool,
-}
-
 /// A reassembly buffer and the message offset within it.
 type PduSource<'a> = (&'a Bytes, usize);
 
@@ -292,16 +282,6 @@ struct RequestMeta {
     method: String,
 }
 
-/// Split one LF-terminated line, removing a trailing CR.
-fn split_line(data: &[u8]) -> Option<(&[u8], usize)> {
-    let index = data.iter().position(|byte| *byte == b'\n')?;
-    let mut line = data.get(..index)?;
-    if let Some(stripped) = line.strip_suffix(b"\r") {
-        line = stripped;
-    }
-    Some((line, index.saturating_add(1)))
-}
-
 /// Options controlling one message parse.
 struct MessageOptions<'a> {
     tls_plaintext: bool,
@@ -320,164 +300,142 @@ fn parse_message(data: &[u8], base: usize, options: &MessageOptions<'_>) -> Opti
     let export = options.export;
     let fin = options.fin;
     let source = options.source;
-    let (start, start_end) = split_line(data)?;
+    let (start, start_end) = next_line(data, 0)?;
     let start_line = parse_start_line(start)?;
     let start_text = std::str::from_utf8(start).ok()?;
 
-    let mut headers: Vec<Header<'_>> = Vec::new();
+    let mut headers: Vec<HeaderLine<'_>> = Vec::new();
+    let mut budget = HeaderBudget::default();
     let mut offset = start_end;
-    let mut header_bytes = 0_usize;
     loop {
-        let (line, consumed) = split_line(data.get(offset..)?)?;
-        header_bytes = header_bytes.saturating_add(consumed);
-        if header_bytes > MAX_HEADER_BYTES || headers.len() >= MAX_HEADER_LINES {
+        let (line, consumed) = next_line(data, offset)?;
+        let line_offset = offset;
+        let field = !line.is_empty();
+        if !budget.take(consumed, field) {
             return None;
         }
-        let line_offset = offset;
         offset = offset.saturating_add(consumed);
-        if line.is_empty() {
+        if !field {
             break;
         }
-        headers.push(parse_header(line, line_offset));
+        headers.push(parse_header_line(line, line_offset));
     }
 
     let method = match &start_line {
         StartLine::Request { method, .. } => Some(*method),
         StartLine::Response { .. } => None,
     };
-    let status = match &start_line {
-        StartLine::Response { code, .. } => Some(*code),
-        StartLine::Request { .. } => None,
+    let framing = Framing::of(start, headers.iter().copied());
+    let answer = Answer {
+        head: response_to_head,
+        connect: response_to_connect,
     };
-    // Update one Content-Length state per header in wire order: a valid
-    // value is remembered and an invalid duplicate clears it. A cleared
-    // state makes a response body extend to the end of the segment.
-    let mut content_length = None;
-    let mut content_length_invalid = false;
-    for header in &headers {
-        if header.valid && header.name.eq_ignore_ascii_case("Content-Length") {
-            match header.value.parse::<usize>() {
-                Ok(value) => {
-                    content_length = Some(value);
-                    content_length_invalid = false;
-                }
-                Err(_) => {
-                    content_length = None;
-                    content_length_invalid = true;
-                }
-            }
-        }
-    }
-    let chunked = headers.iter().any(|header| {
-        header.name.eq_ignore_ascii_case("Transfer-Encoding")
-            && header.value.to_ascii_lowercase().contains("chunked")
-    });
-    let status_bodyless =
-        status.is_some_and(|code| (100..200).contains(&code) || code == 204 || code == 304);
-    let head_response = status.is_some() && response_to_head;
-    let connect_response =
-        response_to_connect && status.is_some_and(|code| (200..300).contains(&code));
-    let bodyless = status_bodyless
-        || head_response
-        || connect_response
+    let plan = framing.body_plan(answer);
+    let bodyless = framing.status_bodyless()
+        || framing.answers_head(answer)
+        || framing.answers_connect(answer)
         || method.is_some_and(|method| method.eq_ignore_ascii_case("HEAD"));
 
     let mut body = None;
     let consumed;
-    if status_bodyless || head_response || connect_response {
-        // A status that never carries a body (1xx, 204, 304) or a response to
-        // HEAD ignores the declared length for delimiting. The available bytes
-        // still become file data: a response to HEAD exports what the segment
-        // carries (RFC 7230 forbids the body, but the body length comes from
-        // the bytes, not the method), while a bodyless status exports nothing.
-        let end = match (content_length, head_response || connect_response) {
-            (Some(length), _) => offset.saturating_add(length).min(data.len()),
-            (None, true) => data.len(),
-            (None, false) => offset,
-        };
-        let bytes = data.get(offset..end).unwrap_or(&[]);
-        body = Some(Body {
-            offset,
-            end,
-            bytes: shared_bytes(source, offset, bytes),
-            chunked: false,
-            exportable: end > offset,
-            chunks: Vec::new(),
-            trailer_end: None,
-            trailers: Vec::new(),
-        });
-        consumed = end;
-    } else if chunked {
-        let (bytes, length, chunks, trailer_end, trailers, truncated) = parse_chunked(
-            data.get(offset..)?,
-            fin,
-            source.map(|(bytes, base)| (bytes, base.saturating_add(offset))),
-        )?;
-        let end = if truncated {
-            data.len()
-        } else {
-            offset.saturating_add(length)
-        };
-        body = Some(Body {
-            offset,
-            end,
-            bytes: Bytes::from(bytes),
-            chunked: true,
-            exportable: !status_bodyless && (!chunks.is_empty() || !truncated),
-            chunks,
-            trailer_end,
-            trailers,
-        });
-        consumed = end;
-    } else if let Some(length) = content_length {
-        let end = offset.checked_add(length)?;
-        let bytes = data.get(offset..end)?;
-        body = Some(Body {
-            offset,
-            end,
-            bytes: shared_bytes(source, offset, bytes),
-            chunked: false,
-            exportable: true,
-            chunks: Vec::new(),
-            trailer_end: None,
-            trailers: Vec::new(),
-        });
-        consumed = end;
-    } else if bodyless || method.is_some() {
-        // A request without Content-Length or Transfer-Encoding has no body
-        // (RFC 7230 section 3.3.3).
-        consumed = offset;
-    } else if content_length_invalid {
-        // A response whose last Content-Length was unusable keeps the rest of
-        // the segment as body data, because its length state is cleared.
-        let bytes = data.get(offset..)?;
-        body = Some(Body {
-            offset,
-            end: data.len(),
-            bytes: shared_bytes(source, offset, bytes),
-            chunked: false,
-            exportable: true,
-            chunks: Vec::new(),
-            trailer_end: None,
-            trailers: Vec::new(),
-        });
-        consumed = data.len();
-    } else {
-        // A close-delimited response keeps the bytes available here as its
-        // body; the stream layer completes it at FIN, and a direct decode
-        // (for example with desegmentation disabled) takes the remainder.
-        let bytes = data.get(offset..).unwrap_or_default();
-        body = Some(Body {
-            offset,
-            end: data.len(),
-            bytes: shared_bytes(source, offset, bytes),
-            chunked: false,
-            exportable: true,
-            chunks: Vec::new(),
-            trailer_end: None,
-            trailers: Vec::new(),
-        });
-        consumed = data.len();
+    match plan {
+        BodyPlan::Empty => {
+            // A request without framing fields has no body, and a bodyless
+            // status owns nothing after its header section (RFC 9112
+            // section 6.3 cases 1 and 6).
+            consumed = offset;
+        }
+        BodyPlan::Answer(declared) => {
+            // The message has no body, but the bytes the segment carried
+            // still belong to it: the declared length caps them when present,
+            // and a HEAD/CONNECT answer owns everything captured.
+            let end = declared.map_or(data.len(), |length| {
+                offset.saturating_add(length).min(data.len())
+            });
+            let bytes = data.get(offset..end).unwrap_or(&[]);
+            body = Some(Body {
+                offset,
+                end,
+                bytes: shared_bytes(source, offset, bytes),
+                chunked: false,
+                exportable: end > offset,
+                chunks: Vec::new(),
+                trailer_end: None,
+                trailers: Vec::new(),
+            });
+            consumed = end;
+        }
+        BodyPlan::Fixed(length) => {
+            let end = offset.checked_add(length)?;
+            let bytes = data.get(offset..end)?;
+            body = Some(Body {
+                offset,
+                end,
+                bytes: shared_bytes(source, offset, bytes),
+                chunked: false,
+                exportable: true,
+                chunks: Vec::new(),
+                trailer_end: None,
+                trailers: Vec::new(),
+            });
+            consumed = end;
+        }
+        BodyPlan::Chunked => {
+            let chunked_body = parse_chunked(
+                data.get(offset..)?,
+                fin,
+                source.map(|(bytes, base)| (bytes, base.saturating_add(offset))),
+            )?;
+            let end = if chunked_body.truncated {
+                data.len()
+            } else {
+                offset.saturating_add(chunked_body.end)
+            };
+            body = Some(Body {
+                offset,
+                end,
+                bytes: Bytes::from(chunked_body.bytes),
+                chunked: true,
+                exportable: !chunked_body.chunks.is_empty() || !chunked_body.truncated,
+                chunks: chunked_body.chunks,
+                trailer_end: chunked_body.trailer_end,
+                trailers: chunked_body.trailers,
+            });
+            consumed = end;
+        }
+        BodyPlan::InvalidLength => {
+            // The declared length is unusable, so the captured remainder stays
+            // with the message rather than being guessed at.
+            let bytes = data.get(offset..)?;
+            body = Some(Body {
+                offset,
+                end: data.len(),
+                bytes: shared_bytes(source, offset, bytes),
+                chunked: false,
+                exportable: true,
+                chunks: Vec::new(),
+                trailer_end: None,
+                trailers: Vec::new(),
+            });
+            consumed = data.len();
+        }
+        BodyPlan::CloseDelimited => {
+            // A close-delimited response keeps the bytes available here as its
+            // body; the stream layer completes it at FIN, and a direct decode
+            // (for example with desegmentation disabled) takes the remainder.
+            let bytes = data.get(offset..).unwrap_or_default();
+            body = Some(Body {
+                offset,
+                end: data.len(),
+                bytes: shared_bytes(source, offset, bytes),
+                chunked: false,
+                exportable: true,
+                chunks: Vec::new(),
+                trailer_end: None,
+                trailers: Vec::new(),
+            });
+            consumed = data.len();
+        }
     }
 
     let mut node = Node::new(&fields::HTTP_PROTOCOL, Range::new(base, consumed));
@@ -753,36 +711,8 @@ fn parse_message(data: &[u8], base: usize, options: &MessageOptions<'_>) -> Opti
     })
 }
 
-/// Split a header line at its colon and validate the field name.
-fn parse_header<'a>(line: &'a [u8], offset: usize) -> Header<'a> {
-    let Some(colon) = line.iter().position(|byte| *byte == b':') else {
-        return Header {
-            name: "",
-            value: "",
-            raw: line,
-            offset,
-            colon: false,
-            valid: false,
-        };
-    };
-    let name = line.get(..colon).unwrap_or(&[]);
-    let value = line.get(colon.saturating_add(1)..).unwrap_or(&[]);
-    let valid = !name.is_empty()
-        && name
-            .iter()
-            .all(|byte| byte.is_ascii_alphanumeric() || b"!#$%&'*+-.^_`|~".contains(byte));
-    Header {
-        name: std::str::from_utf8(name).unwrap_or(""),
-        value: std::str::from_utf8(value).map(str::trim).unwrap_or(""),
-        raw: line,
-        offset,
-        colon: true,
-        valid,
-    }
-}
-
 /// Add the named header field and the hidden raw-line field.
-fn add_header_fields(node: &mut Node, header: &Header<'_>, base: usize, is_request: bool) {
+fn add_header_fields(node: &mut Node, header: &HeaderLine<'_>, base: usize, is_request: bool) {
     let showname = format!("{}\\r\\n", String::from_utf8_lossy(header.raw));
     let full_range = Range::new(base, header.raw.len().saturating_add(2));
     let def = curated_header(header.name);
@@ -832,103 +762,115 @@ fn curated_header(name: &str) -> Option<&'static fields::FieldDef> {
     })
 }
 
-type ParsedChunked = (
-    Vec<u8>,
-    usize,
-    Vec<Chunk>,
-    Option<usize>,
-    Vec<(usize, usize, String)>,
-    bool,
-);
+/// One chunked body's de-chunked bytes and the records the field tree shows.
+struct ChunkedBody {
+    /// De-chunked body bytes, in wire order.
+    bytes: Vec<u8>,
+    /// Offset just past the trailer section's empty line.
+    end: usize,
+    /// Chunk records, including the final zero-size chunk.
+    chunks: Vec<Chunk>,
+    /// Offset just past the trailer terminator, when the body completed.
+    trailer_end: Option<usize>,
+    /// Trailer field lines: offset, length and text within the body.
+    trailers: Vec<(usize, usize, String)>,
+    /// The body stopped at the end of the stream before its last chunk.
+    truncated: bool,
+}
 
 /// Parse a chunked body, or `None` when it does not fit the segment.
 ///
 /// At end of stream (`tolerate_truncated`) the complete chunk prefix is
-/// returned with the final flag set, so those bytes are exported even when the
-/// terminating zero chunk never arrived.
+/// returned with the truncated flag set, so those bytes are exported even when
+/// the terminating zero chunk never arrived. An unusable size line ends the
+/// entity at the bytes already read, the way a peer that stops sending
+/// mid-body ends it.
 fn parse_chunked(
     data: &[u8],
     tolerate_truncated: bool,
     source: Option<PduSource<'_>>,
-) -> Option<ParsedChunked> {
+) -> Option<ChunkedBody> {
+    let mut scanner = ChunkScanner::new(0);
     let mut chunks = Vec::new();
-    let mut body = Vec::with_capacity(data.len());
-    let mut offset = 0_usize;
-    let truncated = |body: Vec<u8>, offset: usize, chunks: Vec<Chunk>| {
-        tolerate_truncated.then_some((body, offset, chunks, None, Vec::new(), true))
-    };
+    let mut bytes = Vec::with_capacity(data.len());
+    let mut trailers = Vec::new();
     loop {
-        let Some((line, consumed)) = data.get(offset..).and_then(split_line) else {
-            return truncated(body, offset, chunks);
-        };
-        let Some(size_text) =
-            std::str::from_utf8(line.split(|byte| *byte == b';').next().unwrap_or(&[]))
-                .ok()
-                .map(str::trim)
-        else {
-            return truncated(body, offset, chunks);
-        };
-        let Ok(size) = u32::from_str_radix(size_text, 16) else {
-            // Treat an unusable chunk size as the end of the chunked entity
-            // and export the prefix (empty when the first line is bad), even
-            // without a terminating zero chunk.
-            return Some((body, data.len(), chunks, None, Vec::new(), false));
-        };
-        let size = usize::try_from(size).unwrap_or(usize::MAX);
-        let chunk_offset = offset;
-        offset = offset.saturating_add(consumed);
-        if size == 0 {
-            // Trailer fields end at the blank line.
-            let mut trailers = Vec::new();
-            let trailer_end = loop {
-                let line_start = offset;
-                let Some((trailer, consumed)) = data.get(offset..).and_then(split_line) else {
-                    return truncated(body, offset, chunks);
-                };
-                offset = offset.saturating_add(consumed);
-                if trailer.is_empty() {
-                    break offset;
-                }
+        match scanner.step(data, data.len()) {
+            ChunkStep::Data {
+                line,
+                size,
+                data: data_offset,
+                bytes: chunk_data,
+                boundary,
+                ..
+            } => {
+                // A declared chunk that fits the segment always fits the field
+                // type; the conversion only rejects an impossible size.
+                let size = u32::try_from(size).ok()?;
+                bytes.extend_from_slice(chunk_data);
+                chunks.push(Chunk {
+                    size,
+                    offset: line,
+                    data: shared_bytes(source, data_offset, chunk_data),
+                    data_offset,
+                    boundary_offset: boundary,
+                    final_chunk: false,
+                });
+            }
+            ChunkStep::Last { .. } => {}
+            ChunkStep::Trailer { line, consumed } => {
+                let text = data
+                    .get(line..line.saturating_add(consumed))
+                    .unwrap_or_default();
+                let text = text.strip_suffix(b"\r\n").unwrap_or(text);
                 trailers.push((
-                    line_start,
+                    line,
                     consumed,
-                    format!("{}\r\n", String::from_utf8_lossy(trailer)),
+                    format!("{}\r\n", String::from_utf8_lossy(text)),
                 ));
-            };
-            chunks.push(Chunk {
-                size: 0,
-                offset: chunk_offset,
-                data: Bytes::default(),
-                data_offset: offset,
-                boundary_offset: offset.saturating_sub(2),
-                final_chunk: true,
-            });
-            return Some((body, offset, chunks, Some(trailer_end), trailers, false));
+            }
+            ChunkStep::TrailerEnd { end, last } => {
+                chunks.push(Chunk {
+                    size: 0,
+                    offset: last,
+                    data: Bytes::default(),
+                    data_offset: end,
+                    boundary_offset: end.saturating_sub(2),
+                    final_chunk: true,
+                });
+                return Some(ChunkedBody {
+                    bytes,
+                    end,
+                    chunks,
+                    trailer_end: Some(end),
+                    trailers,
+                    truncated: false,
+                });
+            }
+            ChunkStep::Incomplete { restart, .. } => {
+                return tolerate_truncated.then_some(ChunkedBody {
+                    bytes,
+                    end: restart,
+                    chunks,
+                    trailer_end: None,
+                    trailers: Vec::new(),
+                    truncated: true,
+                });
+            }
+            ChunkStep::Invalid { .. } => {
+                // An unusable chunk size terminates the chunked entity: the
+                // records read so far stay, and the rest of the segment is
+                // consumed so it cannot reopen as another message.
+                return Some(ChunkedBody {
+                    bytes,
+                    end: data.len(),
+                    chunks,
+                    trailer_end: None,
+                    trailers: Vec::new(),
+                    truncated: false,
+                });
+            }
         }
-        let data_end = offset.checked_add(size)?;
-        let boundary_end = data_end.checked_add(2)?;
-        let Some(chunk_data) = data.get(offset..data_end) else {
-            return truncated(body, offset, chunks);
-        };
-        let Some(boundary) = data.get(data_end..boundary_end) else {
-            return truncated(body, offset, chunks);
-        };
-        // Keep the declared chunk even when its terminating CRLF is
-        // malformed; continue at the next size line.
-        let boundary_ok = boundary == b"\r\n";
-        body.extend_from_slice(chunk_data);
-        chunks.push(Chunk {
-            size: u32::try_from(size).ok()?,
-            offset: chunk_offset,
-            data: shared_bytes(source, offset, chunk_data),
-            data_offset: offset,
-            boundary_offset: data_end,
-            final_chunk: false,
-        });
-        if !boundary_ok {
-            // Skip the two non-conforming bytes and look for the next chunk.
-        }
-        offset = boundary_end;
     }
 }
 
@@ -1216,28 +1158,6 @@ fn stream_decompressed<R: std::io::Read>(
     }
 }
 
-/// The body of an HTTP continuation and the bytes to skip.
-///
-/// One leading CRLF is ignored, and a first line that begins a request or
-/// response is a message rather than a continuation.
-fn continuation_body(data: &[u8]) -> Option<(usize, &[u8])> {
-    let skip = if data.starts_with(b"\r\n") { 2 } else { 0 };
-    let probe = data.get(skip..)?;
-    let first = *probe.first()?;
-    if !(0x20..=0x7e).contains(&first) {
-        return None;
-    }
-    let newline = probe.iter().position(|byte| *byte == b'\n')?;
-    let mut line = probe.get(..newline)?;
-    if let Some(stripped) = line.strip_suffix(b"\r") {
-        line = stripped;
-    }
-    if parse_start_line(line).is_some() {
-        return None;
-    }
-    Some((skip, probe))
-}
-
 /// Add the `Continuation` node and export its file data.
 fn add_continuation(
     context: &mut DecodeContext<'_>,
@@ -1436,6 +1356,7 @@ fn media_suffix_for(content_type: &str) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::http_syntax::MAX_HEADER_LINES;
 
     #[test]
     fn published_start_line_forms_are_recognized() {

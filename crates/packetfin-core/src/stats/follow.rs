@@ -22,6 +22,7 @@
 use std::fmt;
 use std::net::{Ipv4Addr, Ipv6Addr};
 
+use crate::http_syntax::{ChunkScanner, ChunkStep, Framing, header_section_end};
 use crate::state::{StreamAddress, StreamKey};
 
 /// Per-follow-specification retained chunk bytes.
@@ -847,39 +848,36 @@ fn split_http_segments(message: &[u8]) -> Vec<Vec<u8>> {
     let mut offset = 0_usize;
     while offset < message.len() {
         let rest = message.get(offset..).unwrap_or_default();
-        let Some(header_length) = rest
-            .windows(4)
-            .position(|window| window == b"\r\n\r\n")
-            .map(|index| index + 4)
-        else {
+        let Some(header_length) = header_section_end(rest) else {
             records.push(rest.to_vec());
             break;
         };
         let header = rest.get(..header_length).unwrap_or_default();
-        let response = header.starts_with(b"HTTP/1.");
+        let framing = Framing::of_block(header);
         records.push(header.to_vec());
         let body = rest.get(header_length..).unwrap_or_default();
-        let (content_length, chunked, no_body) = http_framing(header);
         if body.is_empty() {
-            if response && (chunked || content_length.is_some_and(|length| length > 0)) {
+            if framing.response
+                && (framing.chunked || framing.content_length.is_some_and(|length| length > 0))
+            {
                 // Without reassembly the tap queues an empty body when a
                 // header announces one but its body is in another segment.
                 records.push(Vec::new());
             }
             break;
         }
-        if chunked {
+        if framing.chunked {
             // The body segment keeps its chunk framing; only a dissected,
             // reassembled message is de-chunked.
             records.push(body.to_vec());
             break;
         }
-        let take = content_length.unwrap_or(body.len()).min(body.len());
+        let take = framing.content_length.unwrap_or(body.len()).min(body.len());
         if take > 0 {
             records.push(body.get(..take).unwrap_or_default().to_vec());
         }
         offset = offset.saturating_add(header_length).saturating_add(take);
-        if take == 0 && !no_body {
+        if take == 0 && !framing.status_bodyless() {
             break;
         }
     }
@@ -898,11 +896,7 @@ fn split_http_records(message: &[u8]) -> Vec<Vec<u8>> {
     let mut offset = 0_usize;
     while offset < message.len() {
         let rest = message.get(offset..).unwrap_or_default();
-        let Some(header_length) = rest
-            .windows(4)
-            .position(|window| window == b"\r\n\r\n")
-            .map(|index| index + 4)
-        else {
+        let Some(header_length) = header_section_end(rest) else {
             records.push(rest.to_vec());
             break;
         };
@@ -912,8 +906,8 @@ fn split_http_records(message: &[u8]) -> Vec<Vec<u8>> {
         if body.is_empty() {
             break;
         }
-        let (content_length, chunked, no_body) = http_framing(header);
-        if chunked {
+        let framing = Framing::of_block(header);
+        if framing.chunked {
             let (data, consumed) = dechunk(body);
             records.push(data);
             if consumed == 0 {
@@ -922,10 +916,10 @@ fn split_http_records(message: &[u8]) -> Vec<Vec<u8>> {
             offset = offset
                 .saturating_add(header_length)
                 .saturating_add(consumed);
-        } else if no_body {
+        } else if framing.status_bodyless() {
             offset = offset.saturating_add(header_length);
         } else {
-            let take = content_length.unwrap_or(body.len()).min(body.len());
+            let take = framing.content_length.unwrap_or(body.len()).min(body.len());
             if take > 0 {
                 records.push(body.get(..take).unwrap_or_default().to_vec());
             }
@@ -935,85 +929,28 @@ fn split_http_records(message: &[u8]) -> Vec<Vec<u8>> {
     records
 }
 
-fn http_framing(header: &[u8]) -> (Option<usize>, bool, bool) {
-    let text = String::from_utf8_lossy(header);
-    let mut lines = text.split("\r\n");
-    let start = lines.next().unwrap_or_default();
-    let no_body = start
-        .strip_prefix("HTTP/1.")
-        .and_then(|rest| rest.split_ascii_whitespace().next())
-        .and_then(|code| code.parse::<u16>().ok())
-        .is_some_and(|code| (100..200).contains(&code) || code == 204 || code == 304);
-    let mut content_length = None;
-    let mut chunked = false;
-    for line in lines {
-        let Some((name, value)) = line.split_once(':') else {
-            continue;
-        };
-        if name.eq_ignore_ascii_case("content-length") {
-            content_length = value.trim().parse::<usize>().ok();
-        } else if name.eq_ignore_ascii_case("transfer-encoding")
-            && value
-                .split(',')
-                .any(|coding| coding.trim().eq_ignore_ascii_case("chunked"))
-        {
-            chunked = true;
-        }
-    }
-    (content_length, chunked, no_body)
-}
-
 /// Concatenate one chunked body's data and report the bytes consumed.
 ///
 /// The de-chunked body is one record, not one per chunk, so a two-chunk
 /// response prints a single data block. An empty chunked body still queues
-/// an empty record.
+/// an empty record. An incomplete size line ends the record where it starts;
+/// an incomplete trailer section consumes the bytes the segment carries, so
+/// the record after it does not reprint trailer text as a message.
 fn dechunk(body: &[u8]) -> (Vec<u8>, usize) {
     let mut data = Vec::new();
-    let mut position = 0_usize;
+    let mut scanner = ChunkScanner::new(0);
     loop {
-        let Some(line_end) = body
-            .get(position..)
-            .and_then(|rest| rest.windows(2).position(|window| window == b"\r\n"))
-            .map(|index| position.saturating_add(index))
-        else {
-            return (data, position);
-        };
-        let size_text = body
-            .get(position..line_end)
-            .unwrap_or_default()
-            .split(|byte| *byte == b';')
-            .next()
-            .unwrap_or_default();
-        let Ok(size_text) = std::str::from_utf8(size_text) else {
-            return (data, position);
-        };
-        let Ok(size) = usize::from_str_radix(size_text.trim(), 16) else {
-            return (data, position);
-        };
-        position = line_end.saturating_add(2);
-        if size == 0 {
-            // Skip optional trailer fields up to the empty line.
-            loop {
-                let Some(line_end) = body
-                    .get(position..)
-                    .and_then(|rest| rest.windows(2).position(|window| window == b"\r\n"))
-                    .map(|index| position.saturating_add(index))
-                else {
-                    return (data, body.len());
-                };
-                let trailer = body.get(position..line_end).unwrap_or_default();
-                position = line_end.saturating_add(2);
-                if trailer.is_empty() {
-                    return (data, position);
-                }
+        match scanner.step(body, body.len()) {
+            ChunkStep::Data { bytes, .. } => data.extend_from_slice(bytes),
+            ChunkStep::Last | ChunkStep::Trailer { .. } => {}
+            ChunkStep::TrailerEnd { end, .. } => return (data, end),
+            ChunkStep::Incomplete {
+                restart, trailers, ..
+            } => {
+                return (data, if trailers { body.len() } else { restart });
             }
+            ChunkStep::Invalid { at } => return (data, at),
         }
-        let Some(chunk) = body.get(position..position.saturating_add(size)) else {
-            return (data, position);
-        };
-        data.extend_from_slice(chunk);
-        position = position.saturating_add(size).saturating_add(2);
     }
 }
 

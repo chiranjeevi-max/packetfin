@@ -42,7 +42,10 @@ use super::SessionState;
 use super::budget::StateValue;
 use super::conversation::ConversationKey;
 use crate::capture::Timestamp;
-use crate::http_syntax::MAX_HEADER_BYTES;
+use crate::http_syntax::{
+    Answer, BodyPlan, ChunkScanner, ChunkStep, Framing, MAX_HEADER_BYTES, continuation,
+    header_section_end, next_line,
+};
 use crate::tree::Bytes;
 
 /// DNS's `dns.retransmission_timer` default in nanoseconds.
@@ -1017,34 +1020,6 @@ enum FrameLength {
     FatalOversized(&'static str),
 }
 
-/// HTTP/1.x header framing parsed once per pending message.
-#[derive(Clone, Copy, Debug)]
-struct HttpFraming {
-    content_length: Option<usize>,
-    chunked: bool,
-    no_body: bool,
-    invalid_length: bool,
-    /// The start line is an HTTP/1.x response status line.
-    is_response: bool,
-    /// Status code from a response start line.
-    response_code: Option<u16>,
-}
-
-/// Position of the incremental chunked-body parser.
-#[derive(Clone, Copy, Debug)]
-struct ChunkedParse {
-    /// Absolute index of the next chunk-size or trailer line.
-    position: usize,
-    /// Data bytes still owed by the current chunk before its trailing CRLF.
-    pending: Option<usize>,
-    /// The zero-size chunk was seen; parsing trailer lines.
-    trailers: bool,
-    /// Absolute end of the bytes already searched for the current line's
-    /// CRLF. A long size or trailer line split across many segments is then
-    /// scanned once instead of from its start on every insert.
-    line_scan: usize,
-}
-
 /// Per-insert facts shared by the PDU loop.
 #[derive(Clone, Copy)]
 struct InsertState {
@@ -1092,9 +1067,9 @@ pub(crate) struct StreamBuffer {
     /// Absolute prefix examined for `header_end` with no match.
     header_scan: usize,
     /// Parsed framing of the pending header block.
-    header_framing: Option<HttpFraming>,
+    header_framing: Option<Framing>,
     /// Cursor of the pending chunked-body parser.
-    chunk_parse: Option<ChunkedParse>,
+    chunk_parse: Option<ChunkScanner>,
     /// Contributions from segments that supplied at least one new byte.
     contributions: Vec<Contribution>,
     /// Novel payload bytes retained outside the vectors above.
@@ -1523,7 +1498,7 @@ impl StreamBuffer {
         }
         let covered = contiguous.min(fin_end);
         let data = self.extract_prefix(covered);
-        let Some(header_end) = find_header_end(&data) else {
+        let Some(header_end) = header_section_end(&data) else {
             return;
         };
         let start_line_end = data
@@ -1543,24 +1518,14 @@ impl StreamBuffer {
         if !matches!(http_start(header), Some(HttpStart::Response(_))) {
             return;
         }
-        let HttpFraming {
-            content_length,
-            chunked,
-            no_body,
-            invalid_length,
-            ..
-        } = http_header_framing(header);
-        let head_response = self.head_pending && header.starts_with(b"HTTP/1.");
-        let connect_response = self.connect_pending
-            && header.starts_with(b"HTTP/1.")
-            && response_code(header).is_some_and(|code| (200..300).contains(&code));
+        // Only a response the rules delimit by the connection close belongs to
+        // this path (RFC 9112 section 6.3 case 7); every other framing ends the
+        // message earlier and was already emitted.
         if covered == 0
-            || no_body
-            || head_response
-            || connect_response
-            || chunked
-            || invalid_length
-            || content_length.is_some()
+            || !matches!(
+                Framing::of_block(header).body_plan(self.answer()),
+                BodyPlan::CloseDelimited
+            )
         {
             return;
         }
@@ -1898,7 +1863,7 @@ impl StreamBuffer {
             if header_end > start_line
                 && let Some(header) = self.data.get(self.head..self.head + header_end)
             {
-                self.header_framing = Some(http_header_framing(header));
+                self.header_framing = Some(Framing::of_block(header));
             }
         }
     }
@@ -1928,12 +1893,18 @@ impl StreamBuffer {
         let Some(framing) = self.header_framing else {
             return false;
         };
-        let is_response = self
-            .data
-            .get(self.head..self.head.saturating_add(7))
-            .is_some_and(|prefix| prefix == b"HTTP/1.");
-        let head_response = self.head_pending && is_response;
-        !framing.no_body && !head_response && (framing.chunked || framing.content_length.is_some())
+        matches!(
+            framing.body_plan(self.answer()),
+            BodyPlan::Fixed(_) | BodyPlan::Chunked
+        )
+    }
+
+    /// The peer-request facts the framing rules need (RFC 9112 section 6.3).
+    fn answer(&self) -> Answer {
+        Answer {
+            head: self.head_pending,
+            connect: self.connect_pending,
+        }
     }
 
     /// The pending PDU's first line, when one is buffered.
@@ -2112,7 +2083,7 @@ impl StreamBuffer {
         let continuation = {
             let window = self.window_data();
             let data = window.get(..covered).unwrap_or_default();
-            http_continuation_length(data, self.relative_continuation_newline())
+            continuation(data, self.relative_continuation_newline()).map(|_| data.len())
         };
         if let Some(length) = continuation {
             // Bytes that cannot begin a message are a "file data"
@@ -2144,28 +2115,21 @@ impl StreamBuffer {
             // block is complete.
             return FrameLength::Oversized(limit);
         };
-        let head_response = self.head_pending && framing.is_response;
-        let connect_response = self.connect_pending
-            && framing.is_response
-            && framing
-                .response_code
-                .is_some_and(|code| (200..300).contains(&code));
+        let plan = framing.body_plan(self.answer());
+        let available = covered.saturating_sub(header_end);
         if header_end.saturating_sub(start_line_end) > MAX_HEADER_BYTES {
             // The decoder will not accept this header, but its framing still
             // says where the message ends. Skip the whole message; never hand
             // partial framing to the decoder.
-            if framing.no_body || head_response || connect_response {
-                return FrameLength::HeaderOversized(header_end);
-            }
-            if let Some(length) = framing.content_length {
-                return FrameLength::HeaderOversized(header_end.saturating_add(length));
-            }
-            if !framing.is_response {
-                // A request without a length delimiter has no body.
-                return FrameLength::HeaderOversized(header_end);
-            }
-            if framing.chunked {
-                return match self.chunked_body_end(header_end, covered, limit) {
+            return match plan {
+                // A bodyless status, or an answer to HEAD or CONNECT, ends at
+                // the header section: a declared length describes a body the
+                // message does not carry.
+                BodyPlan::Empty | BodyPlan::Answer(_) => FrameLength::HeaderOversized(header_end),
+                BodyPlan::Fixed(length) => {
+                    FrameLength::HeaderOversized(header_end.saturating_add(length))
+                }
+                BodyPlan::Chunked => match self.chunked_body_end(header_end, covered, limit) {
                     ChunkedEnd::Complete(end) => FrameLength::HeaderOversized(end),
                     ChunkedEnd::NeedMore => {
                         if let Some(end) = fin_end {
@@ -2183,84 +2147,74 @@ impl StreamBuffer {
                     ChunkedEnd::TooLarge | ChunkedEnd::Invalid => {
                         FrameLength::FatalOversized("1 MiB header")
                     }
-                };
-            }
-            if framing.invalid_length {
-                return FrameLength::FatalOversized("1 MiB header");
-            }
-            // A close-delimited response needs FIN to know its end.
-            if let Some(end) = fin_end {
-                if covered < end {
+                },
+                // An unusable length has no declared end to skip over.
+                BodyPlan::InvalidLength => FrameLength::FatalOversized("1 MiB header"),
+                // A close-delimited response needs FIN to know its end.
+                BodyPlan::CloseDelimited => {
+                    if let Some(end) = fin_end {
+                        if covered < end {
+                            return FrameLength::NeedMore;
+                        }
+                        return FrameLength::HeaderOversized(end);
+                    }
+                    if covered >= limit {
+                        return FrameLength::FatalOversized("1 MiB header");
+                    }
                     return FrameLength::NeedMore;
                 }
-                return FrameLength::HeaderOversized(end);
-            }
-            if covered >= limit {
-                return FrameLength::FatalOversized("1 MiB header");
-            }
-            return FrameLength::NeedMore;
-        }
-        if framing.no_body || head_response || connect_response {
-            // A bodyless status or a response to HEAD carries no body even
-            // when the header advertises a length. The bytes already present
-            // still count as file data and the consumed length is clamped, so
-            // they do not reopen as another message. A response to HEAD
-            // consumes everything the segment carries, because the body
-            // length comes from the bytes rather than the method.
-            let available = covered.saturating_sub(header_end);
-            let consumed = if head_response || connect_response {
-                framing
-                    .content_length
-                    .map_or(available, |length| length.min(available))
-            } else {
-                framing
-                    .content_length
-                    .map_or(0, |length| length.min(available))
             };
-            return FrameLength::Complete(header_end.saturating_add(consumed));
         }
-        if framing.chunked {
-            match self.chunked_body_end(header_end, covered, limit) {
+        match plan {
+            BodyPlan::Empty => FrameLength::Complete(header_end),
+            BodyPlan::Answer(declared) => {
+                // The bytes already present still count as file data and the
+                // consumed length is clamped, so they do not reopen as another
+                // message. A response to HEAD or CONNECT consumes everything
+                // the segment carries, because its body length comes from the
+                // bytes rather than the method.
+                let consumed = declared.map_or(available, |length| length.min(available));
+                FrameLength::Complete(header_end.saturating_add(consumed))
+            }
+            BodyPlan::Fixed(length) => {
+                let end = header_end.saturating_add(length);
+                if end > limit {
+                    // Skip to the declared end so a later message on the same
+                    // connection still decodes.
+                    FrameLength::Oversized(end)
+                } else {
+                    FrameLength::Complete(end)
+                }
+            }
+            BodyPlan::Chunked => match self.chunked_body_end(header_end, covered, limit) {
                 ChunkedEnd::Complete(end) => {
-                    return if end > limit {
+                    if end > limit {
                         FrameLength::Oversized(limit)
                     } else {
                         FrameLength::Complete(end)
-                    };
-                }
-                ChunkedEnd::NeedMore => {
-                    if let Some(end) = fin_end {
-                        if covered < end {
-                            return FrameLength::NeedMore;
-                        }
-                        return FrameLength::Complete(end.min(covered));
                     }
-                    if covered >= limit {
-                        return FrameLength::FatalOversized(Ulp::Http.pdu_limit_label());
+                }
+                ChunkedEnd::NeedMore => match fin_end {
+                    Some(end) if covered < end => FrameLength::NeedMore,
+                    Some(end) => FrameLength::Complete(end.min(covered)),
+                    None if covered >= limit => {
+                        FrameLength::FatalOversized(Ulp::Http.pdu_limit_label())
                     }
-                    return FrameLength::NeedMore;
-                }
-                ChunkedEnd::TooLarge => {
-                    return FrameLength::FatalOversized(Ulp::Http.pdu_limit_label());
-                }
-                ChunkedEnd::Invalid => {
-                    if let Some(end) = fin_end {
-                        if covered < end {
-                            return FrameLength::NeedMore;
-                        }
-                        return FrameLength::Complete(end.min(covered));
-                    }
-                    return FrameLength::Complete(covered);
-                }
+                    None => FrameLength::NeedMore,
+                },
+                ChunkedEnd::TooLarge => FrameLength::FatalOversized(Ulp::Http.pdu_limit_label()),
+                ChunkedEnd::Invalid => match fin_end {
+                    Some(end) if covered < end => FrameLength::NeedMore,
+                    Some(end) => FrameLength::Complete(end.min(covered)),
+                    None => FrameLength::Complete(covered),
+                },
+            },
+            BodyPlan::InvalidLength => {
+                // An unusable Content-Length leaves a response without a
+                // declared boundary; the captured prefix is its body.
+                FrameLength::Complete(covered)
             }
-        }
-        if framing.invalid_length {
-            // A cleared Content-Length makes a response body extend to the
-            // end of the available segment.
-            return FrameLength::Complete(covered);
-        }
-        let Some(content_length) = framing.content_length else {
-            if framing.is_response {
+            BodyPlan::CloseDelimited => {
                 // A response with no length is delimitable only by the
                 // connection close; wait for FIN and require the contiguous
                 // prefix to reach the FIN stream end (a gap exports nothing).
@@ -2270,18 +2224,8 @@ impl StreamBuffer {
                 if covered < end {
                     return FrameLength::NeedMore;
                 }
-                return FrameLength::Complete(end.min(covered));
+                FrameLength::Complete(end.min(covered))
             }
-            // A request without Content-Length has no body.
-            return FrameLength::Complete(header_end);
-        };
-        let end = header_end.saturating_add(content_length);
-        if end > limit {
-            // Skip to the declared end so a later message on the same
-            // connection still decodes.
-            FrameLength::Oversized(end)
-        } else {
-            FrameLength::Complete(end)
         }
     }
 
@@ -2292,85 +2236,49 @@ impl StreamBuffer {
     /// trusted; a gap leaves the cursor at the incomplete construct.
     fn chunked_body_end(&mut self, header_end: usize, covered: usize, limit: usize) -> ChunkedEnd {
         let covered_end = self.head.saturating_add(covered);
-        let limit_abs = self.head.saturating_add(limit);
-        let mut state = self.chunk_parse.unwrap_or(ChunkedParse {
-            position: self.head.saturating_add(header_end),
-            pending: None,
-            trailers: false,
-            line_scan: 0,
-        });
+        let limit_end = self.head.saturating_add(limit);
+        let mut scanner = self
+            .chunk_parse
+            .unwrap_or(ChunkScanner::new(self.head.saturating_add(header_end)));
         loop {
-            if state.position > limit_abs {
-                self.chunk_parse = None;
-                return ChunkedEnd::TooLarge;
-            }
-            if state.trailers {
-                let start = state.position.max(state.line_scan.saturating_sub(1));
-                let Some(line_end) = find_crlf(&self.data, start, covered_end) else {
-                    state.line_scan = covered_end;
-                    self.chunk_parse = Some(state);
-                    return ChunkedEnd::NeedMore;
-                };
-                state.line_scan = 0;
-                if line_end == state.position {
-                    let end = state.position.saturating_add(2);
+            match scanner.step(&self.data, covered_end) {
+                ChunkStep::Data { boundary_ok, .. } => {
+                    if !boundary_ok {
+                        // RFC 9112 section 7.1 requires CRLF; a message that
+                        // breaks the chunk framing cannot be delimited, so the
+                        // available prefix completes it.
+                        self.chunk_parse = None;
+                        return ChunkedEnd::Invalid;
+                    }
+                }
+                ChunkStep::Last | ChunkStep::Trailer { .. } => {}
+                ChunkStep::TrailerEnd { end, .. } => {
                     self.chunk_parse = None;
-                    return if end > limit_abs {
+                    return if end > limit_end {
                         ChunkedEnd::TooLarge
                     } else {
                         ChunkedEnd::Complete(end.saturating_sub(self.head))
                     };
                 }
-                state.position = line_end.saturating_add(2);
-                continue;
-            }
-            if let Some(size) = state.pending {
-                let data_end = state.position.saturating_add(size);
-                let chunk_end = data_end.saturating_add(2);
-                if chunk_end > limit_abs {
-                    self.chunk_parse = None;
-                    return ChunkedEnd::TooLarge;
-                }
-                if covered_end < chunk_end {
-                    self.chunk_parse = Some(state);
+                ChunkStep::Incomplete {
+                    pending, restart, ..
+                } => {
+                    // A declared chunk that cannot fit the reassembly limit is
+                    // refused before its bytes are buffered.
+                    let over = pending.is_some_and(|pending| {
+                        pending.data.saturating_add(pending.size).saturating_add(2) > limit_end
+                    }) || restart > limit_end;
+                    if over {
+                        self.chunk_parse = None;
+                        return ChunkedEnd::TooLarge;
+                    }
+                    self.chunk_parse = Some(scanner);
                     return ChunkedEnd::NeedMore;
                 }
-                if self.data.get(data_end..chunk_end) != Some(b"\r\n") {
+                ChunkStep::Invalid { .. } => {
                     self.chunk_parse = None;
                     return ChunkedEnd::Invalid;
                 }
-                state.position = chunk_end;
-                state.pending = None;
-                state.line_scan = 0;
-                continue;
-            }
-            let start = state.position.max(state.line_scan.saturating_sub(1));
-            let Some(line_end) = find_crlf(&self.data, start, covered_end) else {
-                state.line_scan = covered_end;
-                self.chunk_parse = Some(state);
-                return ChunkedEnd::NeedMore;
-            };
-            state.line_scan = 0;
-            let size_text = self
-                .data
-                .get(state.position..line_end)
-                .unwrap_or_default()
-                .split(|byte| *byte == b';')
-                .next()
-                .unwrap_or_default();
-            let Ok(size_text) = std::str::from_utf8(size_text) else {
-                self.chunk_parse = None;
-                return ChunkedEnd::Invalid;
-            };
-            let Ok(size) = usize::from_str_radix(size_text.trim(), 16) else {
-                self.chunk_parse = None;
-                return ChunkedEnd::Invalid;
-            };
-            state.position = line_end.saturating_add(2);
-            if size == 0 {
-                state.trailers = true;
-            } else {
-                state.pending = Some(size);
             }
         }
     }
@@ -2543,11 +2451,7 @@ enum HttpStart<'a> {
 
 /// Read an HTTP request method or recognise a response start line.
 fn http_start(data: &[u8]) -> Option<HttpStart<'_>> {
-    let line_end = data.iter().position(|byte| *byte == b'\n')?;
-    let mut line = data.get(..line_end)?;
-    if let Some(stripped) = line.strip_suffix(b"\r") {
-        line = stripped;
-    }
+    let (line, _) = next_line(data, 0)?;
     let line = crate::http_syntax::parse_start_line(line)?;
     if line.is_response() {
         return Some(HttpStart::Response(
@@ -2567,7 +2471,7 @@ fn header_present(ulp: Ulp, chunk: &[u8]) -> bool {
         Ulp::Dns => chunk.len() >= DNS_LENGTH_BYTES,
         Ulp::Tls => chunk.len() >= TLS_HEADER_BYTES,
         Ulp::Bgp => chunk.len() >= BGP_HEADER_BYTES,
-        Ulp::Http => chunk.windows(4).any(|window| window == b"\r\n\r\n"),
+        Ulp::Http => header_section_end(chunk).is_some(),
     }
 }
 
@@ -2576,110 +2480,12 @@ fn read_u16(data: &[u8], offset: usize) -> Option<u16> {
     Some(u16::from_be_bytes([*bytes.first()?, *bytes.get(1)?]))
 }
 
-/// The status code of an HTTP response header block.
-fn response_code(header: &[u8]) -> Option<u16> {
-    let line_end = header.iter().position(|byte| *byte == b'\n')?;
-    let line = header.get(..line_end)?;
-    let line = line.strip_suffix(b"\r").unwrap_or(line);
-    line.split(|byte| *byte == b' ')
-        .nth(1)
-        .and_then(|code| std::str::from_utf8(code).ok())
-        .and_then(|code| code.parse::<u16>().ok())
-}
-
-/// Find the end of an HTTP header block within already-captured bytes.
-fn find_header_end(data: &[u8]) -> Option<usize> {
-    data.windows(4)
-        .position(|window| window == b"\r\n\r\n")
-        .map(|index| index + 4)
-}
-
-/// Content-length, chunked framing and bodyless status from an HTTP header.
-fn http_header_framing(header: &[u8]) -> HttpFraming {
-    let text = String::from_utf8_lossy(header);
-    let mut lines = text.split("\r\n");
-    let start = lines.next().unwrap_or_default();
-    let response = start.starts_with("HTTP/1.");
-    let response_code = response.then(|| response_code(header)).flatten();
-    let no_body = response
-        && start
-            .split_ascii_whitespace()
-            .nth(1)
-            .and_then(|code| code.parse::<u16>().ok())
-            .is_some_and(|code| (100..200).contains(&code) || code == 204 || code == 304);
-    let mut content_length = None;
-    let mut invalid_length = false;
-    let mut chunked = false;
-    for line in lines {
-        let Some((name, value)) = line.split_once(':') else {
-            continue;
-        };
-        if name.eq_ignore_ascii_case("content-length") {
-            match value.trim().parse::<usize>() {
-                Ok(length) => {
-                    content_length = Some(length);
-                    invalid_length = false;
-                }
-                Err(_) => {
-                    content_length = None;
-                    invalid_length = true;
-                }
-            }
-        } else if name.eq_ignore_ascii_case("transfer-encoding")
-            && value
-                .split(',')
-                .any(|coding| coding.trim().eq_ignore_ascii_case("chunked"))
-        {
-            chunked = true;
-        }
-    }
-    HttpFraming {
-        content_length,
-        chunked,
-        no_body,
-        invalid_length,
-        is_response: response,
-        response_code,
-    }
-}
-
-/// The continuation length when the buffered bytes cannot begin a message.
-///
-/// Printable data after a completed message is file data once a complete
-/// first line is available; one leading CRLF is ignored.
-///
-/// `newline` is the first LF at or after the continuation probe, as found by
-/// [`StreamBuffer::scan_http_prefix`]; `None` means the scans covered the
-/// whole prefix without one.
-fn http_continuation_length(data: &[u8], newline: Option<usize>) -> Option<usize> {
-    let probe = data.strip_prefix(b"\r\n").unwrap_or(data);
-    let skip = data.len().saturating_sub(probe.len());
-    let mut line = data.get(skip..newline?)?;
-    if let Some(stripped) = line.strip_suffix(b"\r") {
-        line = stripped;
-    }
-    if crate::http_syntax::parse_start_line(line).is_some() {
-        return None;
-    }
-    let first = *probe.first()?;
-    (0x20..=0x7e).contains(&first).then_some(data.len())
-}
-
 /// Where a chunked body ends.
 enum ChunkedEnd {
     Complete(usize),
     NeedMore,
     Invalid,
     TooLarge,
-}
-
-/// Find the next CRLF at or after `position`, bounded by `end`.
-fn find_crlf(data: &[u8], position: usize, end: usize) -> Option<usize> {
-    let window = data.get(position..end)?;
-    window
-        .windows(2)
-        .position(|window| window == b"\r\n")
-        .map(|index| position.saturating_add(index))
 }
 
 /// Both directions of one conversation, each with its own reassembly limit.
@@ -3334,6 +3140,39 @@ mod tests {
             return;
         };
         assert_eq!(pdu.data, message);
+    }
+
+    #[test]
+    fn a_header_block_split_across_segments_frames_the_message_once() {
+        let mut buffer = StreamBuffer::default();
+        buffer.set_ulp(Ulp::Http);
+        let message =
+            b"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 5\r\n\r\nhello";
+        // Split inside the Content-Length field name, so neither the framing
+        // field nor the header terminator arrives whole.
+        let cut = 50_usize;
+        assert_eq!(
+            message.get(cut..cut.saturating_add(8)),
+            Some(b"-Length:".as_slice())
+        );
+        let first = buffer.insert(100, message.get(..cut).unwrap_or_default(), 1, false);
+        assert!(matches!(
+            first.actions.first(),
+            Some(PduAction::Partial { .. })
+        ));
+        assert!(buffer.has_pending());
+        let completed = buffer.insert(
+            100_u32.saturating_add(u32::try_from(cut).unwrap_or(u32::MAX)),
+            message.get(cut..).unwrap_or_default(),
+            2,
+            false,
+        );
+        let Some(PduAction::Reassembled { pdu, .. }) = completed.actions.first() else {
+            return;
+        };
+        assert_eq!(pdu.ulp, Ulp::Http);
+        assert_eq!(pdu.data, message);
+        assert!(!buffer.has_pending());
     }
 
     #[test]

@@ -909,6 +909,10 @@ fn protocol_and_info(
                 protocol.push_str("HTTP");
                 info = packet.columns.info.clone().unwrap_or_default();
             }
+            "http2" => {
+                protocol.push_str("HTTP2");
+                info = packet.columns.info.clone().unwrap_or_default();
+            }
             "tls" => {
                 protocol.push_str(packet.columns.protocol.as_deref().unwrap_or("TLS"));
                 info = packet.columns.info.clone().unwrap_or_default();

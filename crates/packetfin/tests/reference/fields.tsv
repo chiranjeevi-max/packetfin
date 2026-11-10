@@ -1457,6 +1457,161 @@ F	Chunk size	http.chunk_size	FT_UINT32	http	BASE_DEC	0x0
 F	Chunk data	http.chunk_data	FT_BYTES	http		0x0	
 F	File Data	http.file_data	FT_BYTES	http		0x0	
 F	Excess data after a body (not a new request/response), previous Content-Length bogus?	http.excess_data	FT_NONE	http		0x0	
+F	Stream	http2.stream	FT_NONE	http2		0x0	
+F	Length	http2.length	FT_UINT24	http2	BASE_DEC	0x0	The length (24 bits) of the frame payload (The 9 octets of the frame header are not included)
+F	Type	http2.type	FT_UINT8	http2	BASE_DEC	0x0	The frame type determines how the remainder of the frame header and payload are interpreted
+F	Reserved	http2.r	FT_UINT32	http2	BASE_HEX	0x80000000	The semantics of this bit are undefined and the bit MUST remain unset (0) when sending and MUST be ignored when receiving
+F	Weight	http2.headers.weight	FT_UINT8	http2	BASE_DEC	0x0	An 8-bit weight for the identified priority
+F	Weight real	http2.headers.weight_real	FT_UINT8	http2	BASE_DEC	0x0	Real Weight value (Add one to value)
+F	Stream Identifier	http2.streamid	FT_UINT32	http2	BASE_DEC	0x7fffffff	A 31-bit stream identifier
+F	Magic	http2.magic	FT_STRING	http2		0x0	
+F	Unknown	http2.unknown	FT_BYTES	http2		0x0	
+F	Flags	http2.flags	FT_UINT8	http2	BASE_HEX	0x0	Flags are assigned semantics specific to the indicated frame type
+F	End Stream	http2.flags.end_stream	FT_BOOLEAN	http2	8	0x1	Indicates that this frame is the last that the endpoint will send for the identified stream
+F	End Headers	http2.flags.eh	FT_BOOLEAN	http2	8	0x4	Indicates that this frame contains an entire header block  and is not followed by any CONTINUATION frames.
+F	Padded	http2.flags.padded	FT_BOOLEAN	http2	8	0x8	Indicates that the Pad Length field is present
+F	Priority	http2.flags.priority	FT_BOOLEAN	http2	8	0x20	Indicates that the Exclusive Flag (E), Stream Dependency, and Weight fields are present
+F	ACK	http2.flags.ack.ping	FT_BOOLEAN	http2	8	0x1	Set indicates that this PING frame is a PING response
+F	Unused	http2.flags.unused	FT_UINT8	http2	BASE_HEX	0xff	Must be zero
+F	Unused	http2.flags.unused_settings	FT_UINT8	http2	BASE_HEX	0xfe	Must be zero
+F	Unused	http2.flags.unused_ping	FT_UINT8	http2	BASE_HEX	0xfe	Must be zero
+F	Unused	http2.flags.unused_continuation	FT_UINT8	http2	BASE_HEX	0xfb	Must be zero
+F	Unused	http2.flags.unused_push_promise	FT_UINT8	http2	BASE_HEX	0xf3	Must be zero
+F	Unused	http2.flags.unused_data	FT_UINT8	http2	BASE_HEX	0xf6	Must be zero
+F	Unused	http2.flags.unused_headers	FT_UINT8	http2	BASE_HEX	0xd2	Must be zero
+F	ACK	http2.flags.ack.settings	FT_BOOLEAN	http2	8	0x1	Indicates that this frame acknowledges receipt and application of the peer's SETTINGS frame
+F	Pad Length	http2.padding	FT_UINT8	http2	BASE_HEX	0x0	Padding size
+F	Pad Length	http2.pad_length	FT_UINT16	http2	BASE_DEC	0x0	
+F	Exclusive	http2.exclusive	FT_BOOLEAN	http2	32	0x80000000	A single bit flag indicates that the stream dependency is exclusive
+F	Stream Dependency	http2.stream_dependency	FT_UINT32	http2	BASE_DEC	0x7fffffff	An identifier for the stream that this stream depends on
+F	DATA segment	http2.data.segment	FT_BYTES	http2		0x0	A data segment used in reassembly
+F	Data	http2.data.data	FT_BYTES	http2		0x0	Application data
+F	Padding	http2.data.padding	FT_BYTES	http2		0x0	Padding octets
+F	Body fragments	http2.body.fragments	FT_NONE	http2		0x0	
+F	Body fragment	http2.body.fragment	FT_FRAMENUM	http2		0x0	
+F	Body fragment overlap	http2.body.fragment.overlap	FT_BOOLEAN	http2	0	0x0	
+F	Body fragment overlapping with conflicting data	http2.body.fragment.overlap.conflicts	FT_BOOLEAN	http2	0	0x0	
+F	Body has multiple tail fragments	http2.body.fragment.multiple_tails	FT_BOOLEAN	http2	0	0x0	
+F	Body fragment too long	http2.body.fragment.too_long_fragment	FT_BOOLEAN	http2	0	0x0	
+F	Body defragment error	http2.body.fragment.error	FT_FRAMENUM	http2		0x0	
+F	Body fragment count	http2.body.fragment.count	FT_UINT32	http2	BASE_DEC	0x0	
+F	Reassembled body in frame	http2.body.reassembled.in	FT_FRAMENUM	http2		0x0	Reassembled body in frame number
+F	Reassembled body length	http2.body.reassembled.length	FT_UINT32	http2	BASE_DEC	0x0	Reassembled body in frame number
+F	Reassembled body data	http2.body.reassembled.data	FT_BYTES	http2		0x0	Reassembled body data for multisegment PDU spanning across DATAs
+F	Header Block Fragment	http2.headers	FT_BYTES	http2		0x0	A header block fragment
+F	Padding	http2.headers.padding	FT_BYTES	http2		0x0	Padding octets
+F	Header	http2.header	FT_NONE	http2		0x0	
+F	Header Length	http2.header.length	FT_UINT32	http2	BASE_DEC	0x0	
+F	Header Count	http2.header.count	FT_UINT32	http2	BASE_DEC	0x0	
+F	Name Length	http2.header.name.length	FT_UINT32	http2	BASE_DEC	0x0	
+F	Name	http2.header.name	FT_STRING	http2		0x0	
+F	Value Length	http2.header.value.length	FT_UINT32	http2	BASE_DEC	0x0	
+F	Value	http2.header.value	FT_STRING	http2		0x0	
+F	Unescaped	http2.header.unescaped	FT_STRING	http2		0x0	
+F	Representation	http2.header.repr	FT_STRING	http2		0x0	
+F	Index	http2.header.index	FT_UINT32	http2	BASE_DEC	0x0	
+F	Header table size update	http2.header_table_size_update	FT_NONE	http2		0x0	
+F	Header table size	http2.header_table_size_update.header_table_size	FT_UINT32	http2	BASE_DEC	0x0	
+F	Fake Header Count	http2.fake.header.count	FT_UINT32	http2	BASE_DEC	0x0	
+F	Fake Header	http2.fake.header	FT_NONE	http2		0x0	
+F	Full request URI	http2.request.full_uri	FT_STRING	http2		0x0	The full requested URI (including host name)
+F	Error	http2.rst_stream.error	FT_UINT32	http2	BASE_DEC	0x0	The error code indicates why the stream is being terminated
+F	Settings	http2.settings	FT_NONE	http2		0x0	
+F	Settings Identifier	http2.settings.id	FT_UINT16	http2	BASE_DEC	0x0	
+F	Header table size	http2.settings.header_table_size	FT_UINT32	http2	BASE_DEC	0x0	Allows the sender to inform the remote endpoint of the size of the header compression table used to decode header blocks. The initial value is 4096 bytes
+F	Enable PUSH	http2.settings.enable_push	FT_UINT32	http2	BASE_DEC	0x0	The initial value is 1, which indicates that push is permitted
+F	Max concurrent streams	http2.settings.max_concurrent_streams	FT_UINT32	http2	BASE_DEC	0x0	Indicates the maximum number of concurrent streams that the sender will allow
+F	Initial Window Size	http2.settings.initial_window_size	FT_UINT32	http2	BASE_DEC	0x0	Indicates the sender's initial window size (in bytes) for stream level flow control
+F	Max frame size	http2.settings.max_frame_size	FT_UINT32	http2	BASE_DEC	0x0	Indicates the size of the largest frame payload that the sender will allow
+F	Max header list size	http2.settings.max_header_list_size	FT_UINT32	http2	BASE_DEC	0x0	This advisory setting informs a peer of the maximum size of header list that the sender is prepared to accept.
+F	Extended CONNECT	http2.settings.extended_connect	FT_UINT32	http2	BASE_DEC	0x0	Indicates support for the extended CONNECT method extension defined RFC 8441.
+F	No RFC7540 Priorities	http2.settings.no_rfc7540_priorities	FT_UINT32	http2	BASE_DEC	0x0	
+F	TLS Renegotiation Permitted	http2.settings.tls_reneg_permitted	FT_UINT32	http2	BASE_DEC	0x0	Indicates the sender's capability and willingness to employ TLS renegotiation
+F	Unknown Settings	http2.settings.unknown	FT_UINT32	http2	BASE_DEC	0x0	
+F	Reserved	http2.push_promise.r	FT_UINT32	http2	BASE_HEX	0x80000000	Must be zero
+F	Promised-Stream-ID	http2.push_promise.promised_stream_id	FT_UINT32	http2	BASE_DEC	0x7fffffff	Identifies the stream the endpoint intends to start sending frames for
+F	Header Block Fragment	http2.push_promise.header	FT_BYTES	http2		0x0	Containing request header fields
+F	Padding	http2.push_promise.padding	FT_BYTES	http2		0x0	Padding octets
+F	Ping	http2.ping	FT_BYTES	http2		0x0	
+F	Pong	http2.pong	FT_BYTES	http2		0x0	
+F	Reserved	http2.goaway.r	FT_UINT32	http2	BASE_HEX	0x80000000	Must be zero
+F	Last-Stream-ID	http2.goaway.last_stream_id	FT_UINT32	http2	BASE_DEC	0x7fffffff	Contains the highest numbered stream identifier for which the sender of the GOAWAY frame has received frames on and might have taken some action on
+F	Error	http2.goaway.error	FT_UINT32	http2	BASE_DEC	0x0	The error code indicates the reason for closing the connection
+F	Additional Debug Data	http2.goaway.addata	FT_BYTES	http2		0x0	
+F	Reserved	http2.window_update.r	FT_UINT32	http2	BASE_HEX	0x80000000	Must be zero
+F	Window Size Increment	http2.window_update.window_size_increment	FT_UINT32	http2	BASE_DEC	0x7fffffff	Indicating the number of bytes that the sender can transmit in addition to the existing flow control window
+F	Header Block Fragment	http2.continuation.header	FT_BYTES	http2		0x0	Continues a HEADERS or PUSH_PROMISE field block
+F	Padding	http2.continuation.padding	FT_BYTES	http2		0x0	Padding octets
+F	Origin Length	http2.altsvc.origin.len	FT_UINT16	http2	BASE_DEC	0x0	indicating the length, in octets, of the Origin field.
+F	Origin	http2.altsvc.origin	FT_STRING	http2		0x0	A sequence of characters containing ASCII serialisation of an origin that the alternate service is applicable to.
+F	Field/Value	http2.altsvc.field_value	FT_STRING	http2		0x0	A sequence of octets containing a value identical to the Alt-Svc field value
+F	Origin	http2.origin	FT_NONE	http2		0x0	
+F	Origin Length	http2.origin.origin_len	FT_UINT16	http2	BASE_DEC	0x0	indicating the length, in octets, of the Origin field.
+F	Origin	http2.origin.origin	FT_STRING	http2		0x0	A sequence of characters containing ASCII serialisation of an origin that server is authoritative for.
+F	Priority Update Stream ID	http2.priority_update_stream_id	FT_UINT64	http2	BASE_DEC	0x0	
+F	Priority Update Field Value	http2.priority_update_field_value	FT_STRING	http2		0x0	
+F	Time since request	http2.time	FT_RELATIVE_TIME	http2		0x0	Time since the request was sent
+F	Request in frame	http2.request_in	FT_FRAMENUM	http2		0x0	This frame is a response to a HTTP2 request contained in frame with this number
+F	Response in frame	http2.response_in	FT_FRAMENUM	http2		0x0	This request will be responded in the frame with this number
+F	Connection window size (before)	http2.calculated.connection.window_size.before	FT_INT32	http2	BASE_DEC	0x0	The sender's current window size (in bytes) for this connection (before sending)
+F	Connection window size (after)	http2.calculated.connection.window_size.after	FT_INT32	http2	BASE_DEC	0x0	The sender's current window size (in bytes) for this connection (after sending)
+F	Stream window size (before)	http2.calculated.stream.window_size.before	FT_INT32	http2	BASE_DEC	0x0	The sender's current window size (in bytes) for this stream (before sending)
+F	Stream window size (after)	http2.calculated.stream.window_size.after	FT_INT32	http2	BASE_DEC	0x0	The sender's current window size (in bytes) for this stream (after sending)
+F	Decompression stopped.	http2.header_size_exceeded	FT_NONE	http2		0x0	
+F	Decompression stopped after 200 header lines.	http2.header_lines_exceeded	FT_NONE	http2		0x0	
+F	Body decompression failed	http2.body_decompression_failed	FT_NONE	http2		0x0	
+F	Reassembly failed	http2.reassembly_error	FT_NONE	http2		0x0	
+F	:authority	http2.headers.authority	FT_STRING	http2		0x0	Authority portion of the target URI
+F	:status	http2.headers.status	FT_UINT16	http2	BASE_DEC	0x0	
+F	:path	http2.headers.path	FT_STRING	http2		0x0	
+F	:method	http2.headers.method	FT_STRING	http2		0x0	
+F	:scheme	http2.headers.scheme	FT_STRING	http2		0x0	
+F	:protocol	http2.headers.protocol	FT_STRING	http2		0x0	
+F	accept	http2.headers.accept	FT_STRING	http2		0x0	Media types that are acceptable to the user agent
+F	accept-charset	http2.headers.accept_charset	FT_STRING	http2		0x0	Acceptable charsets in textual responses for the user agent
+F	accept-encoding	http2.headers.accept_encoding	FT_STRING	http2		0x0	Acceptable content codings (like compression) in responses for the user agent
+F	accept-language	http2.headers.accept_language	FT_STRING	http2		0x0	Preferred natural languages for the user agent
+F	accept-ranges	http2.headers.accept_ranges	FT_STRING	http2		0x0	Bytes range which server may use for partial data transfer
+F	access-control-allow-origin	http2.headers.access_control_allow_origin	FT_STRING	http2		0x0	Origin control for cross-origin resource sharing
+F	age	http2.headers.age	FT_UINT64	http2	BASE_DEC	0x0	Time in seconds which was spent for transferring data through proxy
+F	allow	http2.headers.allow	FT_STRING	http2		0x0	List of allowed methods for request
+F	authorization	http2.headers.authorization	FT_STRING	http2		0x0	Credentials for a server-side authorization
+F	cache-control	http2.headers.cache_control	FT_STRING	http2		0x0	Request or response directives for a cache control
+F	content-disposition	http2.headers.content_disposition	FT_STRING	http2		0x0	Indicates that response will be displayed as page or downloaded with dialog box
+F	content-encoding	http2.headers.content_encoding	FT_STRING	http2		0x0	
+F	content-language	http2.headers.content_language	FT_STRING	http2		0x0	
+F	content-length	http2.headers.content_length	FT_UINT64	http2	BASE_DEC	0x0	Size of body in bytes
+F	content-location	http2.headers.content_location	FT_STRING	http2		0x0	Alternative URL for a response data
+F	content-range	http2.headers.content_range	FT_STRING	http2		0x0	Range of bytes which was sent by server for partial data transfer
+F	content-type	http2.headers.content_type	FT_STRING	http2		0x0	MIME type of response
+F	cookie	http2.headers.cookie	FT_STRING	http2		0x0	Stored cookies
+F	date	http2.headers.date	FT_STRING	http2		0x0	Date and time at which the data was originated
+F	etag	http2.headers.etag	FT_STRING	http2		0x0	Directive for version indication of resource
+F	expect	http2.headers.expect	FT_STRING	http2		0x0	Expectations that need to be fulfilled for correct request
+F	expires	http2.headers.expires	FT_STRING	http2		0x0	Data after which resource will be stale
+F	from	http2.headers.from	FT_STRING	http2		0x0	Email of a person who responsible for a requesting data
+F	if-match	http2.headers.if_match	FT_STRING	http2		0x0	Mechanism for requesting data matched by a list of ETags
+F	if-modified-since	http2.headers.if_modified_since	FT_STRING	http2		0x0	Resource will be sent with status code 200 if it was modified otherwise with status code 304
+F	if-none-match	http2.headers.if_none_match	FT_STRING	http2		0x0	Mechanism for requesting data not matched by a list of ETags
+F	if-range	http2.headers.if_range	FT_STRING	http2		0x0	Mechanism for a range request which is used to check if a resource was modified
+F	if-unmodified-since	http2.headers.if_unmodified_since	FT_STRING	http2		0x0	Resource will be processed if it was not modified otherwise 412 error will be returned
+F	last-modified	http2.headers.last_modified	FT_STRING	http2		0x0	Date and time at which the origin server believes the resource was last modified
+F	link	http2.headers.link	FT_STRING	http2		0x0	Mechanism for indicating that resource will be preloaded
+F	location	http2.headers.location	FT_STRING	http2		0x0	Mechanism for indicating that client will be redirected
+F	max-forwards	http2.headers.max_forwards	FT_UINT64	http2	BASE_DEC	0x0	Mechanism for limiting the number of proxies
+F	proxy-authenticate	http2.headers.proxy_authenticate	FT_STRING	http2		0x0	Authentication method that should be used to gain access to a resource behind a proxy server
+F	proxy-authorization	http2.headers.proxy_authorization	FT_STRING	http2		0x0	Credentials for a proxy-side authorization
+F	range	http2.headers.range	FT_STRING	http2		0x0	Range of resource bytes that server should return
+F	referer	http2.headers.referer	FT_STRING	http2		0x0	Address of the previous web page
+F	refresh	http2.headers.refresh	FT_STRING	http2		0x0	Time in seconds after which client will be redirected by given url
+F	retry-after	http2.headers.retry_after	FT_STRING	http2		0x0	Mechanism to indicate when resource expected to be available
+F	server	http2.headers.server	FT_STRING	http2		0x0	Information about server software
+F	set-cookie	http2.headers.set_cookie	FT_STRING	http2		0x0	Send a cookie to the client
+F	strict-transport-security	http2.headers.strict_transport_security	FT_STRING	http2		0x0	HSTS indicates that resource should be accessed only using HTTPS
+F	user-agent	http2.headers.user_agent	FT_STRING	http2		0x0	Information about client software
+F	vary	http2.headers.vary	FT_STRING	http2		0x0	Mechanism for selecting which header will be used for content negotiation algorithm
+F	via	http2.headers.via	FT_STRING	http2		0x0	Additional information for loop detection and protocol capabilities in proxy requests
+F	www-authenticate	http2.headers.www_authenticate	FT_STRING	http2		0x0	Authentication method that should be used to gain access to a resource
 F	Stream index	tls.stream	FT_UINT32	tls	BASE_DEC	0x0	
 F	Record Layer	tls.record	FT_NONE	tls		0x0	
 F	Content Type	tls.record.content_type	FT_UINT8	tls	BASE_DEC	0x0	

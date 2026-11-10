@@ -1281,7 +1281,9 @@ fn full_uri(uri: &str, host: Option<&str>, scheme: Option<&str>) -> Option<Strin
 }
 
 /// The status-code description, separate from the server's phrase.
-fn status_description(code: u32) -> &'static str {
+///
+/// HTTP/2 reuses the same reason phrases for its `:status` label.
+pub(crate) fn status_description(code: u32) -> &'static str {
     match code {
         100 => "Continue",
         101 => "Switching Protocols",

@@ -317,6 +317,8 @@ pub enum Protocol {
     Bgp,
     /// HTTP/1.x.
     Http,
+    /// HTTP/2.
+    Http2,
     /// TLS.
     Tls,
     /// mDNS.
@@ -395,6 +397,7 @@ impl Protocol {
         Self::Dns,
         Self::Bgp,
         Self::Http,
+        Self::Http2,
         Self::Tls,
         Self::Mdns,
         Self::Llmnr,
@@ -446,6 +449,7 @@ impl Protocol {
             Self::Dns => &DNS_PROTOCOL,
             Self::Bgp => &BGP_PROTOCOL,
             Self::Http => &HTTP_PROTOCOL,
+            Self::Http2 => &HTTP2_PROTOCOL,
             Self::Tls => &TLS_PROTOCOL,
             Self::Mdns => &MDNS_PROTOCOL,
             Self::Llmnr => &LLMNR_PROTOCOL,
@@ -504,6 +508,7 @@ impl Protocol {
             Self::Dns => decode::dns,
             Self::Bgp => decode::bgp,
             Self::Http => decode::http,
+            Self::Http2 => decode::http2,
             Self::Tls => decode::tls,
             Self::Mdns => decode::mdns,
             Self::Llmnr => decode::llmnr,
@@ -20042,6 +20047,1879 @@ static HTTP_FIELDS: &[&FieldDef] = &[
     &HTTP_EXCESS_DATA,
 ];
 
+// ---- HTTP/2 fields (-G fields order) ----
+
+pub static HTTP2_STREAM: FieldDef = FieldDef {
+    abbrev: "http2.stream",
+    name: "Stream",
+    field_type: FieldType::None,
+    parent: "http2",
+    display: Display::None,
+    bitmask: None,
+    blurb: "",
+    generated: false,
+};
+
+pub static HTTP2_LENGTH: FieldDef = FieldDef {
+    abbrev: "http2.length",
+    name: "Length",
+    field_type: FieldType::Uint24,
+    parent: "http2",
+    display: Display::Decimal,
+    bitmask: None,
+    blurb: "The length (24 bits) of the frame payload (The 9 octets of the frame header are not included)",
+    generated: false,
+};
+
+pub static HTTP2_TYPE: FieldDef = FieldDef {
+    abbrev: "http2.type",
+    name: "Type",
+    field_type: FieldType::Uint8,
+    parent: "http2",
+    display: Display::Decimal,
+    bitmask: None,
+    blurb: "The frame type determines how the remainder of the frame header and payload are interpreted",
+    generated: false,
+};
+
+pub static HTTP2_R: FieldDef = FieldDef {
+    abbrev: "http2.r",
+    name: "Reserved",
+    field_type: FieldType::Uint32,
+    parent: "http2",
+    display: Display::Hex,
+    bitmask: Some(0x80000000),
+    blurb: "The semantics of this bit are undefined and the bit MUST remain unset (0) when sending and MUST be ignored when receiving",
+    generated: false,
+};
+
+pub static HTTP2_HEADERS_WEIGHT: FieldDef = FieldDef {
+    abbrev: "http2.headers.weight",
+    name: "Weight",
+    field_type: FieldType::Uint8,
+    parent: "http2",
+    display: Display::Decimal,
+    bitmask: None,
+    blurb: "An 8-bit weight for the identified priority",
+    generated: false,
+};
+
+pub static HTTP2_HEADERS_WEIGHT_REAL: FieldDef = FieldDef {
+    abbrev: "http2.headers.weight_real",
+    name: "Weight real",
+    field_type: FieldType::Uint8,
+    parent: "http2",
+    display: Display::Decimal,
+    bitmask: None,
+    blurb: "Real Weight value (Add one to value)",
+    generated: true,
+};
+
+pub static HTTP2_STREAMID: FieldDef = FieldDef {
+    abbrev: "http2.streamid",
+    name: "Stream Identifier",
+    field_type: FieldType::Uint32,
+    parent: "http2",
+    display: Display::Decimal,
+    bitmask: Some(0x7fffffff),
+    blurb: "A 31-bit stream identifier",
+    generated: false,
+};
+
+pub static HTTP2_MAGIC: FieldDef = FieldDef {
+    abbrev: "http2.magic",
+    name: "Magic",
+    field_type: FieldType::String,
+    parent: "http2",
+    display: Display::None,
+    bitmask: None,
+    blurb: "",
+    generated: false,
+};
+
+pub static HTTP2_UNKNOWN: FieldDef = FieldDef {
+    abbrev: "http2.unknown",
+    name: "Unknown",
+    field_type: FieldType::Bytes,
+    parent: "http2",
+    display: Display::None,
+    bitmask: None,
+    blurb: "",
+    generated: false,
+};
+
+pub static HTTP2_FLAGS: FieldDef = FieldDef {
+    abbrev: "http2.flags",
+    name: "Flags",
+    field_type: FieldType::Uint8,
+    parent: "http2",
+    display: Display::Hex,
+    bitmask: None,
+    blurb: "Flags are assigned semantics specific to the indicated frame type",
+    generated: false,
+};
+
+pub static HTTP2_FLAGS_END_STREAM: FieldDef = FieldDef {
+    abbrev: "http2.flags.end_stream",
+    name: "End Stream",
+    field_type: FieldType::Boolean,
+    parent: "http2",
+    display: Display::Boolean8,
+    bitmask: Some(0x1),
+    blurb: "Indicates that this frame is the last that the endpoint will send for the identified stream",
+    generated: false,
+};
+
+pub static HTTP2_FLAGS_EH: FieldDef = FieldDef {
+    abbrev: "http2.flags.eh",
+    name: "End Headers",
+    field_type: FieldType::Boolean,
+    parent: "http2",
+    display: Display::Boolean8,
+    bitmask: Some(0x4),
+    blurb: "Indicates that this frame contains an entire header block  and is not followed by any CONTINUATION frames.",
+    generated: false,
+};
+
+pub static HTTP2_FLAGS_PADDED: FieldDef = FieldDef {
+    abbrev: "http2.flags.padded",
+    name: "Padded",
+    field_type: FieldType::Boolean,
+    parent: "http2",
+    display: Display::Boolean8,
+    bitmask: Some(0x8),
+    blurb: "Indicates that the Pad Length field is present",
+    generated: false,
+};
+
+pub static HTTP2_FLAGS_PRIORITY: FieldDef = FieldDef {
+    abbrev: "http2.flags.priority",
+    name: "Priority",
+    field_type: FieldType::Boolean,
+    parent: "http2",
+    display: Display::Boolean8,
+    bitmask: Some(0x20),
+    blurb: "Indicates that the Exclusive Flag (E), Stream Dependency, and Weight fields are present",
+    generated: false,
+};
+
+pub static HTTP2_FLAGS_ACK_PING: FieldDef = FieldDef {
+    abbrev: "http2.flags.ack.ping",
+    name: "ACK",
+    field_type: FieldType::Boolean,
+    parent: "http2",
+    display: Display::Boolean8,
+    bitmask: Some(0x1),
+    blurb: "Set indicates that this PING frame is a PING response",
+    generated: false,
+};
+
+pub static HTTP2_FLAGS_UNUSED: FieldDef = FieldDef {
+    abbrev: "http2.flags.unused",
+    name: "Unused",
+    field_type: FieldType::Uint8,
+    parent: "http2",
+    display: Display::Hex,
+    bitmask: Some(0xff),
+    blurb: "Must be zero",
+    generated: false,
+};
+
+pub static HTTP2_FLAGS_UNUSED_SETTINGS: FieldDef = FieldDef {
+    abbrev: "http2.flags.unused_settings",
+    name: "Unused",
+    field_type: FieldType::Uint8,
+    parent: "http2",
+    display: Display::Hex,
+    bitmask: Some(0xfe),
+    blurb: "Must be zero",
+    generated: false,
+};
+
+pub static HTTP2_FLAGS_UNUSED_PING: FieldDef = FieldDef {
+    abbrev: "http2.flags.unused_ping",
+    name: "Unused",
+    field_type: FieldType::Uint8,
+    parent: "http2",
+    display: Display::Hex,
+    bitmask: Some(0xfe),
+    blurb: "Must be zero",
+    generated: false,
+};
+
+pub static HTTP2_FLAGS_UNUSED_CONTINUATION: FieldDef = FieldDef {
+    abbrev: "http2.flags.unused_continuation",
+    name: "Unused",
+    field_type: FieldType::Uint8,
+    parent: "http2",
+    display: Display::Hex,
+    bitmask: Some(0xfb),
+    blurb: "Must be zero",
+    generated: false,
+};
+
+pub static HTTP2_FLAGS_UNUSED_PUSH_PROMISE: FieldDef = FieldDef {
+    abbrev: "http2.flags.unused_push_promise",
+    name: "Unused",
+    field_type: FieldType::Uint8,
+    parent: "http2",
+    display: Display::Hex,
+    bitmask: Some(0xf3),
+    blurb: "Must be zero",
+    generated: false,
+};
+
+pub static HTTP2_FLAGS_UNUSED_DATA: FieldDef = FieldDef {
+    abbrev: "http2.flags.unused_data",
+    name: "Unused",
+    field_type: FieldType::Uint8,
+    parent: "http2",
+    display: Display::Hex,
+    bitmask: Some(0xf6),
+    blurb: "Must be zero",
+    generated: false,
+};
+
+pub static HTTP2_FLAGS_UNUSED_HEADERS: FieldDef = FieldDef {
+    abbrev: "http2.flags.unused_headers",
+    name: "Unused",
+    field_type: FieldType::Uint8,
+    parent: "http2",
+    display: Display::Hex,
+    bitmask: Some(0xd2),
+    blurb: "Must be zero",
+    generated: false,
+};
+
+pub static HTTP2_FLAGS_ACK_SETTINGS: FieldDef = FieldDef {
+    abbrev: "http2.flags.ack.settings",
+    name: "ACK",
+    field_type: FieldType::Boolean,
+    parent: "http2",
+    display: Display::Boolean8,
+    bitmask: Some(0x1),
+    blurb: "Indicates that this frame acknowledges receipt and application of the peer's SETTINGS frame",
+    generated: false,
+};
+
+pub static HTTP2_PADDING: FieldDef = FieldDef {
+    abbrev: "http2.padding",
+    name: "Pad Length",
+    field_type: FieldType::Uint8,
+    parent: "http2",
+    display: Display::Hex,
+    bitmask: None,
+    blurb: "Padding size",
+    generated: false,
+};
+
+pub static HTTP2_PAD_LENGTH: FieldDef = FieldDef {
+    abbrev: "http2.pad_length",
+    name: "Pad Length",
+    field_type: FieldType::Uint16,
+    parent: "http2",
+    display: Display::Decimal,
+    bitmask: None,
+    blurb: "",
+    generated: true,
+};
+
+pub static HTTP2_EXCLUSIVE: FieldDef = FieldDef {
+    abbrev: "http2.exclusive",
+    name: "Exclusive",
+    field_type: FieldType::Boolean,
+    parent: "http2",
+    display: Display::Boolean32,
+    bitmask: Some(0x80000000),
+    blurb: "A single bit flag indicates that the stream dependency is exclusive",
+    generated: false,
+};
+
+pub static HTTP2_STREAM_DEPENDENCY: FieldDef = FieldDef {
+    abbrev: "http2.stream_dependency",
+    name: "Stream Dependency",
+    field_type: FieldType::Uint32,
+    parent: "http2",
+    display: Display::Decimal,
+    bitmask: Some(0x7fffffff),
+    blurb: "An identifier for the stream that this stream depends on",
+    generated: false,
+};
+
+pub static HTTP2_DATA_SEGMENT: FieldDef = FieldDef {
+    abbrev: "http2.data.segment",
+    name: "DATA segment",
+    field_type: FieldType::Bytes,
+    parent: "http2",
+    display: Display::None,
+    bitmask: None,
+    blurb: "A data segment used in reassembly",
+    generated: true,
+};
+
+pub static HTTP2_DATA_DATA: FieldDef = FieldDef {
+    abbrev: "http2.data.data",
+    name: "Data",
+    field_type: FieldType::Bytes,
+    parent: "http2",
+    display: Display::None,
+    bitmask: None,
+    blurb: "Application data",
+    generated: false,
+};
+
+pub static HTTP2_DATA_PADDING: FieldDef = FieldDef {
+    abbrev: "http2.data.padding",
+    name: "Padding",
+    field_type: FieldType::Bytes,
+    parent: "http2",
+    display: Display::None,
+    bitmask: None,
+    blurb: "Padding octets",
+    generated: false,
+};
+
+pub static HTTP2_BODY_FRAGMENTS: FieldDef = FieldDef {
+    abbrev: "http2.body.fragments",
+    name: "Body fragments",
+    field_type: FieldType::None,
+    parent: "http2",
+    display: Display::None,
+    bitmask: None,
+    blurb: "",
+    generated: true,
+};
+
+pub static HTTP2_BODY_FRAGMENT: FieldDef = FieldDef {
+    abbrev: "http2.body.fragment",
+    name: "Body fragment",
+    field_type: FieldType::FrameNumber,
+    parent: "http2",
+    display: Display::None,
+    bitmask: None,
+    blurb: "",
+    generated: true,
+};
+
+pub static HTTP2_BODY_FRAGMENT_OVERLAP: FieldDef = FieldDef {
+    abbrev: "http2.body.fragment.overlap",
+    name: "Body fragment overlap",
+    field_type: FieldType::Boolean,
+    parent: "http2",
+    display: Display::Boolean0,
+    bitmask: None,
+    blurb: "",
+    generated: true,
+};
+
+pub static HTTP2_BODY_FRAGMENT_OVERLAP_CONFLICTS: FieldDef = FieldDef {
+    abbrev: "http2.body.fragment.overlap.conflicts",
+    name: "Body fragment overlapping with conflicting data",
+    field_type: FieldType::Boolean,
+    parent: "http2",
+    display: Display::Boolean0,
+    bitmask: None,
+    blurb: "",
+    generated: true,
+};
+
+pub static HTTP2_BODY_FRAGMENT_MULTIPLE_TAILS: FieldDef = FieldDef {
+    abbrev: "http2.body.fragment.multiple_tails",
+    name: "Body has multiple tail fragments",
+    field_type: FieldType::Boolean,
+    parent: "http2",
+    display: Display::Boolean0,
+    bitmask: None,
+    blurb: "",
+    generated: true,
+};
+
+pub static HTTP2_BODY_FRAGMENT_TOO_LONG_FRAGMENT: FieldDef = FieldDef {
+    abbrev: "http2.body.fragment.too_long_fragment",
+    name: "Body fragment too long",
+    field_type: FieldType::Boolean,
+    parent: "http2",
+    display: Display::Boolean0,
+    bitmask: None,
+    blurb: "",
+    generated: true,
+};
+
+pub static HTTP2_BODY_FRAGMENT_ERROR: FieldDef = FieldDef {
+    abbrev: "http2.body.fragment.error",
+    name: "Body defragment error",
+    field_type: FieldType::FrameNumber,
+    parent: "http2",
+    display: Display::None,
+    bitmask: None,
+    blurb: "",
+    generated: true,
+};
+
+pub static HTTP2_BODY_FRAGMENT_COUNT: FieldDef = FieldDef {
+    abbrev: "http2.body.fragment.count",
+    name: "Body fragment count",
+    field_type: FieldType::Uint32,
+    parent: "http2",
+    display: Display::Decimal,
+    bitmask: None,
+    blurb: "",
+    generated: true,
+};
+
+pub static HTTP2_BODY_REASSEMBLED_IN: FieldDef = FieldDef {
+    abbrev: "http2.body.reassembled.in",
+    name: "Reassembled body in frame",
+    field_type: FieldType::FrameNumber,
+    parent: "http2",
+    display: Display::None,
+    bitmask: None,
+    blurb: "Reassembled body in frame number",
+    generated: false,
+};
+
+pub static HTTP2_BODY_REASSEMBLED_LENGTH: FieldDef = FieldDef {
+    abbrev: "http2.body.reassembled.length",
+    name: "Reassembled body length",
+    field_type: FieldType::Uint32,
+    parent: "http2",
+    display: Display::Decimal,
+    bitmask: None,
+    blurb: "Reassembled body in frame number",
+    generated: true,
+};
+
+pub static HTTP2_BODY_REASSEMBLED_DATA: FieldDef = FieldDef {
+    abbrev: "http2.body.reassembled.data",
+    name: "Reassembled body data",
+    field_type: FieldType::Bytes,
+    parent: "http2",
+    display: Display::None,
+    bitmask: None,
+    blurb: "Reassembled body data for multisegment PDU spanning across DATAs",
+    generated: true,
+};
+
+pub static HTTP2_HEADERS: FieldDef = FieldDef {
+    abbrev: "http2.headers",
+    name: "Header Block Fragment",
+    field_type: FieldType::Bytes,
+    parent: "http2",
+    display: Display::None,
+    bitmask: None,
+    blurb: "A header block fragment",
+    generated: false,
+};
+
+pub static HTTP2_HEADERS_PADDING: FieldDef = FieldDef {
+    abbrev: "http2.headers.padding",
+    name: "Padding",
+    field_type: FieldType::Bytes,
+    parent: "http2",
+    display: Display::None,
+    bitmask: None,
+    blurb: "Padding octets",
+    generated: false,
+};
+
+pub static HTTP2_HEADER: FieldDef = FieldDef {
+    abbrev: "http2.header",
+    name: "Header",
+    field_type: FieldType::None,
+    parent: "http2",
+    display: Display::None,
+    bitmask: None,
+    blurb: "",
+    generated: false,
+};
+
+pub static HTTP2_HEADER_LENGTH: FieldDef = FieldDef {
+    abbrev: "http2.header.length",
+    name: "Header Length",
+    field_type: FieldType::Uint32,
+    parent: "http2",
+    display: Display::Decimal,
+    bitmask: None,
+    blurb: "",
+    generated: true,
+};
+
+pub static HTTP2_HEADER_COUNT: FieldDef = FieldDef {
+    abbrev: "http2.header.count",
+    name: "Header Count",
+    field_type: FieldType::Uint32,
+    parent: "http2",
+    display: Display::Decimal,
+    bitmask: None,
+    blurb: "",
+    generated: true,
+};
+
+pub static HTTP2_HEADER_NAME_LENGTH: FieldDef = FieldDef {
+    abbrev: "http2.header.name.length",
+    name: "Name Length",
+    field_type: FieldType::Uint32,
+    parent: "http2",
+    display: Display::Decimal,
+    bitmask: None,
+    blurb: "",
+    generated: false,
+};
+
+pub static HTTP2_HEADER_NAME: FieldDef = FieldDef {
+    abbrev: "http2.header.name",
+    name: "Name",
+    field_type: FieldType::String,
+    parent: "http2",
+    display: Display::None,
+    bitmask: None,
+    blurb: "",
+    generated: false,
+};
+
+pub static HTTP2_HEADER_VALUE_LENGTH: FieldDef = FieldDef {
+    abbrev: "http2.header.value.length",
+    name: "Value Length",
+    field_type: FieldType::Uint32,
+    parent: "http2",
+    display: Display::Decimal,
+    bitmask: None,
+    blurb: "",
+    generated: false,
+};
+
+pub static HTTP2_HEADER_VALUE: FieldDef = FieldDef {
+    abbrev: "http2.header.value",
+    name: "Value",
+    field_type: FieldType::String,
+    parent: "http2",
+    display: Display::None,
+    bitmask: None,
+    blurb: "",
+    generated: false,
+};
+
+pub static HTTP2_HEADER_UNESCAPED: FieldDef = FieldDef {
+    abbrev: "http2.header.unescaped",
+    name: "Unescaped",
+    field_type: FieldType::String,
+    parent: "http2",
+    display: Display::None,
+    bitmask: None,
+    blurb: "",
+    generated: true,
+};
+
+pub static HTTP2_HEADER_REPR: FieldDef = FieldDef {
+    abbrev: "http2.header.repr",
+    name: "Representation",
+    field_type: FieldType::String,
+    parent: "http2",
+    display: Display::None,
+    bitmask: None,
+    blurb: "",
+    generated: false,
+};
+
+pub static HTTP2_HEADER_INDEX: FieldDef = FieldDef {
+    abbrev: "http2.header.index",
+    name: "Index",
+    field_type: FieldType::Uint32,
+    parent: "http2",
+    display: Display::Decimal,
+    bitmask: None,
+    blurb: "",
+    generated: false,
+};
+
+pub static HTTP2_HEADER_TABLE_SIZE_UPDATE: FieldDef = FieldDef {
+    abbrev: "http2.header_table_size_update",
+    name: "Header table size update",
+    field_type: FieldType::None,
+    parent: "http2",
+    display: Display::None,
+    bitmask: None,
+    blurb: "",
+    generated: false,
+};
+
+pub static HTTP2_HEADER_TABLE_SIZE_UPDATE_HEADER_TABLE_SIZE: FieldDef = FieldDef {
+    abbrev: "http2.header_table_size_update.header_table_size",
+    name: "Header table size",
+    field_type: FieldType::Uint32,
+    parent: "http2",
+    display: Display::Decimal,
+    bitmask: None,
+    blurb: "",
+    generated: false,
+};
+
+pub static HTTP2_FAKE_HEADER_COUNT: FieldDef = FieldDef {
+    abbrev: "http2.fake.header.count",
+    name: "Fake Header Count",
+    field_type: FieldType::Uint32,
+    parent: "http2",
+    display: Display::Decimal,
+    bitmask: None,
+    blurb: "",
+    generated: false,
+};
+
+pub static HTTP2_FAKE_HEADER: FieldDef = FieldDef {
+    abbrev: "http2.fake.header",
+    name: "Fake Header",
+    field_type: FieldType::None,
+    parent: "http2",
+    display: Display::None,
+    bitmask: None,
+    blurb: "",
+    generated: false,
+};
+
+pub static HTTP2_REQUEST_FULL_URI: FieldDef = FieldDef {
+    abbrev: "http2.request.full_uri",
+    name: "Full request URI",
+    field_type: FieldType::String,
+    parent: "http2",
+    display: Display::None,
+    bitmask: None,
+    blurb: "The full requested URI (including host name)",
+    generated: true,
+};
+
+pub static HTTP2_RST_STREAM_ERROR: FieldDef = FieldDef {
+    abbrev: "http2.rst_stream.error",
+    name: "Error",
+    field_type: FieldType::Uint32,
+    parent: "http2",
+    display: Display::Decimal,
+    bitmask: None,
+    blurb: "The error code indicates why the stream is being terminated",
+    generated: false,
+};
+
+pub static HTTP2_SETTINGS: FieldDef = FieldDef {
+    abbrev: "http2.settings",
+    name: "Settings",
+    field_type: FieldType::None,
+    parent: "http2",
+    display: Display::None,
+    bitmask: None,
+    blurb: "",
+    generated: false,
+};
+
+pub static HTTP2_SETTINGS_ID: FieldDef = FieldDef {
+    abbrev: "http2.settings.id",
+    name: "Settings Identifier",
+    field_type: FieldType::Uint16,
+    parent: "http2",
+    display: Display::Decimal,
+    bitmask: None,
+    blurb: "",
+    generated: false,
+};
+
+pub static HTTP2_SETTINGS_HEADER_TABLE_SIZE: FieldDef = FieldDef {
+    abbrev: "http2.settings.header_table_size",
+    name: "Header table size",
+    field_type: FieldType::Uint32,
+    parent: "http2",
+    display: Display::Decimal,
+    bitmask: None,
+    blurb: "Allows the sender to inform the remote endpoint of the size of the header compression table used to decode header blocks. The initial value is 4096 bytes",
+    generated: false,
+};
+
+pub static HTTP2_SETTINGS_ENABLE_PUSH: FieldDef = FieldDef {
+    abbrev: "http2.settings.enable_push",
+    name: "Enable PUSH",
+    field_type: FieldType::Uint32,
+    parent: "http2",
+    display: Display::Decimal,
+    bitmask: None,
+    blurb: "The initial value is 1, which indicates that push is permitted",
+    generated: false,
+};
+
+pub static HTTP2_SETTINGS_MAX_CONCURRENT_STREAMS: FieldDef = FieldDef {
+    abbrev: "http2.settings.max_concurrent_streams",
+    name: "Max concurrent streams",
+    field_type: FieldType::Uint32,
+    parent: "http2",
+    display: Display::Decimal,
+    bitmask: None,
+    blurb: "Indicates the maximum number of concurrent streams that the sender will allow",
+    generated: false,
+};
+
+pub static HTTP2_SETTINGS_INITIAL_WINDOW_SIZE: FieldDef = FieldDef {
+    abbrev: "http2.settings.initial_window_size",
+    name: "Initial Window Size",
+    field_type: FieldType::Uint32,
+    parent: "http2",
+    display: Display::Decimal,
+    bitmask: None,
+    blurb: "Indicates the sender's initial window size (in bytes) for stream level flow control",
+    generated: false,
+};
+
+pub static HTTP2_SETTINGS_MAX_FRAME_SIZE: FieldDef = FieldDef {
+    abbrev: "http2.settings.max_frame_size",
+    name: "Max frame size",
+    field_type: FieldType::Uint32,
+    parent: "http2",
+    display: Display::Decimal,
+    bitmask: None,
+    blurb: "Indicates the size of the largest frame payload that the sender will allow",
+    generated: false,
+};
+
+pub static HTTP2_SETTINGS_MAX_HEADER_LIST_SIZE: FieldDef = FieldDef {
+    abbrev: "http2.settings.max_header_list_size",
+    name: "Max header list size",
+    field_type: FieldType::Uint32,
+    parent: "http2",
+    display: Display::Decimal,
+    bitmask: None,
+    blurb: "This advisory setting informs a peer of the maximum size of header list that the sender is prepared to accept.",
+    generated: false,
+};
+
+pub static HTTP2_SETTINGS_EXTENDED_CONNECT: FieldDef = FieldDef {
+    abbrev: "http2.settings.extended_connect",
+    name: "Extended CONNECT",
+    field_type: FieldType::Uint32,
+    parent: "http2",
+    display: Display::Decimal,
+    bitmask: None,
+    blurb: "Indicates support for the extended CONNECT method extension defined RFC 8441.",
+    generated: false,
+};
+
+pub static HTTP2_SETTINGS_NO_RFC7540_PRIORITIES: FieldDef = FieldDef {
+    abbrev: "http2.settings.no_rfc7540_priorities",
+    name: "No RFC7540 Priorities",
+    field_type: FieldType::Uint32,
+    parent: "http2",
+    display: Display::Decimal,
+    bitmask: None,
+    blurb: "",
+    generated: false,
+};
+
+pub static HTTP2_SETTINGS_TLS_RENEG_PERMITTED: FieldDef = FieldDef {
+    abbrev: "http2.settings.tls_reneg_permitted",
+    name: "TLS Renegotiation Permitted",
+    field_type: FieldType::Uint32,
+    parent: "http2",
+    display: Display::Decimal,
+    bitmask: None,
+    blurb: "Indicates the sender's capability and willingness to employ TLS renegotiation",
+    generated: false,
+};
+
+pub static HTTP2_SETTINGS_UNKNOWN: FieldDef = FieldDef {
+    abbrev: "http2.settings.unknown",
+    name: "Unknown Settings",
+    field_type: FieldType::Uint32,
+    parent: "http2",
+    display: Display::Decimal,
+    bitmask: None,
+    blurb: "",
+    generated: false,
+};
+
+pub static HTTP2_PUSH_PROMISE_R: FieldDef = FieldDef {
+    abbrev: "http2.push_promise.r",
+    name: "Reserved",
+    field_type: FieldType::Uint32,
+    parent: "http2",
+    display: Display::Hex,
+    bitmask: Some(0x80000000),
+    blurb: "Must be zero",
+    generated: false,
+};
+
+pub static HTTP2_PUSH_PROMISE_PROMISED_STREAM_ID: FieldDef = FieldDef {
+    abbrev: "http2.push_promise.promised_stream_id",
+    name: "Promised-Stream-ID",
+    field_type: FieldType::Uint32,
+    parent: "http2",
+    display: Display::Decimal,
+    bitmask: Some(0x7fffffff),
+    blurb: "Identifies the stream the endpoint intends to start sending frames for",
+    generated: false,
+};
+
+pub static HTTP2_PUSH_PROMISE_HEADER: FieldDef = FieldDef {
+    abbrev: "http2.push_promise.header",
+    name: "Header Block Fragment",
+    field_type: FieldType::Bytes,
+    parent: "http2",
+    display: Display::None,
+    bitmask: None,
+    blurb: "Containing request header fields",
+    generated: false,
+};
+
+pub static HTTP2_PUSH_PROMISE_PADDING: FieldDef = FieldDef {
+    abbrev: "http2.push_promise.padding",
+    name: "Padding",
+    field_type: FieldType::Bytes,
+    parent: "http2",
+    display: Display::None,
+    bitmask: None,
+    blurb: "Padding octets",
+    generated: false,
+};
+
+pub static HTTP2_PING: FieldDef = FieldDef {
+    abbrev: "http2.ping",
+    name: "Ping",
+    field_type: FieldType::Bytes,
+    parent: "http2",
+    display: Display::None,
+    bitmask: None,
+    blurb: "",
+    generated: false,
+};
+
+pub static HTTP2_PONG: FieldDef = FieldDef {
+    abbrev: "http2.pong",
+    name: "Pong",
+    field_type: FieldType::Bytes,
+    parent: "http2",
+    display: Display::None,
+    bitmask: None,
+    blurb: "",
+    generated: false,
+};
+
+pub static HTTP2_GOAWAY_R: FieldDef = FieldDef {
+    abbrev: "http2.goaway.r",
+    name: "Reserved",
+    field_type: FieldType::Uint32,
+    parent: "http2",
+    display: Display::Hex,
+    bitmask: Some(0x80000000),
+    blurb: "Must be zero",
+    generated: false,
+};
+
+pub static HTTP2_GOAWAY_LAST_STREAM_ID: FieldDef = FieldDef {
+    abbrev: "http2.goaway.last_stream_id",
+    name: "Last-Stream-ID",
+    field_type: FieldType::Uint32,
+    parent: "http2",
+    display: Display::Decimal,
+    bitmask: Some(0x7fffffff),
+    blurb: "Contains the highest numbered stream identifier for which the sender of the GOAWAY frame has received frames on and might have taken some action on",
+    generated: false,
+};
+
+pub static HTTP2_GOAWAY_ERROR: FieldDef = FieldDef {
+    abbrev: "http2.goaway.error",
+    name: "Error",
+    field_type: FieldType::Uint32,
+    parent: "http2",
+    display: Display::Decimal,
+    bitmask: None,
+    blurb: "The error code indicates the reason for closing the connection",
+    generated: false,
+};
+
+pub static HTTP2_GOAWAY_ADDATA: FieldDef = FieldDef {
+    abbrev: "http2.goaway.addata",
+    name: "Additional Debug Data",
+    field_type: FieldType::Bytes,
+    parent: "http2",
+    display: Display::None,
+    bitmask: None,
+    blurb: "",
+    generated: false,
+};
+
+pub static HTTP2_WINDOW_UPDATE_R: FieldDef = FieldDef {
+    abbrev: "http2.window_update.r",
+    name: "Reserved",
+    field_type: FieldType::Uint32,
+    parent: "http2",
+    display: Display::Hex,
+    bitmask: Some(0x80000000),
+    blurb: "Must be zero",
+    generated: false,
+};
+
+pub static HTTP2_WINDOW_UPDATE_WINDOW_SIZE_INCREMENT: FieldDef = FieldDef {
+    abbrev: "http2.window_update.window_size_increment",
+    name: "Window Size Increment",
+    field_type: FieldType::Uint32,
+    parent: "http2",
+    display: Display::Decimal,
+    bitmask: Some(0x7fffffff),
+    blurb: "Indicating the number of bytes that the sender can transmit in addition to the existing flow control window",
+    generated: false,
+};
+
+pub static HTTP2_CONTINUATION_HEADER: FieldDef = FieldDef {
+    abbrev: "http2.continuation.header",
+    name: "Header Block Fragment",
+    field_type: FieldType::Bytes,
+    parent: "http2",
+    display: Display::None,
+    bitmask: None,
+    blurb: "Continues a HEADERS or PUSH_PROMISE field block",
+    generated: false,
+};
+
+pub static HTTP2_CONTINUATION_PADDING: FieldDef = FieldDef {
+    abbrev: "http2.continuation.padding",
+    name: "Padding",
+    field_type: FieldType::Bytes,
+    parent: "http2",
+    display: Display::None,
+    bitmask: None,
+    blurb: "Padding octets",
+    generated: false,
+};
+
+pub static HTTP2_ALTSVC_ORIGIN_LEN: FieldDef = FieldDef {
+    abbrev: "http2.altsvc.origin.len",
+    name: "Origin Length",
+    field_type: FieldType::Uint16,
+    parent: "http2",
+    display: Display::Decimal,
+    bitmask: None,
+    blurb: "indicating the length, in octets, of the Origin field.",
+    generated: false,
+};
+
+pub static HTTP2_ALTSVC_ORIGIN: FieldDef = FieldDef {
+    abbrev: "http2.altsvc.origin",
+    name: "Origin",
+    field_type: FieldType::String,
+    parent: "http2",
+    display: Display::None,
+    bitmask: None,
+    blurb: "A sequence of characters containing ASCII serialisation of an origin that the alternate service is applicable to.",
+    generated: false,
+};
+
+pub static HTTP2_ALTSVC_FIELD_VALUE: FieldDef = FieldDef {
+    abbrev: "http2.altsvc.field_value",
+    name: "Field/Value",
+    field_type: FieldType::String,
+    parent: "http2",
+    display: Display::None,
+    bitmask: None,
+    blurb: "A sequence of octets containing a value identical to the Alt-Svc field value",
+    generated: false,
+};
+
+pub static HTTP2_ORIGIN: FieldDef = FieldDef {
+    abbrev: "http2.origin",
+    name: "Origin",
+    field_type: FieldType::None,
+    parent: "http2",
+    display: Display::None,
+    bitmask: None,
+    blurb: "",
+    generated: false,
+};
+
+pub static HTTP2_ORIGIN_ORIGIN_LEN: FieldDef = FieldDef {
+    abbrev: "http2.origin.origin_len",
+    name: "Origin Length",
+    field_type: FieldType::Uint16,
+    parent: "http2",
+    display: Display::Decimal,
+    bitmask: None,
+    blurb: "indicating the length, in octets, of the Origin field.",
+    generated: false,
+};
+
+pub static HTTP2_ORIGIN_ORIGIN: FieldDef = FieldDef {
+    abbrev: "http2.origin.origin",
+    name: "Origin",
+    field_type: FieldType::String,
+    parent: "http2",
+    display: Display::None,
+    bitmask: None,
+    blurb: "A sequence of characters containing ASCII serialisation of an origin that server is authoritative for.",
+    generated: false,
+};
+
+pub static HTTP2_PRIORITY_UPDATE_STREAM_ID: FieldDef = FieldDef {
+    abbrev: "http2.priority_update_stream_id",
+    name: "Priority Update Stream ID",
+    field_type: FieldType::Uint64,
+    parent: "http2",
+    display: Display::Decimal,
+    bitmask: None,
+    blurb: "",
+    generated: false,
+};
+
+pub static HTTP2_PRIORITY_UPDATE_FIELD_VALUE: FieldDef = FieldDef {
+    abbrev: "http2.priority_update_field_value",
+    name: "Priority Update Field Value",
+    field_type: FieldType::String,
+    parent: "http2",
+    display: Display::None,
+    bitmask: None,
+    blurb: "",
+    generated: false,
+};
+
+pub static HTTP2_TIME: FieldDef = FieldDef {
+    abbrev: "http2.time",
+    name: "Time since request",
+    field_type: FieldType::RelativeTime,
+    parent: "http2",
+    display: Display::None,
+    bitmask: None,
+    blurb: "Time since the request was sent",
+    generated: true,
+};
+
+pub static HTTP2_REQUEST_IN: FieldDef = FieldDef {
+    abbrev: "http2.request_in",
+    name: "Request in frame",
+    field_type: FieldType::FrameNumber,
+    parent: "http2",
+    display: Display::None,
+    bitmask: None,
+    blurb: "This frame is a response to a HTTP2 request contained in frame with this number",
+    generated: true,
+};
+
+pub static HTTP2_RESPONSE_IN: FieldDef = FieldDef {
+    abbrev: "http2.response_in",
+    name: "Response in frame",
+    field_type: FieldType::FrameNumber,
+    parent: "http2",
+    display: Display::None,
+    bitmask: None,
+    blurb: "This request will be responded in the frame with this number",
+    generated: true,
+};
+
+pub static HTTP2_CALCULATED_CONNECTION_WINDOW_SIZE_BEFORE: FieldDef = FieldDef {
+    abbrev: "http2.calculated.connection.window_size.before",
+    name: "Connection window size (before)",
+    field_type: FieldType::Int32,
+    parent: "http2",
+    display: Display::Decimal,
+    bitmask: None,
+    blurb: "The sender's current window size (in bytes) for this connection (before sending)",
+    generated: true,
+};
+
+pub static HTTP2_CALCULATED_CONNECTION_WINDOW_SIZE_AFTER: FieldDef = FieldDef {
+    abbrev: "http2.calculated.connection.window_size.after",
+    name: "Connection window size (after)",
+    field_type: FieldType::Int32,
+    parent: "http2",
+    display: Display::Decimal,
+    bitmask: None,
+    blurb: "The sender's current window size (in bytes) for this connection (after sending)",
+    generated: true,
+};
+
+pub static HTTP2_CALCULATED_STREAM_WINDOW_SIZE_BEFORE: FieldDef = FieldDef {
+    abbrev: "http2.calculated.stream.window_size.before",
+    name: "Stream window size (before)",
+    field_type: FieldType::Int32,
+    parent: "http2",
+    display: Display::Decimal,
+    bitmask: None,
+    blurb: "The sender's current window size (in bytes) for this stream (before sending)",
+    generated: true,
+};
+
+pub static HTTP2_CALCULATED_STREAM_WINDOW_SIZE_AFTER: FieldDef = FieldDef {
+    abbrev: "http2.calculated.stream.window_size.after",
+    name: "Stream window size (after)",
+    field_type: FieldType::Int32,
+    parent: "http2",
+    display: Display::Decimal,
+    bitmask: None,
+    blurb: "The sender's current window size (in bytes) for this stream (after sending)",
+    generated: true,
+};
+
+pub static HTTP2_HEADER_SIZE_EXCEEDED: FieldDef = FieldDef {
+    abbrev: "http2.header_size_exceeded",
+    name: "Decompression stopped.",
+    field_type: FieldType::None,
+    parent: "http2",
+    display: Display::None,
+    bitmask: None,
+    blurb: "",
+    generated: true,
+};
+
+pub static HTTP2_HEADER_LINES_EXCEEDED: FieldDef = FieldDef {
+    abbrev: "http2.header_lines_exceeded",
+    name: "Decompression stopped after 200 header lines.",
+    field_type: FieldType::None,
+    parent: "http2",
+    display: Display::None,
+    bitmask: None,
+    blurb: "",
+    generated: true,
+};
+
+pub static HTTP2_BODY_DECOMPRESSION_FAILED: FieldDef = FieldDef {
+    abbrev: "http2.body_decompression_failed",
+    name: "Body decompression failed",
+    field_type: FieldType::None,
+    parent: "http2",
+    display: Display::None,
+    bitmask: None,
+    blurb: "",
+    generated: true,
+};
+
+pub static HTTP2_REASSEMBLY_ERROR: FieldDef = FieldDef {
+    abbrev: "http2.reassembly_error",
+    name: "Reassembly failed",
+    field_type: FieldType::None,
+    parent: "http2",
+    display: Display::None,
+    bitmask: None,
+    blurb: "",
+    generated: true,
+};
+
+pub static HTTP2_HEADERS_AUTHORITY: FieldDef = FieldDef {
+    abbrev: "http2.headers.authority",
+    name: ":authority",
+    field_type: FieldType::String,
+    parent: "http2",
+    display: Display::None,
+    bitmask: None,
+    blurb: "Authority portion of the target URI",
+    generated: false,
+};
+
+pub static HTTP2_HEADERS_STATUS: FieldDef = FieldDef {
+    abbrev: "http2.headers.status",
+    name: ":status",
+    field_type: FieldType::Uint16,
+    parent: "http2",
+    display: Display::Decimal,
+    bitmask: None,
+    blurb: "",
+    generated: false,
+};
+
+pub static HTTP2_HEADERS_PATH: FieldDef = FieldDef {
+    abbrev: "http2.headers.path",
+    name: ":path",
+    field_type: FieldType::String,
+    parent: "http2",
+    display: Display::None,
+    bitmask: None,
+    blurb: "",
+    generated: false,
+};
+
+pub static HTTP2_HEADERS_METHOD: FieldDef = FieldDef {
+    abbrev: "http2.headers.method",
+    name: ":method",
+    field_type: FieldType::String,
+    parent: "http2",
+    display: Display::None,
+    bitmask: None,
+    blurb: "",
+    generated: false,
+};
+
+pub static HTTP2_HEADERS_SCHEME: FieldDef = FieldDef {
+    abbrev: "http2.headers.scheme",
+    name: ":scheme",
+    field_type: FieldType::String,
+    parent: "http2",
+    display: Display::None,
+    bitmask: None,
+    blurb: "",
+    generated: false,
+};
+
+pub static HTTP2_HEADERS_PROTOCOL: FieldDef = FieldDef {
+    abbrev: "http2.headers.protocol",
+    name: ":protocol",
+    field_type: FieldType::String,
+    parent: "http2",
+    display: Display::None,
+    bitmask: None,
+    blurb: "",
+    generated: false,
+};
+
+pub static HTTP2_HEADERS_ACCEPT: FieldDef = FieldDef {
+    abbrev: "http2.headers.accept",
+    name: "accept",
+    field_type: FieldType::String,
+    parent: "http2",
+    display: Display::None,
+    bitmask: None,
+    blurb: "Media types that are acceptable to the user agent",
+    generated: false,
+};
+
+pub static HTTP2_HEADERS_ACCEPT_CHARSET: FieldDef = FieldDef {
+    abbrev: "http2.headers.accept_charset",
+    name: "accept-charset",
+    field_type: FieldType::String,
+    parent: "http2",
+    display: Display::None,
+    bitmask: None,
+    blurb: "Acceptable charsets in textual responses for the user agent",
+    generated: false,
+};
+
+pub static HTTP2_HEADERS_ACCEPT_ENCODING: FieldDef = FieldDef {
+    abbrev: "http2.headers.accept_encoding",
+    name: "accept-encoding",
+    field_type: FieldType::String,
+    parent: "http2",
+    display: Display::None,
+    bitmask: None,
+    blurb: "Acceptable content codings (like compression) in responses for the user agent",
+    generated: false,
+};
+
+pub static HTTP2_HEADERS_ACCEPT_LANGUAGE: FieldDef = FieldDef {
+    abbrev: "http2.headers.accept_language",
+    name: "accept-language",
+    field_type: FieldType::String,
+    parent: "http2",
+    display: Display::None,
+    bitmask: None,
+    blurb: "Preferred natural languages for the user agent",
+    generated: false,
+};
+
+pub static HTTP2_HEADERS_ACCEPT_RANGES: FieldDef = FieldDef {
+    abbrev: "http2.headers.accept_ranges",
+    name: "accept-ranges",
+    field_type: FieldType::String,
+    parent: "http2",
+    display: Display::None,
+    bitmask: None,
+    blurb: "Bytes range which server may use for partial data transfer",
+    generated: false,
+};
+
+pub static HTTP2_HEADERS_ACCESS_CONTROL_ALLOW_ORIGIN: FieldDef = FieldDef {
+    abbrev: "http2.headers.access_control_allow_origin",
+    name: "access-control-allow-origin",
+    field_type: FieldType::String,
+    parent: "http2",
+    display: Display::None,
+    bitmask: None,
+    blurb: "Origin control for cross-origin resource sharing",
+    generated: false,
+};
+
+pub static HTTP2_HEADERS_AGE: FieldDef = FieldDef {
+    abbrev: "http2.headers.age",
+    name: "age",
+    field_type: FieldType::Uint64,
+    parent: "http2",
+    display: Display::Decimal,
+    bitmask: None,
+    blurb: "Time in seconds which was spent for transferring data through proxy",
+    generated: false,
+};
+
+pub static HTTP2_HEADERS_ALLOW: FieldDef = FieldDef {
+    abbrev: "http2.headers.allow",
+    name: "allow",
+    field_type: FieldType::String,
+    parent: "http2",
+    display: Display::None,
+    bitmask: None,
+    blurb: "List of allowed methods for request",
+    generated: false,
+};
+
+pub static HTTP2_HEADERS_AUTHORIZATION: FieldDef = FieldDef {
+    abbrev: "http2.headers.authorization",
+    name: "authorization",
+    field_type: FieldType::String,
+    parent: "http2",
+    display: Display::None,
+    bitmask: None,
+    blurb: "Credentials for a server-side authorization",
+    generated: false,
+};
+
+pub static HTTP2_HEADERS_CACHE_CONTROL: FieldDef = FieldDef {
+    abbrev: "http2.headers.cache_control",
+    name: "cache-control",
+    field_type: FieldType::String,
+    parent: "http2",
+    display: Display::None,
+    bitmask: None,
+    blurb: "Request or response directives for a cache control",
+    generated: false,
+};
+
+pub static HTTP2_HEADERS_CONTENT_DISPOSITION: FieldDef = FieldDef {
+    abbrev: "http2.headers.content_disposition",
+    name: "content-disposition",
+    field_type: FieldType::String,
+    parent: "http2",
+    display: Display::None,
+    bitmask: None,
+    blurb: "Indicates that response will be displayed as page or downloaded with dialog box",
+    generated: false,
+};
+
+pub static HTTP2_HEADERS_CONTENT_ENCODING: FieldDef = FieldDef {
+    abbrev: "http2.headers.content_encoding",
+    name: "content-encoding",
+    field_type: FieldType::String,
+    parent: "http2",
+    display: Display::None,
+    bitmask: None,
+    blurb: "",
+    generated: false,
+};
+
+pub static HTTP2_HEADERS_CONTENT_LANGUAGE: FieldDef = FieldDef {
+    abbrev: "http2.headers.content_language",
+    name: "content-language",
+    field_type: FieldType::String,
+    parent: "http2",
+    display: Display::None,
+    bitmask: None,
+    blurb: "",
+    generated: false,
+};
+
+pub static HTTP2_HEADERS_CONTENT_LENGTH: FieldDef = FieldDef {
+    abbrev: "http2.headers.content_length",
+    name: "content-length",
+    field_type: FieldType::Uint64,
+    parent: "http2",
+    display: Display::Decimal,
+    bitmask: None,
+    blurb: "Size of body in bytes",
+    generated: false,
+};
+
+pub static HTTP2_HEADERS_CONTENT_LOCATION: FieldDef = FieldDef {
+    abbrev: "http2.headers.content_location",
+    name: "content-location",
+    field_type: FieldType::String,
+    parent: "http2",
+    display: Display::None,
+    bitmask: None,
+    blurb: "Alternative URL for a response data",
+    generated: false,
+};
+
+pub static HTTP2_HEADERS_CONTENT_RANGE: FieldDef = FieldDef {
+    abbrev: "http2.headers.content_range",
+    name: "content-range",
+    field_type: FieldType::String,
+    parent: "http2",
+    display: Display::None,
+    bitmask: None,
+    blurb: "Range of bytes which was sent by server for partial data transfer",
+    generated: false,
+};
+
+pub static HTTP2_HEADERS_CONTENT_TYPE: FieldDef = FieldDef {
+    abbrev: "http2.headers.content_type",
+    name: "content-type",
+    field_type: FieldType::String,
+    parent: "http2",
+    display: Display::None,
+    bitmask: None,
+    blurb: "MIME type of response",
+    generated: false,
+};
+
+pub static HTTP2_HEADERS_COOKIE: FieldDef = FieldDef {
+    abbrev: "http2.headers.cookie",
+    name: "cookie",
+    field_type: FieldType::String,
+    parent: "http2",
+    display: Display::None,
+    bitmask: None,
+    blurb: "Stored cookies",
+    generated: false,
+};
+
+pub static HTTP2_HEADERS_DATE: FieldDef = FieldDef {
+    abbrev: "http2.headers.date",
+    name: "date",
+    field_type: FieldType::String,
+    parent: "http2",
+    display: Display::None,
+    bitmask: None,
+    blurb: "Date and time at which the data was originated",
+    generated: false,
+};
+
+pub static HTTP2_HEADERS_ETAG: FieldDef = FieldDef {
+    abbrev: "http2.headers.etag",
+    name: "etag",
+    field_type: FieldType::String,
+    parent: "http2",
+    display: Display::None,
+    bitmask: None,
+    blurb: "Directive for version indication of resource",
+    generated: false,
+};
+
+pub static HTTP2_HEADERS_EXPECT: FieldDef = FieldDef {
+    abbrev: "http2.headers.expect",
+    name: "expect",
+    field_type: FieldType::String,
+    parent: "http2",
+    display: Display::None,
+    bitmask: None,
+    blurb: "Expectations that need to be fulfilled for correct request",
+    generated: false,
+};
+
+pub static HTTP2_HEADERS_EXPIRES: FieldDef = FieldDef {
+    abbrev: "http2.headers.expires",
+    name: "expires",
+    field_type: FieldType::String,
+    parent: "http2",
+    display: Display::None,
+    bitmask: None,
+    blurb: "Data after which resource will be stale",
+    generated: false,
+};
+
+pub static HTTP2_HEADERS_FROM: FieldDef = FieldDef {
+    abbrev: "http2.headers.from",
+    name: "from",
+    field_type: FieldType::String,
+    parent: "http2",
+    display: Display::None,
+    bitmask: None,
+    blurb: "Email of a person who responsible for a requesting data",
+    generated: false,
+};
+
+pub static HTTP2_HEADERS_IF_MATCH: FieldDef = FieldDef {
+    abbrev: "http2.headers.if_match",
+    name: "if-match",
+    field_type: FieldType::String,
+    parent: "http2",
+    display: Display::None,
+    bitmask: None,
+    blurb: "Mechanism for requesting data matched by a list of ETags",
+    generated: false,
+};
+
+pub static HTTP2_HEADERS_IF_MODIFIED_SINCE: FieldDef = FieldDef {
+    abbrev: "http2.headers.if_modified_since",
+    name: "if-modified-since",
+    field_type: FieldType::String,
+    parent: "http2",
+    display: Display::None,
+    bitmask: None,
+    blurb: "Resource will be sent with status code 200 if it was modified otherwise with status code 304",
+    generated: false,
+};
+
+pub static HTTP2_HEADERS_IF_NONE_MATCH: FieldDef = FieldDef {
+    abbrev: "http2.headers.if_none_match",
+    name: "if-none-match",
+    field_type: FieldType::String,
+    parent: "http2",
+    display: Display::None,
+    bitmask: None,
+    blurb: "Mechanism for requesting data not matched by a list of ETags",
+    generated: false,
+};
+
+pub static HTTP2_HEADERS_IF_RANGE: FieldDef = FieldDef {
+    abbrev: "http2.headers.if_range",
+    name: "if-range",
+    field_type: FieldType::String,
+    parent: "http2",
+    display: Display::None,
+    bitmask: None,
+    blurb: "Mechanism for a range request which is used to check if a resource was modified",
+    generated: false,
+};
+
+pub static HTTP2_HEADERS_IF_UNMODIFIED_SINCE: FieldDef = FieldDef {
+    abbrev: "http2.headers.if_unmodified_since",
+    name: "if-unmodified-since",
+    field_type: FieldType::String,
+    parent: "http2",
+    display: Display::None,
+    bitmask: None,
+    blurb: "Resource will be processed if it was not modified otherwise 412 error will be returned",
+    generated: false,
+};
+
+pub static HTTP2_HEADERS_LAST_MODIFIED: FieldDef = FieldDef {
+    abbrev: "http2.headers.last_modified",
+    name: "last-modified",
+    field_type: FieldType::String,
+    parent: "http2",
+    display: Display::None,
+    bitmask: None,
+    blurb: "Date and time at which the origin server believes the resource was last modified",
+    generated: false,
+};
+
+pub static HTTP2_HEADERS_LINK: FieldDef = FieldDef {
+    abbrev: "http2.headers.link",
+    name: "link",
+    field_type: FieldType::String,
+    parent: "http2",
+    display: Display::None,
+    bitmask: None,
+    blurb: "Mechanism for indicating that resource will be preloaded",
+    generated: false,
+};
+
+pub static HTTP2_HEADERS_LOCATION: FieldDef = FieldDef {
+    abbrev: "http2.headers.location",
+    name: "location",
+    field_type: FieldType::String,
+    parent: "http2",
+    display: Display::None,
+    bitmask: None,
+    blurb: "Mechanism for indicating that client will be redirected",
+    generated: false,
+};
+
+pub static HTTP2_HEADERS_MAX_FORWARDS: FieldDef = FieldDef {
+    abbrev: "http2.headers.max_forwards",
+    name: "max-forwards",
+    field_type: FieldType::Uint64,
+    parent: "http2",
+    display: Display::Decimal,
+    bitmask: None,
+    blurb: "Mechanism for limiting the number of proxies",
+    generated: false,
+};
+
+pub static HTTP2_HEADERS_PROXY_AUTHENTICATE: FieldDef = FieldDef {
+    abbrev: "http2.headers.proxy_authenticate",
+    name: "proxy-authenticate",
+    field_type: FieldType::String,
+    parent: "http2",
+    display: Display::None,
+    bitmask: None,
+    blurb: "Authentication method that should be used to gain access to a resource behind a proxy server",
+    generated: false,
+};
+
+pub static HTTP2_HEADERS_PROXY_AUTHORIZATION: FieldDef = FieldDef {
+    abbrev: "http2.headers.proxy_authorization",
+    name: "proxy-authorization",
+    field_type: FieldType::String,
+    parent: "http2",
+    display: Display::None,
+    bitmask: None,
+    blurb: "Credentials for a proxy-side authorization",
+    generated: false,
+};
+
+pub static HTTP2_HEADERS_RANGE: FieldDef = FieldDef {
+    abbrev: "http2.headers.range",
+    name: "range",
+    field_type: FieldType::String,
+    parent: "http2",
+    display: Display::None,
+    bitmask: None,
+    blurb: "Range of resource bytes that server should return",
+    generated: false,
+};
+
+pub static HTTP2_HEADERS_REFERER: FieldDef = FieldDef {
+    abbrev: "http2.headers.referer",
+    name: "referer",
+    field_type: FieldType::String,
+    parent: "http2",
+    display: Display::None,
+    bitmask: None,
+    blurb: "Address of the previous web page",
+    generated: false,
+};
+
+pub static HTTP2_HEADERS_REFRESH: FieldDef = FieldDef {
+    abbrev: "http2.headers.refresh",
+    name: "refresh",
+    field_type: FieldType::String,
+    parent: "http2",
+    display: Display::None,
+    bitmask: None,
+    blurb: "Time in seconds after which client will be redirected by given url",
+    generated: false,
+};
+
+pub static HTTP2_HEADERS_RETRY_AFTER: FieldDef = FieldDef {
+    abbrev: "http2.headers.retry_after",
+    name: "retry-after",
+    field_type: FieldType::String,
+    parent: "http2",
+    display: Display::None,
+    bitmask: None,
+    blurb: "Mechanism to indicate when resource expected to be available",
+    generated: false,
+};
+
+pub static HTTP2_HEADERS_SERVER: FieldDef = FieldDef {
+    abbrev: "http2.headers.server",
+    name: "server",
+    field_type: FieldType::String,
+    parent: "http2",
+    display: Display::None,
+    bitmask: None,
+    blurb: "Information about server software",
+    generated: false,
+};
+
+pub static HTTP2_HEADERS_SET_COOKIE: FieldDef = FieldDef {
+    abbrev: "http2.headers.set_cookie",
+    name: "set-cookie",
+    field_type: FieldType::String,
+    parent: "http2",
+    display: Display::None,
+    bitmask: None,
+    blurb: "Send a cookie to the client",
+    generated: false,
+};
+
+pub static HTTP2_HEADERS_STRICT_TRANSPORT_SECURITY: FieldDef = FieldDef {
+    abbrev: "http2.headers.strict_transport_security",
+    name: "strict-transport-security",
+    field_type: FieldType::String,
+    parent: "http2",
+    display: Display::None,
+    bitmask: None,
+    blurb: "HSTS indicates that resource should be accessed only using HTTPS",
+    generated: false,
+};
+
+pub static HTTP2_HEADERS_USER_AGENT: FieldDef = FieldDef {
+    abbrev: "http2.headers.user_agent",
+    name: "user-agent",
+    field_type: FieldType::String,
+    parent: "http2",
+    display: Display::None,
+    bitmask: None,
+    blurb: "Information about client software",
+    generated: false,
+};
+
+pub static HTTP2_HEADERS_VARY: FieldDef = FieldDef {
+    abbrev: "http2.headers.vary",
+    name: "vary",
+    field_type: FieldType::String,
+    parent: "http2",
+    display: Display::None,
+    bitmask: None,
+    blurb: "Mechanism for selecting which header will be used for content negotiation algorithm",
+    generated: false,
+};
+
+pub static HTTP2_HEADERS_VIA: FieldDef = FieldDef {
+    abbrev: "http2.headers.via",
+    name: "via",
+    field_type: FieldType::String,
+    parent: "http2",
+    display: Display::None,
+    bitmask: None,
+    blurb: "Additional information for loop detection and protocol capabilities in proxy requests",
+    generated: false,
+};
+
+pub static HTTP2_HEADERS_WWW_AUTHENTICATE: FieldDef = FieldDef {
+    abbrev: "http2.headers.www_authenticate",
+    name: "www-authenticate",
+    field_type: FieldType::String,
+    parent: "http2",
+    display: Display::None,
+    bitmask: None,
+    blurb: "Authentication method that should be used to gain access to a resource",
+    generated: false,
+};
+
+static HTTP2_FIELDS: &[&FieldDef] = &[
+    &HTTP2_STREAM,
+    &HTTP2_LENGTH,
+    &HTTP2_TYPE,
+    &HTTP2_R,
+    &HTTP2_HEADERS_WEIGHT,
+    &HTTP2_HEADERS_WEIGHT_REAL,
+    &HTTP2_STREAMID,
+    &HTTP2_MAGIC,
+    &HTTP2_UNKNOWN,
+    &HTTP2_FLAGS,
+    &HTTP2_FLAGS_END_STREAM,
+    &HTTP2_FLAGS_EH,
+    &HTTP2_FLAGS_PADDED,
+    &HTTP2_FLAGS_PRIORITY,
+    &HTTP2_FLAGS_ACK_PING,
+    &HTTP2_FLAGS_UNUSED,
+    &HTTP2_FLAGS_UNUSED_SETTINGS,
+    &HTTP2_FLAGS_UNUSED_PING,
+    &HTTP2_FLAGS_UNUSED_CONTINUATION,
+    &HTTP2_FLAGS_UNUSED_PUSH_PROMISE,
+    &HTTP2_FLAGS_UNUSED_DATA,
+    &HTTP2_FLAGS_UNUSED_HEADERS,
+    &HTTP2_FLAGS_ACK_SETTINGS,
+    &HTTP2_PADDING,
+    &HTTP2_PAD_LENGTH,
+    &HTTP2_EXCLUSIVE,
+    &HTTP2_STREAM_DEPENDENCY,
+    &HTTP2_DATA_SEGMENT,
+    &HTTP2_DATA_DATA,
+    &HTTP2_DATA_PADDING,
+    &HTTP2_BODY_FRAGMENTS,
+    &HTTP2_BODY_FRAGMENT,
+    &HTTP2_BODY_FRAGMENT_OVERLAP,
+    &HTTP2_BODY_FRAGMENT_OVERLAP_CONFLICTS,
+    &HTTP2_BODY_FRAGMENT_MULTIPLE_TAILS,
+    &HTTP2_BODY_FRAGMENT_TOO_LONG_FRAGMENT,
+    &HTTP2_BODY_FRAGMENT_ERROR,
+    &HTTP2_BODY_FRAGMENT_COUNT,
+    &HTTP2_BODY_REASSEMBLED_IN,
+    &HTTP2_BODY_REASSEMBLED_LENGTH,
+    &HTTP2_BODY_REASSEMBLED_DATA,
+    &HTTP2_HEADERS,
+    &HTTP2_HEADERS_PADDING,
+    &HTTP2_HEADER,
+    &HTTP2_HEADER_LENGTH,
+    &HTTP2_HEADER_COUNT,
+    &HTTP2_HEADER_NAME_LENGTH,
+    &HTTP2_HEADER_NAME,
+    &HTTP2_HEADER_VALUE_LENGTH,
+    &HTTP2_HEADER_VALUE,
+    &HTTP2_HEADER_UNESCAPED,
+    &HTTP2_HEADER_REPR,
+    &HTTP2_HEADER_INDEX,
+    &HTTP2_HEADER_TABLE_SIZE_UPDATE,
+    &HTTP2_HEADER_TABLE_SIZE_UPDATE_HEADER_TABLE_SIZE,
+    &HTTP2_FAKE_HEADER_COUNT,
+    &HTTP2_FAKE_HEADER,
+    &HTTP2_REQUEST_FULL_URI,
+    &HTTP2_RST_STREAM_ERROR,
+    &HTTP2_SETTINGS,
+    &HTTP2_SETTINGS_ID,
+    &HTTP2_SETTINGS_HEADER_TABLE_SIZE,
+    &HTTP2_SETTINGS_ENABLE_PUSH,
+    &HTTP2_SETTINGS_MAX_CONCURRENT_STREAMS,
+    &HTTP2_SETTINGS_INITIAL_WINDOW_SIZE,
+    &HTTP2_SETTINGS_MAX_FRAME_SIZE,
+    &HTTP2_SETTINGS_MAX_HEADER_LIST_SIZE,
+    &HTTP2_SETTINGS_EXTENDED_CONNECT,
+    &HTTP2_SETTINGS_NO_RFC7540_PRIORITIES,
+    &HTTP2_SETTINGS_TLS_RENEG_PERMITTED,
+    &HTTP2_SETTINGS_UNKNOWN,
+    &HTTP2_PUSH_PROMISE_R,
+    &HTTP2_PUSH_PROMISE_PROMISED_STREAM_ID,
+    &HTTP2_PUSH_PROMISE_HEADER,
+    &HTTP2_PUSH_PROMISE_PADDING,
+    &HTTP2_PING,
+    &HTTP2_PONG,
+    &HTTP2_GOAWAY_R,
+    &HTTP2_GOAWAY_LAST_STREAM_ID,
+    &HTTP2_GOAWAY_ERROR,
+    &HTTP2_GOAWAY_ADDATA,
+    &HTTP2_WINDOW_UPDATE_R,
+    &HTTP2_WINDOW_UPDATE_WINDOW_SIZE_INCREMENT,
+    &HTTP2_CONTINUATION_HEADER,
+    &HTTP2_CONTINUATION_PADDING,
+    &HTTP2_ALTSVC_ORIGIN_LEN,
+    &HTTP2_ALTSVC_ORIGIN,
+    &HTTP2_ALTSVC_FIELD_VALUE,
+    &HTTP2_ORIGIN,
+    &HTTP2_ORIGIN_ORIGIN_LEN,
+    &HTTP2_ORIGIN_ORIGIN,
+    &HTTP2_PRIORITY_UPDATE_STREAM_ID,
+    &HTTP2_PRIORITY_UPDATE_FIELD_VALUE,
+    &HTTP2_TIME,
+    &HTTP2_REQUEST_IN,
+    &HTTP2_RESPONSE_IN,
+    &HTTP2_CALCULATED_CONNECTION_WINDOW_SIZE_BEFORE,
+    &HTTP2_CALCULATED_CONNECTION_WINDOW_SIZE_AFTER,
+    &HTTP2_CALCULATED_STREAM_WINDOW_SIZE_BEFORE,
+    &HTTP2_CALCULATED_STREAM_WINDOW_SIZE_AFTER,
+    &HTTP2_HEADER_SIZE_EXCEEDED,
+    &HTTP2_HEADER_LINES_EXCEEDED,
+    &HTTP2_BODY_DECOMPRESSION_FAILED,
+    &HTTP2_REASSEMBLY_ERROR,
+    &HTTP2_HEADERS_AUTHORITY,
+    &HTTP2_HEADERS_STATUS,
+    &HTTP2_HEADERS_PATH,
+    &HTTP2_HEADERS_METHOD,
+    &HTTP2_HEADERS_SCHEME,
+    &HTTP2_HEADERS_PROTOCOL,
+    &HTTP2_HEADERS_ACCEPT,
+    &HTTP2_HEADERS_ACCEPT_CHARSET,
+    &HTTP2_HEADERS_ACCEPT_ENCODING,
+    &HTTP2_HEADERS_ACCEPT_LANGUAGE,
+    &HTTP2_HEADERS_ACCEPT_RANGES,
+    &HTTP2_HEADERS_ACCESS_CONTROL_ALLOW_ORIGIN,
+    &HTTP2_HEADERS_AGE,
+    &HTTP2_HEADERS_ALLOW,
+    &HTTP2_HEADERS_AUTHORIZATION,
+    &HTTP2_HEADERS_CACHE_CONTROL,
+    &HTTP2_HEADERS_CONTENT_DISPOSITION,
+    &HTTP2_HEADERS_CONTENT_ENCODING,
+    &HTTP2_HEADERS_CONTENT_LANGUAGE,
+    &HTTP2_HEADERS_CONTENT_LENGTH,
+    &HTTP2_HEADERS_CONTENT_LOCATION,
+    &HTTP2_HEADERS_CONTENT_RANGE,
+    &HTTP2_HEADERS_CONTENT_TYPE,
+    &HTTP2_HEADERS_COOKIE,
+    &HTTP2_HEADERS_DATE,
+    &HTTP2_HEADERS_ETAG,
+    &HTTP2_HEADERS_EXPECT,
+    &HTTP2_HEADERS_EXPIRES,
+    &HTTP2_HEADERS_FROM,
+    &HTTP2_HEADERS_IF_MATCH,
+    &HTTP2_HEADERS_IF_MODIFIED_SINCE,
+    &HTTP2_HEADERS_IF_NONE_MATCH,
+    &HTTP2_HEADERS_IF_RANGE,
+    &HTTP2_HEADERS_IF_UNMODIFIED_SINCE,
+    &HTTP2_HEADERS_LAST_MODIFIED,
+    &HTTP2_HEADERS_LINK,
+    &HTTP2_HEADERS_LOCATION,
+    &HTTP2_HEADERS_MAX_FORWARDS,
+    &HTTP2_HEADERS_PROXY_AUTHENTICATE,
+    &HTTP2_HEADERS_PROXY_AUTHORIZATION,
+    &HTTP2_HEADERS_RANGE,
+    &HTTP2_HEADERS_REFERER,
+    &HTTP2_HEADERS_REFRESH,
+    &HTTP2_HEADERS_RETRY_AFTER,
+    &HTTP2_HEADERS_SERVER,
+    &HTTP2_HEADERS_SET_COOKIE,
+    &HTTP2_HEADERS_STRICT_TRANSPORT_SECURITY,
+    &HTTP2_HEADERS_USER_AGENT,
+    &HTTP2_HEADERS_VARY,
+    &HTTP2_HEADERS_VIA,
+    &HTTP2_HEADERS_WWW_AUTHENTICATE,
+];
+
+/// HTTP/2 framing and header compression (RFC 9113, RFC 7541).
+pub static HTTP2_PROTOCOL: ProtocolDef = ProtocolDef {
+    filter_name: "http2",
+    long_name: "HyperText Transfer Protocol 2",
+    short_name: "HTTP2",
+    fields: HTTP2_FIELDS,
+};
+
 // ---- TLS fields (-G fields order) ----
 
 pub static TLS_STREAM: FieldDef = FieldDef {
@@ -21065,6 +22943,7 @@ static PROTOCOLS: &[&ProtocolDef] = &[
     &SYSLOG_PROTOCOL,
     &BGP_PROTOCOL,
     &HTTP_PROTOCOL,
+    &HTTP2_PROTOCOL,
     &TLS_PROTOCOL,
 ];
 

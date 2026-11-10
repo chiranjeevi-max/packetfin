@@ -180,6 +180,19 @@ pub(crate) fn decode(context: &mut DecodeContext<'_>, parent: &mut Node, data: &
     } else {
         ulp_for_ports(source_port, destination_port, payload)
     };
+    // Only the client sends the connection preface; once either direction of
+    // the conversation has HTTP/2 state, the other direction's frames belong
+    // to the same connection (RFC 9113 section 3.4).
+    let detected_ulp = if detected_ulp.is_none()
+        && !context.quoted
+        && !payload.is_empty()
+        && let Some((key, _)) = conversation_key(context, source_port, destination_port)
+        && context.state.http2_known(key)
+    {
+        Some(Ulp::Http2)
+    } else {
+        detected_ulp
+    };
     // Turning desegmentation off leaves each segment a PDU on its own: no
     // buffering and no segment data, but a complete fixed header still
     // yields `tcp.pdu.size`.
@@ -911,6 +924,12 @@ fn ulp_for_ports(source: u16, destination: u16, payload: &[u8]) -> Option<Ulp> {
     if http_port(ports) && http_prefix(payload) {
         return Some(Ulp::Http);
     }
+    // The connection preface is the only cleartext HTTP/2 heuristic: a frame
+    // shape alone is not enough, because every frame type shares the same
+    // nine-octet header (RFC 9113 section 4.1).
+    if crate::decode::http2::looks_like_http2_prefix(payload) {
+        return Some(Ulp::Http2);
+    }
     looks_like_http_prefix(payload).then_some(Ulp::Http)
 }
 
@@ -1598,12 +1617,14 @@ fn decode_stream_pdus(
                 if pdu.ulp == Ulp::Http {
                     context.pdu_bytes = Some(pdu.data.clone());
                 }
-                let record_source = if pdu.ulp == Ulp::Tls {
+                let record_source = if matches!(pdu.ulp, Ulp::Tls | Ulp::Http2) {
                     // The PDU bytes are the reassembly buffer, not the frame
                     // at offset zero; record fields must read this source.
                     let source = context.reserve_reassembled_source();
                     context.set_data_source(source, pdu.data.clone());
-                    context.tls_record_source = Some(source);
+                    if pdu.ulp == Ulp::Tls {
+                        context.tls_record_source = Some(source);
+                    }
                     Some(source)
                 } else {
                     None
@@ -1737,6 +1758,11 @@ fn decode_stream_pdus(
                         }
                     }
                     Ulp::Dns => {}
+                    Ulp::Http2 => {
+                        // A frame that is not complete yet has no node and no
+                        // Info text; it decodes once, when its last byte
+                        // arrives.
+                    }
                 }
             }
             Some(PduAction::SegmentData { .. }) => {}
@@ -1804,6 +1830,7 @@ fn decode_ulp(
         Ulp::Tls => tls(context, node, data, base),
         Ulp::Bgp => bgp(context, node, data, base),
         Ulp::Http => http(context, node, data, base),
+        Ulp::Http2 => crate::decode::http2::decode(context, node, data, base),
     }
 }
 

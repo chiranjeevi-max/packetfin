@@ -15,12 +15,14 @@ mod budget;
 mod conversation;
 mod dns;
 mod fragment;
+mod http2;
 mod sequence;
 mod snmp;
 mod stream;
 mod tcp;
 mod template;
 
+pub(crate) use http2::{BodyFragmentView, Http2Key};
 pub(crate) use stream::{PduAction, ReassembledPdu, ReassemblyReport, SegmentDataPiece, Ulp};
 pub(crate) use tcp::{TcpAnalysisOptions, TcpObservation, TcpPacketState};
 
@@ -187,6 +189,10 @@ pub struct SessionState {
     dns_tcp: StateStore<ConversationKey, DnsConversation>,
     /// HTTP request/response tail per TCP conversation.
     http: StateStore<ConversationKey, HttpConversation>,
+    /// HTTP/2 header compression, windows and pending blocks per direction.
+    http2: StateStore<Http2Key, http2::Http2Direction>,
+    /// HTTP/2 request/response linkage and DATA bodies per conversation.
+    http2_streams: StateStore<ConversationKey, http2::Http2Streams>,
     /// TLS session version per TCP conversation.
     tls: StateStore<ConversationKey, TlsConversation>,
     /// TLS record flows and decrypted plaintext streams.
@@ -232,6 +238,8 @@ impl SessionState {
             snmp: StateStore::new(),
             dns_tcp: StateStore::new(),
             http: StateStore::new(),
+            http2: StateStore::new(),
+            http2_streams: StateStore::new(),
             tls: StateStore::new(),
             tls_flows: StateStore::new(),
             tls_handshake: StateStore::new(),

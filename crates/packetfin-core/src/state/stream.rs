@@ -387,10 +387,18 @@ impl SessionState {
             .take_with(&mut self.budget, &key)
             .unwrap_or_default();
         let direction = direction.min(1);
-        plaintext
-            .streams
-            .direction_mut(direction)
-            .set_ulp(Ulp::Http);
+        {
+            // A TLS connection that negotiated HTTP/2 still opens with the
+            // client preface, so the first plaintext record fixes the framing
+            // for the direction; `set_ulp` keeps the first value.
+            let stream = plaintext.streams.direction_mut(direction);
+            let ulp = if crate::decode::http2::looks_like_http2_prefix(bytes) {
+                Ulp::Http2
+            } else {
+                Ulp::Http
+            };
+            stream.set_ulp(ulp);
+        }
         let sequence = plaintext
             .next_sequence
             .get(direction)
@@ -735,6 +743,8 @@ pub(crate) enum Ulp {
     Bgp,
     /// HTTP/1.x: a header block and an optional declared body.
     Http,
+    /// HTTP/2: the connection preface and one frame at a time.
+    Http2,
 }
 
 impl Ulp {
@@ -746,30 +756,31 @@ impl Ulp {
     fn first_segment_minimum(self) -> usize {
         match self {
             Self::Bgp => 16,
-            Self::Dns | Self::Tls | Self::Http => 1,
+            Self::Dns | Self::Tls | Self::Http | Self::Http2 => 1,
         }
     }
 
     /// Whether a PDU that fits one segment exposes `tcp.pdu.size`.
     ///
-    /// DNS and BGP report a PDU length for every message; HTTP and TLS
-    /// never do.
+    /// DNS, BGP and HTTP/2 report a PDU length for every message; HTTP/1.x
+    /// and TLS never do.
     fn standalone_pdu_size(self) -> bool {
-        matches!(self, Self::Dns | Self::Bgp)
+        matches!(self, Self::Dns | Self::Bgp | Self::Http2)
     }
 
     /// Whether a reassembled PDU exposes `tcp.pdu.size`.
     ///
-    /// The same rule as for a single-segment PDU: HTTP reports no length even
-    /// for a reassembled message, although the buffer length is known.
+    /// The same rule as for a single-segment PDU: HTTP/1.x reports no length
+    /// even for a reassembled message, although the buffer length is known.
     fn reassembled_pdu_size(self) -> bool {
-        matches!(self, Self::Dns | Self::Bgp)
+        matches!(self, Self::Dns | Self::Bgp | Self::Http2)
     }
 
     /// The largest message this upper layer reassembles in one direction.
     fn pdu_limit(self) -> usize {
         match self {
             Self::Http => MAX_HTTP_MESSAGE_BYTES,
+            Self::Http2 => MAX_HTTP2_FRAME_BYTES,
             Self::Dns | Self::Tls | Self::Bgp => MAX_PDU_BYTES,
         }
     }
@@ -778,6 +789,7 @@ impl Ulp {
     fn pdu_limit_label(self) -> &'static str {
         match self {
             Self::Http => "64 MiB HTTP",
+            Self::Http2 => "16 MiB HTTP/2 frame",
             Self::Dns | Self::Tls | Self::Bgp => "1 MiB",
         }
     }
@@ -794,6 +806,9 @@ impl Ulp {
     fn window_limit(self, trailing: usize) -> usize {
         match self {
             Self::Http => MAX_HTTP_MESSAGE_BYTES
+                .saturating_add(trailing.max(65_535))
+                .saturating_add(1),
+            Self::Http2 => MAX_HTTP2_FRAME_BYTES
                 .saturating_add(trailing.max(65_535))
                 .saturating_add(1),
             Self::Dns | Self::Tls | Self::Bgp => MAX_PDU_BYTES,
@@ -817,7 +832,7 @@ impl Ulp {
     /// bounding a one-byte-segment flood.
     fn segment_limit(self) -> usize {
         match self {
-            Self::Http => 65_536,
+            Self::Http | Self::Http2 => 65_536,
             Self::Dns | Self::Tls | Self::Bgp => MAX_PDU_SEGMENTS,
         }
     }
@@ -835,6 +850,14 @@ pub(crate) const MAX_PDU_BYTES: usize = 1024 * 1024;
 /// [`MAX_PDU_BYTES`].
 pub(crate) const MAX_HTTP_MESSAGE_BYTES: usize =
     crate::export::MAX_EXPORT_OBJECT_BYTES as usize + MAX_PDU_BYTES;
+
+/// The largest HTTP/2 frame a direction reassembles.
+///
+/// RFC 9113 section 4.1 encodes the payload length in 24 bits, so a frame is
+/// at most 16,777,215 payload octets plus its nine-octet header. The absolute
+/// field width is the memory bound; SETTINGS_MAX_FRAME_SIZE is the protocol
+/// limit the decoder checks.
+pub(crate) const MAX_HTTP2_FRAME_BYTES: usize = crate::decode::http2::MAX_FRAME_BYTES;
 
 /// The most contributing segments one non-HTTP PDU records.
 ///
@@ -861,6 +884,9 @@ const BGP_MARKER_BYTES: usize = 16;
 
 /// A BGP message header: marker, length and type.
 const BGP_HEADER_BYTES: usize = 19;
+
+/// An HTTP/2 frame header: length, type, flags and stream identifier.
+const HTTP2_HEADER_BYTES: usize = 9;
 
 /// One segment's contribution to a reassembled PDU.
 #[derive(Clone, Debug)]
@@ -1088,6 +1114,8 @@ pub(crate) struct StreamBuffer {
     skip_until: Option<u32>,
     /// The pending PDU's first segment lacked its framing header.
     short_start: bool,
+    /// The HTTP/2 connection preface has been consumed in this direction.
+    http2_preface_done: bool,
 }
 
 impl StreamBuffer {
@@ -1946,6 +1974,12 @@ impl StreamBuffer {
         };
         let segment_offset =
             usize::try_from(segment_sequence.wrapping_sub(start) as i32).unwrap_or(usize::MAX);
+        if ulp == Ulp::Http2 {
+            // The reference buffers a split HTTP/2 frame without exposing
+            // `tcp.segment_data`; the frame decodes once, on the completing
+            // segment.
+            return;
+        }
         let pdu_start = if !started_here
             && segment_offset == contiguous_before
             && ulp == Ulp::Http
@@ -2072,7 +2106,42 @@ impl StreamBuffer {
                 FrameLength::Complete(length)
             }
             Ulp::Http => self.http_length(covered, fin_end),
+            Ulp::Http2 => self.http2_length(covered),
         }
+    }
+
+    /// HTTP/2: the connection preface, then one frame per PDU.
+    ///
+    /// RFC 9113 section 3.4 opens the connection with a fixed 24-octet
+    /// preface, which the reference reports as its own node. After it, each
+    /// frame is its nine-octet header plus the payload length that header
+    /// declares. A stream that starts mid-connection (no preface) frames its
+    /// first bytes as a frame.
+    fn http2_length(&mut self, covered: usize) -> FrameLength {
+        if !self.http2_preface_done {
+            let prefix = self
+                .window_data()
+                .get(..covered.min(crate::decode::http2::PREFACE_BYTES))
+                .unwrap_or_default();
+            if crate::decode::http2::preface_prefix(prefix) {
+                if covered < crate::decode::http2::PREFACE_BYTES {
+                    return FrameLength::NeedMore;
+                }
+                self.http2_preface_done = true;
+                return FrameLength::Complete(crate::decode::http2::PREFACE_BYTES);
+            }
+            self.http2_preface_done = true;
+        }
+        if covered < HTTP2_HEADER_BYTES {
+            return FrameLength::NeedMore;
+        }
+        let Some(length) = read_u24(self.window_data(), 0).map(usize::try_from) else {
+            return FrameLength::NeedMore;
+        };
+        let Ok(length) = length else {
+            return FrameLength::Invalid("HTTP/2 frame length is invalid");
+        };
+        FrameLength::Complete(HTTP2_HEADER_BYTES.saturating_add(length))
     }
 
     /// HTTP/1.x: the header block plus its content-length or chunked body.
@@ -2472,12 +2541,22 @@ fn header_present(ulp: Ulp, chunk: &[u8]) -> bool {
         Ulp::Tls => chunk.len() >= TLS_HEADER_BYTES,
         Ulp::Bgp => chunk.len() >= BGP_HEADER_BYTES,
         Ulp::Http => header_section_end(chunk).is_some(),
+        Ulp::Http2 => chunk.len() >= HTTP2_HEADER_BYTES,
     }
 }
 
 fn read_u16(data: &[u8], offset: usize) -> Option<u16> {
     let bytes = data.get(offset..offset.checked_add(2)?)?;
     Some(u16::from_be_bytes([*bytes.first()?, *bytes.get(1)?]))
+}
+
+fn read_u24(data: &[u8], offset: usize) -> Option<u32> {
+    let bytes = data.get(offset..offset.checked_add(3)?)?;
+    Some(
+        u32::from(*bytes.first()?) << 16
+            | u32::from(*bytes.get(1)?) << 8
+            | u32::from(*bytes.get(2)?),
+    )
 }
 
 /// Where a chunked body ends.

@@ -180,3 +180,10 @@ path = "fuzz_targets/tls_fragments.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "http2"
+path = "fuzz_targets/http2.rs"
+test = false
+doc = false
+bench = false

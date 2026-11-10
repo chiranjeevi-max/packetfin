@@ -50,6 +50,8 @@ pub struct FrameAnnotation {
     pub tls_reassembled_in: u32,
     /// Frame that completes a TLS handshake message this frame started.
     pub tls_handshake_reassembled_in: u32,
+    /// Frame that completes the HTTP/2 body this frame contributed to.
+    pub http2_body_reassembled_in: u32,
     /// Final TLS version that labels this conversation's records.
     pub tls_version: u16,
     flags: u8,
@@ -199,6 +201,12 @@ impl AnnotationStore {
             .is_some_and(|record| set_link(&mut record.tls_handshake_reassembled_in, completing))
     }
 
+    /// Record that the HTTP/2 body this frame contributed to completes later.
+    pub fn link_http2_body_reassembled(&mut self, frame: u64, completing: u64) -> bool {
+        self.entry(frame)
+            .is_some_and(|record| set_link(&mut record.http2_body_reassembled_in, completing))
+    }
+
     /// Record the conversation's final TLS version label for one frame.
     pub fn set_tls_version(&mut self, frame: u64, version: u16) -> bool {
         self.entry(frame).is_some_and(|record| {
@@ -290,6 +298,7 @@ pub fn apply_annotations(
     apply_dns_annotations(packet, annotation, renumber);
     apply_snmp_annotations(packet, annotation, renumber);
     apply_http_annotations(packet, annotation, renumber);
+    apply_http2_annotations(packet, annotation, renumber);
     if annotation.tcp_reassembled_in != 0 {
         // A segment whose PDU ends later is presented as plain TCP when the
         // segment did not already yield an upper-layer protocol; the
@@ -415,6 +424,84 @@ fn apply_http_annotations(
                 &fields::HTTP_TIME,
                 Range::new(base, 0),
                 Value::RelativeTime(annotation.time_ns),
+            );
+        }
+    });
+}
+
+/// Whether a container or any of its descendants carries a field.
+///
+/// A curated header field sits inside its `http2.header` container, so the
+/// role check has to look one level deeper than the stream container's
+/// direct children.
+fn field_in_container(field: &Field, abbrev: &str) -> bool {
+    field.def.abbrev == abbrev
+        || field
+            .children
+            .iter()
+            .any(|child| field_in_container(child, abbrev))
+}
+
+/// Add HTTP/2 request/response links and the body reassembly link.
+///
+/// The links live inside the frame's `http2.stream` container, before the
+/// generated request URI and before the DATA field, which is the position the
+/// reference prints them in. A frame can carry several HTTP/2 frames, so the
+/// links attach only to a node whose header list shows the matching role.
+fn apply_http2_annotations(
+    packet: &mut Packet,
+    annotation: &FrameAnnotation,
+    renumber: &RenumberMap,
+) {
+    for_each_protocol_mut(&mut packet.tree.frame, "http2", &mut |node| {
+        let Some(stream) = node
+            .fields
+            .iter_mut()
+            .find(|field| field.def.abbrev == "http2.stream")
+        else {
+            return;
+        };
+        let response = field_in_container(stream, "http2.headers.status");
+        let request = field_in_container(stream, "http2.headers.method");
+        let uri_index = stream
+            .children
+            .iter()
+            .position(|field| field.def.abbrev == "http2.request.full_uri")
+            .unwrap_or(stream.children.len());
+        if response && annotation.request_in != 0 {
+            stream.insert_field(
+                uri_index,
+                &fields::HTTP2_REQUEST_IN,
+                Range::new(0, 0),
+                Value::Uint32(renumber.output(annotation.request_in)),
+            );
+            if annotation.time_present() {
+                stream.insert_field(
+                    uri_index,
+                    &fields::HTTP2_TIME,
+                    Range::new(0, 0),
+                    Value::RelativeTime(annotation.time_ns),
+                );
+            }
+        } else if request && annotation.response_in != 0 {
+            stream.insert_field(
+                uri_index,
+                &fields::HTTP2_RESPONSE_IN,
+                Range::new(0, 0),
+                Value::Uint32(renumber.output(annotation.response_in)),
+            );
+        }
+        if annotation.http2_body_reassembled_in != 0
+            && let Some(data_index) = stream
+                .children
+                .iter()
+                .position(|field| field.def.abbrev == "http2.data.data")
+        {
+            stream.insert_field(
+                data_index,
+                &fields::HTTP2_BODY_REASSEMBLED_IN,
+                Range::new(0, 0),
+                Value::Uint32(renumber.output(annotation.http2_body_reassembled_in)),
             );
         }
     });

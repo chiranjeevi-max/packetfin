@@ -20,6 +20,7 @@ mod frame;
 mod geneve;
 mod gre;
 mod http;
+pub(crate) mod http2;
 mod icmp;
 mod icmpv6;
 mod ipv4;
@@ -74,6 +75,7 @@ pub(crate) use fragment::{
 pub(crate) use geneve::decode as geneve;
 pub(crate) use gre::decode as gre;
 pub(crate) use http::{decode as http, looks_like_http_prefix, looks_like_http_stream_prefix};
+pub(crate) use http2::decode as http2;
 pub(crate) use icmp::decode as icmp;
 pub(crate) use icmpv6::decode as icmpv6;
 pub(crate) use ipv4::decode as ipv4;

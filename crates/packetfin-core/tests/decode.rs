@@ -142,8 +142,8 @@ fn ospf_ipv6_frame(packet: &[u8]) -> Vec<u8> {
 #[test]
 fn registry_indexes_frame_and_ethernet_fields() {
     let registry = fields::registry();
-    assert_eq!(registry.fields().len(), 1535);
-    assert_eq!(fields::protocols().len(), 45);
+    assert_eq!(registry.fields().len(), 1690);
+    assert_eq!(fields::protocols().len(), 46);
     assert_eq!(
         fields::protocols()
             .iter()
@@ -194,6 +194,7 @@ fn registry_indexes_frame_and_ethernet_fields() {
             "syslog",
             "bgp",
             "http",
+            "http2",
             "tls",
         ]
     );

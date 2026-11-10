@@ -2895,6 +2895,20 @@ fn ec_point_format_name(format: u8) -> &'static str {
 mod tests {
     use super::*;
 
+    #[test]
+    fn version_names_use_the_short_and_long_spellings() {
+        for (version, short, long) in [
+            (0x0300_u16, "SSLv3", "SSL 3.0"),
+            (0x0301, "TLSv1", "TLS 1.0"),
+            (0x0302, "TLSv1.1", "TLS 1.1"),
+            (0x0303, "TLSv1.2", "TLS 1.2"),
+            (0x0304, "TLSv1.3", "TLS 1.3"),
+            (0x1234, "TLS", "TLS"),
+        ] {
+            assert_eq!(version_names(version), (short, long), "{version:#06x}");
+        }
+    }
+
     fn example_client_hello() -> ClientHelloInfo {
         ClientHelloInfo {
             version: 0x0303,

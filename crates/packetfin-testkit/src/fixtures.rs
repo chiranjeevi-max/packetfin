@@ -11548,6 +11548,42 @@ static FIXTURES: &[Fixture] = &[
         case_specs: HTTP1_EDGE_CASE_SPECS,
     },
     Fixture {
+        name: "http2",
+        extension: "pcap",
+        builder: build_http2,
+        case_specs: HTTP2_CASE_SPECS,
+    },
+    Fixture {
+        name: "http2-split",
+        extension: "pcap",
+        builder: build_http2_split,
+        case_specs: HTTP2_SPLIT_CASE_SPECS,
+    },
+    Fixture {
+        name: "http2-truncated",
+        extension: "pcap",
+        builder: build_http2_truncated,
+        case_specs: HTTP2_TRUNCATED_CASE_SPECS,
+    },
+    Fixture {
+        name: "http2-malformed",
+        extension: "pcap",
+        builder: build_http2_malformed,
+        case_specs: HTTP2_MALFORMED_CASE_SPECS,
+    },
+    Fixture {
+        name: "http2-padded",
+        extension: "pcap",
+        builder: build_http2_padded,
+        case_specs: HTTP2_PADDED_CASE_SPECS,
+    },
+    Fixture {
+        name: "http2-decode-as",
+        extension: "pcap",
+        builder: build_http2_decode_as,
+        case_specs: HTTP2_DECODE_AS_CASE_SPECS,
+    },
+    Fixture {
         name: "bgp-overlong",
         extension: "pcap",
         builder: build_bgp_overlong,
@@ -13778,6 +13814,530 @@ const DNS_FILTER_CASE_SPECS: &[CaseSpec] = &[
         ],
     },
 ];
+
+// ---- HTTP/2 fixtures ----
+
+/// The client connection preface (RFC 9113 section 3.4).
+const H2_PREFACE: &[u8] = b"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n";
+
+/// The Huffman code of `www.example.com` (RFC 7541 Appendix C.4.1).
+const H2_HUFFMAN_EXAMPLE: &[u8] = &[
+    0xf1, 0xe3, 0xc2, 0xe5, 0xf2, 0x3a, 0x6b, 0xa0, 0xab, 0x90, 0xf4, 0xff,
+];
+
+/// Encode one HPACK integer (RFC 7541 section 5.1).
+fn h2_integer(value: usize, prefix_bits: u8, prefix: u8) -> Vec<u8> {
+    let mask = (1_usize << prefix_bits).saturating_sub(1);
+    if value < mask {
+        return vec![prefix | u8::try_from(value).unwrap_or(0)];
+    }
+    let mut out = vec![prefix | u8::try_from(mask).unwrap_or(0)];
+    let mut rest = value.saturating_sub(mask);
+    while rest >= 128 {
+        out.push(u8::try_from(rest & 0x7f).unwrap_or(0) | 0x80);
+        rest >>= 7;
+    }
+    out.push(u8::try_from(rest).unwrap_or(0));
+    out
+}
+
+/// A literal header field without indexing with an indexed name.
+fn h2_literal(index: usize, value: &[u8]) -> Vec<u8> {
+    let mut out = h2_integer(index, 4, 0);
+    out.extend_from_slice(&h2_integer(value.len(), 7, 0));
+    out.extend_from_slice(value);
+    out
+}
+
+/// A literal header field with incremental indexing and a new name.
+fn h2_literal_new(name: &[u8], value: &[u8]) -> Vec<u8> {
+    let mut out = vec![0x40];
+    out.extend_from_slice(&h2_integer(name.len(), 7, 0));
+    out.extend_from_slice(name);
+    out.extend_from_slice(&h2_integer(value.len(), 7, 0));
+    out.extend_from_slice(value);
+    out
+}
+
+/// A literal header field with incremental indexing, an indexed name and a
+/// Huffman-coded value.
+fn h2_literal_huffman(index: usize, encoded: &[u8]) -> Vec<u8> {
+    let mut out = h2_integer(index, 4, 0);
+    out.extend_from_slice(&h2_integer(encoded.len(), 7, 0x80));
+    out.extend_from_slice(encoded);
+    out
+}
+
+/// One HTTP/2 frame: the nine-octet header and its payload.
+fn h2_frame(kind: u8, flags: u8, stream: u32, payload: &[u8]) -> Vec<u8> {
+    let length = u32::try_from(payload.len()).unwrap_or(0);
+    let mut out = Vec::with_capacity(9 + payload.len());
+    out.extend_from_slice(&length.to_be_bytes()[1..]);
+    out.push(kind);
+    out.push(flags);
+    out.extend_from_slice(&stream.to_be_bytes());
+    out.extend_from_slice(payload);
+    out
+}
+
+/// A request block with indexed, Huffman and literal fields.
+fn h2_request_block() -> Vec<u8> {
+    let mut block = vec![0x82, 0x87, 0x85];
+    block.extend_from_slice(&h2_literal_huffman(1, H2_HUFFMAN_EXAMPLE));
+    block.extend_from_slice(&h2_literal_new(b"user-agent", b"probe/1.0"));
+    block
+}
+
+/// A response block with a status, a content length and a server field.
+fn h2_response_block() -> Vec<u8> {
+    let mut block = vec![0x88];
+    block.extend_from_slice(&h2_literal_new(b"content-length", b"5"));
+    block.extend_from_slice(&h2_literal_new(b"server", b"s"));
+    block
+}
+
+/// A pushed request block.
+fn h2_push_block() -> Vec<u8> {
+    let mut block = vec![0x82, 0x86];
+    block.extend_from_slice(&h2_literal(4, b"/push"));
+    block.extend_from_slice(&h2_literal(1, b"example.com"));
+    block
+}
+
+/// A trailer block.
+fn h2_trailer_block() -> Vec<u8> {
+    h2_literal_new(b"x-checksum", b"1")
+}
+
+/// Append one TCP payload to a direction's frame list.
+fn h2_push(
+    source: [u8; 4],
+    destination: [u8; 4],
+    source_port: u16,
+    destination_port: u16,
+    sequence: &mut u32,
+    payload: &[u8],
+    frames: &mut Vec<Vec<u8>>,
+) -> Result<(), String> {
+    frames.push(tcp_payload_between(
+        source,
+        destination,
+        source_port,
+        destination_port,
+        *sequence,
+        1,
+        payload,
+    )?);
+    *sequence = sequence.saturating_add(u32::try_from(payload.len()).unwrap_or(u32::MAX));
+    Ok(())
+}
+
+fn build_http2() -> Result<Vec<u8>, String> {
+    let mut frames = Vec::new();
+    let mut client = 10_000_u32;
+    let mut server = 20_000_u32;
+    let mut request = H2_PREFACE.to_vec();
+    request.extend_from_slice(&h2_frame(4, 0, 0, &[]));
+    request.extend_from_slice(&h2_frame(1, 0x04, 1, &h2_request_block()));
+    request.extend_from_slice(&h2_frame(0, 0, 1, b"hel"));
+    request.extend_from_slice(&h2_frame(0, 0, 1, b"lo"));
+    request.extend_from_slice(&h2_frame(1, 0x05, 1, &h2_trailer_block()));
+    h2_push(
+        T20_CLIENT,
+        T20_SERVER,
+        40_000,
+        80,
+        &mut client,
+        &request,
+        &mut frames,
+    )?;
+    let mut response = h2_frame(4, 0, 0, &[0, 1, 0, 0, 0x10, 0, 0, 3, 0, 0, 0, 100]);
+    response.extend_from_slice(&h2_frame(4, 1, 0, &[]));
+    let mut push = vec![0, 0, 0, 2];
+    push.extend_from_slice(&h2_push_block());
+    response.extend_from_slice(&h2_frame(5, 0x04, 1, &push));
+    response.extend_from_slice(&h2_frame(1, 0x05, 1, &h2_response_block()));
+    response.extend_from_slice(&h2_frame(6, 0, 0, b"abcdefgh"));
+    response.extend_from_slice(&h2_frame(8, 0, 0, &[0, 0, 0x03, 0xe8]));
+    response.extend_from_slice(&h2_frame(7, 0, 0, &[0, 0, 0, 1, 0, 0, 0, 0]));
+    h2_push(
+        T20_SERVER,
+        T20_CLIENT,
+        80,
+        40_000,
+        &mut server,
+        &response,
+        &mut frames,
+    )?;
+    link_pcap(u32::from(LINKTYPE_ETHERNET), &frames)
+}
+
+fn build_http2_split() -> Result<Vec<u8>, String> {
+    let mut frames = Vec::new();
+    let mut client = 10_000_u32;
+    let mut server = 20_000_u32;
+    h2_push(
+        T20_CLIENT,
+        T20_SERVER,
+        40_000,
+        80,
+        &mut client,
+        H2_PREFACE.get(..10).unwrap_or_default(),
+        &mut frames,
+    )?;
+    let mut middle = H2_PREFACE.get(10..).unwrap_or_default().to_vec();
+    middle.extend_from_slice(&h2_frame(4, 0, 0, &[]));
+    let headers = h2_frame(1, 0x04, 1, &h2_request_block());
+    middle.extend_from_slice(headers.get(..12).unwrap_or_default());
+    h2_push(
+        T20_CLIENT,
+        T20_SERVER,
+        40_000,
+        80,
+        &mut client,
+        &middle,
+        &mut frames,
+    )?;
+    let mut tail = headers.get(12..).unwrap_or_default().to_vec();
+    tail.extend_from_slice(&h2_frame(0, 0x01, 1, b"hello"));
+    h2_push(
+        T20_CLIENT,
+        T20_SERVER,
+        40_000,
+        80,
+        &mut client,
+        &tail,
+        &mut frames,
+    )?;
+    let mut response = h2_frame(4, 0, 0, &[]);
+    response.extend_from_slice(&h2_frame(1, 0x04, 1, &[0x88]));
+    response.extend_from_slice(&h2_frame(0, 0x01, 1, b"world"));
+    h2_push(
+        T20_SERVER,
+        T20_CLIENT,
+        80,
+        40_000,
+        &mut server,
+        &response,
+        &mut frames,
+    )?;
+    link_pcap(u32::from(LINKTYPE_ETHERNET), &frames)
+}
+
+fn build_http2_truncated() -> Result<Vec<u8>, String> {
+    let mut frames = Vec::new();
+    let mut client = 10_000_u32;
+    let mut payload = H2_PREFACE.to_vec();
+    payload.extend_from_slice(&h2_frame(4, 0, 0, &[]));
+    payload.extend_from_slice(&h2_frame(1, 0x04, 1, &h2_request_block()));
+    // A frame header that declares twenty payload octets with five captured.
+    payload.extend_from_slice(&[0, 0, 20, 1, 0x04, 0, 0, 0, 1, 0x82, 0x86, 0x84, 0x01, 0x01]);
+    h2_push(
+        T20_CLIENT,
+        T20_SERVER,
+        40_000,
+        80,
+        &mut client,
+        &payload,
+        &mut frames,
+    )?;
+    link_pcap(u32::from(LINKTYPE_ETHERNET), &frames)
+}
+
+fn build_http2_malformed() -> Result<Vec<u8>, String> {
+    let mut frames = Vec::new();
+    let mut client = 10_000_u32;
+    let mut payload = H2_PREFACE.to_vec();
+    payload.extend_from_slice(&h2_frame(4, 0, 0, &[0, 153, 0, 0, 0, 7]));
+    // HEADERS on stream zero is a protocol error the reference still decodes.
+    payload.extend_from_slice(&h2_frame(1, 0x05, 0, &h2_request_block()));
+    // A reserved bit set in the stream identifier.
+    let mut reserved = h2_frame(1, 0x05, 0x8000_0001, &h2_request_block());
+    reserved.truncate(9 + h2_request_block().len());
+    payload.extend_from_slice(&reserved);
+    h2_push(
+        T20_CLIENT,
+        T20_SERVER,
+        40_000,
+        80,
+        &mut client,
+        &payload,
+        &mut frames,
+    )?;
+    link_pcap(u32::from(LINKTYPE_ETHERNET), &frames)
+}
+
+fn build_http2_padded() -> Result<Vec<u8>, String> {
+    let mut frames = Vec::new();
+    let mut client = 10_000_u32;
+    let mut payload = H2_PREFACE.to_vec();
+    payload.extend_from_slice(&h2_frame(4, 0, 0, &[]));
+    let mut padded_headers = vec![2];
+    padded_headers.extend_from_slice(&h2_request_block());
+    padded_headers.extend_from_slice(&[0, 0]);
+    payload.extend_from_slice(&h2_frame(1, 0x0d, 1, &padded_headers));
+    let mut padded_data = vec![3];
+    padded_data.extend_from_slice(b"hello");
+    padded_data.extend_from_slice(&[0, 0, 0]);
+    payload.extend_from_slice(&h2_frame(0, 0x09, 1, &padded_data));
+    let mut priority = vec![0x80, 0, 0, 3, 15];
+    priority.extend_from_slice(&h2_response_block());
+    payload.extend_from_slice(&h2_frame(1, 0x25, 3, &priority));
+    h2_push(
+        T20_CLIENT,
+        T20_SERVER,
+        40_000,
+        80,
+        &mut client,
+        &payload,
+        &mut frames,
+    )?;
+    link_pcap(u32::from(LINKTYPE_ETHERNET), &frames)
+}
+
+const HTTP2_CASE_SPECS: &[CaseSpec] = &[
+    CaseSpec {
+        id: "summary",
+        args: T20_SUMMARY_ARGS,
+    },
+    CaseSpec {
+        id: "http2-fields",
+        args: &[
+            "-n",
+            "-T",
+            "fields",
+            "-e",
+            "frame.number",
+            "-e",
+            "http2.type",
+            "-e",
+            "http2.streamid",
+            "-e",
+            "http2.flags",
+            "-e",
+            "http2.headers.method",
+            "-e",
+            "http2.headers.path",
+            "-e",
+            "http2.headers.status",
+            "-e",
+            "http2.headers.content_length",
+            "-e",
+            "http2.header.name",
+            "-e",
+            "http2.header.value",
+            "-e",
+            "http2.data.data",
+            "-e",
+            "http2.request.full_uri",
+            "-r",
+            "{fixture}",
+        ],
+    },
+    CaseSpec {
+        id: "http2-links",
+        args: &[
+            "-n",
+            "-2",
+            "-T",
+            "fields",
+            "-e",
+            "frame.number",
+            "-e",
+            "http2.request_in",
+            "-e",
+            "http2.time",
+            "-r",
+            "{fixture}",
+        ],
+    },
+    CaseSpec {
+        id: "filter-http2",
+        args: &[
+            "-n",
+            "-Y",
+            "http2",
+            "-T",
+            "fields",
+            "-e",
+            "frame.number",
+            "-e",
+            "http2.type",
+            "-r",
+            "{fixture}",
+        ],
+    },
+    CaseSpec {
+        id: "filter-method",
+        args: &[
+            "-n",
+            "-Y",
+            "http2.headers.method == \"GET\"",
+            "-T",
+            "fields",
+            "-e",
+            "frame.number",
+            "-e",
+            "http2.headers.method",
+            "-r",
+            "{fixture}",
+        ],
+    },
+];
+
+const HTTP2_DECODE_AS_CASE_SPECS: &[CaseSpec] = &[
+    CaseSpec {
+        id: "decode-as",
+        args: &[
+            "-n",
+            "-d",
+            "tcp.port==8080,http2",
+            "-T",
+            "fields",
+            "-e",
+            "frame.number",
+            "-e",
+            "http2.type",
+            "-e",
+            "http2.headers.method",
+            "-r",
+            "{fixture}",
+        ],
+    },
+    CaseSpec {
+        id: "decode-as-summary",
+        args: &["-n", "-d", "tcp.port==8080,http2", "-r", "{fixture}"],
+    },
+];
+
+const HTTP2_SPLIT_CASE_SPECS: &[CaseSpec] = &[
+    CaseSpec {
+        id: "summary",
+        args: T20_SUMMARY_ARGS,
+    },
+    CaseSpec {
+        id: "http2-fields",
+        args: &[
+            "-n",
+            "-T",
+            "fields",
+            "-e",
+            "frame.number",
+            "-e",
+            "http2.type",
+            "-e",
+            "http2.streamid",
+            "-e",
+            "http2.headers.method",
+            "-e",
+            "http2.headers.path",
+            "-e",
+            "http2.data.data",
+            "-r",
+            "{fixture}",
+        ],
+    },
+];
+
+const HTTP2_TRUNCATED_CASE_SPECS: &[CaseSpec] = &[
+    CaseSpec {
+        id: "summary",
+        args: T20_SUMMARY_ARGS,
+    },
+    CaseSpec {
+        id: "http2-fields",
+        args: &[
+            "-n",
+            "-T",
+            "fields",
+            "-e",
+            "frame.number",
+            "-e",
+            "http2.type",
+            "-e",
+            "http2.headers.method",
+            "-r",
+            "{fixture}",
+        ],
+    },
+];
+
+const HTTP2_MALFORMED_CASE_SPECS: &[CaseSpec] = &[
+    CaseSpec {
+        id: "summary",
+        args: T20_SUMMARY_ARGS,
+    },
+    CaseSpec {
+        id: "http2-fields",
+        args: &[
+            "-n",
+            "-T",
+            "fields",
+            "-e",
+            "frame.number",
+            "-e",
+            "http2.type",
+            "-e",
+            "http2.streamid",
+            "-e",
+            "http2.r",
+            "-e",
+            "http2.headers.method",
+            "-r",
+            "{fixture}",
+        ],
+    },
+];
+
+const HTTP2_PADDED_CASE_SPECS: &[CaseSpec] = &[
+    CaseSpec {
+        id: "summary",
+        args: T20_SUMMARY_ARGS,
+    },
+    CaseSpec {
+        id: "http2-fields",
+        args: &[
+            "-n",
+            "-T",
+            "fields",
+            "-e",
+            "frame.number",
+            "-e",
+            "http2.type",
+            "-e",
+            "http2.padding",
+            "-e",
+            "http2.pad_length",
+            "-e",
+            "http2.exclusive",
+            "-e",
+            "http2.stream_dependency",
+            "-e",
+            "http2.headers.weight",
+            "-e",
+            "http2.data.data",
+            "-r",
+            "{fixture}",
+        ],
+    },
+];
+
+fn build_http2_decode_as() -> Result<Vec<u8>, String> {
+    let mut frames = Vec::new();
+    let mut client = 10_000_u32;
+    let mut payload = h2_frame(4, 0, 0, &[]);
+    payload.extend_from_slice(&h2_frame(1, 0x05, 1, &h2_request_block()));
+    h2_push(
+        T20_CLIENT,
+        T20_SERVER,
+        40_000,
+        8080,
+        &mut client,
+        &payload,
+        &mut frames,
+    )?;
+    link_pcap(u32::from(LINKTYPE_ETHERNET), &frames)
+}
 
 /// Every registered fixture, in registry order.
 pub fn all() -> &'static [Fixture] {

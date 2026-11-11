@@ -5,7 +5,7 @@
 //! secrets and arbitrary record bytes, so a fuzzer can reach authenticated
 //! decryption without first constructing a handshake.
 
-use crate::decode::tls::cipher::{self, RecordKeys};
+use crate::decode::tls::cipher::{self, Protocol, RecordKeys};
 use crate::decode::tls::keylog::Secret;
 
 /// Decrypt a TLS 1.3 record with arbitrary key material.
@@ -27,7 +27,13 @@ pub fn decrypt_tls13(
         .map(|record| record.content)
 }
 
-/// Decrypt a TLS 1.2 record with arbitrary master secret and record bytes.
+/// Decrypt a TLS 1.0, 1.1 or 1.2 record with arbitrary master secret and
+/// record bytes.
+///
+/// `version` selects both the protocol (0x0301, 0x0302 or 0x0303) and the
+/// record header version the MAC authenticates, so a fuzzer that mutates it
+/// reaches the version and PRF selection as well as the CBC padding and MAC
+/// paths.
 pub fn decrypt_tls12(
     suite_id: u16,
     master: &[u8],
@@ -41,17 +47,15 @@ pub fn decrypt_tls12(
     fragment: &[u8],
 ) -> Option<Vec<u8>> {
     let suite = cipher::suite(suite_id)?;
-    if suite.is_tls13() {
-        return None;
-    }
-    let block = cipher::derive_tls12_key_block(master, &client_random, &server_random, suite)?;
+    let protocol = Protocol::from_version(version)?;
+    let block = cipher::derive_key_block(master, &client_random, &server_random, suite, protocol)?;
     let (key, iv, mac) = if from_client {
         (block.client_key, block.client_iv, block.client_mac)
     } else {
         (block.server_key, block.server_iv, block.server_mac)
     };
-    let mut keys = RecordKeys::tls12(key, iv, mac, suite, encrypt_then_mac);
+    let mut keys = RecordKeys::tls(protocol, key, iv, mac, suite, encrypt_then_mac)?;
     keys.set_sequence(sequence);
-    keys.open_tls12(content_type, version, fragment)
+    keys.open_pre13(content_type, version, fragment)
         .map(|record| record.content)
 }

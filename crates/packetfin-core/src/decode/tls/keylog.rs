@@ -782,6 +782,26 @@ mod tests {
     }
 
     #[test]
+    fn a_master_secret_is_exactly_forty_eight_octets() {
+        // CLIENT_RANDOM carries a TLS 1.0-1.2 master secret. The length is
+        // fixed, so a truncated or padded secret would change the PRF input
+        // and must be rejected rather than accepted as key material.
+        for (length, accepted) in [(47_usize, false), (48, true), (49, false)] {
+            let text = format!(
+                "CLIENT_RANDOM {} {}\n",
+                random(15),
+                crate::decode::bytes::hex_lower(&secret(1, length))
+            );
+            let log = KeyLog::from_bytes(text.as_bytes());
+            assert_eq!(
+                entry(&log, 15).is_some_and(|entry| entry.master.is_some()),
+                accepted,
+                "{length} octets"
+            );
+        }
+    }
+
+    #[test]
     fn a_master_only_entry_is_retained() {
         let master = format!(
             "CLIENT_RANDOM {} {}\n",

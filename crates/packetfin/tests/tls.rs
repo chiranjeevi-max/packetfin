@@ -969,6 +969,236 @@ fn reassembled_record_fields_read_the_reassembly_buffer() {
 }
 
 #[test]
+fn tls10_and_tls11_cbc_records_decrypt_from_a_client_random() {
+    let tls10 = decrypted_fields(
+        "tls10-cbc.pcap",
+        "tls10-cbc-keys.log",
+        &[
+            "frame.number",
+            "tls.record.sequence_number",
+            "tls.record.version",
+            "http.request.uri",
+            "http.response.code",
+        ],
+    );
+    // Both directions number their protected records from zero and count
+    // their own records only (RFC 2246 section 6.2.3.1).
+    let sequences: Vec<&str> = tls10
+        .lines()
+        .filter_map(|line| line.split('\t').nth(1))
+        .filter(|value| !value.is_empty())
+        .collect();
+    assert_eq!(sequences, ["0", "0", "1", "1", "2", "2"], "{tls10}");
+    assert_eq!(tls10.matches("/one").count(), 2, "{tls10}");
+    assert_eq!(tls10.matches("/two").count(), 2, "{tls10}");
+    assert_eq!(tls10.matches("\t200").count(), 2, "{tls10}");
+    // The record version field carries the negotiated version.
+    let versions: Vec<&str> = tls10
+        .lines()
+        .filter_map(|line| line.split('\t').nth(2))
+        .filter(|value| !value.is_empty())
+        .collect();
+    assert!(!versions.is_empty(), "{tls10}");
+    assert!(
+        versions.iter().all(|version| *version == "0x0301"),
+        "{tls10}"
+    );
+
+    let tls11 = decrypted_fields(
+        "tls11-cbc.pcap",
+        "tls11-cbc-keys.log",
+        &[
+            "frame.number",
+            "tls.record.version",
+            "http.request.uri",
+            "http.response.code",
+        ],
+    );
+    assert!(tls11.contains("/one-one"), "{tls11}");
+    assert_eq!(tls11.matches("\t200").count(), 1, "{tls11}");
+    let versions: Vec<&str> = tls11
+        .lines()
+        .filter_map(|line| line.split('\t').nth(1))
+        .filter(|value| !value.is_empty())
+        .collect();
+    assert!(!versions.is_empty(), "{tls11}");
+    assert!(
+        versions.iter().all(|version| *version == "0x0302"),
+        "every record carries 0x0302: {tls11}"
+    );
+}
+
+#[test]
+fn tls10_record_split_across_segments_decrypts_once() {
+    let stdout = decrypted_fields(
+        "tls10-split.pcap",
+        "tls10-split-keys.log",
+        &["frame.number", "http.request.uri", "http.response.code"],
+    );
+    assert_eq!(stdout.matches("/split").count(), 2, "{stdout}");
+    assert!(
+        stdout
+            .lines()
+            .any(|line| line.starts_with("10\t") && line.ends_with("\t200")),
+        "the response completes on the second segment: {stdout}"
+    );
+}
+
+#[test]
+fn tls10_truncated_record_stays_opaque() {
+    let stdout = decrypted_fields(
+        "tls10-truncated.pcap",
+        "tls10-truncated-keys.log",
+        &["frame.number", "http.request.uri", "http.response.code"],
+    );
+    assert!(
+        stdout.contains("/truncated"),
+        "request before the gap: {stdout}"
+    );
+    assert!(
+        !stdout.contains("200"),
+        "the incomplete response stays opaque: {stdout}"
+    );
+}
+
+#[test]
+fn tls10_encrypt_then_mac_decrypts_with_an_iv_less_mac() {
+    let stdout = decrypted_fields(
+        "tls10-cbc-etm.pcap",
+        "tls10-cbc-etm-keys.log",
+        &[
+            "frame.number",
+            "tls.record.sequence_number",
+            "http.request.uri",
+            "http.response.code",
+        ],
+    );
+    assert_eq!(stdout.matches("/etm").count(), 2, "{stdout}");
+    assert_eq!(stdout.matches("\t200").count(), 1, "{stdout}");
+    let sequences: Vec<&str> = stdout
+        .lines()
+        .filter_map(|line| line.split('\t').nth(1))
+        .filter(|value| !value.is_empty())
+        .collect();
+    assert_eq!(sequences, ["0", "0", "1", "1"], "{stdout}");
+
+    let capture = fixture("tls10-cbc-etm.pcap");
+    let args: Vec<OsString> = [
+        "-n",
+        "-r",
+        capture.to_string_lossy().as_ref(),
+        "-Y",
+        "frame.number==2",
+        "-V",
+    ]
+    .into_iter()
+    .map(OsString::from)
+    .collect();
+    let output = run(&args, &[], None);
+    let (verbose, stderr) = text(&output);
+    assert!(output.status.success(), "stderr: {stderr}");
+    assert!(
+        verbose.contains("Extension: encrypt_then_mac (len=0)"),
+        "{verbose}"
+    );
+}
+
+#[test]
+fn tls10_bad_mac_and_wrong_sequence_stop_the_direction() {
+    let stdout = decrypted_fields(
+        "tls10-malformed.pcap",
+        "tls10-malformed-keys.log",
+        &["frame.number", "http.request.uri", "http.response.code"],
+    );
+    assert!(stdout.contains("/bad-mac"), "{stdout}");
+    assert!(stdout.contains("/sequence"), "{stdout}");
+    assert!(
+        !stdout.contains("200"),
+        "records with a bad MAC or a skipped sequence number stay opaque: {stdout}"
+    );
+}
+
+#[test]
+fn tls10_bad_padding_and_version_mismatch_stay_opaque() {
+    // The reference decrypts both records; RFC 2246 sections 6.2.1 and
+    // 6.2.3.2 reject them, so this capture has no stored expected output.
+    let stdout = decrypted_fields(
+        "tls10-strict.pcap",
+        "tls10-strict-keys.log",
+        &["frame.number", "http.request.uri", "http.response.code"],
+    );
+    assert!(stdout.contains("/bad-padding"), "{stdout}");
+    assert!(stdout.contains("/version"), "{stdout}");
+    assert!(
+        !stdout.contains("200"),
+        "invalid padding and a mismatched record version stay opaque: {stdout}"
+    );
+}
+
+#[test]
+fn tls10_padding_run_is_stripped_completely() {
+    let stdout = decrypted_fields(
+        "tls10-padded.pcap",
+        "tls10-padded-keys.log",
+        &["frame.number", "http.response.code", "http.file_data"],
+    );
+    assert!(
+        stdout
+            .lines()
+            .any(|line| line.ends_with("\t200\t68656c6c6f21")),
+        "a full block of padding leaves only the body: {stdout}"
+    );
+}
+
+#[test]
+fn tls10_and_tls11_version_labels_match_the_reference() {
+    let capture = fixture("tls10-cbc.pcap");
+    let keylog = fixture("tls10-cbc-keys.log");
+    let args: Vec<OsString> = [
+        "-n",
+        "-r",
+        capture.to_string_lossy().as_ref(),
+        "-o",
+        &format!("tls.keylog_file:{}", keylog.display()),
+        "-Y",
+        "frame.number==1",
+        "-V",
+    ]
+    .into_iter()
+    .map(OsString::from)
+    .collect();
+    let output = run(&args, &[], None);
+    let (stdout, stderr) = text(&output);
+    assert!(output.status.success(), "stderr: {stderr}");
+    assert!(
+        stdout.contains("TLSv1 Record Layer: Handshake Protocol: Client Hello"),
+        "{stdout}"
+    );
+    assert!(stdout.contains("Version: TLS 1.0 (0x0301)"), "{stdout}");
+
+    let capture = fixture("tls11-cbc.pcap");
+    let args: Vec<OsString> = [
+        "-n",
+        "-r",
+        capture.to_string_lossy().as_ref(),
+        "-Y",
+        "frame.number==2",
+        "-V",
+    ]
+    .into_iter()
+    .map(OsString::from)
+    .collect();
+    let output = run(&args, &[], None);
+    let (stdout, stderr) = text(&output);
+    assert!(output.status.success(), "stderr: {stderr}");
+    assert!(
+        stdout.contains("TLSv1.1 Record Layer: Handshake Protocol: Server Hello"),
+        "{stdout}"
+    );
+    assert!(stdout.contains("Version: TLS 1.1 (0x0302)"), "{stdout}");
+}
+
+#[test]
 fn keylog_option_requires_a_value() {
     let args: Vec<OsString> = ["-o", "tls.keylog_file"]
         .into_iter()

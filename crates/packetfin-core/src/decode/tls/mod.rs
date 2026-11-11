@@ -967,7 +967,7 @@ fn process_event(
             let Some(master) = master else {
                 return;
             };
-            let exports = flow.install_tls12(master, suite, &server_random, export);
+            let exports = flow.install_master_secret(master, suite, &server_random, export);
             context.state.push_exported_keys(exports);
             let Some(session) = flow.last_session() else {
                 return;
@@ -984,9 +984,10 @@ fn process_event(
             let Some(session) = flow.last_session() else {
                 return;
             };
-            if session.version() == Some(VERSION_TLS_1_2)
-                && let Some(master) = session.master_secret().and_then(Secret::duplicate)
-            {
+            // RFC 5077 applies to TLS 1.0 and later; a session has a master
+            // secret only when a pre-TLS 1.3 key block was installed, so the
+            // version needs no separate test.
+            if let Some(master) = session.master_secret().and_then(Secret::duplicate) {
                 context.state.cache_tls_secret(&ticket, &master);
             }
         }
@@ -1095,7 +1096,7 @@ fn add_record<'a>(
         );
         field.showname = Some(format!(
             "Version: {} (0x{version:04x})",
-            version_name(version)
+            version_label(version)
         ));
     }
     if let Some(length) = read_u16_be(record, 3) {
@@ -1645,7 +1646,7 @@ fn parse_client_hello(field: &mut Field, body: &[u8], base: usize) -> ClientHell
         );
         version_field.showname = Some(format!(
             "Version: {} (0x{version:04x})",
-            version_name(version)
+            version_label(version)
         ));
     }
     add_random(field, body, base, false);
@@ -1875,7 +1876,7 @@ fn parse_server_hello(field: &mut Field, body: &[u8], base: usize) -> ServerHell
         );
         version_field.showname = Some(format!(
             "Version: {} (0x{version:04x})",
-            version_name(version)
+            version_label(version)
         ));
     }
     // A TLS 1.3 ServerHello and a HelloRetryRequest omit the random time and
@@ -2236,7 +2237,7 @@ fn parse_supported_versions(
             );
             version_field.showname = Some(format!(
                 "Supported Version: {} (0x{version:04x})",
-                version_name(version)
+                version_label(version)
             ));
             // The negotiated-version scan only reads a two-octet
             // supported_versions extension.
@@ -2271,7 +2272,7 @@ fn parse_supported_versions(
         );
         version_field.showname = Some(format!(
             "Supported Version: {} (0x{version:04x})",
-            version_name(version)
+            version_label(version)
         ));
         last = Some(version);
         offset = offset.saturating_add(2);
@@ -2674,15 +2675,31 @@ fn content_type_name(content_type: u8) -> &'static str {
     }
 }
 
-fn version_name(version: u16) -> &'static str {
+/// The two spellings of a TLS version.
+///
+/// The short form names the protocol column and the record-layer prefix
+/// (`TLSv1.2 Record Layer`); the long form follows `Version: ` and
+/// `Supported Version: `, matching the reference's version value table
+/// (`TLS 1.2`, `SSL 3.0`).
+const fn version_names(version: u16) -> (&'static str, &'static str) {
     match version {
-        0x0300 => "SSLv3",
-        0x0301 => "TLSv1",
-        0x0302 => "TLSv1.1",
-        0x0303 => "TLSv1.2",
-        0x0304 => "TLSv1.3",
-        _ => "TLS",
+        0x0300 => ("SSLv3", "SSL 3.0"),
+        0x0301 => ("TLSv1", "TLS 1.0"),
+        0x0302 => ("TLSv1.1", "TLS 1.1"),
+        0x0303 => ("TLSv1.2", "TLS 1.2"),
+        0x0304 => ("TLSv1.3", "TLS 1.3"),
+        _ => ("TLS", "TLS"),
     }
+}
+
+/// The protocol-column and record-layer name of a version.
+fn version_name(version: u16) -> &'static str {
+    version_names(version).0
+}
+
+/// The field showname of a version, without its hex value.
+fn version_label(version: u16) -> &'static str {
+    version_names(version).1
 }
 
 fn handshake_name(message_type: u8) -> &'static str {

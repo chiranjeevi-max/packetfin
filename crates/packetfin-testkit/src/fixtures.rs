@@ -12108,6 +12108,102 @@ static FIXTURES: &[Fixture] = &[
         case_specs: &[],
     },
     Fixture {
+        name: "tls10-cbc",
+        extension: "pcap",
+        builder: build_tls10_cbc,
+        case_specs: TLS10_CBC_CASE_SPECS,
+    },
+    Fixture {
+        name: "tls10-cbc-keys",
+        extension: "log",
+        builder: build_tls10_cbc_keys,
+        case_specs: &[],
+    },
+    Fixture {
+        name: "tls10-cbc-etm",
+        extension: "pcap",
+        builder: build_tls10_cbc_etm,
+        case_specs: TLS10_CBC_ETM_CASE_SPECS,
+    },
+    Fixture {
+        name: "tls10-cbc-etm-keys",
+        extension: "log",
+        builder: build_tls10_cbc_etm_keys,
+        case_specs: &[],
+    },
+    Fixture {
+        name: "tls11-cbc",
+        extension: "pcap",
+        builder: build_tls11_cbc,
+        case_specs: TLS11_CBC_CASE_SPECS,
+    },
+    Fixture {
+        name: "tls11-cbc-keys",
+        extension: "log",
+        builder: build_tls11_cbc_keys,
+        case_specs: &[],
+    },
+    Fixture {
+        name: "tls10-split",
+        extension: "pcap",
+        builder: build_tls10_split,
+        case_specs: TLS10_SPLIT_CASE_SPECS,
+    },
+    Fixture {
+        name: "tls10-split-keys",
+        extension: "log",
+        builder: build_tls10_split_keys,
+        case_specs: &[],
+    },
+    Fixture {
+        name: "tls10-truncated",
+        extension: "pcap",
+        builder: build_tls10_truncated,
+        case_specs: TLS10_TRUNCATED_CASE_SPECS,
+    },
+    Fixture {
+        name: "tls10-truncated-keys",
+        extension: "log",
+        builder: build_tls10_truncated_keys,
+        case_specs: &[],
+    },
+    Fixture {
+        name: "tls10-malformed",
+        extension: "pcap",
+        builder: build_tls10_malformed,
+        case_specs: TLS10_MALFORMED_CASE_SPECS,
+    },
+    Fixture {
+        name: "tls10-malformed-keys",
+        extension: "log",
+        builder: build_tls10_malformed_keys,
+        case_specs: &[],
+    },
+    Fixture {
+        name: "tls10-strict",
+        extension: "pcap",
+        builder: build_tls10_strict,
+        case_specs: &[],
+    },
+    Fixture {
+        name: "tls10-strict-keys",
+        extension: "log",
+        builder: build_tls10_strict_keys,
+        case_specs: &[],
+    },
+    Fixture {
+        name: "tls10-padded",
+        extension: "pcap",
+        builder: build_tls10_padded,
+        case_specs: TLS10_PADDED_CASE_SPECS,
+    },
+    Fixture {
+        name: "tls10-padded-keys",
+        extension: "log",
+        builder: build_tls10_padded_keys,
+        case_specs: &[],
+    },
+    Fixture {
         name: "tls13-split",
         extension: "pcap",
         builder: build_tls13_split,
@@ -30944,9 +31040,21 @@ fn tls13_hellos(writer: &tls::Tls13Writer) -> (Vec<u8>, Vec<u8>) {
     if writer.has_early() {
         client_extensions.push((42, Vec::new()));
     }
-    let hello = tls::client_hello(writer.client_random(), &[], &ciphers, &client_extensions);
+    let hello = tls::client_hello(
+        tls::TLS12_VERSION,
+        writer.client_random(),
+        &[],
+        &ciphers,
+        &client_extensions,
+    );
     let server_extensions = [(43, vec![0x03, 0x04]), (51, tls_server_key_share())];
-    let server = tls::server_hello(writer.server_random(), &[], suite, &server_extensions);
+    let server = tls::server_hello(
+        tls::TLS12_VERSION,
+        writer.server_random(),
+        &[],
+        suite,
+        &server_extensions,
+    );
     (hello, server)
 }
 
@@ -31384,6 +31492,7 @@ fn build_tls13_hrr_spoof() -> Result<Vec<u8>, String> {
     let mut writer = tls::Tls13Writer::new(0x1301);
     let (hello, _) = tls13_hellos(&writer);
     let hrr = tls::server_hello(
+        tls::TLS12_VERSION,
         tls::HELLO_RETRY_REQUEST_RANDOM,
         &[],
         writer.suite_id(),
@@ -31861,7 +31970,14 @@ fn build_tls12_resume_split() -> Result<Vec<u8>, String> {
     );
     let first_chunked = split_tls_exchanges(&first_exchanges, &[(0, &[20]), (6, &[5]), (7, &[4])]);
     let mut frames = tls_frames_chunked(443, 40_000, &first_chunked)?;
-    let mut second = tls::Tls12Writer::resumed(0xc030, false, [0x77_u8; 32], [0x88_u8; 32], master);
+    let mut second = tls::Tls12Writer::resumed(
+        tls::TLS12_VERSION,
+        0xc030,
+        false,
+        [0x77_u8; 32],
+        [0x88_u8; 32],
+        master,
+    );
     let (hello, server) = tls12_hellos(&second, &session_id, None, false);
     let request = b"GET /two HTTP/1.1\r\nHost: tls.test\r\n\r\n".to_vec();
     let response = b"HTTP/1.1 200 OK\r\nContent-Length: 3\r\n\r\ntwo".to_vec();
@@ -32184,6 +32300,7 @@ fn tls12_hellos(
         client_extensions.push((35, ticket.to_vec()));
     }
     let hello = tls::client_hello(
+        tls::TLS12_VERSION,
         writer.client_random(),
         session_id,
         &[suite, 0xc02f, 0xc030],
@@ -32194,6 +32311,7 @@ fn tls12_hellos(
         server_extensions.push((22, Vec::new()));
     }
     let server = tls::server_hello(
+        tls::TLS12_VERSION,
         writer.server_random(),
         session_id,
         suite,
@@ -32285,7 +32403,14 @@ fn build_tls12_resume() -> Result<Vec<u8>, String> {
     );
     let first_len = frames.len();
     // The resumed connection has new randoms but reuses the first master.
-    let mut second = tls::Tls12Writer::resumed(0xc030, false, [0x77_u8; 32], [0x88_u8; 32], master);
+    let mut second = tls::Tls12Writer::resumed(
+        tls::TLS12_VERSION,
+        0xc030,
+        false,
+        [0x77_u8; 32],
+        [0x88_u8; 32],
+        master,
+    );
     let (hello, server) = tls12_hellos(&second, &session_id, None, false);
     frames.push((true, tls::plain_record(tls::HANDSHAKE, 0x0301, &hello)));
     frames.push((false, tls::plain_record(tls::HANDSHAKE, 0x0303, &server)));
@@ -32347,7 +32472,14 @@ fn build_tls12_ticket() -> Result<Vec<u8>, String> {
         b"HTTP/1.1 200 OK\r\nContent-Length: 3\r\n\r\none",
     );
     let first_len = frames.len();
-    let mut second = tls::Tls12Writer::resumed(0xc030, false, [0x77_u8; 32], [0x88_u8; 32], master);
+    let mut second = tls::Tls12Writer::resumed(
+        tls::TLS12_VERSION,
+        0xc030,
+        false,
+        [0x77_u8; 32],
+        [0x88_u8; 32],
+        master,
+    );
     let new_session_id = [0x93_u8; 32];
     let (hello, server) = tls12_hellos(&second, &new_session_id, Some(&ticket), false);
     frames.push((true, tls::plain_record(tls::HANDSHAKE, 0x0301, &hello)));
@@ -32394,6 +32526,394 @@ fn build_tls12_ticket() -> Result<Vec<u8>, String> {
 
 fn build_tls12_ticket_keys() -> Result<Vec<u8>, String> {
     Ok(tls::Tls12Writer::new(0xc030, false).keylog().into_bytes())
+}
+
+/// The two hello messages of a TLS 1.0 or 1.1 handshake.
+///
+/// The hello body version and the record version both carry the negotiated
+/// version, as RFC 2246 section 7.4.1 and RFC 4346 require before a
+/// supported_versions extension existed.
+fn tls_legacy_hellos(writer: &tls::Tls12Writer, session_id: &[u8]) -> (Vec<u8>, Vec<u8>) {
+    let version = writer.version();
+    let suite = writer.suite_id();
+    let mut alpn = vec![2, b'h', b'1'];
+    let mut alpn_body = u16::try_from(alpn.len())
+        .unwrap_or(0)
+        .to_be_bytes()
+        .to_vec();
+    alpn_body.append(&mut alpn);
+    let mut client_extensions = vec![(0, tls_sni(b"tls.test")), (16, alpn_body)];
+    let mut server_extensions = Vec::new();
+    if writer.encrypt_then_mac() {
+        client_extensions.push((22, Vec::new()));
+        server_extensions.push((22, Vec::new()));
+    }
+    let hello = tls::client_hello(
+        version,
+        writer.client_random(),
+        session_id,
+        &[suite, 0xc013, 0xc014],
+        &client_extensions,
+    );
+    let server = tls::server_hello(
+        version,
+        writer.server_random(),
+        session_id,
+        suite,
+        &server_extensions,
+    );
+    (hello, server)
+}
+
+/// The handshake records of one TLS 1.0/1.1 CBC session.
+///
+/// The caller appends application records, so a fixture can place a record
+/// of its own at the next sequence number of either direction.
+fn tls_legacy_handshake(writer: &mut tls::Tls12Writer, session_id: &[u8]) -> Vec<(bool, Vec<u8>)> {
+    let version = writer.version();
+    let (hello, server) = tls_legacy_hellos(writer, session_id);
+    vec![
+        (true, tls::plain_record(tls::HANDSHAKE, version, &hello)),
+        (false, tls::plain_record(tls::HANDSHAKE, version, &server)),
+        (
+            false,
+            tls::plain_record(tls::CHANGE_CIPHER_SPEC, version, &[1]),
+        ),
+        (
+            false,
+            writer.record(false, tls::HANDSHAKE, &tls::handshake(20, &[0xaa; 12])),
+        ),
+        (
+            true,
+            tls::plain_record(tls::CHANGE_CIPHER_SPEC, version, &[1]),
+        ),
+        (
+            true,
+            writer.record(true, tls::HANDSHAKE, &tls::handshake(20, &[0xbb; 12])),
+        ),
+    ]
+}
+
+/// Handshake and application records of one TLS 1.0/1.1 CBC session.
+///
+/// Each request and response is its own record, so the second record in each
+/// direction witnesses the IV rule: TLS 1.0 chains the previous ciphertext
+/// block, TLS 1.1 carries a fresh explicit IV.
+fn tls_legacy_exchanges(
+    writer: &mut tls::Tls12Writer,
+    session_id: &[u8],
+    requests: &[&[u8]],
+    responses: &[&[u8]],
+) -> Vec<(bool, Vec<u8>)> {
+    let mut exchanges = tls_legacy_handshake(writer, session_id);
+    for (request, response) in requests.iter().zip(responses) {
+        exchanges.push((true, writer.record(true, tls::APPLICATION_DATA, request)));
+        exchanges.push((false, writer.record(false, tls::APPLICATION_DATA, response)));
+    }
+    exchanges
+}
+
+fn build_tls10_cbc() -> Result<Vec<u8>, String> {
+    let mut writer = tls::Tls12Writer::legacy(0xc014, tls::TLS10_VERSION, false);
+    let session_id = [0x81_u8; 32];
+    let exchanges = tls_legacy_exchanges(
+        &mut writer,
+        &session_id,
+        &[
+            b"GET /one HTTP/1.1\r\nHost: tls.test\r\n\r\n",
+            b"GET /two HTTP/1.1\r\nHost: tls.test\r\n\r\n",
+        ],
+        &[
+            b"HTTP/1.1 200 OK\r\nContent-Length: 3\r\n\r\none",
+            b"HTTP/1.1 200 OK\r\nContent-Length: 3\r\n\r\ntwo",
+        ],
+    );
+    tls_exchange(443, &exchanges)
+}
+
+fn build_tls10_cbc_keys() -> Result<Vec<u8>, String> {
+    Ok(tls::Tls12Writer::legacy(0xc014, tls::TLS10_VERSION, false)
+        .keylog()
+        .into_bytes())
+}
+
+fn build_tls10_cbc_etm() -> Result<Vec<u8>, String> {
+    let mut writer = tls::Tls12Writer::legacy(0xc014, tls::TLS10_VERSION, true);
+    let session_id = [0x8a_u8; 32];
+    let exchanges = tls_legacy_exchanges(
+        &mut writer,
+        &session_id,
+        &[b"GET /etm HTTP/1.1\r\nHost: tls.test\r\n\r\n"],
+        &[b"HTTP/1.1 200 OK\r\nContent-Length: 3\r\n\r\netm"],
+    );
+    tls_exchange(443, &exchanges)
+}
+
+fn build_tls10_cbc_etm_keys() -> Result<Vec<u8>, String> {
+    Ok(tls::Tls12Writer::legacy(0xc014, tls::TLS10_VERSION, true)
+        .keylog()
+        .into_bytes())
+}
+
+fn build_tls11_cbc() -> Result<Vec<u8>, String> {
+    let mut writer = tls::Tls12Writer::legacy(0xc013, tls::TLS11_VERSION, false);
+    let session_id = [0x82_u8; 32];
+    let exchanges = tls_legacy_exchanges(
+        &mut writer,
+        &session_id,
+        &[b"GET /one-one HTTP/1.1\r\nHost: tls.test\r\n\r\n"],
+        &[b"HTTP/1.1 200 OK\r\nContent-Length: 3\r\n\r\none"],
+    );
+    tls_exchange(443, &exchanges)
+}
+
+fn build_tls11_cbc_keys() -> Result<Vec<u8>, String> {
+    Ok(tls::Tls12Writer::legacy(0xc013, tls::TLS11_VERSION, false)
+        .keylog()
+        .into_bytes())
+}
+
+fn build_tls10_split() -> Result<Vec<u8>, String> {
+    let mut writer = tls::Tls12Writer::legacy(0xc014, tls::TLS10_VERSION, false);
+    let session_id = [0x83_u8; 32];
+    let exchanges = tls_legacy_exchanges(
+        &mut writer,
+        &session_id,
+        &[b"GET /split HTTP/1.1\r\nHost: tls.test\r\n\r\n"],
+        &[b"HTTP/1.1 200 OK\r\nContent-Length: 5\r\n\r\nhello"],
+    );
+    // The client Finished record is split at its third octet and the
+    // response record twenty octets in, so both a handshake message and an
+    // application record complete in a later segment.
+    let chunked = split_tls_exchanges(&exchanges, &[(5, &[3]), (7, &[20])]);
+    let frames = tls_frames_chunked(443, 40_000, &chunked)?;
+    link_pcap(u32::from(LINKTYPE_ETHERNET), &frames)
+}
+
+fn build_tls10_split_keys() -> Result<Vec<u8>, String> {
+    Ok(tls::Tls12Writer::legacy(0xc014, tls::TLS10_VERSION, false)
+        .keylog()
+        .into_bytes())
+}
+
+fn build_tls10_truncated() -> Result<Vec<u8>, String> {
+    let mut writer = tls::Tls12Writer::legacy(0xc014, tls::TLS10_VERSION, false);
+    let session_id = [0x84_u8; 32];
+    let exchanges = tls_legacy_exchanges(
+        &mut writer,
+        &session_id,
+        &[b"GET /truncated HTTP/1.1\r\nHost: tls.test\r\n\r\n"],
+        &[b"HTTP/1.1 200 OK\r\nContent-Length: 5\r\n\r\nhello"],
+    );
+    let chunked = split_tls_exchanges(&exchanges, &[(7, &[5, 20])]);
+    let mut frames = tls_frames_chunked(443, 40_000, &chunked)?;
+    // Drop the middle segment of the response record: the capture has a hole
+    // and the record can never complete, so its plaintext stays opaque.
+    frames.remove(8);
+    link_pcap(u32::from(LINKTYPE_ETHERNET), &frames)
+}
+
+fn build_tls10_truncated_keys() -> Result<Vec<u8>, String> {
+    Ok(tls::Tls12Writer::legacy(0xc014, tls::TLS10_VERSION, false)
+        .keylog()
+        .into_bytes())
+}
+
+fn build_tls10_padded() -> Result<Vec<u8>, String> {
+    let mut writer = tls::Tls12Writer::legacy(0xc014, tls::TLS10_VERSION, false);
+    let session_id = [0x85_u8; 32];
+    let version = writer.version();
+    let (hello, server) = tls_legacy_hellos(&writer, &session_id);
+    let request = b"GET /padded HTTP/1.1\r\nHost: tls.test\r\n\r\n";
+    let response = b"HTTP/1.1 200 OK\r\nContent-Length: 6\r\n\r\nhello!";
+    let mut exchanges = vec![
+        (true, tls::plain_record(tls::HANDSHAKE, version, &hello)),
+        (false, tls::plain_record(tls::HANDSHAKE, version, &server)),
+        (
+            false,
+            tls::plain_record(tls::CHANGE_CIPHER_SPEC, version, &[1]),
+        ),
+        (
+            false,
+            writer.record(false, tls::HANDSHAKE, &tls::handshake(20, &[0xaa; 12])),
+        ),
+        (
+            true,
+            tls::plain_record(tls::CHANGE_CIPHER_SPEC, version, &[1]),
+        ),
+        (
+            true,
+            writer.record(true, tls::HANDSHAKE, &tls::handshake(20, &[0xbb; 12])),
+        ),
+        (true, writer.record(true, tls::APPLICATION_DATA, request)),
+    ];
+    // The response's 43 content octets plus its 20-octet MAC fill four
+    // blocks exactly, so RFC 2246 section 6.2.3.2 padding is a whole extra
+    // block of sixteen 0x0f octets: the longest run the protocol allows.
+    exchanges.push((
+        false,
+        writer.record_with_padding(false, tls::APPLICATION_DATA, response, &[0x0f_u8; 16]),
+    ));
+    tls_exchange(443, &exchanges)
+}
+
+fn build_tls10_padded_keys() -> Result<Vec<u8>, String> {
+    Ok(tls::Tls12Writer::legacy(0xc014, tls::TLS10_VERSION, false)
+        .keylog()
+        .into_bytes())
+}
+
+/// The two independently keyed writers of the malformed TLS 1.0 fixture.
+fn tls10_malformed_writers() -> [tls::Tls12Writer; 2] {
+    [
+        tls::Tls12Writer::legacy(0xc014, tls::TLS10_VERSION, false),
+        tls::Tls12Writer::resumed(
+            tls::TLS10_VERSION,
+            0xc014,
+            false,
+            [0x12_u8; 32],
+            [0x23_u8; 32],
+            [0x34_u8; 48],
+        ),
+    ]
+}
+
+fn build_tls10_malformed() -> Result<Vec<u8>, String> {
+    // Two failures the reference also rejects: a pasted ciphertext octet and
+    // a record that skips its predecessor's sequence number. Each is in its
+    // own conversation so that the held sequence number of one cannot mask
+    // the cause in the other.
+    let mut frames = Vec::new();
+    let [mut bad_mac, mut wrong_sequence] = tls10_malformed_writers();
+
+    let mut exchanges = tls_legacy_exchanges(
+        &mut bad_mac,
+        &[0x86_u8; 32],
+        &[b"GET /bad-mac HTTP/1.1\r\nHost: tls.test\r\n\r\n"],
+        &[b"HTTP/1.1 200 OK\r\nContent-Length: 3\r\n\r\nbad"],
+    );
+    if let Some(record) = exchanges.get_mut(7).map(|(_, record)| record)
+        && let Some(last) = record.last_mut()
+    {
+        *last ^= 0x01;
+    }
+    frames.extend(tls_frames_from(443, 40_000, &exchanges)?);
+
+    let mut exchanges = tls_legacy_exchanges(
+        &mut wrong_sequence,
+        &[0x89_u8; 32],
+        &[b"GET /sequence HTTP/1.1\r\nHost: tls.test\r\n\r\n"],
+        &[
+            b"HTTP/1.1 200 OK\r\nContent-Length: 3\r\n\r\none",
+            b"HTTP/1.1 200 OK\r\nContent-Length: 3\r\n\r\ntwo",
+        ],
+    );
+    // Drop the first response record from the capture: the second one was
+    // protected with sequence number 1 and arrives where 0 is expected.
+    exchanges.remove(7);
+    frames.extend(tls_frames_from(443, 40_001, &exchanges)?);
+
+    link_pcap(u32::from(LINKTYPE_ETHERNET), &frames)
+}
+
+fn build_tls10_malformed_keys() -> Result<Vec<u8>, String> {
+    let mut keylog = String::new();
+    for writer in tls10_malformed_writers() {
+        keylog.push_str(&writer.keylog());
+    }
+    Ok(keylog.into_bytes())
+}
+
+/// Two record-protection failures the reference does not reject.
+///
+/// The reference strips CBC padding without validating it and ignores a
+/// record version that differs from the negotiated one, so it decodes both
+/// responses. Packetfin follows RFC 2246 sections 6.2.1 and 6.2.3.2 and
+/// keeps them opaque, which is why this capture has no stored expected
+/// output: `tests/tls.rs` asserts the fail-closed result instead.
+/// The two independently keyed writers of the strict TLS 1.0 fixture.
+fn tls10_strict_writers() -> [tls::Tls12Writer; 2] {
+    [
+        tls::Tls12Writer::resumed(
+            tls::TLS10_VERSION,
+            0xc014,
+            false,
+            [0x13_u8; 32],
+            [0x24_u8; 32],
+            [0x35_u8; 48],
+        ),
+        tls::Tls12Writer::resumed(
+            tls::TLS10_VERSION,
+            0xc014,
+            false,
+            [0x14_u8; 32],
+            [0x25_u8; 32],
+            [0x36_u8; 48],
+        ),
+    ]
+}
+
+fn build_tls10_strict() -> Result<Vec<u8>, String> {
+    let mut frames = Vec::new();
+    let [mut bad_padding, mut version_mismatch] = tls10_strict_writers();
+
+    let mut exchanges = tls_legacy_handshake(&mut bad_padding, &[0x87_u8; 32]);
+    exchanges.push((
+        true,
+        bad_padding.record(
+            true,
+            tls::APPLICATION_DATA,
+            b"GET /bad-padding HTTP/1.1\r\nHost: tls.test\r\n\r\n",
+        ),
+    ));
+    // Content plus MAC is 61 octets, so the record needs three padding
+    // octets. The last one claims a three-octet run of 0x02 while the two
+    // before it are 0x00: the MAC is correct and only the padding fails.
+    let padding = [0x00_u8, 0x00, 0x02];
+    exchanges.push((
+        false,
+        bad_padding.record_with_padding(
+            false,
+            tls::APPLICATION_DATA,
+            b"HTTP/1.1 200 OK\r\nContent-Length: 3\r\n\r\npad",
+            &padding,
+        ),
+    ));
+    frames.extend(tls_frames_from(443, 40_002, &exchanges)?);
+
+    let mut exchanges = tls_legacy_handshake(&mut version_mismatch, &[0x88_u8; 32]);
+    exchanges.push((
+        true,
+        version_mismatch.record(
+            true,
+            tls::APPLICATION_DATA,
+            b"GET /version HTTP/1.1\r\nHost: tls.test\r\n\r\n",
+        ),
+    ));
+    exchanges.push((
+        false,
+        version_mismatch.record(
+            false,
+            tls::APPLICATION_DATA,
+            b"HTTP/1.1 200 OK\r\nContent-Length: 3\r\n\r\nver",
+        ),
+    ));
+    // Relabel the response record's version octets as TLS 1.2: the MAC still
+    // covers 0x0301, so only the version check can reject it.
+    if let Some(record) = exchanges.get_mut(7).map(|(_, record)| record) {
+        record.splice(1..3, tls::TLS12_VERSION.to_be_bytes());
+    }
+    frames.extend(tls_frames_from(443, 40_003, &exchanges)?);
+
+    link_pcap(u32::from(LINKTYPE_ETHERNET), &frames)
+}
+
+fn build_tls10_strict_keys() -> Result<Vec<u8>, String> {
+    let mut keylog = String::new();
+    for writer in tls10_strict_writers() {
+        keylog.push_str(&writer.keylog());
+    }
+    Ok(keylog.into_bytes())
 }
 
 fn build_http1() -> Result<Vec<u8>, String> {
@@ -33936,6 +34456,13 @@ macro_rules! tls_fields_case {
     };
 }
 
+const TLS10_CBC_CASE_SPECS: &[CaseSpec] = tls_cases!("tls10-cbc-keys.log");
+const TLS10_CBC_ETM_CASE_SPECS: &[CaseSpec] = tls_cases!("tls10-cbc-etm-keys.log");
+const TLS11_CBC_CASE_SPECS: &[CaseSpec] = tls_cases!("tls11-cbc-keys.log");
+const TLS10_SPLIT_CASE_SPECS: &[CaseSpec] = tls_cases!("tls10-split-keys.log");
+const TLS10_TRUNCATED_CASE_SPECS: &[CaseSpec] = &[tls_fields_case!("tls10-truncated-keys.log")];
+const TLS10_MALFORMED_CASE_SPECS: &[CaseSpec] = tls_cases!("tls10-malformed-keys.log");
+const TLS10_PADDED_CASE_SPECS: &[CaseSpec] = tls_cases!("tls10-padded-keys.log");
 const TLS12_GCM_CASE_SPECS: &[CaseSpec] = tls_cases!("tls12-gcm-keys.log");
 const TLS12_CBC_ETM_CASE_SPECS: &[CaseSpec] = tls_cases!("tls12-cbc-etm-keys.log");
 const TLS12_CBC_MTE_CASE_SPECS: &[CaseSpec] = tls_cases!("tls12-cbc-mte-keys.log");

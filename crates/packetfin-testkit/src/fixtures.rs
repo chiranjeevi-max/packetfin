@@ -9570,6 +9570,19 @@ const ROUTING_OSPF_CASE_SPECS: &[CaseSpec] = &[
         ],
     },
     CaseSpec {
+        id: "detail-tree-malformed",
+        args: &[
+            "-n",
+            "-O",
+            "ospf",
+            "-V",
+            "-Y",
+            "frame.number >= 6 && frame.number <= 7",
+            "-r",
+            "{fixture}",
+        ],
+    },
+    CaseSpec {
         id: "pdml-tree-dbd",
         args: &[
             "-n",
@@ -11283,6 +11296,12 @@ static FIXTURES: &[Fixture] = &[
         case_specs: LLDP_MALFORMED_CASE_SPECS,
     },
     Fixture {
+        name: "lldp-8023",
+        extension: "pcap",
+        builder: build_lldp_8023,
+        case_specs: LLDP_8023_CASE_SPECS,
+    },
+    Fixture {
         name: "stp",
         extension: "pcap",
         builder: build_stp,
@@ -11551,6 +11570,12 @@ static FIXTURES: &[Fixture] = &[
         extension: "pcap",
         builder: build_dhcp_malformed,
         case_specs: DHCP_MALFORMED_CASE_SPECS,
+    },
+    Fixture {
+        name: "dhcp-option-82",
+        extension: "pcap",
+        builder: build_dhcp_option_82,
+        case_specs: DHCP_OPTION_82_CASE_SPECS,
     },
     Fixture {
         name: "dhcp-client-id",
@@ -21312,6 +21337,67 @@ const LLDP_CASE_SPECS: &[CaseSpec] = &[
     },
 ];
 
+const LLDP_8023_FIELDS_ARGS: &[&str] = &[
+    "-n",
+    "-T",
+    "fields",
+    "-e",
+    "frame.number",
+    "-e",
+    "lldp.ieee.802_3.subtype",
+    "-e",
+    "lldp.ieee.802_3.mac_phy_auto_neg_status",
+    "-e",
+    "lldp.ieee.802_3.mac_phy_auto_neg_status.supported",
+    "-e",
+    "lldp.ieee.802_3.mac_phy_auto_neg_status.enabled",
+    "-e",
+    "lldp.ieee.802_3.pmd_auto_neg_advertised_caps",
+    "-e",
+    "lldp.ieee.802_3.pmd_auto_neg_advertised_caps.1000base_t",
+    "-e",
+    "lldp.ieee.802_3.pmd_auto_neg_advertised_caps_inv.10base_t",
+    "-e",
+    "lldp.ieee.802_3.pmd_mau_type",
+    "-e",
+    "lldp.ieee.802_3.aggregation_status",
+    "-e",
+    "lldp.ieee.802_3.aggregation_status.cap",
+    "-e",
+    "lldp.ieee.802_3.aggregated_port_id",
+    "-e",
+    "lldp.ieee.802_3.max_frame_size",
+    "-r",
+    "{fixture}",
+];
+
+const LLDP_8023_CASE_SPECS: &[CaseSpec] = &[
+    CaseSpec {
+        id: "summary",
+        args: SUMMARY_ARGS,
+    },
+    CaseSpec {
+        id: "lldp-8023-fields",
+        args: LLDP_8023_FIELDS_ARGS,
+    },
+    CaseSpec {
+        id: "hexdump",
+        args: &["-n", "-x", "-r", "{fixture}"],
+    },
+    CaseSpec {
+        id: "pdml-tree",
+        args: &["-n", "-T", "pdml", "-J", "lldp", "-r", "{fixture}"],
+    },
+    CaseSpec {
+        id: "json-tree",
+        args: &["-n", "-T", "json", "-J", "lldp", "-r", "{fixture}"],
+    },
+    CaseSpec {
+        id: "detail-tree",
+        args: &["-n", "-O", "lldp", "-V", "-r", "{fixture}"],
+    },
+];
+
 const LLDP_MALFORMED_CASE_SPECS: &[CaseSpec] = &[
     CaseSpec {
         id: "summary",
@@ -22023,6 +22109,74 @@ fn build_lldp_malformed() -> Result<Vec<u8>, String> {
             lldp_frame(&unknown_org, false),
             lldp_frame(&invalid_chassis, false),
             lldp_frame(&truncated_header, false),
+        ],
+    )
+}
+
+/// LLDP organizationally specific TLVs under the IEEE 802.3 OUI.
+///
+/// Frames cover the clause 79 MAC/PHY configuration/status, link aggregation
+/// and maximum frame size containers in their full form, a body that stops
+/// before the fixed-length fields finish, and a body longer than the subtype
+/// defines.
+fn build_lldp_8023() -> Result<Vec<u8>, String> {
+    // IEEE 802.1AB-2016 clause 8.5.5: status octet, capability word, MAU type.
+    let mut mac_phy = vec![0x03];
+    mac_phy.extend_from_slice(&0x8001_u16.to_be_bytes());
+    mac_phy.extend_from_slice(&0x0010_u16.to_be_bytes());
+
+    // Clause 8.5.6: status octet and four-octet aggregated port identifier.
+    let mut aggregation = vec![0x03];
+    aggregation.extend_from_slice(&7_u32.to_be_bytes());
+
+    // Clause 8.5.7: two-octet maximum frame size.
+    let max_frame = 1518_u16.to_be_bytes();
+
+    let mut normal = lldp_mandatory();
+    normal.extend_from_slice(&lldp_org_tlv([0x00, 0x12, 0x0f], 1, &mac_phy));
+    normal.extend_from_slice(&lldp_org_tlv([0x00, 0x12, 0x0f], 3, &aggregation));
+    normal.extend_from_slice(&lldp_org_tlv([0x00, 0x12, 0x0f], 4, &max_frame));
+    normal.extend_from_slice(&lldp_tlv(0, b""));
+
+    // Each subtype keeps the fields its body still carries.
+    let mut short_mac_phy = lldp_mandatory();
+    short_mac_phy.extend_from_slice(&lldp_org_tlv([0x00, 0x12, 0x0f], 1, &[0x03, 0x80, 0x01]));
+    short_mac_phy.extend_from_slice(&lldp_tlv(0, b""));
+
+    let mut short_aggregation = lldp_mandatory();
+    short_aggregation.extend_from_slice(&lldp_org_tlv([0x00, 0x12, 0x0f], 3, &[0x03, 0x00]));
+    short_aggregation.extend_from_slice(&lldp_tlv(0, b""));
+
+    let mut short_max_frame = lldp_mandatory();
+    short_max_frame.extend_from_slice(&lldp_org_tlv([0x00, 0x12, 0x0f], 4, &[0x05]));
+    short_max_frame.extend_from_slice(&lldp_tlv(0, b""));
+
+    let mut excess = lldp_mandatory();
+    let mut long_mac_phy = mac_phy.clone();
+    long_mac_phy.extend_from_slice(&[0x00, 0x01]);
+    excess.extend_from_slice(&lldp_org_tlv([0x00, 0x12, 0x0f], 1, &long_mac_phy));
+    let mut long_aggregation = aggregation.clone();
+    long_aggregation.push(0x00);
+    excess.extend_from_slice(&lldp_org_tlv([0x00, 0x12, 0x0f], 3, &long_aggregation));
+    let mut long_max_frame = max_frame.to_vec();
+    long_max_frame.push(0x00);
+    excess.extend_from_slice(&lldp_org_tlv([0x00, 0x12, 0x0f], 4, &long_max_frame));
+    excess.extend_from_slice(&lldp_tlv(0, b""));
+
+    // A subtype body shorter than the OUI and subtype header itself.
+    let mut short_header = lldp_mandatory();
+    short_header.extend_from_slice(&lldp_tlv(127, &[0x00, 0x12]));
+    short_header.extend_from_slice(&lldp_tlv(0, b""));
+
+    link_pcap(
+        u32::from(LINKTYPE_ETHERNET),
+        &[
+            lldp_frame(&normal, false),
+            lldp_frame(&short_mac_phy, false),
+            lldp_frame(&short_aggregation, false),
+            lldp_frame(&short_max_frame, false),
+            lldp_frame(&excess, false),
+            lldp_frame(&short_header, false),
         ],
     )
 }
@@ -26627,6 +26781,61 @@ const DHCP_CASE_SPECS: &[CaseSpec] = &[
     },
 ];
 
+const DHCP_OPTION_82_CASE_SPECS: &[CaseSpec] = &[
+    CaseSpec {
+        id: "dhcp-fields",
+        args: DHCP_FIELDS_ARGS,
+    },
+    CaseSpec {
+        id: "json-fields",
+        args: &[
+            "-n",
+            "-T",
+            "json",
+            "-e",
+            "dhcp.option.agent_information_option.suboption",
+            "-e",
+            "dhcp.option.agent_information_option.value",
+            "-r",
+            "{fixture}",
+        ],
+    },
+    CaseSpec {
+        id: "filter-dhcp-request",
+        args: &[
+            "-n",
+            "-Y",
+            "dhcp.option.agent_information_option.suboption == 13",
+            "-T",
+            "fields",
+            "-e",
+            "frame.number",
+            "-r",
+            "{fixture}",
+        ],
+    },
+    CaseSpec {
+        id: "hexdump",
+        args: &["-n", "-x", "-r", "{fixture}"],
+    },
+    CaseSpec {
+        id: "pdml-tree",
+        args: &["-n", "-T", "pdml", "-J", "dhcp", "-r", "{fixture}"],
+    },
+    CaseSpec {
+        id: "json-tree",
+        args: &["-n", "-T", "json", "-J", "dhcp", "-r", "{fixture}"],
+    },
+    CaseSpec {
+        id: "ek-tree",
+        args: &["-n", "-T", "ek", "-J", "dhcp", "-r", "{fixture}"],
+    },
+    CaseSpec {
+        id: "detail-tree",
+        args: &["-n", "-O", "dhcp", "-V", "-r", "{fixture}"],
+    },
+];
+
 const DHCP_OVERLOAD_CASE_SPECS: &[CaseSpec] = &[
     CaseSpec {
         id: "summary",
@@ -27559,6 +27768,95 @@ fn build_dhcp_malformed() -> Result<Vec<u8>, String> {
         )?;
     }
     file.to_bytes()
+}
+
+/// DHCP relay agent information (option 82) shapes.
+///
+/// One frame per measured suboption family: the full registry layout, the
+/// RFC 4243 enterprise block loop, a suboption value cut short by the option
+/// length, a suboption whose length octet is missing, a wrong length on the
+/// fixed-size suboptions, the RFC 7839 access-technology integer with too few
+/// and too many octets, and the zero-length typed values.
+fn build_dhcp_option_82() -> Result<Vec<u8>, String> {
+    let mut full = Vec::new();
+    full.extend_from_slice(&dhcp_option(0, &[0x00]));
+    full.extend_from_slice(&dhcp_option(1, b"circuit-1"));
+    full.extend_from_slice(&dhcp_option(2, b"remote-1"));
+    full.extend_from_slice(&dhcp_option(3, &[0x01, 0x02, 0x03]));
+    full.extend_from_slice(&dhcp_option(4, &5_u32.to_be_bytes()));
+    full.extend_from_slice(&dhcp_option(5, &[203, 0, 113, 5]));
+    full.extend_from_slice(&dhcp_option(6, b"server.example"));
+    full.extend_from_slice(&dhcp_option(7, &[0x01, 0x02]));
+    full.extend_from_slice(&dhcp_option(8, &[0x11, 0x22]));
+    full.extend_from_slice(&dhcp_option(10, &[0x05]));
+    full.extend_from_slice(&dhcp_option(11, &[198, 51, 100, 10]));
+    full.extend_from_slice(&dhcp_option(12, b"relay-1"));
+    full.extend_from_slice(&dhcp_option(13, &[0x0a, 0xa0]));
+
+    let mut vendor = Vec::new();
+    vendor.extend_from_slice(&dhcp_option(9, &vendor_block(32473, &[0xaa, 0xbb])));
+    vendor.extend_from_slice(&dhcp_option(9, &vendor_block(32473, &[])));
+
+    let mut truncated_value = Vec::new();
+    truncated_value.extend_from_slice(&dhcp_option(3, &[0xaa, 0xbb]));
+    truncated_value.extend_from_slice(&[7, 9, 0x01, 0x02]);
+
+    let mut missing_length = Vec::new();
+    missing_length.extend_from_slice(&dhcp_option(3, &[0xaa, 0xbb]));
+    missing_length.push(8);
+
+    let mut wrong_length = Vec::new();
+    wrong_length.extend_from_slice(&dhcp_option(4, &[0x01, 0x02]));
+    wrong_length.extend_from_slice(&dhcp_option(5, &[0xc6, 0x33, 0x64]));
+    wrong_length.extend_from_slice(&dhcp_option(10, &[0x05, 0x06]));
+    wrong_length.extend_from_slice(&dhcp_option(11, &[0xc6, 0x33, 0x64]));
+
+    // RFC 7839 §5: no octet means no integer, so the protocol decode stops;
+    // five octets are reported as a warning and the first four are shown.
+    let short_access = dhcp_option(13, &[]);
+    let long_access = dhcp_option(13, &[0x01, 0x02, 0x03, 0x04, 0x05]);
+
+    let mut zero_values = Vec::new();
+    zero_values.extend_from_slice(&dhcp_option(1, &[]));
+    zero_values.extend_from_slice(&dhcp_option(3, &[]));
+    zero_values.extend_from_slice(&dhcp_option(7, &[]));
+    zero_values.extend_from_slice(&dhcp_option(8, &[]));
+    zero_values.extend_from_slice(&dhcp_option(9, &[]));
+    zero_values.extend_from_slice(&dhcp_option(12, &[]));
+
+    let agents = [
+        full,
+        vendor,
+        truncated_value,
+        missing_length,
+        wrong_length,
+        short_access,
+        long_access,
+        zero_values,
+    ];
+    let mut file = pcap::Pcap::new(ByteOrder::Little, TimestampResolution::Microsecond);
+    for (index, agent) in agents.iter().enumerate() {
+        let mut options = dhcp_option(53, &[1]);
+        options.extend_from_slice(&dhcp_option(82, agent));
+        options.push(255);
+        let payload = dhcp_payload(1, [0; 4], [0; 4], &options);
+        let frame = services_frame(&payload, 68, 67)?;
+        let offset = u32::try_from(index).unwrap_or(0);
+        file.push(
+            Timestamp::new(TIMESTAMP_SECONDS, 123_456_u32.saturating_add(offset)),
+            frame,
+        )?;
+    }
+    file.to_bytes()
+}
+
+/// One RFC 4243 vendor-specific block: enterprise number, data length, data.
+fn vendor_block(enterprise: u32, data: &[u8]) -> Vec<u8> {
+    let mut block = Vec::with_capacity(5 + data.len());
+    block.extend_from_slice(&enterprise.to_be_bytes());
+    block.push(u8::try_from(data.len()).unwrap_or(u8::MAX));
+    block.extend_from_slice(data);
+    block
 }
 
 fn build_dhcp_hardware() -> Result<Vec<u8>, String> {

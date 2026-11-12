@@ -1,0 +1,686 @@
+[
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "frame": {
+          "filtered": "frame"
+        },
+        "eth": {
+          "filtered": "eth"
+        },
+        "ip": {
+          "filtered": "ip"
+        },
+        "udp": {
+          "filtered": "udp"
+        },
+        "dhcp": {
+          "dhcp.type": "1",
+          "dhcp.hw.type": "0x01",
+          "dhcp.hw.len": "6",
+          "dhcp.hops": "0",
+          "dhcp.id": "0x12345678",
+          "dhcp.secs": "0",
+          "dhcp.flags": "0x8000",
+          "dhcp.flags_tree": {
+            "dhcp.flags.bc": "1",
+            "dhcp.flags.reserved": "0x0000"
+          },
+          "dhcp.ip.client": "0.0.0.0",
+          "dhcp.ip.your": "0.0.0.0",
+          "dhcp.ip.server": "0.0.0.0",
+          "dhcp.ip.relay": "0.0.0.0",
+          "dhcp.hw.mac_addr": "02:00:00:00:00:01",
+          "dhcp.hw.addr_padding": "00:00:00:00:00:00:00:00:00:00",
+          "dhcp.server": "",
+          "dhcp.file": "",
+          "dhcp.cookie": "99.130.83.99",
+          "dhcp.option.type": "53",
+          "dhcp.option.type_tree": {
+            "dhcp.option.length": "1",
+            "dhcp.option.value": "01",
+            "dhcp.option.dhcp": "1"
+          },
+          "dhcp.option.type": "82",
+          "dhcp.option.type_tree": {
+            "dhcp.option.length": "87",
+            "dhcp.option.value": "00:01:00:01:09:63:69:72:63:75:69:74:2d:31:02:08:72:65:6d:6f:74:65:2d:31:03:03:01:02:03:04:04:00:00:00:05:05:04:cb:00:71:05:06:0e:73:65:72:76:65:72:2e:65:78:61:6d:70:6c:65:07:02:01:02:08:02:11:22:0a:01:05:0b:04:c6:33:64:0a:0c:07:72:65:6c:61:79:2d:31:0d:02:0a:a0",
+            "dhcp.option.agent_information_option.suboption": "0",
+            "dhcp.option.agent_information_option.suboption_tree": {
+              "dhcp.option.suboption_length": "1",
+              "dhcp.option.agent_information_option.value": "00"
+            },
+            "dhcp.option.agent_information_option.suboption": "1",
+            "dhcp.option.agent_information_option.suboption_tree": {
+              "dhcp.option.suboption_length": "9",
+              "dhcp.option.agent_information_option.value": "63:69:72:63:75:69:74:2d:31",
+              "dhcp.option.agent_information_option.agent_circuit_id": "63:69:72:63:75:69:74:2d:31"
+            },
+            "dhcp.option.agent_information_option.suboption": "2",
+            "dhcp.option.agent_information_option.suboption_tree": {
+              "dhcp.option.suboption_length": "8",
+              "dhcp.option.agent_information_option.value": "72:65:6d:6f:74:65:2d:31",
+              "dhcp.option.agent_information_option.agent_remote_id": "72:65:6d:6f:74:65:2d:31"
+            },
+            "dhcp.option.agent_information_option.suboption": "3",
+            "dhcp.option.agent_information_option.suboption_tree": {
+              "dhcp.option.suboption_length": "3",
+              "dhcp.option.agent_information_option.value": "01:02:03",
+              "dhcp.option.agent_information_option.reserved": "01:02:03"
+            },
+            "dhcp.option.agent_information_option.suboption": "4",
+            "dhcp.option.agent_information_option.suboption_tree": {
+              "dhcp.option.suboption_length": "4",
+              "dhcp.option.agent_information_option.value": "00:00:00:05",
+              "dhcp.option.agent_information_option.docsis_device_class": "0x00000005"
+            },
+            "dhcp.option.agent_information_option.suboption": "5",
+            "dhcp.option.agent_information_option.suboption_tree": {
+              "dhcp.option.suboption_length": "4",
+              "dhcp.option.agent_information_option.value": "cb:00:71:05",
+              "dhcp.option.agent_information_option.link_selection": "203.0.113.5"
+            },
+            "dhcp.option.agent_information_option.suboption": "6",
+            "dhcp.option.agent_information_option.suboption_tree": {
+              "dhcp.option.suboption_length": "14",
+              "dhcp.option.agent_information_option.value": "73:65:72:76:65:72:2e:65:78:61:6d:70:6c:65",
+              "dhcp.option.agent_information_option.subscriber_id": "server.example"
+            },
+            "dhcp.option.agent_information_option.suboption": "7",
+            "dhcp.option.agent_information_option.suboption_tree": {
+              "dhcp.option.suboption_length": "2",
+              "dhcp.option.agent_information_option.value": "01:02",
+              "dhcp.option.agent_information_option.radius_attributes": "01:02"
+            },
+            "dhcp.option.agent_information_option.suboption": "8",
+            "dhcp.option.agent_information_option.suboption_tree": {
+              "dhcp.option.suboption_length": "2",
+              "dhcp.option.agent_information_option.value": "11:22",
+              "dhcp.option.agent_information_option.authentication": "11:22"
+            },
+            "dhcp.option.agent_information_option.suboption": "10",
+            "dhcp.option.agent_information_option.suboption_tree": {
+              "dhcp.option.suboption_length": "1",
+              "dhcp.option.agent_information_option.value": "05",
+              "dhcp.option.agent_information_option.flags": "0x05"
+            },
+            "dhcp.option.agent_information_option.suboption": "11",
+            "dhcp.option.agent_information_option.suboption_tree": {
+              "dhcp.option.suboption_length": "4",
+              "dhcp.option.agent_information_option.value": "c6:33:64:0a",
+              "dhcp.option.agent_information_option.server_id_override": "198.51.100.10"
+            },
+            "dhcp.option.agent_information_option.suboption": "12",
+            "dhcp.option.agent_information_option.suboption_tree": {
+              "dhcp.option.suboption_length": "7",
+              "dhcp.option.agent_information_option.value": "72:65:6c:61:79:2d:31",
+              "dhcp.option.agent_information_option.relay_agent_id": "72:65:6c:61:79:2d:31"
+            },
+            "dhcp.option.agent_information_option.suboption": "13",
+            "dhcp.option.agent_information_option.suboption_tree": {
+              "dhcp.option.suboption_length": "2",
+              "dhcp.option.agent_information_option.value": "0a:a0",
+              "dhcp.option.agent_information_option.ani_att": "2720"
+            }
+          },
+          "dhcp.option.type": "0",
+          "dhcp.option.type_tree": {
+            "dhcp.option.end": "255"
+          }
+        }
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "frame": {
+          "filtered": "frame"
+        },
+        "eth": {
+          "filtered": "eth"
+        },
+        "ip": {
+          "filtered": "ip"
+        },
+        "udp": {
+          "filtered": "udp"
+        },
+        "dhcp": {
+          "dhcp.type": "1",
+          "dhcp.hw.type": "0x01",
+          "dhcp.hw.len": "6",
+          "dhcp.hops": "0",
+          "dhcp.id": "0x12345678",
+          "dhcp.secs": "0",
+          "dhcp.flags": "0x8000",
+          "dhcp.flags_tree": {
+            "dhcp.flags.bc": "1",
+            "dhcp.flags.reserved": "0x0000"
+          },
+          "dhcp.ip.client": "0.0.0.0",
+          "dhcp.ip.your": "0.0.0.0",
+          "dhcp.ip.server": "0.0.0.0",
+          "dhcp.ip.relay": "0.0.0.0",
+          "dhcp.hw.mac_addr": "02:00:00:00:00:01",
+          "dhcp.hw.addr_padding": "00:00:00:00:00:00:00:00:00:00",
+          "dhcp.server": "",
+          "dhcp.file": "",
+          "dhcp.cookie": "99.130.83.99",
+          "dhcp.option.type": "53",
+          "dhcp.option.type_tree": {
+            "dhcp.option.length": "1",
+            "dhcp.option.value": "01",
+            "dhcp.option.dhcp": "1"
+          },
+          "dhcp.option.type": "82",
+          "dhcp.option.type_tree": {
+            "dhcp.option.length": "16",
+            "dhcp.option.value": "09:07:00:00:7e:d9:02:aa:bb:09:05:00:00:7e:d9:00",
+            "dhcp.option.agent_information_option.suboption": "9",
+            "dhcp.option.agent_information_option.suboption_tree": {
+              "dhcp.option.suboption_length": "7",
+              "dhcp.option.agent_information_option.value": "00:00:7e:d9:02:aa:bb",
+              "dhcp.option.agent_information_option.vi.enterprise": "32473",
+              "dhcp.option.agent_information_option.vi.enterprise_tree": {
+                "dhcp.option.agent_information_option.vi.data_length": "2"
+              },
+              "dhcp.option.agent_information_option.value": "aa:bb"
+            },
+            "dhcp.option.agent_information_option.suboption": "9",
+            "dhcp.option.agent_information_option.suboption_tree": {
+              "dhcp.option.suboption_length": "5",
+              "dhcp.option.agent_information_option.value": "00:00:7e:d9:00",
+              "dhcp.option.agent_information_option.vi.enterprise": "32473",
+              "dhcp.option.agent_information_option.vi.enterprise_tree": {
+                "dhcp.option.agent_information_option.vi.data_length": "0"
+              },
+              "dhcp.option.agent_information_option.value": ""
+            }
+          },
+          "dhcp.option.type": "0",
+          "dhcp.option.type_tree": {
+            "dhcp.option.end": "255"
+          }
+        }
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "frame": {
+          "filtered": "frame"
+        },
+        "eth": {
+          "filtered": "eth"
+        },
+        "ip": {
+          "filtered": "ip"
+        },
+        "udp": {
+          "filtered": "udp"
+        },
+        "dhcp": {
+          "dhcp.type": "1",
+          "dhcp.hw.type": "0x01",
+          "dhcp.hw.len": "6",
+          "dhcp.hops": "0",
+          "dhcp.id": "0x12345678",
+          "dhcp.secs": "0",
+          "dhcp.flags": "0x8000",
+          "dhcp.flags_tree": {
+            "dhcp.flags.bc": "1",
+            "dhcp.flags.reserved": "0x0000"
+          },
+          "dhcp.ip.client": "0.0.0.0",
+          "dhcp.ip.your": "0.0.0.0",
+          "dhcp.ip.server": "0.0.0.0",
+          "dhcp.ip.relay": "0.0.0.0",
+          "dhcp.hw.mac_addr": "02:00:00:00:00:01",
+          "dhcp.hw.addr_padding": "00:00:00:00:00:00:00:00:00:00",
+          "dhcp.server": "",
+          "dhcp.file": "",
+          "dhcp.cookie": "99.130.83.99",
+          "dhcp.option.type": "53",
+          "dhcp.option.type_tree": {
+            "dhcp.option.length": "1",
+            "dhcp.option.value": "01",
+            "dhcp.option.dhcp": "1"
+          },
+          "dhcp.option.type": "82",
+          "dhcp.option.type_tree": {
+            "dhcp.option.length": "8",
+            "dhcp.option.value": "03:02:aa:bb:07:09:01:02",
+            "dhcp.option.agent_information_option.suboption": "3",
+            "dhcp.option.agent_information_option.suboption_tree": {
+              "dhcp.option.suboption_length": "2",
+              "dhcp.option.agent_information_option.value": "aa:bb",
+              "dhcp.option.agent_information_option.reserved": "aa:bb"
+            },
+            "dhcp.option.agent_information_option.suboption": "7",
+            "dhcp.option.agent_information_option.suboption_tree": {
+              "dhcp.option.suboption_length": "9",
+              "_ws.expert": {
+                "dhcp.missing_subopt_value": "",
+                "_ws.expert.message": "Suboption 7: no room left in option for suboption value",
+                "_ws.expert.severity": "8388608",
+                "_ws.expert.group": "150994944"
+              }
+            }
+          },
+          "dhcp.option.type": "0",
+          "dhcp.option.type_tree": {
+            "dhcp.option.end": "255"
+          }
+        }
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "frame": {
+          "filtered": "frame"
+        },
+        "eth": {
+          "filtered": "eth"
+        },
+        "ip": {
+          "filtered": "ip"
+        },
+        "udp": {
+          "filtered": "udp"
+        },
+        "dhcp": {
+          "dhcp.type": "1",
+          "dhcp.hw.type": "0x01",
+          "dhcp.hw.len": "6",
+          "dhcp.hops": "0",
+          "dhcp.id": "0x12345678",
+          "dhcp.secs": "0",
+          "dhcp.flags": "0x8000",
+          "dhcp.flags_tree": {
+            "dhcp.flags.bc": "1",
+            "dhcp.flags.reserved": "0x0000"
+          },
+          "dhcp.ip.client": "0.0.0.0",
+          "dhcp.ip.your": "0.0.0.0",
+          "dhcp.ip.server": "0.0.0.0",
+          "dhcp.ip.relay": "0.0.0.0",
+          "dhcp.hw.mac_addr": "02:00:00:00:00:01",
+          "dhcp.hw.addr_padding": "00:00:00:00:00:00:00:00:00:00",
+          "dhcp.server": "",
+          "dhcp.file": "",
+          "dhcp.cookie": "99.130.83.99",
+          "dhcp.option.type": "53",
+          "dhcp.option.type_tree": {
+            "dhcp.option.length": "1",
+            "dhcp.option.value": "01",
+            "dhcp.option.dhcp": "1"
+          },
+          "dhcp.option.type": "82",
+          "dhcp.option.type_tree": {
+            "dhcp.option.length": "5",
+            "dhcp.option.value": "03:02:aa:bb:08",
+            "dhcp.option.agent_information_option.suboption": "3",
+            "dhcp.option.agent_information_option.suboption_tree": {
+              "dhcp.option.suboption_length": "2",
+              "dhcp.option.agent_information_option.value": "aa:bb",
+              "dhcp.option.agent_information_option.reserved": "aa:bb"
+            },
+            "_ws.expert": {
+              "dhcp.missing_subopt_length": "",
+              "_ws.expert.message": "Suboption 8: no room left in option for suboption length",
+              "_ws.expert.severity": "8388608",
+              "_ws.expert.group": "150994944"
+            }
+          },
+          "dhcp.option.type": "0",
+          "dhcp.option.type_tree": {
+            "dhcp.option.end": "255"
+          }
+        }
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "frame": {
+          "filtered": "frame"
+        },
+        "eth": {
+          "filtered": "eth"
+        },
+        "ip": {
+          "filtered": "ip"
+        },
+        "udp": {
+          "filtered": "udp"
+        },
+        "dhcp": {
+          "dhcp.type": "1",
+          "dhcp.hw.type": "0x01",
+          "dhcp.hw.len": "6",
+          "dhcp.hops": "0",
+          "dhcp.id": "0x12345678",
+          "dhcp.secs": "0",
+          "dhcp.flags": "0x8000",
+          "dhcp.flags_tree": {
+            "dhcp.flags.bc": "1",
+            "dhcp.flags.reserved": "0x0000"
+          },
+          "dhcp.ip.client": "0.0.0.0",
+          "dhcp.ip.your": "0.0.0.0",
+          "dhcp.ip.server": "0.0.0.0",
+          "dhcp.ip.relay": "0.0.0.0",
+          "dhcp.hw.mac_addr": "02:00:00:00:00:01",
+          "dhcp.hw.addr_padding": "00:00:00:00:00:00:00:00:00:00",
+          "dhcp.server": "",
+          "dhcp.file": "",
+          "dhcp.cookie": "99.130.83.99",
+          "dhcp.option.type": "53",
+          "dhcp.option.type_tree": {
+            "dhcp.option.length": "1",
+            "dhcp.option.value": "01",
+            "dhcp.option.dhcp": "1"
+          },
+          "dhcp.option.type": "82",
+          "dhcp.option.type_tree": {
+            "dhcp.option.length": "18",
+            "dhcp.option.value": "04:02:01:02:05:03:c6:33:64:0a:02:05:06:0b:03:c6:33:64",
+            "dhcp.option.agent_information_option.suboption": "4",
+            "dhcp.option.agent_information_option.suboption_tree": {
+              "dhcp.option.suboption_length": "2",
+              "dhcp.option.agent_information_option.value": "01:02",
+              "_ws.expert": {
+                "dhcp.bad_length": "",
+                "_ws.expert.message": "length isn't 4",
+                "_ws.expert.severity": "8388608",
+                "_ws.expert.group": "150994944"
+              }
+            },
+            "dhcp.option.agent_information_option.suboption": "5",
+            "dhcp.option.agent_information_option.suboption_tree": {
+              "dhcp.option.suboption_length": "3",
+              "dhcp.option.agent_information_option.value": "c6:33:64",
+              "_ws.expert": {
+                "dhcp.bad_length": "",
+                "_ws.expert.message": "length isn't 4",
+                "_ws.expert.severity": "8388608",
+                "_ws.expert.group": "150994944"
+              }
+            },
+            "dhcp.option.agent_information_option.suboption": "10",
+            "dhcp.option.agent_information_option.suboption_tree": {
+              "dhcp.option.suboption_length": "2",
+              "dhcp.option.agent_information_option.value": "05:06",
+              "_ws.expert": {
+                "dhcp.bad_length": "",
+                "_ws.expert.message": "length isn't 1",
+                "_ws.expert.severity": "8388608",
+                "_ws.expert.group": "150994944"
+              }
+            },
+            "dhcp.option.agent_information_option.suboption": "11",
+            "dhcp.option.agent_information_option.suboption_tree": {
+              "dhcp.option.suboption_length": "3",
+              "dhcp.option.agent_information_option.value": "c6:33:64",
+              "_ws.expert": {
+                "dhcp.bad_length": "",
+                "_ws.expert.message": "length isn't 4",
+                "_ws.expert.severity": "8388608",
+                "_ws.expert.group": "150994944"
+              }
+            }
+          },
+          "dhcp.option.type": "0",
+          "dhcp.option.type_tree": {
+            "dhcp.option.end": "255"
+          }
+        }
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "frame": {
+          "filtered": "frame"
+        },
+        "eth": {
+          "filtered": "eth"
+        },
+        "ip": {
+          "filtered": "ip"
+        },
+        "udp": {
+          "filtered": "udp"
+        },
+        "dhcp": {
+          "dhcp.type": "1",
+          "dhcp.hw.type": "0x01",
+          "dhcp.hw.len": "6",
+          "dhcp.hops": "0",
+          "dhcp.id": "0x12345678",
+          "dhcp.secs": "0",
+          "dhcp.flags": "0x8000",
+          "dhcp.flags_tree": {
+            "dhcp.flags.bc": "1",
+            "dhcp.flags.reserved": "0x0000"
+          },
+          "dhcp.ip.client": "0.0.0.0",
+          "dhcp.ip.your": "0.0.0.0",
+          "dhcp.ip.server": "0.0.0.0",
+          "dhcp.ip.relay": "0.0.0.0",
+          "dhcp.hw.mac_addr": "02:00:00:00:00:01",
+          "dhcp.hw.addr_padding": "00:00:00:00:00:00:00:00:00:00",
+          "dhcp.server": "",
+          "dhcp.file": "",
+          "dhcp.cookie": "99.130.83.99",
+          "dhcp.option.type": "53",
+          "dhcp.option.type_tree": {
+            "dhcp.option.length": "1",
+            "dhcp.option.value": "01",
+            "dhcp.option.dhcp": "1"
+          },
+          "dhcp.option.type": "82",
+          "dhcp.option.type_tree": {
+            "dhcp.option.length": "2",
+            "dhcp.option.value": "0d:00",
+            "dhcp.option.agent_information_option.suboption": "13",
+            "dhcp.option.agent_information_option.suboption_tree": {
+              "dhcp.option.suboption_length": "0",
+              "dhcp.option.agent_information_option.value": "",
+              "_ws.expert": {
+                "_ws.type_length.mismatch": "",
+                "_ws.expert.message": "Trying to fetch an unsigned integer with length 0",
+                "_ws.expert.severity": "8388608",
+                "_ws.expert.group": "117440512"
+              },
+              "_ws.malformed": "Malformed Packet"
+            }
+          }
+        },
+        "_ws.malformed": {
+          "filtered": "_ws.malformed"
+        }
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "frame": {
+          "filtered": "frame"
+        },
+        "eth": {
+          "filtered": "eth"
+        },
+        "ip": {
+          "filtered": "ip"
+        },
+        "udp": {
+          "filtered": "udp"
+        },
+        "dhcp": {
+          "dhcp.type": "1",
+          "dhcp.hw.type": "0x01",
+          "dhcp.hw.len": "6",
+          "dhcp.hops": "0",
+          "dhcp.id": "0x12345678",
+          "dhcp.secs": "0",
+          "dhcp.flags": "0x8000",
+          "dhcp.flags_tree": {
+            "dhcp.flags.bc": "1",
+            "dhcp.flags.reserved": "0x0000"
+          },
+          "dhcp.ip.client": "0.0.0.0",
+          "dhcp.ip.your": "0.0.0.0",
+          "dhcp.ip.server": "0.0.0.0",
+          "dhcp.ip.relay": "0.0.0.0",
+          "dhcp.hw.mac_addr": "02:00:00:00:00:01",
+          "dhcp.hw.addr_padding": "00:00:00:00:00:00:00:00:00:00",
+          "dhcp.server": "",
+          "dhcp.file": "",
+          "dhcp.cookie": "99.130.83.99",
+          "dhcp.option.type": "53",
+          "dhcp.option.type_tree": {
+            "dhcp.option.length": "1",
+            "dhcp.option.value": "01",
+            "dhcp.option.dhcp": "1"
+          },
+          "dhcp.option.type": "82",
+          "dhcp.option.type_tree": {
+            "dhcp.option.length": "7",
+            "dhcp.option.value": "0d:05:01:02:03:04:05",
+            "dhcp.option.agent_information_option.suboption": "13",
+            "dhcp.option.agent_information_option.suboption_tree": {
+              "dhcp.option.suboption_length": "5",
+              "dhcp.option.agent_information_option.value": "01:02:03:04:05",
+              "_ws.expert": {
+                "_ws.type_length.mismatch_warn": "",
+                "_ws.expert.message": "Trying to fetch an unsigned integer with length 5",
+                "_ws.expert.severity": "6291456",
+                "_ws.expert.group": "117440512"
+              },
+              "_ws.malformed": "Malformed Packet",
+              "dhcp.option.agent_information_option.ani_att": "16909060"
+            }
+          },
+          "dhcp.option.type": "0",
+          "dhcp.option.type_tree": {
+            "dhcp.option.end": "255"
+          }
+        }
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "frame": {
+          "filtered": "frame"
+        },
+        "eth": {
+          "filtered": "eth"
+        },
+        "ip": {
+          "filtered": "ip"
+        },
+        "udp": {
+          "filtered": "udp"
+        },
+        "dhcp": {
+          "dhcp.type": "1",
+          "dhcp.hw.type": "0x01",
+          "dhcp.hw.len": "6",
+          "dhcp.hops": "0",
+          "dhcp.id": "0x12345678",
+          "dhcp.secs": "0",
+          "dhcp.flags": "0x8000",
+          "dhcp.flags_tree": {
+            "dhcp.flags.bc": "1",
+            "dhcp.flags.reserved": "0x0000"
+          },
+          "dhcp.ip.client": "0.0.0.0",
+          "dhcp.ip.your": "0.0.0.0",
+          "dhcp.ip.server": "0.0.0.0",
+          "dhcp.ip.relay": "0.0.0.0",
+          "dhcp.hw.mac_addr": "02:00:00:00:00:01",
+          "dhcp.hw.addr_padding": "00:00:00:00:00:00:00:00:00:00",
+          "dhcp.server": "",
+          "dhcp.file": "",
+          "dhcp.cookie": "99.130.83.99",
+          "dhcp.option.type": "53",
+          "dhcp.option.type_tree": {
+            "dhcp.option.length": "1",
+            "dhcp.option.value": "01",
+            "dhcp.option.dhcp": "1"
+          },
+          "dhcp.option.type": "82",
+          "dhcp.option.type_tree": {
+            "dhcp.option.length": "12",
+            "dhcp.option.value": "01:00:03:00:07:00:08:00:09:00:0c:00",
+            "dhcp.option.agent_information_option.suboption": "1",
+            "dhcp.option.agent_information_option.suboption_tree": {
+              "dhcp.option.suboption_length": "0",
+              "dhcp.option.agent_information_option.value": "",
+              "dhcp.option.agent_information_option.agent_circuit_id": ""
+            },
+            "dhcp.option.agent_information_option.suboption": "3",
+            "dhcp.option.agent_information_option.suboption_tree": {
+              "dhcp.option.suboption_length": "0",
+              "dhcp.option.agent_information_option.value": "",
+              "dhcp.option.agent_information_option.reserved": ""
+            },
+            "dhcp.option.agent_information_option.suboption": "7",
+            "dhcp.option.agent_information_option.suboption_tree": {
+              "dhcp.option.suboption_length": "0",
+              "dhcp.option.agent_information_option.value": "",
+              "dhcp.option.agent_information_option.radius_attributes": ""
+            },
+            "dhcp.option.agent_information_option.suboption": "8",
+            "dhcp.option.agent_information_option.suboption_tree": {
+              "dhcp.option.suboption_length": "0",
+              "dhcp.option.agent_information_option.value": "",
+              "dhcp.option.agent_information_option.authentication": ""
+            },
+            "dhcp.option.agent_information_option.suboption": "9",
+            "dhcp.option.agent_information_option.suboption_tree": {
+              "dhcp.option.suboption_length": "0",
+              "dhcp.option.agent_information_option.value": ""
+            },
+            "dhcp.option.agent_information_option.suboption": "12",
+            "dhcp.option.agent_information_option.suboption_tree": {
+              "dhcp.option.suboption_length": "0",
+              "dhcp.option.agent_information_option.value": "",
+              "dhcp.option.agent_information_option.relay_agent_id": ""
+            }
+          },
+          "dhcp.option.type": "0",
+          "dhcp.option.type_tree": {
+            "dhcp.option.end": "255"
+          }
+        }
+      }
+    }
+  }
+]

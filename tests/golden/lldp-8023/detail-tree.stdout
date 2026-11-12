@@ -1,0 +1,322 @@
+Frame 1: Packet, 66 bytes on wire (528 bits), 66 bytes captured (528 bits)
+Ethernet II, Src: 02:00:00:00:00:01, Dst: 01:80:c2:00:00:0e
+Link Layer Discovery Protocol
+    Chassis Subtype = MAC address, Id: 00:11:22:33:44:55
+        0000 001. .... .... = TLV Type: Chassis Id (1)
+        .... ...0 0000 0111 = TLV Length: 7
+        Chassis Id Subtype: MAC address (4)
+        Chassis Id: 00:11:22:33:44:55
+    Port Subtype = Interface name, Id: eth0
+        0000 010. .... .... = TLV Type: Port Id (2)
+        .... ...0 0000 0101 = TLV Length: 5
+        Port Id Subtype: Interface name (5)
+        Port Id: eth0
+    Time To Live = 120 sec
+        [Normal LLDPDU]
+        0000 011. .... .... = TLV Type: Time to Live (3)
+        .... ...0 0000 0010 = TLV Length: 2
+        Seconds: 120
+    IEEE 802.3 Working Group - MAC/PHY Configuration/Status
+        1111 111. .... .... = TLV Type: Organization Specific (127)
+        .... ...0 0000 1001 = TLV Length: 9
+        Organization Unique Code: 00:12:0f (IEEE 802.3 Working Group)
+        IEEE 802.3 Subtype: MAC/PHY Configuration/Status (0x01)
+        Auto-Negotiation Support/Status: 0x03
+            .... ...1 = Auto-Negotiation: Supported
+            .... ..1. = Auto-Negotiation: Enabled
+        PMD Auto-Negotiation Advertised Capability: 0x8001
+            .... .... .... ...1 = 1000BASE-T (full duplex mode): Capable
+            .... .... .... ..0. = 1000BASE-T (half duplex mode): Not capable
+            .... .... .... .0.. = 1000BASE-X (-LX, -SX, -CX full duplex mode): Not capable
+            .... .... .... 0... = 1000BASE-X (-LX, -SX, -CX half duplex mode): Not capable
+            .... .... ...0 .... = Asymmetric and Symmetric PAUSE (for full-duplex links): Not capable
+            .... .... ..0. .... = Symmetric PAUSE (for full-duplex links): Not capable
+            .... .... .0.. .... = Asymmetric PAUSE (for full-duplex links): Not capable
+            .... .... 0... .... = PAUSE (for full-duplex links): Not capable
+            .... ...0 .... .... = 100BASE-T2 (full duplex mode): Not capable
+            .... ..0. .... .... = 100BASE-T2 (half duplex mode): Not capable
+            .... .0.. .... .... = 100BASE-TX (full duplex mode): Not capable
+            .... 0... .... .... = 100BASE-TX (half duplex mode): Not capable
+            ...0 .... .... .... = 100BASE-T4: Not capable
+            ..0. .... .... .... = 10BASE-T (full duplex mode): Not capable
+            .0.. .... .... .... = 10BASE-T (half duplex mode): Not capable
+            1... .... .... .... = Other or unknown: Capable
+        Same in inverse (wrong) bitorder
+            1... .... .... .... = 1000BASE-T (full duplex mode): Capable
+            .0.. .... .... .... = 1000BASE-T (half duplex mode): Not capable
+            ..0. .... .... .... = 1000BASE-X (-LX, -SX, -CX full duplex mode): Not capable
+            ...0 .... .... .... = 1000BASE-X (-LX, -SX, -CX half duplex mode): Not capable
+            .... 0... .... .... = Asymmetric and Symmetric PAUSE (for full-duplex links): Not capable
+            .... .0.. .... .... = Symmetric PAUSE (for full-duplex links): Not capable
+            .... ..0. .... .... = Asymmetric PAUSE (for full-duplex links): Not capable
+            .... ...0 .... .... = PAUSE (for full-duplex links): Not capable
+            .... .... 0... .... = 100BASE-T2 (full duplex mode): Not capable
+            .... .... .0.. .... = 100BASE-T2 (half duplex mode): Not capable
+            .... .... ..0. .... = 100BASE-TX (full duplex mode): Not capable
+            .... .... ...0 .... = 100BASE-TX (half duplex mode): Not capable
+            .... .... .... 0... = 100BASE-T4: Not capable
+            .... .... .... .0.. = 10BASE-T (full duplex mode): Not capable
+            .... .... .... ..0. = 10BASE-T (half duplex mode): Not capable
+            .... .... .... ...1 = Other or unknown: Capable
+        Operational MAU Type: 100BaseTXFD - 2 pair category 5 UTP, full duplex mode (0x0010)
+    IEEE 802.3 Working Group - Link Aggregation
+        1111 111. .... .... = TLV Type: Organization Specific (127)
+        .... ...0 0000 1001 = TLV Length: 9
+        Organization Unique Code: 00:12:0f (IEEE 802.3 Working Group)
+        IEEE 802.3 Subtype: Link Aggregation (0x03)
+            [Expert Info (Warning/Protocol): TLV has been deprecated]
+                [TLV has been deprecated]
+                [Severity level: Warning]
+                [Group: Protocol]
+        Aggregation Status: 0x03
+            .... ...1 = Aggregation Capability: Yes
+            .... ..1. = Aggregation Status: Enabled
+        Aggregated Port Id: 7
+    IEEE 802.3 Working Group - Maximum Frame Size
+        1111 111. .... .... = TLV Type: Organization Specific (127)
+        .... ...0 0000 0110 = TLV Length: 6
+        Organization Unique Code: 00:12:0f (IEEE 802.3 Working Group)
+        IEEE 802.3 Subtype: Maximum Frame Size (0x04)
+        Maximum Frame Size: 1518
+    End of LLDPDU
+        0000 000. .... .... = TLV Type: End of LLDPDU (0)
+        .... ...0 0000 0000 = TLV Length: 0
+
+Frame 2: Packet, 45 bytes on wire (360 bits), 45 bytes captured (360 bits)
+Ethernet II, Src: 02:00:00:00:00:01, Dst: 01:80:c2:00:00:0e
+Link Layer Discovery Protocol
+    Chassis Subtype = MAC address, Id: 00:11:22:33:44:55
+        0000 001. .... .... = TLV Type: Chassis Id (1)
+        .... ...0 0000 0111 = TLV Length: 7
+        Chassis Id Subtype: MAC address (4)
+        Chassis Id: 00:11:22:33:44:55
+    Port Subtype = Interface name, Id: eth0
+        0000 010. .... .... = TLV Type: Port Id (2)
+        .... ...0 0000 0101 = TLV Length: 5
+        Port Id Subtype: Interface name (5)
+        Port Id: eth0
+    Time To Live = 120 sec
+        [Normal LLDPDU]
+        0000 011. .... .... = TLV Type: Time to Live (3)
+        .... ...0 0000 0010 = TLV Length: 2
+        Seconds: 120
+    IEEE 802.3 Working Group - MAC/PHY Configuration/Status
+        1111 111. .... .... = TLV Type: Organization Specific (127)
+        .... ...0 0000 0111 = TLV Length: 7
+        Organization Unique Code: 00:12:0f (IEEE 802.3 Working Group)
+        IEEE 802.3 Subtype: MAC/PHY Configuration/Status (0x01)
+        Auto-Negotiation Support/Status: 0x03
+            .... ...1 = Auto-Negotiation: Supported
+            .... ..1. = Auto-Negotiation: Enabled
+        PMD Auto-Negotiation Advertised Capability: 0x8001
+            .... .... .... ...1 = 1000BASE-T (full duplex mode): Capable
+            .... .... .... ..0. = 1000BASE-T (half duplex mode): Not capable
+            .... .... .... .0.. = 1000BASE-X (-LX, -SX, -CX full duplex mode): Not capable
+            .... .... .... 0... = 1000BASE-X (-LX, -SX, -CX half duplex mode): Not capable
+            .... .... ...0 .... = Asymmetric and Symmetric PAUSE (for full-duplex links): Not capable
+            .... .... ..0. .... = Symmetric PAUSE (for full-duplex links): Not capable
+            .... .... .0.. .... = Asymmetric PAUSE (for full-duplex links): Not capable
+            .... .... 0... .... = PAUSE (for full-duplex links): Not capable
+            .... ...0 .... .... = 100BASE-T2 (full duplex mode): Not capable
+            .... ..0. .... .... = 100BASE-T2 (half duplex mode): Not capable
+            .... .0.. .... .... = 100BASE-TX (full duplex mode): Not capable
+            .... 0... .... .... = 100BASE-TX (half duplex mode): Not capable
+            ...0 .... .... .... = 100BASE-T4: Not capable
+            ..0. .... .... .... = 10BASE-T (full duplex mode): Not capable
+            .0.. .... .... .... = 10BASE-T (half duplex mode): Not capable
+            1... .... .... .... = Other or unknown: Capable
+        Same in inverse (wrong) bitorder
+            1... .... .... .... = 1000BASE-T (full duplex mode): Capable
+            .0.. .... .... .... = 1000BASE-T (half duplex mode): Not capable
+            ..0. .... .... .... = 1000BASE-X (-LX, -SX, -CX full duplex mode): Not capable
+            ...0 .... .... .... = 1000BASE-X (-LX, -SX, -CX half duplex mode): Not capable
+            .... 0... .... .... = Asymmetric and Symmetric PAUSE (for full-duplex links): Not capable
+            .... .0.. .... .... = Symmetric PAUSE (for full-duplex links): Not capable
+            .... ..0. .... .... = Asymmetric PAUSE (for full-duplex links): Not capable
+            .... ...0 .... .... = PAUSE (for full-duplex links): Not capable
+            .... .... 0... .... = 100BASE-T2 (full duplex mode): Not capable
+            .... .... .0.. .... = 100BASE-T2 (half duplex mode): Not capable
+            .... .... ..0. .... = 100BASE-TX (full duplex mode): Not capable
+            .... .... ...0 .... = 100BASE-TX (half duplex mode): Not capable
+            .... .... .... 0... = 100BASE-T4: Not capable
+            .... .... .... .0.. = 10BASE-T (full duplex mode): Not capable
+            .... .... .... ..0. = 10BASE-T (half duplex mode): Not capable
+            .... .... .... ...1 = Other or unknown: Capable
+[Malformed Packet: LLDP]
+
+Frame 3: Packet, 44 bytes on wire (352 bits), 44 bytes captured (352 bits)
+Ethernet II, Src: 02:00:00:00:00:01, Dst: 01:80:c2:00:00:0e
+Link Layer Discovery Protocol
+    Chassis Subtype = MAC address, Id: 00:11:22:33:44:55
+        0000 001. .... .... = TLV Type: Chassis Id (1)
+        .... ...0 0000 0111 = TLV Length: 7
+        Chassis Id Subtype: MAC address (4)
+        Chassis Id: 00:11:22:33:44:55
+    Port Subtype = Interface name, Id: eth0
+        0000 010. .... .... = TLV Type: Port Id (2)
+        .... ...0 0000 0101 = TLV Length: 5
+        Port Id Subtype: Interface name (5)
+        Port Id: eth0
+    Time To Live = 120 sec
+        [Normal LLDPDU]
+        0000 011. .... .... = TLV Type: Time to Live (3)
+        .... ...0 0000 0010 = TLV Length: 2
+        Seconds: 120
+    IEEE 802.3 Working Group - Link Aggregation
+        1111 111. .... .... = TLV Type: Organization Specific (127)
+        .... ...0 0000 0110 = TLV Length: 6
+        Organization Unique Code: 00:12:0f (IEEE 802.3 Working Group)
+        IEEE 802.3 Subtype: Link Aggregation (0x03)
+            [Expert Info (Warning/Protocol): TLV has been deprecated]
+                [TLV has been deprecated]
+                [Severity level: Warning]
+                [Group: Protocol]
+        Aggregation Status: 0x03
+            .... ...1 = Aggregation Capability: Yes
+            .... ..1. = Aggregation Status: Enabled
+[Malformed Packet: LLDP]
+
+Frame 4: Packet, 43 bytes on wire (344 bits), 43 bytes captured (344 bits)
+Ethernet II, Src: 02:00:00:00:00:01, Dst: 01:80:c2:00:00:0e
+Link Layer Discovery Protocol
+    Chassis Subtype = MAC address, Id: 00:11:22:33:44:55
+        0000 001. .... .... = TLV Type: Chassis Id (1)
+        .... ...0 0000 0111 = TLV Length: 7
+        Chassis Id Subtype: MAC address (4)
+        Chassis Id: 00:11:22:33:44:55
+    Port Subtype = Interface name, Id: eth0
+        0000 010. .... .... = TLV Type: Port Id (2)
+        .... ...0 0000 0101 = TLV Length: 5
+        Port Id Subtype: Interface name (5)
+        Port Id: eth0
+    Time To Live = 120 sec
+        [Normal LLDPDU]
+        0000 011. .... .... = TLV Type: Time to Live (3)
+        .... ...0 0000 0010 = TLV Length: 2
+        Seconds: 120
+    IEEE 802.3 Working Group - Maximum Frame Size
+        1111 111. .... .... = TLV Type: Organization Specific (127)
+        .... ...0 0000 0101 = TLV Length: 5
+        Organization Unique Code: 00:12:0f (IEEE 802.3 Working Group)
+        IEEE 802.3 Subtype: Maximum Frame Size (0x04)
+[Malformed Packet: LLDP]
+
+Frame 5: Packet, 70 bytes on wire (560 bits), 70 bytes captured (560 bits)
+Ethernet II, Src: 02:00:00:00:00:01, Dst: 01:80:c2:00:00:0e
+Link Layer Discovery Protocol
+    Chassis Subtype = MAC address, Id: 00:11:22:33:44:55
+        0000 001. .... .... = TLV Type: Chassis Id (1)
+        .... ...0 0000 0111 = TLV Length: 7
+        Chassis Id Subtype: MAC address (4)
+        Chassis Id: 00:11:22:33:44:55
+    Port Subtype = Interface name, Id: eth0
+        0000 010. .... .... = TLV Type: Port Id (2)
+        .... ...0 0000 0101 = TLV Length: 5
+        Port Id Subtype: Interface name (5)
+        Port Id: eth0
+    Time To Live = 120 sec
+        [Normal LLDPDU]
+        0000 011. .... .... = TLV Type: Time to Live (3)
+        .... ...0 0000 0010 = TLV Length: 2
+        Seconds: 120
+    IEEE 802.3 Working Group - MAC/PHY Configuration/Status
+        1111 111. .... .... = TLV Type: Organization Specific (127)
+        .... ...0 0000 1011 = TLV Length: 11
+        Organization Unique Code: 00:12:0f (IEEE 802.3 Working Group)
+        IEEE 802.3 Subtype: MAC/PHY Configuration/Status (0x01)
+        Auto-Negotiation Support/Status: 0x03
+            .... ...1 = Auto-Negotiation: Supported
+            .... ..1. = Auto-Negotiation: Enabled
+        PMD Auto-Negotiation Advertised Capability: 0x8001
+            .... .... .... ...1 = 1000BASE-T (full duplex mode): Capable
+            .... .... .... ..0. = 1000BASE-T (half duplex mode): Not capable
+            .... .... .... .0.. = 1000BASE-X (-LX, -SX, -CX full duplex mode): Not capable
+            .... .... .... 0... = 1000BASE-X (-LX, -SX, -CX half duplex mode): Not capable
+            .... .... ...0 .... = Asymmetric and Symmetric PAUSE (for full-duplex links): Not capable
+            .... .... ..0. .... = Symmetric PAUSE (for full-duplex links): Not capable
+            .... .... .0.. .... = Asymmetric PAUSE (for full-duplex links): Not capable
+            .... .... 0... .... = PAUSE (for full-duplex links): Not capable
+            .... ...0 .... .... = 100BASE-T2 (full duplex mode): Not capable
+            .... ..0. .... .... = 100BASE-T2 (half duplex mode): Not capable
+            .... .0.. .... .... = 100BASE-TX (full duplex mode): Not capable
+            .... 0... .... .... = 100BASE-TX (half duplex mode): Not capable
+            ...0 .... .... .... = 100BASE-T4: Not capable
+            ..0. .... .... .... = 10BASE-T (full duplex mode): Not capable
+            .0.. .... .... .... = 10BASE-T (half duplex mode): Not capable
+            1... .... .... .... = Other or unknown: Capable
+        Same in inverse (wrong) bitorder
+            1... .... .... .... = 1000BASE-T (full duplex mode): Capable
+            .0.. .... .... .... = 1000BASE-T (half duplex mode): Not capable
+            ..0. .... .... .... = 1000BASE-X (-LX, -SX, -CX full duplex mode): Not capable
+            ...0 .... .... .... = 1000BASE-X (-LX, -SX, -CX half duplex mode): Not capable
+            .... 0... .... .... = Asymmetric and Symmetric PAUSE (for full-duplex links): Not capable
+            .... .0.. .... .... = Symmetric PAUSE (for full-duplex links): Not capable
+            .... ..0. .... .... = Asymmetric PAUSE (for full-duplex links): Not capable
+            .... ...0 .... .... = PAUSE (for full-duplex links): Not capable
+            .... .... 0... .... = 100BASE-T2 (full duplex mode): Not capable
+            .... .... .0.. .... = 100BASE-T2 (half duplex mode): Not capable
+            .... .... ..0. .... = 100BASE-TX (full duplex mode): Not capable
+            .... .... ...0 .... = 100BASE-TX (half duplex mode): Not capable
+            .... .... .... 0... = 100BASE-T4: Not capable
+            .... .... .... .0.. = 10BASE-T (full duplex mode): Not capable
+            .... .... .... ..0. = 10BASE-T (half duplex mode): Not capable
+            .... .... .... ...1 = Other or unknown: Capable
+        Operational MAU Type: 100BaseTXFD - 2 pair category 5 UTP, full duplex mode (0x0010)
+        Invalid length, greater than expected
+            [Expert Info (Warning/Malformed): Invalid length, greater than expected]
+                [Invalid length, greater than expected]
+                [Severity level: Warning]
+                [Group: Malformed]
+    IEEE 802.3 Working Group - Link Aggregation
+        1111 111. .... .... = TLV Type: Organization Specific (127)
+        .... ...0 0000 1010 = TLV Length: 10
+        Organization Unique Code: 00:12:0f (IEEE 802.3 Working Group)
+        IEEE 802.3 Subtype: Link Aggregation (0x03)
+            [Expert Info (Warning/Protocol): TLV has been deprecated]
+                [TLV has been deprecated]
+                [Severity level: Warning]
+                [Group: Protocol]
+        Aggregation Status: 0x03
+            .... ...1 = Aggregation Capability: Yes
+            .... ..1. = Aggregation Status: Enabled
+        Aggregated Port Id: 7
+        Invalid length, greater than expected
+            [Expert Info (Warning/Malformed): Invalid length, greater than expected]
+                [Invalid length, greater than expected]
+                [Severity level: Warning]
+                [Group: Malformed]
+    IEEE 802.3 Working Group - Maximum Frame Size
+        1111 111. .... .... = TLV Type: Organization Specific (127)
+        .... ...0 0000 0111 = TLV Length: 7
+        Organization Unique Code: 00:12:0f (IEEE 802.3 Working Group)
+        IEEE 802.3 Subtype: Maximum Frame Size (0x04)
+        Maximum Frame Size: 1518
+        Invalid length, greater than expected
+            [Expert Info (Warning/Malformed): Invalid length, greater than expected]
+                [Invalid length, greater than expected]
+                [Severity level: Warning]
+                [Group: Malformed]
+    End of LLDPDU
+        0000 000. .... .... = TLV Type: End of LLDPDU (0)
+        .... ...0 0000 0000 = TLV Length: 0
+
+Frame 6: Packet, 40 bytes on wire (320 bits), 40 bytes captured (320 bits)
+Ethernet II, Src: 02:00:00:00:00:01, Dst: 01:80:c2:00:00:0e
+Link Layer Discovery Protocol
+    Chassis Subtype = MAC address, Id: 00:11:22:33:44:55
+        0000 001. .... .... = TLV Type: Chassis Id (1)
+        .... ...0 0000 0111 = TLV Length: 7
+        Chassis Id Subtype: MAC address (4)
+        Chassis Id: 00:11:22:33:44:55
+    Port Subtype = Interface name, Id: eth0
+        0000 010. .... .... = TLV Type: Port Id (2)
+        .... ...0 0000 0101 = TLV Length: 5
+        Port Id Subtype: Interface name (5)
+        Port Id: eth0
+    Time To Live = 120 sec
+        [Normal LLDPDU]
+        0000 011. .... .... = TLV Type: Time to Live (3)
+        .... ...0 0000 0010 = TLV Length: 2
+        Seconds: 120
+[Malformed Packet: LLDP]
+

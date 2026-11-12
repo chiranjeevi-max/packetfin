@@ -612,7 +612,7 @@ impl<'a> JsonWriter<'a> {
         field: &Field,
         context: &FieldContext<'_, '_>,
     ) {
-        if field.is_container() {
+        if field.is_container() || !field.children.is_empty() {
             self.push_container(entries, field, context);
         } else if !field.experts.is_empty() {
             self.push_expert_field(entries, field, context);

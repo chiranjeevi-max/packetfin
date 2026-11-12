@@ -5916,6 +5916,18 @@ pub static DHCP_OPTION_AGENT_INFORMATION_OPTION_AGENT_REMOTE_ID: FieldDef = Fiel
     generated: false,
 };
 
+/// `dhcp.option.agent_information_option.reserved`.
+pub static DHCP_OPTION_AGENT_INFORMATION_OPTION_RESERVED: FieldDef = FieldDef {
+    abbrev: "dhcp.option.agent_information_option.reserved",
+    name: "Reserved",
+    field_type: FieldType::Bytes,
+    parent: "dhcp",
+    display: Display::None,
+    bitmask: None,
+    blurb: "Option 82:3 Reserved",
+    generated: false,
+};
+
 /// `dhcp.option.agent_information_option.docsis_device_class`.
 pub static DHCP_OPTION_AGENT_INFORMATION_OPTION_DOCSIS_DEVICE_CLASS: FieldDef = FieldDef {
     abbrev: "dhcp.option.agent_information_option.docsis_device_class",
@@ -5949,6 +5961,167 @@ pub static DHCP_OPTION_AGENT_INFORMATION_OPTION_SUBSCRIBER_ID: FieldDef = FieldD
     display: Display::None,
     bitmask: None,
     blurb: "Option 82:6 Subscriber ID",
+    generated: false,
+};
+
+/// `dhcp.option.agent_information_option.radius_attributes`.
+pub static DHCP_OPTION_AGENT_INFORMATION_OPTION_RADIUS_ATTRIBUTES: FieldDef = FieldDef {
+    abbrev: "dhcp.option.agent_information_option.radius_attributes",
+    name: "RADIUS Attributes",
+    field_type: FieldType::Bytes,
+    parent: "dhcp",
+    display: Display::None,
+    bitmask: None,
+    blurb: "Option 82:7 RADIUS Attributes",
+    generated: false,
+};
+
+/// `dhcp.option.agent_information_option.authentication`.
+pub static DHCP_OPTION_AGENT_INFORMATION_OPTION_AUTHENTICATION: FieldDef = FieldDef {
+    abbrev: "dhcp.option.agent_information_option.authentication",
+    name: "Authentication",
+    field_type: FieldType::Bytes,
+    parent: "dhcp",
+    display: Display::None,
+    bitmask: None,
+    blurb: "Option 82:8 Authentication",
+    generated: false,
+};
+
+/// `dhcp.option.agent_information_option.vi`.
+pub static DHCP_OPTION_AGENT_INFORMATION_OPTION_VI: FieldDef = FieldDef {
+    abbrev: "dhcp.option.agent_information_option.vi",
+    name: "Vendor-Specific Information",
+    field_type: FieldType::Bytes,
+    parent: "dhcp",
+    display: Display::None,
+    bitmask: None,
+    blurb: "Option 82:9 Vendor-Specific Information",
+    generated: false,
+};
+
+/// `dhcp.option.agent_information_option.vi.enterprise`.
+pub static DHCP_OPTION_AGENT_INFORMATION_OPTION_VI_ENTERPRISE: FieldDef = FieldDef {
+    abbrev: "dhcp.option.agent_information_option.vi.enterprise",
+    name: "Enterprise",
+    field_type: FieldType::Uint32,
+    parent: "dhcp",
+    display: Display::Custom,
+    bitmask: None,
+    blurb: "Option 82:9 VI Enterprise",
+    generated: false,
+};
+
+/// `dhcp.option.agent_information_option.vi.data_length`.
+pub static DHCP_OPTION_AGENT_INFORMATION_OPTION_VI_DATA_LENGTH: FieldDef = FieldDef {
+    abbrev: "dhcp.option.agent_information_option.vi.data_length",
+    name: "Data Length",
+    field_type: FieldType::Uint8,
+    parent: "dhcp",
+    display: Display::Decimal,
+    bitmask: None,
+    blurb: "Option 82:9 VI Data Length",
+    generated: false,
+};
+
+/// `dhcp.option.agent_information_option.flags`.
+pub static DHCP_OPTION_AGENT_INFORMATION_OPTION_FLAGS: FieldDef = FieldDef {
+    abbrev: "dhcp.option.agent_information_option.flags",
+    name: "Flags",
+    field_type: FieldType::Uint8,
+    parent: "dhcp",
+    display: Display::Hex,
+    bitmask: None,
+    blurb: "Option 82:10 Flags",
+    generated: false,
+};
+
+/// `dhcp.option.agent_information_option.server_id_override`.
+pub static DHCP_OPTION_AGENT_INFORMATION_OPTION_SERVER_ID_OVERRIDE: FieldDef = FieldDef {
+    abbrev: "dhcp.option.agent_information_option.server_id_override",
+    name: "Server ID Override",
+    field_type: FieldType::Ipv4,
+    parent: "dhcp",
+    display: Display::None,
+    bitmask: None,
+    blurb: "Option 82:11 Server ID Override",
+    generated: false,
+};
+
+/// `dhcp.option.agent_information_option.relay_agent_id`.
+pub static DHCP_OPTION_AGENT_INFORMATION_OPTION_RELAY_AGENT_ID: FieldDef = FieldDef {
+    abbrev: "dhcp.option.agent_information_option.relay_agent_id",
+    name: "Relay Agent Identifier",
+    field_type: FieldType::Bytes,
+    parent: "dhcp",
+    display: Display::None,
+    bitmask: None,
+    blurb: "Option 82:12 Relay Agent Identifier",
+    generated: false,
+};
+
+/// `dhcp.option.agent_information_option.ani_att`.
+///
+/// RFC 7839 §5 defines the access-technology type as the whole suboption
+/// value; the width is 1–4 octets on the wire, so the occurrence range can be
+/// longer than the one-octet registry type.
+pub static DHCP_OPTION_AGENT_INFORMATION_OPTION_ANI_ATT: FieldDef = FieldDef {
+    abbrev: "dhcp.option.agent_information_option.ani_att",
+    name: "Access Technology Type",
+    field_type: FieldType::Uint8,
+    parent: "dhcp",
+    display: Display::Decimal,
+    bitmask: None,
+    blurb: "Option 82:13 Access Technology Type",
+    generated: false,
+};
+
+/// `_ws.type_length.mismatch`: the zero-length marker used when a suboption
+/// value is too short for the integer it carries.
+///
+/// The generic type-length helper registers two generated entries,
+/// `_ws.type_length.mismatch` (error) and `_ws.type_length.mismatch_warn`
+/// (warning). Packetfin models them as tree markers so the expert block and
+/// its offending field keep their registry names; they are not part of any
+/// protocol's `-G fields` report.
+pub(crate) static TYPE_LENGTH_MISMATCH: FieldDef = FieldDef {
+    abbrev: "_ws.type_length.mismatch",
+    name: "Trying to fetch X with length Y",
+    field_type: FieldType::None,
+    parent: "_ws.type_length",
+    display: Display::None,
+    bitmask: None,
+    blurb: "",
+    generated: false,
+};
+
+/// `_ws.type_length.mismatch_warn`: the warning variant of
+/// [`TYPE_LENGTH_MISMATCH`], used when a longer value is still displayed.
+pub(crate) static TYPE_LENGTH_MISMATCH_WARN: FieldDef = FieldDef {
+    abbrev: "_ws.type_length.mismatch_warn",
+    name: "Trying to fetch X with length Y",
+    field_type: FieldType::None,
+    parent: "_ws.type_length",
+    display: Display::None,
+    bitmask: None,
+    blurb: "",
+    generated: false,
+};
+
+/// `_ws.string.trailing_stray_characters`: the zero-length marker named by a
+/// terminated-string expert.
+///
+/// A NUL-terminated option string that keeps octets after the terminator
+/// reports the trailing data through this generated field instead of the
+/// string field itself.
+pub(crate) static TRAILING_STRAY_CHARACTERS: FieldDef = FieldDef {
+    abbrev: "_ws.string.trailing_stray_characters",
+    name: "Trailing stray characters",
+    field_type: FieldType::None,
+    parent: "_ws.string",
+    display: Display::None,
+    bitmask: None,
+    blurb: "",
     generated: false,
 };
 
@@ -6170,9 +6343,19 @@ static DHCP_FIELDS: &[&FieldDef] = &[
     &DHCP_OPTION_AGENT_INFORMATION_OPTION_VALUE,
     &DHCP_OPTION_AGENT_INFORMATION_OPTION_AGENT_CIRCUIT_ID,
     &DHCP_OPTION_AGENT_INFORMATION_OPTION_AGENT_REMOTE_ID,
+    &DHCP_OPTION_AGENT_INFORMATION_OPTION_RESERVED,
     &DHCP_OPTION_AGENT_INFORMATION_OPTION_DOCSIS_DEVICE_CLASS,
     &DHCP_OPTION_AGENT_INFORMATION_OPTION_LINK_SELECTION,
     &DHCP_OPTION_AGENT_INFORMATION_OPTION_SUBSCRIBER_ID,
+    &DHCP_OPTION_AGENT_INFORMATION_OPTION_RADIUS_ATTRIBUTES,
+    &DHCP_OPTION_AGENT_INFORMATION_OPTION_AUTHENTICATION,
+    &DHCP_OPTION_AGENT_INFORMATION_OPTION_VI,
+    &DHCP_OPTION_AGENT_INFORMATION_OPTION_VI_ENTERPRISE,
+    &DHCP_OPTION_AGENT_INFORMATION_OPTION_VI_DATA_LENGTH,
+    &DHCP_OPTION_AGENT_INFORMATION_OPTION_FLAGS,
+    &DHCP_OPTION_AGENT_INFORMATION_OPTION_SERVER_ID_OVERRIDE,
+    &DHCP_OPTION_AGENT_INFORMATION_OPTION_RELAY_AGENT_ID,
+    &DHCP_OPTION_AGENT_INFORMATION_OPTION_ANI_ATT,
     &DHCP_OPTION_END,
     &DHCP_BAD_LENGTH,
     &DHCP_MISSING_SUBOPT_VALUE,
@@ -10150,6 +10333,390 @@ pub static LLDP_IEEE_802_3_PMD_AUTO_NEG_ADVERTISED_CAPS: FieldDef = FieldDef {
     parent: "lldp",
     display: Display::Hex,
     bitmask: None,
+    blurb: "",
+    generated: false,
+};
+
+/// `lldp.ieee.802_3.pmd_auto_neg_advertised_caps.1000base_tfd`.
+pub static LLDP_IEEE_802_3_PMD_AUTO_NEG_ADVERTISED_CAPS_1000BASE_TFD: FieldDef = FieldDef {
+    abbrev: "lldp.ieee.802_3.pmd_auto_neg_advertised_caps.1000base_tfd",
+    name: "1000BASE-T (full duplex mode)",
+    field_type: FieldType::Boolean,
+    parent: "lldp",
+    display: Display::Boolean16,
+    bitmask: Some(0x1),
+    blurb: "",
+    generated: false,
+};
+
+/// `lldp.ieee.802_3.pmd_auto_neg_advertised_caps.1000base_t`.
+pub static LLDP_IEEE_802_3_PMD_AUTO_NEG_ADVERTISED_CAPS_1000BASE_T: FieldDef = FieldDef {
+    abbrev: "lldp.ieee.802_3.pmd_auto_neg_advertised_caps.1000base_t",
+    name: "1000BASE-T (half duplex mode)",
+    field_type: FieldType::Boolean,
+    parent: "lldp",
+    display: Display::Boolean16,
+    bitmask: Some(0x2),
+    blurb: "",
+    generated: false,
+};
+
+/// `lldp.ieee.802_3.pmd_auto_neg_advertised_caps.1000base_xfd`.
+pub static LLDP_IEEE_802_3_PMD_AUTO_NEG_ADVERTISED_CAPS_1000BASE_XFD: FieldDef = FieldDef {
+    abbrev: "lldp.ieee.802_3.pmd_auto_neg_advertised_caps.1000base_xfd",
+    name: "1000BASE-X (-LX, -SX, -CX full duplex mode)",
+    field_type: FieldType::Boolean,
+    parent: "lldp",
+    display: Display::Boolean16,
+    bitmask: Some(0x4),
+    blurb: "",
+    generated: false,
+};
+
+/// `lldp.ieee.802_3.pmd_auto_neg_advertised_caps.1000base_x`.
+pub static LLDP_IEEE_802_3_PMD_AUTO_NEG_ADVERTISED_CAPS_1000BASE_X: FieldDef = FieldDef {
+    abbrev: "lldp.ieee.802_3.pmd_auto_neg_advertised_caps.1000base_x",
+    name: "1000BASE-X (-LX, -SX, -CX half duplex mode)",
+    field_type: FieldType::Boolean,
+    parent: "lldp",
+    display: Display::Boolean16,
+    bitmask: Some(0x8),
+    blurb: "",
+    generated: false,
+};
+
+/// `lldp.ieee.802_3.pmd_auto_neg_advertised_caps.fdx_bpause`.
+pub static LLDP_IEEE_802_3_PMD_AUTO_NEG_ADVERTISED_CAPS_FDX_BPAUSE: FieldDef = FieldDef {
+    abbrev: "lldp.ieee.802_3.pmd_auto_neg_advertised_caps.fdx_bpause",
+    name: "Asymmetric and Symmetric PAUSE (for full-duplex links)",
+    field_type: FieldType::Boolean,
+    parent: "lldp",
+    display: Display::Boolean16,
+    bitmask: Some(0x10),
+    blurb: "",
+    generated: false,
+};
+
+/// `lldp.ieee.802_3.pmd_auto_neg_advertised_caps.fdx_spause`.
+pub static LLDP_IEEE_802_3_PMD_AUTO_NEG_ADVERTISED_CAPS_FDX_SPAUSE: FieldDef = FieldDef {
+    abbrev: "lldp.ieee.802_3.pmd_auto_neg_advertised_caps.fdx_spause",
+    name: "Symmetric PAUSE (for full-duplex links)",
+    field_type: FieldType::Boolean,
+    parent: "lldp",
+    display: Display::Boolean16,
+    bitmask: Some(0x20),
+    blurb: "",
+    generated: false,
+};
+
+/// `lldp.ieee.802_3.pmd_auto_neg_advertised_caps.fdx_apause`.
+pub static LLDP_IEEE_802_3_PMD_AUTO_NEG_ADVERTISED_CAPS_FDX_APAUSE: FieldDef = FieldDef {
+    abbrev: "lldp.ieee.802_3.pmd_auto_neg_advertised_caps.fdx_apause",
+    name: "Asymmetric PAUSE (for full-duplex links)",
+    field_type: FieldType::Boolean,
+    parent: "lldp",
+    display: Display::Boolean16,
+    bitmask: Some(0x40),
+    blurb: "",
+    generated: false,
+};
+
+/// `lldp.ieee.802_3.pmd_auto_neg_advertised_caps.fdx_pause`.
+pub static LLDP_IEEE_802_3_PMD_AUTO_NEG_ADVERTISED_CAPS_FDX_PAUSE: FieldDef = FieldDef {
+    abbrev: "lldp.ieee.802_3.pmd_auto_neg_advertised_caps.fdx_pause",
+    name: "PAUSE (for full-duplex links)",
+    field_type: FieldType::Boolean,
+    parent: "lldp",
+    display: Display::Boolean16,
+    bitmask: Some(0x80),
+    blurb: "",
+    generated: false,
+};
+
+/// `lldp.ieee.802_3.pmd_auto_neg_advertised_caps.100base_t2fd`.
+pub static LLDP_IEEE_802_3_PMD_AUTO_NEG_ADVERTISED_CAPS_100BASE_T2FD: FieldDef = FieldDef {
+    abbrev: "lldp.ieee.802_3.pmd_auto_neg_advertised_caps.100base_t2fd",
+    name: "100BASE-T2 (full duplex mode)",
+    field_type: FieldType::Boolean,
+    parent: "lldp",
+    display: Display::Boolean16,
+    bitmask: Some(0x100),
+    blurb: "",
+    generated: false,
+};
+
+/// `lldp.ieee.802_3.pmd_auto_neg_advertised_caps.100base_t2`.
+pub static LLDP_IEEE_802_3_PMD_AUTO_NEG_ADVERTISED_CAPS_100BASE_T2: FieldDef = FieldDef {
+    abbrev: "lldp.ieee.802_3.pmd_auto_neg_advertised_caps.100base_t2",
+    name: "100BASE-T2 (half duplex mode)",
+    field_type: FieldType::Boolean,
+    parent: "lldp",
+    display: Display::Boolean16,
+    bitmask: Some(0x200),
+    blurb: "",
+    generated: false,
+};
+
+/// `lldp.ieee.802_3.pmd_auto_neg_advertised_caps.100base_txfd`.
+pub static LLDP_IEEE_802_3_PMD_AUTO_NEG_ADVERTISED_CAPS_100BASE_TXFD: FieldDef = FieldDef {
+    abbrev: "lldp.ieee.802_3.pmd_auto_neg_advertised_caps.100base_txfd",
+    name: "100BASE-TX (full duplex mode)",
+    field_type: FieldType::Boolean,
+    parent: "lldp",
+    display: Display::Boolean16,
+    bitmask: Some(0x400),
+    blurb: "",
+    generated: false,
+};
+
+/// `lldp.ieee.802_3.pmd_auto_neg_advertised_caps.100base_tx`.
+pub static LLDP_IEEE_802_3_PMD_AUTO_NEG_ADVERTISED_CAPS_100BASE_TX: FieldDef = FieldDef {
+    abbrev: "lldp.ieee.802_3.pmd_auto_neg_advertised_caps.100base_tx",
+    name: "100BASE-TX (half duplex mode)",
+    field_type: FieldType::Boolean,
+    parent: "lldp",
+    display: Display::Boolean16,
+    bitmask: Some(0x800),
+    blurb: "",
+    generated: false,
+};
+
+/// `lldp.ieee.802_3.pmd_auto_neg_advertised_caps.100base_t4`.
+pub static LLDP_IEEE_802_3_PMD_AUTO_NEG_ADVERTISED_CAPS_100BASE_T4: FieldDef = FieldDef {
+    abbrev: "lldp.ieee.802_3.pmd_auto_neg_advertised_caps.100base_t4",
+    name: "100BASE-T4",
+    field_type: FieldType::Boolean,
+    parent: "lldp",
+    display: Display::Boolean16,
+    bitmask: Some(0x1000),
+    blurb: "",
+    generated: false,
+};
+
+/// `lldp.ieee.802_3.pmd_auto_neg_advertised_caps.10base_tfd`.
+pub static LLDP_IEEE_802_3_PMD_AUTO_NEG_ADVERTISED_CAPS_10BASE_TFD: FieldDef = FieldDef {
+    abbrev: "lldp.ieee.802_3.pmd_auto_neg_advertised_caps.10base_tfd",
+    name: "10BASE-T (full duplex mode)",
+    field_type: FieldType::Boolean,
+    parent: "lldp",
+    display: Display::Boolean16,
+    bitmask: Some(0x2000),
+    blurb: "",
+    generated: false,
+};
+
+/// `lldp.ieee.802_3.pmd_auto_neg_advertised_caps.10base_t`.
+pub static LLDP_IEEE_802_3_PMD_AUTO_NEG_ADVERTISED_CAPS_10BASE_T: FieldDef = FieldDef {
+    abbrev: "lldp.ieee.802_3.pmd_auto_neg_advertised_caps.10base_t",
+    name: "10BASE-T (half duplex mode)",
+    field_type: FieldType::Boolean,
+    parent: "lldp",
+    display: Display::Boolean16,
+    bitmask: Some(0x4000),
+    blurb: "",
+    generated: false,
+};
+
+/// `lldp.ieee.802_3.pmd_auto_neg_advertised_caps.other`.
+pub static LLDP_IEEE_802_3_PMD_AUTO_NEG_ADVERTISED_CAPS_OTHER: FieldDef = FieldDef {
+    abbrev: "lldp.ieee.802_3.pmd_auto_neg_advertised_caps.other",
+    name: "Other or unknown",
+    field_type: FieldType::Boolean,
+    parent: "lldp",
+    display: Display::Boolean16,
+    bitmask: Some(0x8000),
+    blurb: "",
+    generated: false,
+};
+
+/// `lldp.ieee.802_3.pmd_auto_neg_advertised_caps_inv.1000base_tfd`.
+pub static LLDP_IEEE_802_3_PMD_AUTO_NEG_ADVERTISED_CAPS_INV_1000BASE_TFD: FieldDef = FieldDef {
+    abbrev: "lldp.ieee.802_3.pmd_auto_neg_advertised_caps_inv.1000base_tfd",
+    name: "1000BASE-T (full duplex mode)",
+    field_type: FieldType::Boolean,
+    parent: "lldp",
+    display: Display::Boolean16,
+    bitmask: Some(0x8000),
+    blurb: "",
+    generated: false,
+};
+
+/// `lldp.ieee.802_3.pmd_auto_neg_advertised_caps_inv.1000base_t`.
+pub static LLDP_IEEE_802_3_PMD_AUTO_NEG_ADVERTISED_CAPS_INV_1000BASE_T: FieldDef = FieldDef {
+    abbrev: "lldp.ieee.802_3.pmd_auto_neg_advertised_caps_inv.1000base_t",
+    name: "1000BASE-T (half duplex mode)",
+    field_type: FieldType::Boolean,
+    parent: "lldp",
+    display: Display::Boolean16,
+    bitmask: Some(0x4000),
+    blurb: "",
+    generated: false,
+};
+
+/// `lldp.ieee.802_3.pmd_auto_neg_advertised_caps_inv.1000base_xfd`.
+pub static LLDP_IEEE_802_3_PMD_AUTO_NEG_ADVERTISED_CAPS_INV_1000BASE_XFD: FieldDef = FieldDef {
+    abbrev: "lldp.ieee.802_3.pmd_auto_neg_advertised_caps_inv.1000base_xfd",
+    name: "1000BASE-X (-LX, -SX, -CX full duplex mode)",
+    field_type: FieldType::Boolean,
+    parent: "lldp",
+    display: Display::Boolean16,
+    bitmask: Some(0x2000),
+    blurb: "",
+    generated: false,
+};
+
+/// `lldp.ieee.802_3.pmd_auto_neg_advertised_caps_inv.1000base_x`.
+pub static LLDP_IEEE_802_3_PMD_AUTO_NEG_ADVERTISED_CAPS_INV_1000BASE_X: FieldDef = FieldDef {
+    abbrev: "lldp.ieee.802_3.pmd_auto_neg_advertised_caps_inv.1000base_x",
+    name: "1000BASE-X (-LX, -SX, -CX half duplex mode)",
+    field_type: FieldType::Boolean,
+    parent: "lldp",
+    display: Display::Boolean16,
+    bitmask: Some(0x1000),
+    blurb: "",
+    generated: false,
+};
+
+/// `lldp.ieee.802_3.pmd_auto_neg_advertised_caps_inv.fdx_bpause`.
+pub static LLDP_IEEE_802_3_PMD_AUTO_NEG_ADVERTISED_CAPS_INV_FDX_BPAUSE: FieldDef = FieldDef {
+    abbrev: "lldp.ieee.802_3.pmd_auto_neg_advertised_caps_inv.fdx_bpause",
+    name: "Asymmetric and Symmetric PAUSE (for full-duplex links)",
+    field_type: FieldType::Boolean,
+    parent: "lldp",
+    display: Display::Boolean16,
+    bitmask: Some(0x800),
+    blurb: "",
+    generated: false,
+};
+
+/// `lldp.ieee.802_3.pmd_auto_neg_advertised_caps_inv.fdx_spause`.
+pub static LLDP_IEEE_802_3_PMD_AUTO_NEG_ADVERTISED_CAPS_INV_FDX_SPAUSE: FieldDef = FieldDef {
+    abbrev: "lldp.ieee.802_3.pmd_auto_neg_advertised_caps_inv.fdx_spause",
+    name: "Symmetric PAUSE (for full-duplex links)",
+    field_type: FieldType::Boolean,
+    parent: "lldp",
+    display: Display::Boolean16,
+    bitmask: Some(0x400),
+    blurb: "",
+    generated: false,
+};
+
+/// `lldp.ieee.802_3.pmd_auto_neg_advertised_caps_inv.fdx_apause`.
+pub static LLDP_IEEE_802_3_PMD_AUTO_NEG_ADVERTISED_CAPS_INV_FDX_APAUSE: FieldDef = FieldDef {
+    abbrev: "lldp.ieee.802_3.pmd_auto_neg_advertised_caps_inv.fdx_apause",
+    name: "Asymmetric PAUSE (for full-duplex links)",
+    field_type: FieldType::Boolean,
+    parent: "lldp",
+    display: Display::Boolean16,
+    bitmask: Some(0x200),
+    blurb: "",
+    generated: false,
+};
+
+/// `lldp.ieee.802_3.pmd_auto_neg_advertised_caps_inv.fdx_pause`.
+pub static LLDP_IEEE_802_3_PMD_AUTO_NEG_ADVERTISED_CAPS_INV_FDX_PAUSE: FieldDef = FieldDef {
+    abbrev: "lldp.ieee.802_3.pmd_auto_neg_advertised_caps_inv.fdx_pause",
+    name: "PAUSE (for full-duplex links)",
+    field_type: FieldType::Boolean,
+    parent: "lldp",
+    display: Display::Boolean16,
+    bitmask: Some(0x100),
+    blurb: "",
+    generated: false,
+};
+
+/// `lldp.ieee.802_3.pmd_auto_neg_advertised_caps_inv.100base_t2fd`.
+pub static LLDP_IEEE_802_3_PMD_AUTO_NEG_ADVERTISED_CAPS_INV_100BASE_T2FD: FieldDef = FieldDef {
+    abbrev: "lldp.ieee.802_3.pmd_auto_neg_advertised_caps_inv.100base_t2fd",
+    name: "100BASE-T2 (full duplex mode)",
+    field_type: FieldType::Boolean,
+    parent: "lldp",
+    display: Display::Boolean16,
+    bitmask: Some(0x80),
+    blurb: "",
+    generated: false,
+};
+
+/// `lldp.ieee.802_3.pmd_auto_neg_advertised_caps_inv.100base_t2`.
+pub static LLDP_IEEE_802_3_PMD_AUTO_NEG_ADVERTISED_CAPS_INV_100BASE_T2: FieldDef = FieldDef {
+    abbrev: "lldp.ieee.802_3.pmd_auto_neg_advertised_caps_inv.100base_t2",
+    name: "100BASE-T2 (half duplex mode)",
+    field_type: FieldType::Boolean,
+    parent: "lldp",
+    display: Display::Boolean16,
+    bitmask: Some(0x40),
+    blurb: "",
+    generated: false,
+};
+
+/// `lldp.ieee.802_3.pmd_auto_neg_advertised_caps_inv.100base_txfd`.
+pub static LLDP_IEEE_802_3_PMD_AUTO_NEG_ADVERTISED_CAPS_INV_100BASE_TXFD: FieldDef = FieldDef {
+    abbrev: "lldp.ieee.802_3.pmd_auto_neg_advertised_caps_inv.100base_txfd",
+    name: "100BASE-TX (full duplex mode)",
+    field_type: FieldType::Boolean,
+    parent: "lldp",
+    display: Display::Boolean16,
+    bitmask: Some(0x20),
+    blurb: "",
+    generated: false,
+};
+
+/// `lldp.ieee.802_3.pmd_auto_neg_advertised_caps_inv.100base_tx`.
+pub static LLDP_IEEE_802_3_PMD_AUTO_NEG_ADVERTISED_CAPS_INV_100BASE_TX: FieldDef = FieldDef {
+    abbrev: "lldp.ieee.802_3.pmd_auto_neg_advertised_caps_inv.100base_tx",
+    name: "100BASE-TX (half duplex mode)",
+    field_type: FieldType::Boolean,
+    parent: "lldp",
+    display: Display::Boolean16,
+    bitmask: Some(0x10),
+    blurb: "",
+    generated: false,
+};
+
+/// `lldp.ieee.802_3.pmd_auto_neg_advertised_caps_inv.100base_t4`.
+pub static LLDP_IEEE_802_3_PMD_AUTO_NEG_ADVERTISED_CAPS_INV_100BASE_T4: FieldDef = FieldDef {
+    abbrev: "lldp.ieee.802_3.pmd_auto_neg_advertised_caps_inv.100base_t4",
+    name: "100BASE-T4",
+    field_type: FieldType::Boolean,
+    parent: "lldp",
+    display: Display::Boolean16,
+    bitmask: Some(0x8),
+    blurb: "",
+    generated: false,
+};
+
+/// `lldp.ieee.802_3.pmd_auto_neg_advertised_caps_inv.10base_tfd`.
+pub static LLDP_IEEE_802_3_PMD_AUTO_NEG_ADVERTISED_CAPS_INV_10BASE_TFD: FieldDef = FieldDef {
+    abbrev: "lldp.ieee.802_3.pmd_auto_neg_advertised_caps_inv.10base_tfd",
+    name: "10BASE-T (full duplex mode)",
+    field_type: FieldType::Boolean,
+    parent: "lldp",
+    display: Display::Boolean16,
+    bitmask: Some(0x4),
+    blurb: "",
+    generated: false,
+};
+
+/// `lldp.ieee.802_3.pmd_auto_neg_advertised_caps_inv.10base_t`.
+pub static LLDP_IEEE_802_3_PMD_AUTO_NEG_ADVERTISED_CAPS_INV_10BASE_T: FieldDef = FieldDef {
+    abbrev: "lldp.ieee.802_3.pmd_auto_neg_advertised_caps_inv.10base_t",
+    name: "10BASE-T (half duplex mode)",
+    field_type: FieldType::Boolean,
+    parent: "lldp",
+    display: Display::Boolean16,
+    bitmask: Some(0x2),
+    blurb: "",
+    generated: false,
+};
+
+/// `lldp.ieee.802_3.pmd_auto_neg_advertised_caps_inv.other`.
+pub static LLDP_IEEE_802_3_PMD_AUTO_NEG_ADVERTISED_CAPS_INV_OTHER: FieldDef = FieldDef {
+    abbrev: "lldp.ieee.802_3.pmd_auto_neg_advertised_caps_inv.other",
+    name: "Other or unknown",
+    field_type: FieldType::Boolean,
+    parent: "lldp",
+    display: Display::Boolean16,
+    bitmask: Some(0x1),
     blurb: "",
     generated: false,
 };
@@ -14166,6 +14733,38 @@ static LLDP_FIELDS: &[&FieldDef] = &[
     &LLDP_IEEE_802_3_MAC_PHY_AUTO_NEG_STATUS_SUPPORTED,
     &LLDP_IEEE_802_3_MAC_PHY_AUTO_NEG_STATUS_ENABLED,
     &LLDP_IEEE_802_3_PMD_AUTO_NEG_ADVERTISED_CAPS,
+    &LLDP_IEEE_802_3_PMD_AUTO_NEG_ADVERTISED_CAPS_1000BASE_TFD,
+    &LLDP_IEEE_802_3_PMD_AUTO_NEG_ADVERTISED_CAPS_1000BASE_T,
+    &LLDP_IEEE_802_3_PMD_AUTO_NEG_ADVERTISED_CAPS_1000BASE_XFD,
+    &LLDP_IEEE_802_3_PMD_AUTO_NEG_ADVERTISED_CAPS_1000BASE_X,
+    &LLDP_IEEE_802_3_PMD_AUTO_NEG_ADVERTISED_CAPS_FDX_BPAUSE,
+    &LLDP_IEEE_802_3_PMD_AUTO_NEG_ADVERTISED_CAPS_FDX_SPAUSE,
+    &LLDP_IEEE_802_3_PMD_AUTO_NEG_ADVERTISED_CAPS_FDX_APAUSE,
+    &LLDP_IEEE_802_3_PMD_AUTO_NEG_ADVERTISED_CAPS_FDX_PAUSE,
+    &LLDP_IEEE_802_3_PMD_AUTO_NEG_ADVERTISED_CAPS_100BASE_T2FD,
+    &LLDP_IEEE_802_3_PMD_AUTO_NEG_ADVERTISED_CAPS_100BASE_T2,
+    &LLDP_IEEE_802_3_PMD_AUTO_NEG_ADVERTISED_CAPS_100BASE_TXFD,
+    &LLDP_IEEE_802_3_PMD_AUTO_NEG_ADVERTISED_CAPS_100BASE_TX,
+    &LLDP_IEEE_802_3_PMD_AUTO_NEG_ADVERTISED_CAPS_100BASE_T4,
+    &LLDP_IEEE_802_3_PMD_AUTO_NEG_ADVERTISED_CAPS_10BASE_TFD,
+    &LLDP_IEEE_802_3_PMD_AUTO_NEG_ADVERTISED_CAPS_10BASE_T,
+    &LLDP_IEEE_802_3_PMD_AUTO_NEG_ADVERTISED_CAPS_OTHER,
+    &LLDP_IEEE_802_3_PMD_AUTO_NEG_ADVERTISED_CAPS_INV_1000BASE_TFD,
+    &LLDP_IEEE_802_3_PMD_AUTO_NEG_ADVERTISED_CAPS_INV_1000BASE_T,
+    &LLDP_IEEE_802_3_PMD_AUTO_NEG_ADVERTISED_CAPS_INV_1000BASE_XFD,
+    &LLDP_IEEE_802_3_PMD_AUTO_NEG_ADVERTISED_CAPS_INV_1000BASE_X,
+    &LLDP_IEEE_802_3_PMD_AUTO_NEG_ADVERTISED_CAPS_INV_FDX_BPAUSE,
+    &LLDP_IEEE_802_3_PMD_AUTO_NEG_ADVERTISED_CAPS_INV_FDX_SPAUSE,
+    &LLDP_IEEE_802_3_PMD_AUTO_NEG_ADVERTISED_CAPS_INV_FDX_APAUSE,
+    &LLDP_IEEE_802_3_PMD_AUTO_NEG_ADVERTISED_CAPS_INV_FDX_PAUSE,
+    &LLDP_IEEE_802_3_PMD_AUTO_NEG_ADVERTISED_CAPS_INV_100BASE_T2FD,
+    &LLDP_IEEE_802_3_PMD_AUTO_NEG_ADVERTISED_CAPS_INV_100BASE_T2,
+    &LLDP_IEEE_802_3_PMD_AUTO_NEG_ADVERTISED_CAPS_INV_100BASE_TXFD,
+    &LLDP_IEEE_802_3_PMD_AUTO_NEG_ADVERTISED_CAPS_INV_100BASE_TX,
+    &LLDP_IEEE_802_3_PMD_AUTO_NEG_ADVERTISED_CAPS_INV_100BASE_T4,
+    &LLDP_IEEE_802_3_PMD_AUTO_NEG_ADVERTISED_CAPS_INV_10BASE_TFD,
+    &LLDP_IEEE_802_3_PMD_AUTO_NEG_ADVERTISED_CAPS_INV_10BASE_T,
+    &LLDP_IEEE_802_3_PMD_AUTO_NEG_ADVERTISED_CAPS_INV_OTHER,
     &LLDP_IEEE_802_3_PMD_MAU_TYPE,
     &LLDP_IEEE_802_3_AGGREGATION_STATUS,
     &LLDP_IEEE_802_3_AGGREGATION_STATUS_CAP,
@@ -21646,7 +22245,39 @@ pub fn true_false_name(abbrev: &str) -> Option<(&'static str, &'static str)> {
         | "lldp.tlv.enable_system_cap.station_only"
         | "lldp.tlv.enable_system_cap.cvlan"
         | "lldp.tlv.enable_system_cap.svlan"
-        | "lldp.tlv.enable_system_cap.tpmr" => ("Capable", "Not capable"),
+        | "lldp.tlv.enable_system_cap.tpmr"
+        | "lldp.ieee.802_3.pmd_auto_neg_advertised_caps.1000base_tfd"
+        | "lldp.ieee.802_3.pmd_auto_neg_advertised_caps.1000base_t"
+        | "lldp.ieee.802_3.pmd_auto_neg_advertised_caps.1000base_xfd"
+        | "lldp.ieee.802_3.pmd_auto_neg_advertised_caps.1000base_x"
+        | "lldp.ieee.802_3.pmd_auto_neg_advertised_caps.fdx_bpause"
+        | "lldp.ieee.802_3.pmd_auto_neg_advertised_caps.fdx_spause"
+        | "lldp.ieee.802_3.pmd_auto_neg_advertised_caps.fdx_apause"
+        | "lldp.ieee.802_3.pmd_auto_neg_advertised_caps.fdx_pause"
+        | "lldp.ieee.802_3.pmd_auto_neg_advertised_caps.100base_t2fd"
+        | "lldp.ieee.802_3.pmd_auto_neg_advertised_caps.100base_t2"
+        | "lldp.ieee.802_3.pmd_auto_neg_advertised_caps.100base_txfd"
+        | "lldp.ieee.802_3.pmd_auto_neg_advertised_caps.100base_tx"
+        | "lldp.ieee.802_3.pmd_auto_neg_advertised_caps.100base_t4"
+        | "lldp.ieee.802_3.pmd_auto_neg_advertised_caps.10base_tfd"
+        | "lldp.ieee.802_3.pmd_auto_neg_advertised_caps.10base_t"
+        | "lldp.ieee.802_3.pmd_auto_neg_advertised_caps.other"
+        | "lldp.ieee.802_3.pmd_auto_neg_advertised_caps_inv.1000base_tfd"
+        | "lldp.ieee.802_3.pmd_auto_neg_advertised_caps_inv.1000base_t"
+        | "lldp.ieee.802_3.pmd_auto_neg_advertised_caps_inv.1000base_xfd"
+        | "lldp.ieee.802_3.pmd_auto_neg_advertised_caps_inv.1000base_x"
+        | "lldp.ieee.802_3.pmd_auto_neg_advertised_caps_inv.fdx_bpause"
+        | "lldp.ieee.802_3.pmd_auto_neg_advertised_caps_inv.fdx_spause"
+        | "lldp.ieee.802_3.pmd_auto_neg_advertised_caps_inv.fdx_apause"
+        | "lldp.ieee.802_3.pmd_auto_neg_advertised_caps_inv.fdx_pause"
+        | "lldp.ieee.802_3.pmd_auto_neg_advertised_caps_inv.100base_t2fd"
+        | "lldp.ieee.802_3.pmd_auto_neg_advertised_caps_inv.100base_t2"
+        | "lldp.ieee.802_3.pmd_auto_neg_advertised_caps_inv.100base_txfd"
+        | "lldp.ieee.802_3.pmd_auto_neg_advertised_caps_inv.100base_tx"
+        | "lldp.ieee.802_3.pmd_auto_neg_advertised_caps_inv.100base_t4"
+        | "lldp.ieee.802_3.pmd_auto_neg_advertised_caps_inv.10base_tfd"
+        | "lldp.ieee.802_3.pmd_auto_neg_advertised_caps_inv.10base_t"
+        | "lldp.ieee.802_3.pmd_auto_neg_advertised_caps_inv.other" => ("Capable", "Not capable"),
         "lldp.ieee.802_1.port_and_vlan_id_flag.supported"
         | "lldp.ieee.802_3.mac_phy_auto_neg_status.supported" => ("Supported", "Not supported"),
         "lldp.ieee.802_1.port_and_vlan_id_flag.enabled"

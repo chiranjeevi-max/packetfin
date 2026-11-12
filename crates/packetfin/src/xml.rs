@@ -59,13 +59,13 @@ pub fn escape_dns_name(out: &mut String, text: &str) {
     }
 }
 
-/// Escape a field's `show` value: tabs and newlines stay
+/// Escape a field's `show` value: tabs, newlines and carriage returns stay
 /// raw, other controls use lowercase hexadecimal escapes, and a literal
 /// backslash stays single.
 pub fn escape_show(out: &mut String, text: &str) {
     for character in text.chars() {
         match character {
-            '\t' | '\n' => out.push(character),
+            '\t' | '\n' | '\r' => out.push(character),
             control if control.is_control() => {
                 out.push_str(&format!("\\x{:x}", u32::from(control)));
             }
@@ -187,10 +187,10 @@ mod tests {
     }
 
     #[test]
-    fn show_keeps_tabs_and_newlines_and_uses_lowercase_hex() {
+    fn show_keeps_tabs_newlines_and_carriage_returns_and_uses_lowercase_hex() {
         let mut out = String::new();
-        escape_show(&mut out, "A\tB\nC\u{7f}D\u{1b}E\\");
-        assert_eq!(out, "A\tB\nC\\x7fD\\x1bE\\");
+        escape_show(&mut out, "A\tB\nC\rD\u{7f}E\u{1b}F\\");
+        assert_eq!(out, "A\tB\nC\rD\\x7fE\\x1bF\\");
     }
 
     #[test]

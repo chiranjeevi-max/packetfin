@@ -357,7 +357,7 @@ impl<'a> EkWriter<'a> {
                 flatten_abbrev(field.def.parent),
                 flatten_abbrev(field.def.abbrev)
             );
-            self.append_leaf_field(&mut entries, field, flat, &fields_context);
+            self.append_leaf_field(&mut entries, field, &prefix, flat, &fields_context);
         }
         for child in &node.children {
             let child_scope = child_scope(node, child, scope);
@@ -440,7 +440,7 @@ impl<'a> EkWriter<'a> {
                 self.append_container_fields(entries, child, prefix, &child_context);
             } else {
                 let flat = format!("{prefix}_{}", flatten_abbrev(child.def.abbrev));
-                self.append_leaf_field(entries, child, flat, &child_context);
+                self.append_leaf_field(entries, child, prefix, flat, &child_context);
             }
         }
         for child in &field.nodes {
@@ -477,7 +477,7 @@ impl<'a> EkWriter<'a> {
                 flatten_abbrev(field.def.parent),
                 flatten_abbrev(field.def.abbrev)
             );
-            self.append_leaf_field(&mut entries, field, flat, context);
+            self.append_leaf_field(&mut entries, field, &prefix, flat, context);
         }
         for child in &node.children {
             let node_context = FieldContext {
@@ -526,7 +526,7 @@ impl<'a> EkWriter<'a> {
                 self.append_container_fields(entries, child, prefix, context);
             } else {
                 let flat = format!("{prefix}_{}", flatten_abbrev(child.def.abbrev));
-                self.append_leaf_field(entries, child, flat, context);
+                self.append_leaf_field(entries, child, prefix, flat, context);
             }
         }
         for child in &field.nodes {
@@ -564,6 +564,7 @@ impl<'a> EkWriter<'a> {
         &self,
         entries: &mut Vec<(String, Ek)>,
         field: &Field,
+        prefix: &str,
         flat: String,
         context: &FieldContext<'_, '_>,
     ) {
@@ -580,9 +581,11 @@ impl<'a> EkWriter<'a> {
                 )
             });
             self.append_experts(entries, &field.experts, Some(&offending), context.filter);
+            self.append_leaf_children(entries, field, prefix, context);
             return;
         }
         self.append_plain_leaf(entries, field, &flat, flag, context);
+        self.append_leaf_children(entries, field, prefix, context);
         if field.def.abbrev.ends_with(".checksum")
             && let Some(expert) = context
                 .node
@@ -616,6 +619,32 @@ impl<'a> EkWriter<'a> {
                     flatten_abbrev(calculated.def.abbrev)
                 );
                 self.append_plain_leaf(entries, calculated, &flat, flag, context);
+            }
+        }
+    }
+
+    /// Flatten a leaf's own children into the protocol object.
+    ///
+    /// A field can own a subtree: the DHCP option-82 vendor block nests its
+    /// data length under the enterprise number. EK keeps every key flat, so a
+    /// child repeats the protocol prefix and the child's full abbreviation.
+    fn append_leaf_children(
+        &self,
+        entries: &mut Vec<(String, Ek)>,
+        field: &Field,
+        prefix: &str,
+        context: &FieldContext<'_, '_>,
+    ) {
+        for child in &field.children {
+            if omit_from_ek(child.def.abbrev) || packetfin_core::expert_label_only(child.def.abbrev)
+            {
+                continue;
+            }
+            if child.is_container() {
+                self.append_container_fields(entries, child, prefix, context);
+            } else {
+                let flat = format!("{prefix}_{}", flatten_abbrev(child.def.abbrev));
+                self.append_leaf_field(entries, child, prefix, flat, context);
             }
         }
     }

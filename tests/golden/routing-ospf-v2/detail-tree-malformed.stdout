@@ -1,0 +1,64 @@
+Frame 6: Packet, 77 bytes on wire (616 bits), 77 bytes captured (616 bits)
+Ethernet II, Src: 02:00:00:00:00:01, Dst: 02:00:00:00:00:02
+Internet Protocol Version 4, Src: 192.0.2.1, Dst: 198.51.100.2
+Open Shortest Path First
+    OSPF Header
+        Version: 2
+        Message Type: Hello Packet (1)
+        Packet Length: 43
+        Source OSPF Router: 1.1.1.1
+        Area ID: 0.0.0.0 (Backbone)
+        Checksum: 0xf499 [correct]
+        Instance ID: Base IPv4 Unicast Instance (0)
+        Auth Type: Null (0)
+        Auth Data (none): 0000000000000000
+    OSPF Hello Packet
+        Network Mask: 255.255.255.0
+        Hello Interval [sec]: 10
+        Options: 0x02, (E) External Routing
+            0... .... = DN: Not set
+            .0.. .... = (O) Opaque: Not set
+            ..0. .... = (DC) Demand Circuits: Not supported
+            ...0 .... = (L) LLS Data block: Not Present
+            .... 0... = (N) NSSA: Not supported
+            .... .0.. = (MC) Multicast: Not capable
+            .... ..1. = (E) External Routing: Capable
+            .... ...0 = (MT) Multi-Topology Routing: No
+        Router Priority: 1
+        Router Dead Interval [sec]: 40
+        Designated Router: 1.1.1.1
+[Malformed Packet: OSPF]
+
+Frame 7: Packet, 84 bytes on wire (672 bits), 84 bytes captured (672 bits)
+Ethernet II, Src: 02:00:00:00:00:01, Dst: 02:00:00:00:00:02
+Internet Protocol Version 4, Src: 192.0.2.1, Dst: 198.51.100.2
+Open Shortest Path First
+    OSPF Header
+        Version: 2
+        Message Type: Hello Packet (1)
+        Packet Length: 50
+        Source OSPF Router: 1.1.1.1
+        Area ID: 0.0.0.0 (Backbone)
+        Checksum: 0x0fdd [correct]
+        Instance ID: Base IPv4 Unicast Instance (0)
+        Auth Type: Null (0)
+        Auth Data (none): 0000000000000000
+    OSPF Hello Packet
+        Network Mask: 255.255.255.0
+        Hello Interval [sec]: 10
+        Options: 0x02, (E) External Routing
+            0... .... = DN: Not set
+            .0.. .... = (O) Opaque: Not set
+            ..0. .... = (DC) Demand Circuits: Not supported
+            ...0 .... = (L) LLS Data block: Not Present
+            .... 0... = (N) NSSA: Not supported
+            .... .0.. = (MC) Multicast: Not capable
+            .... ..1. = (E) External Routing: Capable
+            .... ...0 = (MT) Multi-Topology Routing: No
+        Router Priority: 1
+        Router Dead Interval [sec]: 40
+        Designated Router: 1.1.1.1
+        Backup Designated Router: 2.2.2.2
+        Active Neighbor: 3.3.3.3
+[Malformed Packet: OSPF]
+

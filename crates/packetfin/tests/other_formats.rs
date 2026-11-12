@@ -219,7 +219,8 @@ fn ek_tree_cases_match_parsed_and_layer_order() {
                 | "dhcp-malformed"
                 | "dhcp-client-id"
                 | "dhcp-hardware"
-                | "dhcp-long-option",
+                | "dhcp-long-option"
+                | "dhcp-option-82",
                 _,
             ) => &["frame", "eth", "ip", "udp", "dhcp"],
             ("dhcpv6-solicit-advertise" | "dhcpv6-relay" | "dhcpv6-malformed", _) => {

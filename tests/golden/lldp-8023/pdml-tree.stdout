@@ -1,0 +1,481 @@
+<?xml version="1.0" encoding="utf-8"?>
+<?xml-stylesheet type="text/xsl" href="pdml2html.xsl"?>
+<!-- normalized -->
+<pdml version="0" creator="creator" time="time" capture_file="tests/fixtures/lldp-8023.pcap">
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="66">
+    <field name="num" pos="0" show="1" showname="Number" value="1" size="66"/>
+    <field name="len" pos="0" show="66" showname="Frame Length" value="42" size="66"/>
+    <field name="caplen" pos="0" show="66" showname="Captured Length" value="42" size="66"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:20.123456000 UTC" showname="Captured Time" value="1700000000.123456000" size="66"/>
+  </proto>
+  <proto name="frame" showname="Frame 1: Packet, 66 bytes on wire (528 bits), 66 bytes captured (528 bits)" size="66" pos="0">
+    <field name="filtered" value="frame" />
+  </proto>
+  <proto name="eth" showname="Ethernet II, Src: 02:00:00:00:00:01, Dst: 01:80:c2:00:00:0e" size="14" pos="0">
+    <field name="filtered" value="eth" />
+  </proto>
+  <proto name="lldp" showname="Link Layer Discovery Protocol" size="52" pos="14">
+    <field name="" show="Chassis Subtype = MAC address, Id: 00:11:22:33:44:55" size="9" pos="14" value="020704001122334455">
+      <field name="lldp.tlv.type" showname="0000 001. .... .... = TLV Type: Chassis Id (1)" size="2" pos="14" show="1" value="1" unmaskedvalue="0207"/>
+      <field name="lldp.tlv.len" showname=".... ...0 0000 0111 = TLV Length: 7" size="2" pos="14" show="7" value="7" unmaskedvalue="0207"/>
+      <field name="lldp.chassis.subtype" showname="Chassis Id Subtype: MAC address (4)" size="1" pos="16" show="4" value="04"/>
+      <field name="lldp.chassis.id.mac" showname="Chassis Id: 00:11:22:33:44:55" size="6" pos="17" show="00:11:22:33:44:55" value="001122334455"/>
+    </field>
+    <field name="" show="Port Subtype = Interface name, Id: eth0" size="7" pos="23" value="04050565746830">
+      <field name="lldp.tlv.type" showname="0000 010. .... .... = TLV Type: Port Id (2)" size="2" pos="23" show="2" value="2" unmaskedvalue="0405"/>
+      <field name="lldp.tlv.len" showname=".... ...0 0000 0101 = TLV Length: 5" size="2" pos="23" show="5" value="5" unmaskedvalue="0405"/>
+      <field name="lldp.port.subtype" showname="Port Id Subtype: Interface name (5)" size="1" pos="25" show="5" value="05"/>
+      <field name="lldp.port.id" showname="Port Id: eth0" size="4" pos="26" show="eth0" value="65746830"/>
+    </field>
+    <field name="" show="Time To Live = 120 sec" size="4" pos="30" value="06020078">
+      <field name="lldp.pdu_type" showname="Normal LLDPDU" size="4" pos="30" show="" value=""/>
+      <field name="lldp.tlv.type" showname="0000 011. .... .... = TLV Type: Time to Live (3)" size="2" pos="30" show="3" value="3" unmaskedvalue="0602"/>
+      <field name="lldp.tlv.len" showname=".... ...0 0000 0010 = TLV Length: 2" size="2" pos="30" show="2" value="2" unmaskedvalue="0602"/>
+      <field name="lldp.time_to_live" showname="Seconds: 120" size="2" pos="32" show="120" value="0078"/>
+    </field>
+    <field name="" show="IEEE 802.3 Working Group - MAC/PHY Configuration/Status" size="11" pos="34" value="fe0900120f010380010010">
+      <field name="lldp.tlv.type" showname="1111 111. .... .... = TLV Type: Organization Specific (127)" size="2" pos="34" show="127" value="7F" unmaskedvalue="fe09"/>
+      <field name="lldp.tlv.len" showname=".... ...0 0000 1001 = TLV Length: 9" size="2" pos="34" show="9" value="9" unmaskedvalue="fe09"/>
+      <field name="lldp.orgtlv.oui" showname="Organization Unique Code: 00:12:0f (IEEE 802.3 Working Group)" size="3" pos="36" show="4623" value="00120f"/>
+      <field name="lldp.ieee.802_3.subtype" showname="IEEE 802.3 Subtype: MAC/PHY Configuration/Status (0x01)" size="1" pos="39" show="0x01" value="01"/>
+      <field name="lldp.ieee.802_3.mac_phy_auto_neg_status" showname="Auto-Negotiation Support/Status: 0x03" size="1" pos="40" show="0x03" value="03">
+        <field name="lldp.ieee.802_3.mac_phy_auto_neg_status.supported" showname=".... ...1 = Auto-Negotiation: Supported" size="1" pos="40" show="True" value="1" unmaskedvalue="03"/>
+        <field name="lldp.ieee.802_3.mac_phy_auto_neg_status.enabled" showname=".... ..1. = Auto-Negotiation: Enabled" size="1" pos="40" show="True" value="1" unmaskedvalue="03"/>
+      </field>
+      <field name="lldp.ieee.802_3.pmd_auto_neg_advertised_caps" showname="PMD Auto-Negotiation Advertised Capability: 0x8001" size="2" pos="41" show="0x8001" value="8001">
+        <field name="lldp.ieee.802_3.pmd_auto_neg_advertised_caps.1000base_tfd" showname=".... .... .... ...1 = 1000BASE-T (full duplex mode): Capable" size="2" pos="41" show="True" value="1" unmaskedvalue="8001"/>
+        <field name="lldp.ieee.802_3.pmd_auto_neg_advertised_caps.1000base_t" showname=".... .... .... ..0. = 1000BASE-T (half duplex mode): Not capable" size="2" pos="41" show="False" value="0" unmaskedvalue="8001"/>
+        <field name="lldp.ieee.802_3.pmd_auto_neg_advertised_caps.1000base_xfd" showname=".... .... .... .0.. = 1000BASE-X (-LX, -SX, -CX full duplex mode): Not capable" size="2" pos="41" show="False" value="0" unmaskedvalue="8001"/>
+        <field name="lldp.ieee.802_3.pmd_auto_neg_advertised_caps.1000base_x" showname=".... .... .... 0... = 1000BASE-X (-LX, -SX, -CX half duplex mode): Not capable" size="2" pos="41" show="False" value="0" unmaskedvalue="8001"/>
+        <field name="lldp.ieee.802_3.pmd_auto_neg_advertised_caps.fdx_bpause" showname=".... .... ...0 .... = Asymmetric and Symmetric PAUSE (for full-duplex links): Not capable" size="2" pos="41" show="False" value="0" unmaskedvalue="8001"/>
+        <field name="lldp.ieee.802_3.pmd_auto_neg_advertised_caps.fdx_spause" showname=".... .... ..0. .... = Symmetric PAUSE (for full-duplex links): Not capable" size="2" pos="41" show="False" value="0" unmaskedvalue="8001"/>
+        <field name="lldp.ieee.802_3.pmd_auto_neg_advertised_caps.fdx_apause" showname=".... .... .0.. .... = Asymmetric PAUSE (for full-duplex links): Not capable" size="2" pos="41" show="False" value="0" unmaskedvalue="8001"/>
+        <field name="lldp.ieee.802_3.pmd_auto_neg_advertised_caps.fdx_pause" showname=".... .... 0... .... = PAUSE (for full-duplex links): Not capable" size="2" pos="41" show="False" value="0" unmaskedvalue="8001"/>
+        <field name="lldp.ieee.802_3.pmd_auto_neg_advertised_caps.100base_t2fd" showname=".... ...0 .... .... = 100BASE-T2 (full duplex mode): Not capable" size="2" pos="41" show="False" value="0" unmaskedvalue="8001"/>
+        <field name="lldp.ieee.802_3.pmd_auto_neg_advertised_caps.100base_t2" showname=".... ..0. .... .... = 100BASE-T2 (half duplex mode): Not capable" size="2" pos="41" show="False" value="0" unmaskedvalue="8001"/>
+        <field name="lldp.ieee.802_3.pmd_auto_neg_advertised_caps.100base_txfd" showname=".... .0.. .... .... = 100BASE-TX (full duplex mode): Not capable" size="2" pos="41" show="False" value="0" unmaskedvalue="8001"/>
+        <field name="lldp.ieee.802_3.pmd_auto_neg_advertised_caps.100base_tx" showname=".... 0... .... .... = 100BASE-TX (half duplex mode): Not capable" size="2" pos="41" show="False" value="0" unmaskedvalue="8001"/>
+        <field name="lldp.ieee.802_3.pmd_auto_neg_advertised_caps.100base_t4" showname="...0 .... .... .... = 100BASE-T4: Not capable" size="2" pos="41" show="False" value="0" unmaskedvalue="8001"/>
+        <field name="lldp.ieee.802_3.pmd_auto_neg_advertised_caps.10base_tfd" showname="..0. .... .... .... = 10BASE-T (full duplex mode): Not capable" size="2" pos="41" show="False" value="0" unmaskedvalue="8001"/>
+        <field name="lldp.ieee.802_3.pmd_auto_neg_advertised_caps.10base_t" showname=".0.. .... .... .... = 10BASE-T (half duplex mode): Not capable" size="2" pos="41" show="False" value="0" unmaskedvalue="8001"/>
+        <field name="lldp.ieee.802_3.pmd_auto_neg_advertised_caps.other" showname="1... .... .... .... = Other or unknown: Capable" size="2" pos="41" show="True" value="1" unmaskedvalue="8001"/>
+      </field>
+      <field name="" show="Same in inverse (wrong) bitorder" size="2" pos="41" value="8001">
+        <field name="lldp.ieee.802_3.pmd_auto_neg_advertised_caps_inv.1000base_tfd" showname="1... .... .... .... = 1000BASE-T (full duplex mode): Capable" size="2" pos="41" show="True" value="1" unmaskedvalue="8001"/>
+        <field name="lldp.ieee.802_3.pmd_auto_neg_advertised_caps_inv.1000base_t" showname=".0.. .... .... .... = 1000BASE-T (half duplex mode): Not capable" size="2" pos="41" show="False" value="0" unmaskedvalue="8001"/>
+        <field name="lldp.ieee.802_3.pmd_auto_neg_advertised_caps_inv.1000base_xfd" showname="..0. .... .... .... = 1000BASE-X (-LX, -SX, -CX full duplex mode): Not capable" size="2" pos="41" show="False" value="0" unmaskedvalue="8001"/>
+        <field name="lldp.ieee.802_3.pmd_auto_neg_advertised_caps_inv.1000base_x" showname="...0 .... .... .... = 1000BASE-X (-LX, -SX, -CX half duplex mode): Not capable" size="2" pos="41" show="False" value="0" unmaskedvalue="8001"/>
+        <field name="lldp.ieee.802_3.pmd_auto_neg_advertised_caps_inv.fdx_bpause" showname=".... 0... .... .... = Asymmetric and Symmetric PAUSE (for full-duplex links): Not capable" size="2" pos="41" show="False" value="0" unmaskedvalue="8001"/>
+        <field name="lldp.ieee.802_3.pmd_auto_neg_advertised_caps_inv.fdx_spause" showname=".... .0.. .... .... = Symmetric PAUSE (for full-duplex links): Not capable" size="2" pos="41" show="False" value="0" unmaskedvalue="8001"/>
+        <field name="lldp.ieee.802_3.pmd_auto_neg_advertised_caps_inv.fdx_apause" showname=".... ..0. .... .... = Asymmetric PAUSE (for full-duplex links): Not capable" size="2" pos="41" show="False" value="0" unmaskedvalue="8001"/>
+        <field name="lldp.ieee.802_3.pmd_auto_neg_advertised_caps_inv.fdx_pause" showname=".... ...0 .... .... = PAUSE (for full-duplex links): Not capable" size="2" pos="41" show="False" value="0" unmaskedvalue="8001"/>
+        <field name="lldp.ieee.802_3.pmd_auto_neg_advertised_caps_inv.100base_t2fd" showname=".... .... 0... .... = 100BASE-T2 (full duplex mode): Not capable" size="2" pos="41" show="False" value="0" unmaskedvalue="8001"/>
+        <field name="lldp.ieee.802_3.pmd_auto_neg_advertised_caps_inv.100base_t2" showname=".... .... .0.. .... = 100BASE-T2 (half duplex mode): Not capable" size="2" pos="41" show="False" value="0" unmaskedvalue="8001"/>
+        <field name="lldp.ieee.802_3.pmd_auto_neg_advertised_caps_inv.100base_txfd" showname=".... .... ..0. .... = 100BASE-TX (full duplex mode): Not capable" size="2" pos="41" show="False" value="0" unmaskedvalue="8001"/>
+        <field name="lldp.ieee.802_3.pmd_auto_neg_advertised_caps_inv.100base_tx" showname=".... .... ...0 .... = 100BASE-TX (half duplex mode): Not capable" size="2" pos="41" show="False" value="0" unmaskedvalue="8001"/>
+        <field name="lldp.ieee.802_3.pmd_auto_neg_advertised_caps_inv.100base_t4" showname=".... .... .... 0... = 100BASE-T4: Not capable" size="2" pos="41" show="False" value="0" unmaskedvalue="8001"/>
+        <field name="lldp.ieee.802_3.pmd_auto_neg_advertised_caps_inv.10base_tfd" showname=".... .... .... .0.. = 10BASE-T (full duplex mode): Not capable" size="2" pos="41" show="False" value="0" unmaskedvalue="8001"/>
+        <field name="lldp.ieee.802_3.pmd_auto_neg_advertised_caps_inv.10base_t" showname=".... .... .... ..0. = 10BASE-T (half duplex mode): Not capable" size="2" pos="41" show="False" value="0" unmaskedvalue="8001"/>
+        <field name="lldp.ieee.802_3.pmd_auto_neg_advertised_caps_inv.other" showname=".... .... .... ...1 = Other or unknown: Capable" size="2" pos="41" show="True" value="1" unmaskedvalue="8001"/>
+      </field>
+      <field name="lldp.ieee.802_3.pmd_mau_type" showname="Operational MAU Type: 100BaseTXFD - 2 pair category 5 UTP, full duplex mode (0x0010)" size="2" pos="43" show="0x0010" value="0010"/>
+    </field>
+    <field name="" show="IEEE 802.3 Working Group - Link Aggregation" size="11" pos="45" value="fe0900120f030300000007">
+      <field name="lldp.tlv.type" showname="1111 111. .... .... = TLV Type: Organization Specific (127)" size="2" pos="45" show="127" value="7F" unmaskedvalue="fe09"/>
+      <field name="lldp.tlv.len" showname=".... ...0 0000 1001 = TLV Length: 9" size="2" pos="45" show="9" value="9" unmaskedvalue="fe09"/>
+      <field name="lldp.orgtlv.oui" showname="Organization Unique Code: 00:12:0f (IEEE 802.3 Working Group)" size="3" pos="47" show="4623" value="00120f"/>
+      <field name="lldp.ieee.802_3.subtype" showname="IEEE 802.3 Subtype: Link Aggregation (0x03)" size="1" pos="50" show="0x03" value="03">
+        <field name="_ws.expert" showname="Expert Info (Warning/Protocol): TLV has been deprecated" size="0" pos="50">
+          <field name="lldp.tlv_deprecated" showname="TLV has been deprecated" size="0" pos="0" show="" value=""/>
+          <field name="_ws.expert.message" showname="Message: TLV has been deprecated" hide="yes" size="0" pos="0" show="TLV has been deprecated"/>
+          <field name="_ws.expert.severity" showname="Severity level: Warning" size="0" pos="0" show="6291456"/>
+          <field name="_ws.expert.group" showname="Group: Protocol" size="0" pos="0" show="150994944"/>
+        </field>
+      </field>
+      <field name="lldp.ieee.802_3.aggregation_status" showname="Aggregation Status: 0x03" size="1" pos="51" show="0x03" value="03">
+        <field name="lldp.ieee.802_3.aggregation_status.cap" showname=".... ...1 = Aggregation Capability: Yes" size="1" pos="51" show="True" value="1" unmaskedvalue="03"/>
+        <field name="lldp.ieee.802_3.aggregation_status.enabled" showname=".... ..1. = Aggregation Status: Enabled" size="1" pos="51" show="True" value="1" unmaskedvalue="03"/>
+      </field>
+      <field name="lldp.ieee.802_3.aggregated_port_id" showname="Aggregated Port Id: 7" size="4" pos="52" show="7" value="00000007"/>
+    </field>
+    <field name="" show="IEEE 802.3 Working Group - Maximum Frame Size" size="8" pos="56" value="fe0600120f0405ee">
+      <field name="lldp.tlv.type" showname="1111 111. .... .... = TLV Type: Organization Specific (127)" size="2" pos="56" show="127" value="7F" unmaskedvalue="fe06"/>
+      <field name="lldp.tlv.len" showname=".... ...0 0000 0110 = TLV Length: 6" size="2" pos="56" show="6" value="6" unmaskedvalue="fe06"/>
+      <field name="lldp.orgtlv.oui" showname="Organization Unique Code: 00:12:0f (IEEE 802.3 Working Group)" size="3" pos="58" show="4623" value="00120f"/>
+      <field name="lldp.ieee.802_3.subtype" showname="IEEE 802.3 Subtype: Maximum Frame Size (0x04)" size="1" pos="61" show="0x04" value="04"/>
+      <field name="lldp.ieee.802_3.max_frame_size" showname="Maximum Frame Size: 1518" size="2" pos="62" show="1518" value="05ee"/>
+    </field>
+    <field name="" show="End of LLDPDU" size="2" pos="64" value="0000">
+      <field name="lldp.tlv.type" showname="0000 000. .... .... = TLV Type: End of LLDPDU (0)" size="2" pos="64" show="0" value="0" unmaskedvalue="0000"/>
+      <field name="lldp.tlv.len" showname=".... ...0 0000 0000 = TLV Length: 0" size="2" pos="64" show="0" value="0" unmaskedvalue="0000"/>
+    </field>
+  </proto>
+</packet>
+
+
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="45">
+    <field name="num" pos="0" show="2" showname="Number" value="2" size="45"/>
+    <field name="len" pos="0" show="45" showname="Frame Length" value="2d" size="45"/>
+    <field name="caplen" pos="0" show="45" showname="Captured Length" value="2d" size="45"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:20.123457000 UTC" showname="Captured Time" value="1700000000.123457000" size="45"/>
+  </proto>
+  <proto name="frame" showname="Frame 2: Packet, 45 bytes on wire (360 bits), 45 bytes captured (360 bits)" size="45" pos="0">
+    <field name="filtered" value="frame" />
+  </proto>
+  <proto name="eth" showname="Ethernet II, Src: 02:00:00:00:00:01, Dst: 01:80:c2:00:00:0e" size="14" pos="0">
+    <field name="filtered" value="eth" />
+  </proto>
+  <proto name="lldp" showname="Link Layer Discovery Protocol" size="31" pos="14">
+    <field name="" show="Chassis Subtype = MAC address, Id: 00:11:22:33:44:55" size="9" pos="14" value="020704001122334455">
+      <field name="lldp.tlv.type" showname="0000 001. .... .... = TLV Type: Chassis Id (1)" size="2" pos="14" show="1" value="1" unmaskedvalue="0207"/>
+      <field name="lldp.tlv.len" showname=".... ...0 0000 0111 = TLV Length: 7" size="2" pos="14" show="7" value="7" unmaskedvalue="0207"/>
+      <field name="lldp.chassis.subtype" showname="Chassis Id Subtype: MAC address (4)" size="1" pos="16" show="4" value="04"/>
+      <field name="lldp.chassis.id.mac" showname="Chassis Id: 00:11:22:33:44:55" size="6" pos="17" show="00:11:22:33:44:55" value="001122334455"/>
+    </field>
+    <field name="" show="Port Subtype = Interface name, Id: eth0" size="7" pos="23" value="04050565746830">
+      <field name="lldp.tlv.type" showname="0000 010. .... .... = TLV Type: Port Id (2)" size="2" pos="23" show="2" value="2" unmaskedvalue="0405"/>
+      <field name="lldp.tlv.len" showname=".... ...0 0000 0101 = TLV Length: 5" size="2" pos="23" show="5" value="5" unmaskedvalue="0405"/>
+      <field name="lldp.port.subtype" showname="Port Id Subtype: Interface name (5)" size="1" pos="25" show="5" value="05"/>
+      <field name="lldp.port.id" showname="Port Id: eth0" size="4" pos="26" show="eth0" value="65746830"/>
+    </field>
+    <field name="" show="Time To Live = 120 sec" size="4" pos="30" value="06020078">
+      <field name="lldp.pdu_type" showname="Normal LLDPDU" size="4" pos="30" show="" value=""/>
+      <field name="lldp.tlv.type" showname="0000 011. .... .... = TLV Type: Time to Live (3)" size="2" pos="30" show="3" value="3" unmaskedvalue="0602"/>
+      <field name="lldp.tlv.len" showname=".... ...0 0000 0010 = TLV Length: 2" size="2" pos="30" show="2" value="2" unmaskedvalue="0602"/>
+      <field name="lldp.time_to_live" showname="Seconds: 120" size="2" pos="32" show="120" value="0078"/>
+    </field>
+    <field name="" show="IEEE 802.3 Working Group - MAC/PHY Configuration/Status" size="9" pos="34" value="fe0700120f01038001">
+      <field name="lldp.tlv.type" showname="1111 111. .... .... = TLV Type: Organization Specific (127)" size="2" pos="34" show="127" value="7F" unmaskedvalue="fe07"/>
+      <field name="lldp.tlv.len" showname=".... ...0 0000 0111 = TLV Length: 7" size="2" pos="34" show="7" value="7" unmaskedvalue="fe07"/>
+      <field name="lldp.orgtlv.oui" showname="Organization Unique Code: 00:12:0f (IEEE 802.3 Working Group)" size="3" pos="36" show="4623" value="00120f"/>
+      <field name="lldp.ieee.802_3.subtype" showname="IEEE 802.3 Subtype: MAC/PHY Configuration/Status (0x01)" size="1" pos="39" show="0x01" value="01"/>
+      <field name="lldp.ieee.802_3.mac_phy_auto_neg_status" showname="Auto-Negotiation Support/Status: 0x03" size="1" pos="40" show="0x03" value="03">
+        <field name="lldp.ieee.802_3.mac_phy_auto_neg_status.supported" showname=".... ...1 = Auto-Negotiation: Supported" size="1" pos="40" show="True" value="1" unmaskedvalue="03"/>
+        <field name="lldp.ieee.802_3.mac_phy_auto_neg_status.enabled" showname=".... ..1. = Auto-Negotiation: Enabled" size="1" pos="40" show="True" value="1" unmaskedvalue="03"/>
+      </field>
+      <field name="lldp.ieee.802_3.pmd_auto_neg_advertised_caps" showname="PMD Auto-Negotiation Advertised Capability: 0x8001" size="2" pos="41" show="0x8001" value="8001">
+        <field name="lldp.ieee.802_3.pmd_auto_neg_advertised_caps.1000base_tfd" showname=".... .... .... ...1 = 1000BASE-T (full duplex mode): Capable" size="2" pos="41" show="True" value="1" unmaskedvalue="8001"/>
+        <field name="lldp.ieee.802_3.pmd_auto_neg_advertised_caps.1000base_t" showname=".... .... .... ..0. = 1000BASE-T (half duplex mode): Not capable" size="2" pos="41" show="False" value="0" unmaskedvalue="8001"/>
+        <field name="lldp.ieee.802_3.pmd_auto_neg_advertised_caps.1000base_xfd" showname=".... .... .... .0.. = 1000BASE-X (-LX, -SX, -CX full duplex mode): Not capable" size="2" pos="41" show="False" value="0" unmaskedvalue="8001"/>
+        <field name="lldp.ieee.802_3.pmd_auto_neg_advertised_caps.1000base_x" showname=".... .... .... 0... = 1000BASE-X (-LX, -SX, -CX half duplex mode): Not capable" size="2" pos="41" show="False" value="0" unmaskedvalue="8001"/>
+        <field name="lldp.ieee.802_3.pmd_auto_neg_advertised_caps.fdx_bpause" showname=".... .... ...0 .... = Asymmetric and Symmetric PAUSE (for full-duplex links): Not capable" size="2" pos="41" show="False" value="0" unmaskedvalue="8001"/>
+        <field name="lldp.ieee.802_3.pmd_auto_neg_advertised_caps.fdx_spause" showname=".... .... ..0. .... = Symmetric PAUSE (for full-duplex links): Not capable" size="2" pos="41" show="False" value="0" unmaskedvalue="8001"/>
+        <field name="lldp.ieee.802_3.pmd_auto_neg_advertised_caps.fdx_apause" showname=".... .... .0.. .... = Asymmetric PAUSE (for full-duplex links): Not capable" size="2" pos="41" show="False" value="0" unmaskedvalue="8001"/>
+        <field name="lldp.ieee.802_3.pmd_auto_neg_advertised_caps.fdx_pause" showname=".... .... 0... .... = PAUSE (for full-duplex links): Not capable" size="2" pos="41" show="False" value="0" unmaskedvalue="8001"/>
+        <field name="lldp.ieee.802_3.pmd_auto_neg_advertised_caps.100base_t2fd" showname=".... ...0 .... .... = 100BASE-T2 (full duplex mode): Not capable" size="2" pos="41" show="False" value="0" unmaskedvalue="8001"/>
+        <field name="lldp.ieee.802_3.pmd_auto_neg_advertised_caps.100base_t2" showname=".... ..0. .... .... = 100BASE-T2 (half duplex mode): Not capable" size="2" pos="41" show="False" value="0" unmaskedvalue="8001"/>
+        <field name="lldp.ieee.802_3.pmd_auto_neg_advertised_caps.100base_txfd" showname=".... .0.. .... .... = 100BASE-TX (full duplex mode): Not capable" size="2" pos="41" show="False" value="0" unmaskedvalue="8001"/>
+        <field name="lldp.ieee.802_3.pmd_auto_neg_advertised_caps.100base_tx" showname=".... 0... .... .... = 100BASE-TX (half duplex mode): Not capable" size="2" pos="41" show="False" value="0" unmaskedvalue="8001"/>
+        <field name="lldp.ieee.802_3.pmd_auto_neg_advertised_caps.100base_t4" showname="...0 .... .... .... = 100BASE-T4: Not capable" size="2" pos="41" show="False" value="0" unmaskedvalue="8001"/>
+        <field name="lldp.ieee.802_3.pmd_auto_neg_advertised_caps.10base_tfd" showname="..0. .... .... .... = 10BASE-T (full duplex mode): Not capable" size="2" pos="41" show="False" value="0" unmaskedvalue="8001"/>
+        <field name="lldp.ieee.802_3.pmd_auto_neg_advertised_caps.10base_t" showname=".0.. .... .... .... = 10BASE-T (half duplex mode): Not capable" size="2" pos="41" show="False" value="0" unmaskedvalue="8001"/>
+        <field name="lldp.ieee.802_3.pmd_auto_neg_advertised_caps.other" showname="1... .... .... .... = Other or unknown: Capable" size="2" pos="41" show="True" value="1" unmaskedvalue="8001"/>
+      </field>
+      <field name="" show="Same in inverse (wrong) bitorder" size="2" pos="41" value="8001">
+        <field name="lldp.ieee.802_3.pmd_auto_neg_advertised_caps_inv.1000base_tfd" showname="1... .... .... .... = 1000BASE-T (full duplex mode): Capable" size="2" pos="41" show="True" value="1" unmaskedvalue="8001"/>
+        <field name="lldp.ieee.802_3.pmd_auto_neg_advertised_caps_inv.1000base_t" showname=".0.. .... .... .... = 1000BASE-T (half duplex mode): Not capable" size="2" pos="41" show="False" value="0" unmaskedvalue="8001"/>
+        <field name="lldp.ieee.802_3.pmd_auto_neg_advertised_caps_inv.1000base_xfd" showname="..0. .... .... .... = 1000BASE-X (-LX, -SX, -CX full duplex mode): Not capable" size="2" pos="41" show="False" value="0" unmaskedvalue="8001"/>
+        <field name="lldp.ieee.802_3.pmd_auto_neg_advertised_caps_inv.1000base_x" showname="...0 .... .... .... = 1000BASE-X (-LX, -SX, -CX half duplex mode): Not capable" size="2" pos="41" show="False" value="0" unmaskedvalue="8001"/>
+        <field name="lldp.ieee.802_3.pmd_auto_neg_advertised_caps_inv.fdx_bpause" showname=".... 0... .... .... = Asymmetric and Symmetric PAUSE (for full-duplex links): Not capable" size="2" pos="41" show="False" value="0" unmaskedvalue="8001"/>
+        <field name="lldp.ieee.802_3.pmd_auto_neg_advertised_caps_inv.fdx_spause" showname=".... .0.. .... .... = Symmetric PAUSE (for full-duplex links): Not capable" size="2" pos="41" show="False" value="0" unmaskedvalue="8001"/>
+        <field name="lldp.ieee.802_3.pmd_auto_neg_advertised_caps_inv.fdx_apause" showname=".... ..0. .... .... = Asymmetric PAUSE (for full-duplex links): Not capable" size="2" pos="41" show="False" value="0" unmaskedvalue="8001"/>
+        <field name="lldp.ieee.802_3.pmd_auto_neg_advertised_caps_inv.fdx_pause" showname=".... ...0 .... .... = PAUSE (for full-duplex links): Not capable" size="2" pos="41" show="False" value="0" unmaskedvalue="8001"/>
+        <field name="lldp.ieee.802_3.pmd_auto_neg_advertised_caps_inv.100base_t2fd" showname=".... .... 0... .... = 100BASE-T2 (full duplex mode): Not capable" size="2" pos="41" show="False" value="0" unmaskedvalue="8001"/>
+        <field name="lldp.ieee.802_3.pmd_auto_neg_advertised_caps_inv.100base_t2" showname=".... .... .0.. .... = 100BASE-T2 (half duplex mode): Not capable" size="2" pos="41" show="False" value="0" unmaskedvalue="8001"/>
+        <field name="lldp.ieee.802_3.pmd_auto_neg_advertised_caps_inv.100base_txfd" showname=".... .... ..0. .... = 100BASE-TX (full duplex mode): Not capable" size="2" pos="41" show="False" value="0" unmaskedvalue="8001"/>
+        <field name="lldp.ieee.802_3.pmd_auto_neg_advertised_caps_inv.100base_tx" showname=".... .... ...0 .... = 100BASE-TX (half duplex mode): Not capable" size="2" pos="41" show="False" value="0" unmaskedvalue="8001"/>
+        <field name="lldp.ieee.802_3.pmd_auto_neg_advertised_caps_inv.100base_t4" showname=".... .... .... 0... = 100BASE-T4: Not capable" size="2" pos="41" show="False" value="0" unmaskedvalue="8001"/>
+        <field name="lldp.ieee.802_3.pmd_auto_neg_advertised_caps_inv.10base_tfd" showname=".... .... .... .0.. = 10BASE-T (full duplex mode): Not capable" size="2" pos="41" show="False" value="0" unmaskedvalue="8001"/>
+        <field name="lldp.ieee.802_3.pmd_auto_neg_advertised_caps_inv.10base_t" showname=".... .... .... ..0. = 10BASE-T (half duplex mode): Not capable" size="2" pos="41" show="False" value="0" unmaskedvalue="8001"/>
+        <field name="lldp.ieee.802_3.pmd_auto_neg_advertised_caps_inv.other" showname=".... .... .... ...1 = Other or unknown: Capable" size="2" pos="41" show="True" value="1" unmaskedvalue="8001"/>
+      </field>
+    </field>
+  </proto>
+  <proto name="_ws.malformed" showname="[Malformed Packet: LLDP]" size="0" pos="14">
+    <field name="filtered" value="_ws.malformed" />
+  </proto>
+</packet>
+
+
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="44">
+    <field name="num" pos="0" show="3" showname="Number" value="3" size="44"/>
+    <field name="len" pos="0" show="44" showname="Frame Length" value="2c" size="44"/>
+    <field name="caplen" pos="0" show="44" showname="Captured Length" value="2c" size="44"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:20.123458000 UTC" showname="Captured Time" value="1700000000.123458000" size="44"/>
+  </proto>
+  <proto name="frame" showname="Frame 3: Packet, 44 bytes on wire (352 bits), 44 bytes captured (352 bits)" size="44" pos="0">
+    <field name="filtered" value="frame" />
+  </proto>
+  <proto name="eth" showname="Ethernet II, Src: 02:00:00:00:00:01, Dst: 01:80:c2:00:00:0e" size="14" pos="0">
+    <field name="filtered" value="eth" />
+  </proto>
+  <proto name="lldp" showname="Link Layer Discovery Protocol" size="30" pos="14">
+    <field name="" show="Chassis Subtype = MAC address, Id: 00:11:22:33:44:55" size="9" pos="14" value="020704001122334455">
+      <field name="lldp.tlv.type" showname="0000 001. .... .... = TLV Type: Chassis Id (1)" size="2" pos="14" show="1" value="1" unmaskedvalue="0207"/>
+      <field name="lldp.tlv.len" showname=".... ...0 0000 0111 = TLV Length: 7" size="2" pos="14" show="7" value="7" unmaskedvalue="0207"/>
+      <field name="lldp.chassis.subtype" showname="Chassis Id Subtype: MAC address (4)" size="1" pos="16" show="4" value="04"/>
+      <field name="lldp.chassis.id.mac" showname="Chassis Id: 00:11:22:33:44:55" size="6" pos="17" show="00:11:22:33:44:55" value="001122334455"/>
+    </field>
+    <field name="" show="Port Subtype = Interface name, Id: eth0" size="7" pos="23" value="04050565746830">
+      <field name="lldp.tlv.type" showname="0000 010. .... .... = TLV Type: Port Id (2)" size="2" pos="23" show="2" value="2" unmaskedvalue="0405"/>
+      <field name="lldp.tlv.len" showname=".... ...0 0000 0101 = TLV Length: 5" size="2" pos="23" show="5" value="5" unmaskedvalue="0405"/>
+      <field name="lldp.port.subtype" showname="Port Id Subtype: Interface name (5)" size="1" pos="25" show="5" value="05"/>
+      <field name="lldp.port.id" showname="Port Id: eth0" size="4" pos="26" show="eth0" value="65746830"/>
+    </field>
+    <field name="" show="Time To Live = 120 sec" size="4" pos="30" value="06020078">
+      <field name="lldp.pdu_type" showname="Normal LLDPDU" size="4" pos="30" show="" value=""/>
+      <field name="lldp.tlv.type" showname="0000 011. .... .... = TLV Type: Time to Live (3)" size="2" pos="30" show="3" value="3" unmaskedvalue="0602"/>
+      <field name="lldp.tlv.len" showname=".... ...0 0000 0010 = TLV Length: 2" size="2" pos="30" show="2" value="2" unmaskedvalue="0602"/>
+      <field name="lldp.time_to_live" showname="Seconds: 120" size="2" pos="32" show="120" value="0078"/>
+    </field>
+    <field name="" show="IEEE 802.3 Working Group - Link Aggregation" size="8" pos="34" value="fe0600120f030300">
+      <field name="lldp.tlv.type" showname="1111 111. .... .... = TLV Type: Organization Specific (127)" size="2" pos="34" show="127" value="7F" unmaskedvalue="fe06"/>
+      <field name="lldp.tlv.len" showname=".... ...0 0000 0110 = TLV Length: 6" size="2" pos="34" show="6" value="6" unmaskedvalue="fe06"/>
+      <field name="lldp.orgtlv.oui" showname="Organization Unique Code: 00:12:0f (IEEE 802.3 Working Group)" size="3" pos="36" show="4623" value="00120f"/>
+      <field name="lldp.ieee.802_3.subtype" showname="IEEE 802.3 Subtype: Link Aggregation (0x03)" size="1" pos="39" show="0x03" value="03">
+        <field name="_ws.expert" showname="Expert Info (Warning/Protocol): TLV has been deprecated" size="0" pos="39">
+          <field name="lldp.tlv_deprecated" showname="TLV has been deprecated" size="0" pos="0" show="" value=""/>
+          <field name="_ws.expert.message" showname="Message: TLV has been deprecated" hide="yes" size="0" pos="0" show="TLV has been deprecated"/>
+          <field name="_ws.expert.severity" showname="Severity level: Warning" size="0" pos="0" show="6291456"/>
+          <field name="_ws.expert.group" showname="Group: Protocol" size="0" pos="0" show="150994944"/>
+        </field>
+      </field>
+      <field name="lldp.ieee.802_3.aggregation_status" showname="Aggregation Status: 0x03" size="1" pos="40" show="0x03" value="03">
+        <field name="lldp.ieee.802_3.aggregation_status.cap" showname=".... ...1 = Aggregation Capability: Yes" size="1" pos="40" show="True" value="1" unmaskedvalue="03"/>
+        <field name="lldp.ieee.802_3.aggregation_status.enabled" showname=".... ..1. = Aggregation Status: Enabled" size="1" pos="40" show="True" value="1" unmaskedvalue="03"/>
+      </field>
+    </field>
+  </proto>
+  <proto name="_ws.malformed" showname="[Malformed Packet: LLDP]" size="0" pos="14">
+    <field name="filtered" value="_ws.malformed" />
+  </proto>
+</packet>
+
+
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="43">
+    <field name="num" pos="0" show="4" showname="Number" value="4" size="43"/>
+    <field name="len" pos="0" show="43" showname="Frame Length" value="2b" size="43"/>
+    <field name="caplen" pos="0" show="43" showname="Captured Length" value="2b" size="43"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:20.123459000 UTC" showname="Captured Time" value="1700000000.123459000" size="43"/>
+  </proto>
+  <proto name="frame" showname="Frame 4: Packet, 43 bytes on wire (344 bits), 43 bytes captured (344 bits)" size="43" pos="0">
+    <field name="filtered" value="frame" />
+  </proto>
+  <proto name="eth" showname="Ethernet II, Src: 02:00:00:00:00:01, Dst: 01:80:c2:00:00:0e" size="14" pos="0">
+    <field name="filtered" value="eth" />
+  </proto>
+  <proto name="lldp" showname="Link Layer Discovery Protocol" size="29" pos="14">
+    <field name="" show="Chassis Subtype = MAC address, Id: 00:11:22:33:44:55" size="9" pos="14" value="020704001122334455">
+      <field name="lldp.tlv.type" showname="0000 001. .... .... = TLV Type: Chassis Id (1)" size="2" pos="14" show="1" value="1" unmaskedvalue="0207"/>
+      <field name="lldp.tlv.len" showname=".... ...0 0000 0111 = TLV Length: 7" size="2" pos="14" show="7" value="7" unmaskedvalue="0207"/>
+      <field name="lldp.chassis.subtype" showname="Chassis Id Subtype: MAC address (4)" size="1" pos="16" show="4" value="04"/>
+      <field name="lldp.chassis.id.mac" showname="Chassis Id: 00:11:22:33:44:55" size="6" pos="17" show="00:11:22:33:44:55" value="001122334455"/>
+    </field>
+    <field name="" show="Port Subtype = Interface name, Id: eth0" size="7" pos="23" value="04050565746830">
+      <field name="lldp.tlv.type" showname="0000 010. .... .... = TLV Type: Port Id (2)" size="2" pos="23" show="2" value="2" unmaskedvalue="0405"/>
+      <field name="lldp.tlv.len" showname=".... ...0 0000 0101 = TLV Length: 5" size="2" pos="23" show="5" value="5" unmaskedvalue="0405"/>
+      <field name="lldp.port.subtype" showname="Port Id Subtype: Interface name (5)" size="1" pos="25" show="5" value="05"/>
+      <field name="lldp.port.id" showname="Port Id: eth0" size="4" pos="26" show="eth0" value="65746830"/>
+    </field>
+    <field name="" show="Time To Live = 120 sec" size="4" pos="30" value="06020078">
+      <field name="lldp.pdu_type" showname="Normal LLDPDU" size="4" pos="30" show="" value=""/>
+      <field name="lldp.tlv.type" showname="0000 011. .... .... = TLV Type: Time to Live (3)" size="2" pos="30" show="3" value="3" unmaskedvalue="0602"/>
+      <field name="lldp.tlv.len" showname=".... ...0 0000 0010 = TLV Length: 2" size="2" pos="30" show="2" value="2" unmaskedvalue="0602"/>
+      <field name="lldp.time_to_live" showname="Seconds: 120" size="2" pos="32" show="120" value="0078"/>
+    </field>
+    <field name="" show="IEEE 802.3 Working Group - Maximum Frame Size" size="7" pos="34" value="fe0500120f0405">
+      <field name="lldp.tlv.type" showname="1111 111. .... .... = TLV Type: Organization Specific (127)" size="2" pos="34" show="127" value="7F" unmaskedvalue="fe05"/>
+      <field name="lldp.tlv.len" showname=".... ...0 0000 0101 = TLV Length: 5" size="2" pos="34" show="5" value="5" unmaskedvalue="fe05"/>
+      <field name="lldp.orgtlv.oui" showname="Organization Unique Code: 00:12:0f (IEEE 802.3 Working Group)" size="3" pos="36" show="4623" value="00120f"/>
+      <field name="lldp.ieee.802_3.subtype" showname="IEEE 802.3 Subtype: Maximum Frame Size (0x04)" size="1" pos="39" show="0x04" value="04"/>
+    </field>
+  </proto>
+  <proto name="_ws.malformed" showname="[Malformed Packet: LLDP]" size="0" pos="14">
+    <field name="filtered" value="_ws.malformed" />
+  </proto>
+</packet>
+
+
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="70">
+    <field name="num" pos="0" show="5" showname="Number" value="5" size="70"/>
+    <field name="len" pos="0" show="70" showname="Frame Length" value="46" size="70"/>
+    <field name="caplen" pos="0" show="70" showname="Captured Length" value="46" size="70"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:20.123460000 UTC" showname="Captured Time" value="1700000000.123460000" size="70"/>
+  </proto>
+  <proto name="frame" showname="Frame 5: Packet, 70 bytes on wire (560 bits), 70 bytes captured (560 bits)" size="70" pos="0">
+    <field name="filtered" value="frame" />
+  </proto>
+  <proto name="eth" showname="Ethernet II, Src: 02:00:00:00:00:01, Dst: 01:80:c2:00:00:0e" size="14" pos="0">
+    <field name="filtered" value="eth" />
+  </proto>
+  <proto name="lldp" showname="Link Layer Discovery Protocol" size="56" pos="14">
+    <field name="" show="Chassis Subtype = MAC address, Id: 00:11:22:33:44:55" size="9" pos="14" value="020704001122334455">
+      <field name="lldp.tlv.type" showname="0000 001. .... .... = TLV Type: Chassis Id (1)" size="2" pos="14" show="1" value="1" unmaskedvalue="0207"/>
+      <field name="lldp.tlv.len" showname=".... ...0 0000 0111 = TLV Length: 7" size="2" pos="14" show="7" value="7" unmaskedvalue="0207"/>
+      <field name="lldp.chassis.subtype" showname="Chassis Id Subtype: MAC address (4)" size="1" pos="16" show="4" value="04"/>
+      <field name="lldp.chassis.id.mac" showname="Chassis Id: 00:11:22:33:44:55" size="6" pos="17" show="00:11:22:33:44:55" value="001122334455"/>
+    </field>
+    <field name="" show="Port Subtype = Interface name, Id: eth0" size="7" pos="23" value="04050565746830">
+      <field name="lldp.tlv.type" showname="0000 010. .... .... = TLV Type: Port Id (2)" size="2" pos="23" show="2" value="2" unmaskedvalue="0405"/>
+      <field name="lldp.tlv.len" showname=".... ...0 0000 0101 = TLV Length: 5" size="2" pos="23" show="5" value="5" unmaskedvalue="0405"/>
+      <field name="lldp.port.subtype" showname="Port Id Subtype: Interface name (5)" size="1" pos="25" show="5" value="05"/>
+      <field name="lldp.port.id" showname="Port Id: eth0" size="4" pos="26" show="eth0" value="65746830"/>
+    </field>
+    <field name="" show="Time To Live = 120 sec" size="4" pos="30" value="06020078">
+      <field name="lldp.pdu_type" showname="Normal LLDPDU" size="4" pos="30" show="" value=""/>
+      <field name="lldp.tlv.type" showname="0000 011. .... .... = TLV Type: Time to Live (3)" size="2" pos="30" show="3" value="3" unmaskedvalue="0602"/>
+      <field name="lldp.tlv.len" showname=".... ...0 0000 0010 = TLV Length: 2" size="2" pos="30" show="2" value="2" unmaskedvalue="0602"/>
+      <field name="lldp.time_to_live" showname="Seconds: 120" size="2" pos="32" show="120" value="0078"/>
+    </field>
+    <field name="" show="IEEE 802.3 Working Group - MAC/PHY Configuration/Status" size="13" pos="34" value="fe0b00120f0103800100100001">
+      <field name="lldp.tlv.type" showname="1111 111. .... .... = TLV Type: Organization Specific (127)" size="2" pos="34" show="127" value="7F" unmaskedvalue="fe0b"/>
+      <field name="lldp.tlv.len" showname=".... ...0 0000 1011 = TLV Length: 11" size="2" pos="34" show="11" value="B" unmaskedvalue="fe0b"/>
+      <field name="lldp.orgtlv.oui" showname="Organization Unique Code: 00:12:0f (IEEE 802.3 Working Group)" size="3" pos="36" show="4623" value="00120f"/>
+      <field name="lldp.ieee.802_3.subtype" showname="IEEE 802.3 Subtype: MAC/PHY Configuration/Status (0x01)" size="1" pos="39" show="0x01" value="01"/>
+      <field name="lldp.ieee.802_3.mac_phy_auto_neg_status" showname="Auto-Negotiation Support/Status: 0x03" size="1" pos="40" show="0x03" value="03">
+        <field name="lldp.ieee.802_3.mac_phy_auto_neg_status.supported" showname=".... ...1 = Auto-Negotiation: Supported" size="1" pos="40" show="True" value="1" unmaskedvalue="03"/>
+        <field name="lldp.ieee.802_3.mac_phy_auto_neg_status.enabled" showname=".... ..1. = Auto-Negotiation: Enabled" size="1" pos="40" show="True" value="1" unmaskedvalue="03"/>
+      </field>
+      <field name="lldp.ieee.802_3.pmd_auto_neg_advertised_caps" showname="PMD Auto-Negotiation Advertised Capability: 0x8001" size="2" pos="41" show="0x8001" value="8001">
+        <field name="lldp.ieee.802_3.pmd_auto_neg_advertised_caps.1000base_tfd" showname=".... .... .... ...1 = 1000BASE-T (full duplex mode): Capable" size="2" pos="41" show="True" value="1" unmaskedvalue="8001"/>
+        <field name="lldp.ieee.802_3.pmd_auto_neg_advertised_caps.1000base_t" showname=".... .... .... ..0. = 1000BASE-T (half duplex mode): Not capable" size="2" pos="41" show="False" value="0" unmaskedvalue="8001"/>
+        <field name="lldp.ieee.802_3.pmd_auto_neg_advertised_caps.1000base_xfd" showname=".... .... .... .0.. = 1000BASE-X (-LX, -SX, -CX full duplex mode): Not capable" size="2" pos="41" show="False" value="0" unmaskedvalue="8001"/>
+        <field name="lldp.ieee.802_3.pmd_auto_neg_advertised_caps.1000base_x" showname=".... .... .... 0... = 1000BASE-X (-LX, -SX, -CX half duplex mode): Not capable" size="2" pos="41" show="False" value="0" unmaskedvalue="8001"/>
+        <field name="lldp.ieee.802_3.pmd_auto_neg_advertised_caps.fdx_bpause" showname=".... .... ...0 .... = Asymmetric and Symmetric PAUSE (for full-duplex links): Not capable" size="2" pos="41" show="False" value="0" unmaskedvalue="8001"/>
+        <field name="lldp.ieee.802_3.pmd_auto_neg_advertised_caps.fdx_spause" showname=".... .... ..0. .... = Symmetric PAUSE (for full-duplex links): Not capable" size="2" pos="41" show="False" value="0" unmaskedvalue="8001"/>
+        <field name="lldp.ieee.802_3.pmd_auto_neg_advertised_caps.fdx_apause" showname=".... .... .0.. .... = Asymmetric PAUSE (for full-duplex links): Not capable" size="2" pos="41" show="False" value="0" unmaskedvalue="8001"/>
+        <field name="lldp.ieee.802_3.pmd_auto_neg_advertised_caps.fdx_pause" showname=".... .... 0... .... = PAUSE (for full-duplex links): Not capable" size="2" pos="41" show="False" value="0" unmaskedvalue="8001"/>
+        <field name="lldp.ieee.802_3.pmd_auto_neg_advertised_caps.100base_t2fd" showname=".... ...0 .... .... = 100BASE-T2 (full duplex mode): Not capable" size="2" pos="41" show="False" value="0" unmaskedvalue="8001"/>
+        <field name="lldp.ieee.802_3.pmd_auto_neg_advertised_caps.100base_t2" showname=".... ..0. .... .... = 100BASE-T2 (half duplex mode): Not capable" size="2" pos="41" show="False" value="0" unmaskedvalue="8001"/>
+        <field name="lldp.ieee.802_3.pmd_auto_neg_advertised_caps.100base_txfd" showname=".... .0.. .... .... = 100BASE-TX (full duplex mode): Not capable" size="2" pos="41" show="False" value="0" unmaskedvalue="8001"/>
+        <field name="lldp.ieee.802_3.pmd_auto_neg_advertised_caps.100base_tx" showname=".... 0... .... .... = 100BASE-TX (half duplex mode): Not capable" size="2" pos="41" show="False" value="0" unmaskedvalue="8001"/>
+        <field name="lldp.ieee.802_3.pmd_auto_neg_advertised_caps.100base_t4" showname="...0 .... .... .... = 100BASE-T4: Not capable" size="2" pos="41" show="False" value="0" unmaskedvalue="8001"/>
+        <field name="lldp.ieee.802_3.pmd_auto_neg_advertised_caps.10base_tfd" showname="..0. .... .... .... = 10BASE-T (full duplex mode): Not capable" size="2" pos="41" show="False" value="0" unmaskedvalue="8001"/>
+        <field name="lldp.ieee.802_3.pmd_auto_neg_advertised_caps.10base_t" showname=".0.. .... .... .... = 10BASE-T (half duplex mode): Not capable" size="2" pos="41" show="False" value="0" unmaskedvalue="8001"/>
+        <field name="lldp.ieee.802_3.pmd_auto_neg_advertised_caps.other" showname="1... .... .... .... = Other or unknown: Capable" size="2" pos="41" show="True" value="1" unmaskedvalue="8001"/>
+      </field>
+      <field name="" show="Same in inverse (wrong) bitorder" size="2" pos="41" value="8001">
+        <field name="lldp.ieee.802_3.pmd_auto_neg_advertised_caps_inv.1000base_tfd" showname="1... .... .... .... = 1000BASE-T (full duplex mode): Capable" size="2" pos="41" show="True" value="1" unmaskedvalue="8001"/>
+        <field name="lldp.ieee.802_3.pmd_auto_neg_advertised_caps_inv.1000base_t" showname=".0.. .... .... .... = 1000BASE-T (half duplex mode): Not capable" size="2" pos="41" show="False" value="0" unmaskedvalue="8001"/>
+        <field name="lldp.ieee.802_3.pmd_auto_neg_advertised_caps_inv.1000base_xfd" showname="..0. .... .... .... = 1000BASE-X (-LX, -SX, -CX full duplex mode): Not capable" size="2" pos="41" show="False" value="0" unmaskedvalue="8001"/>
+        <field name="lldp.ieee.802_3.pmd_auto_neg_advertised_caps_inv.1000base_x" showname="...0 .... .... .... = 1000BASE-X (-LX, -SX, -CX half duplex mode): Not capable" size="2" pos="41" show="False" value="0" unmaskedvalue="8001"/>
+        <field name="lldp.ieee.802_3.pmd_auto_neg_advertised_caps_inv.fdx_bpause" showname=".... 0... .... .... = Asymmetric and Symmetric PAUSE (for full-duplex links): Not capable" size="2" pos="41" show="False" value="0" unmaskedvalue="8001"/>
+        <field name="lldp.ieee.802_3.pmd_auto_neg_advertised_caps_inv.fdx_spause" showname=".... .0.. .... .... = Symmetric PAUSE (for full-duplex links): Not capable" size="2" pos="41" show="False" value="0" unmaskedvalue="8001"/>
+        <field name="lldp.ieee.802_3.pmd_auto_neg_advertised_caps_inv.fdx_apause" showname=".... ..0. .... .... = Asymmetric PAUSE (for full-duplex links): Not capable" size="2" pos="41" show="False" value="0" unmaskedvalue="8001"/>
+        <field name="lldp.ieee.802_3.pmd_auto_neg_advertised_caps_inv.fdx_pause" showname=".... ...0 .... .... = PAUSE (for full-duplex links): Not capable" size="2" pos="41" show="False" value="0" unmaskedvalue="8001"/>
+        <field name="lldp.ieee.802_3.pmd_auto_neg_advertised_caps_inv.100base_t2fd" showname=".... .... 0... .... = 100BASE-T2 (full duplex mode): Not capable" size="2" pos="41" show="False" value="0" unmaskedvalue="8001"/>
+        <field name="lldp.ieee.802_3.pmd_auto_neg_advertised_caps_inv.100base_t2" showname=".... .... .0.. .... = 100BASE-T2 (half duplex mode): Not capable" size="2" pos="41" show="False" value="0" unmaskedvalue="8001"/>
+        <field name="lldp.ieee.802_3.pmd_auto_neg_advertised_caps_inv.100base_txfd" showname=".... .... ..0. .... = 100BASE-TX (full duplex mode): Not capable" size="2" pos="41" show="False" value="0" unmaskedvalue="8001"/>
+        <field name="lldp.ieee.802_3.pmd_auto_neg_advertised_caps_inv.100base_tx" showname=".... .... ...0 .... = 100BASE-TX (half duplex mode): Not capable" size="2" pos="41" show="False" value="0" unmaskedvalue="8001"/>
+        <field name="lldp.ieee.802_3.pmd_auto_neg_advertised_caps_inv.100base_t4" showname=".... .... .... 0... = 100BASE-T4: Not capable" size="2" pos="41" show="False" value="0" unmaskedvalue="8001"/>
+        <field name="lldp.ieee.802_3.pmd_auto_neg_advertised_caps_inv.10base_tfd" showname=".... .... .... .0.. = 10BASE-T (full duplex mode): Not capable" size="2" pos="41" show="False" value="0" unmaskedvalue="8001"/>
+        <field name="lldp.ieee.802_3.pmd_auto_neg_advertised_caps_inv.10base_t" showname=".... .... .... ..0. = 10BASE-T (half duplex mode): Not capable" size="2" pos="41" show="False" value="0" unmaskedvalue="8001"/>
+        <field name="lldp.ieee.802_3.pmd_auto_neg_advertised_caps_inv.other" showname=".... .... .... ...1 = Other or unknown: Capable" size="2" pos="41" show="True" value="1" unmaskedvalue="8001"/>
+      </field>
+      <field name="lldp.ieee.802_3.pmd_mau_type" showname="Operational MAU Type: 100BaseTXFD - 2 pair category 5 UTP, full duplex mode (0x0010)" size="2" pos="43" show="0x0010" value="0010"/>
+      <field name="" show="Invalid length, greater than expected" size="2" pos="45" value="0001">
+        <field name="_ws.expert" showname="Expert Info (Warning/Malformed): Invalid length, greater than expected" size="0" pos="45">
+          <field name="lldp.excess_length" showname="Invalid length, greater than expected" size="0" pos="0" show="" value=""/>
+          <field name="_ws.expert.message" showname="Message: Invalid length, greater than expected" hide="yes" size="0" pos="0" show="Invalid length, greater than expected"/>
+          <field name="_ws.expert.severity" showname="Severity level: Warning" size="0" pos="0" show="6291456"/>
+          <field name="_ws.expert.group" showname="Group: Malformed" size="0" pos="0" show="117440512"/>
+        </field>
+        <proto name="_ws.malformed" showname="Malformed Packet" hide="yes" size="0" pos="45"/>
+      </field>
+    </field>
+    <field name="" show="IEEE 802.3 Working Group - Link Aggregation" size="12" pos="47" value="fe0a00120f03030000000700">
+      <field name="lldp.tlv.type" showname="1111 111. .... .... = TLV Type: Organization Specific (127)" size="2" pos="47" show="127" value="7F" unmaskedvalue="fe0a"/>
+      <field name="lldp.tlv.len" showname=".... ...0 0000 1010 = TLV Length: 10" size="2" pos="47" show="10" value="A" unmaskedvalue="fe0a"/>
+      <field name="lldp.orgtlv.oui" showname="Organization Unique Code: 00:12:0f (IEEE 802.3 Working Group)" size="3" pos="49" show="4623" value="00120f"/>
+      <field name="lldp.ieee.802_3.subtype" showname="IEEE 802.3 Subtype: Link Aggregation (0x03)" size="1" pos="52" show="0x03" value="03">
+        <field name="_ws.expert" showname="Expert Info (Warning/Protocol): TLV has been deprecated" size="0" pos="52">
+          <field name="lldp.tlv_deprecated" showname="TLV has been deprecated" size="0" pos="0" show="" value=""/>
+          <field name="_ws.expert.message" showname="Message: TLV has been deprecated" hide="yes" size="0" pos="0" show="TLV has been deprecated"/>
+          <field name="_ws.expert.severity" showname="Severity level: Warning" size="0" pos="0" show="6291456"/>
+          <field name="_ws.expert.group" showname="Group: Protocol" size="0" pos="0" show="150994944"/>
+        </field>
+      </field>
+      <field name="lldp.ieee.802_3.aggregation_status" showname="Aggregation Status: 0x03" size="1" pos="53" show="0x03" value="03">
+        <field name="lldp.ieee.802_3.aggregation_status.cap" showname=".... ...1 = Aggregation Capability: Yes" size="1" pos="53" show="True" value="1" unmaskedvalue="03"/>
+        <field name="lldp.ieee.802_3.aggregation_status.enabled" showname=".... ..1. = Aggregation Status: Enabled" size="1" pos="53" show="True" value="1" unmaskedvalue="03"/>
+      </field>
+      <field name="lldp.ieee.802_3.aggregated_port_id" showname="Aggregated Port Id: 7" size="4" pos="54" show="7" value="00000007"/>
+      <field name="" show="Invalid length, greater than expected" size="1" pos="58" value="00">
+        <field name="_ws.expert" showname="Expert Info (Warning/Malformed): Invalid length, greater than expected" size="0" pos="58">
+          <field name="lldp.excess_length" showname="Invalid length, greater than expected" size="0" pos="0" show="" value=""/>
+          <field name="_ws.expert.message" showname="Message: Invalid length, greater than expected" hide="yes" size="0" pos="0" show="Invalid length, greater than expected"/>
+          <field name="_ws.expert.severity" showname="Severity level: Warning" size="0" pos="0" show="6291456"/>
+          <field name="_ws.expert.group" showname="Group: Malformed" size="0" pos="0" show="117440512"/>
+        </field>
+        <proto name="_ws.malformed" showname="Malformed Packet" hide="yes" size="0" pos="58"/>
+      </field>
+    </field>
+    <field name="" show="IEEE 802.3 Working Group - Maximum Frame Size" size="9" pos="59" value="fe0700120f0405ee00">
+      <field name="lldp.tlv.type" showname="1111 111. .... .... = TLV Type: Organization Specific (127)" size="2" pos="59" show="127" value="7F" unmaskedvalue="fe07"/>
+      <field name="lldp.tlv.len" showname=".... ...0 0000 0111 = TLV Length: 7" size="2" pos="59" show="7" value="7" unmaskedvalue="fe07"/>
+      <field name="lldp.orgtlv.oui" showname="Organization Unique Code: 00:12:0f (IEEE 802.3 Working Group)" size="3" pos="61" show="4623" value="00120f"/>
+      <field name="lldp.ieee.802_3.subtype" showname="IEEE 802.3 Subtype: Maximum Frame Size (0x04)" size="1" pos="64" show="0x04" value="04"/>
+      <field name="lldp.ieee.802_3.max_frame_size" showname="Maximum Frame Size: 1518" size="2" pos="65" show="1518" value="05ee"/>
+      <field name="" show="Invalid length, greater than expected" size="1" pos="67" value="00">
+        <field name="_ws.expert" showname="Expert Info (Warning/Malformed): Invalid length, greater than expected" size="0" pos="67">
+          <field name="lldp.excess_length" showname="Invalid length, greater than expected" size="0" pos="0" show="" value=""/>
+          <field name="_ws.expert.message" showname="Message: Invalid length, greater than expected" hide="yes" size="0" pos="0" show="Invalid length, greater than expected"/>
+          <field name="_ws.expert.severity" showname="Severity level: Warning" size="0" pos="0" show="6291456"/>
+          <field name="_ws.expert.group" showname="Group: Malformed" size="0" pos="0" show="117440512"/>
+        </field>
+        <proto name="_ws.malformed" showname="Malformed Packet" hide="yes" size="0" pos="67"/>
+      </field>
+    </field>
+    <field name="" show="End of LLDPDU" size="2" pos="68" value="0000">
+      <field name="lldp.tlv.type" showname="0000 000. .... .... = TLV Type: End of LLDPDU (0)" size="2" pos="68" show="0" value="0" unmaskedvalue="0000"/>
+      <field name="lldp.tlv.len" showname=".... ...0 0000 0000 = TLV Length: 0" size="2" pos="68" show="0" value="0" unmaskedvalue="0000"/>
+    </field>
+  </proto>
+</packet>
+
+
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="40">
+    <field name="num" pos="0" show="6" showname="Number" value="6" size="40"/>
+    <field name="len" pos="0" show="40" showname="Frame Length" value="28" size="40"/>
+    <field name="caplen" pos="0" show="40" showname="Captured Length" value="28" size="40"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:20.123461000 UTC" showname="Captured Time" value="1700000000.123461000" size="40"/>
+  </proto>
+  <proto name="frame" showname="Frame 6: Packet, 40 bytes on wire (320 bits), 40 bytes captured (320 bits)" size="40" pos="0">
+    <field name="filtered" value="frame" />
+  </proto>
+  <proto name="eth" showname="Ethernet II, Src: 02:00:00:00:00:01, Dst: 01:80:c2:00:00:0e" size="14" pos="0">
+    <field name="filtered" value="eth" />
+  </proto>
+  <proto name="lldp" showname="Link Layer Discovery Protocol" size="26" pos="14">
+    <field name="" show="Chassis Subtype = MAC address, Id: 00:11:22:33:44:55" size="9" pos="14" value="020704001122334455">
+      <field name="lldp.tlv.type" showname="0000 001. .... .... = TLV Type: Chassis Id (1)" size="2" pos="14" show="1" value="1" unmaskedvalue="0207"/>
+      <field name="lldp.tlv.len" showname=".... ...0 0000 0111 = TLV Length: 7" size="2" pos="14" show="7" value="7" unmaskedvalue="0207"/>
+      <field name="lldp.chassis.subtype" showname="Chassis Id Subtype: MAC address (4)" size="1" pos="16" show="4" value="04"/>
+      <field name="lldp.chassis.id.mac" showname="Chassis Id: 00:11:22:33:44:55" size="6" pos="17" show="00:11:22:33:44:55" value="001122334455"/>
+    </field>
+    <field name="" show="Port Subtype = Interface name, Id: eth0" size="7" pos="23" value="04050565746830">
+      <field name="lldp.tlv.type" showname="0000 010. .... .... = TLV Type: Port Id (2)" size="2" pos="23" show="2" value="2" unmaskedvalue="0405"/>
+      <field name="lldp.tlv.len" showname=".... ...0 0000 0101 = TLV Length: 5" size="2" pos="23" show="5" value="5" unmaskedvalue="0405"/>
+      <field name="lldp.port.subtype" showname="Port Id Subtype: Interface name (5)" size="1" pos="25" show="5" value="05"/>
+      <field name="lldp.port.id" showname="Port Id: eth0" size="4" pos="26" show="eth0" value="65746830"/>
+    </field>
+    <field name="" show="Time To Live = 120 sec" size="4" pos="30" value="06020078">
+      <field name="lldp.pdu_type" showname="Normal LLDPDU" size="4" pos="30" show="" value=""/>
+      <field name="lldp.tlv.type" showname="0000 011. .... .... = TLV Type: Time to Live (3)" size="2" pos="30" show="3" value="3" unmaskedvalue="0602"/>
+      <field name="lldp.tlv.len" showname=".... ...0 0000 0010 = TLV Length: 2" size="2" pos="30" show="2" value="2" unmaskedvalue="0602"/>
+      <field name="lldp.time_to_live" showname="Seconds: 120" size="2" pos="32" show="120" value="0078"/>
+    </field>
+  </proto>
+  <proto name="_ws.malformed" showname="[Malformed Packet: LLDP]" size="0" pos="14">
+    <field name="filtered" value="_ws.malformed" />
+  </proto>
+</packet>
+
+
+</pdml>

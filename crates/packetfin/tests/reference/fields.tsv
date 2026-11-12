@@ -408,9 +408,19 @@ F	Option 82 Suboption	dhcp.option.agent_information_option.suboption	FT_UINT8	dh
 F	Value	dhcp.option.agent_information_option.value	FT_BYTES	dhcp		0x0	Option 82: Suboption value
 F	Agent Circuit ID	dhcp.option.agent_information_option.agent_circuit_id	FT_BYTES	dhcp		0x0	Option 82:1 Agent Circuit ID
 F	Agent Remote ID	dhcp.option.agent_information_option.agent_remote_id	FT_BYTES	dhcp		0x0	Option 82:2 Agent Remote ID
+F	Reserved	dhcp.option.agent_information_option.reserved	FT_BYTES	dhcp		0x0	Option 82:3 Reserved
 F	DOCSIS Device Class	dhcp.option.agent_information_option.docsis_device_class	FT_UINT32	dhcp	BASE_HEX	0x0	Option 82:4 DOCSIS Device Class
 F	Link selection	dhcp.option.agent_information_option.link_selection	FT_IPv4	dhcp		0x0	Option 82:5 Link selection
 F	Subscriber ID	dhcp.option.agent_information_option.subscriber_id	FT_STRINGZ	dhcp		0x0	Option 82:6 Subscriber ID
+F	RADIUS Attributes	dhcp.option.agent_information_option.radius_attributes	FT_BYTES	dhcp		0x0	Option 82:7 RADIUS Attributes
+F	Authentication	dhcp.option.agent_information_option.authentication	FT_BYTES	dhcp		0x0	Option 82:8 Authentication
+F	Vendor-Specific Information	dhcp.option.agent_information_option.vi	FT_BYTES	dhcp		0x0	Option 82:9 Vendor-Specific Information
+F	Enterprise	dhcp.option.agent_information_option.vi.enterprise	FT_UINT32	dhcp	BASE_CUSTOM	0x0	Option 82:9 VI Enterprise
+F	Data Length	dhcp.option.agent_information_option.vi.data_length	FT_UINT8	dhcp	BASE_DEC	0x0	Option 82:9 VI Data Length
+F	Flags	dhcp.option.agent_information_option.flags	FT_UINT8	dhcp	BASE_HEX	0x0	Option 82:10 Flags
+F	Server ID Override	dhcp.option.agent_information_option.server_id_override	FT_IPv4	dhcp		0x0	Option 82:11 Server ID Override
+F	Relay Agent Identifier	dhcp.option.agent_information_option.relay_agent_id	FT_BYTES	dhcp		0x0	Option 82:12 Relay Agent Identifier
+F	Access Technology Type	dhcp.option.agent_information_option.ani_att	FT_UINT8	dhcp	BASE_DEC	0x0	Option 82:13 Access Technology Type
 F	Option End	dhcp.option.end	FT_UINT8	dhcp	BASE_DEC	0x0	Option 255: End
 F	length isn't 0	dhcp.bad_length	FT_NONE	dhcp		0x0	
 F	no room left in option for suboption value	dhcp.missing_subopt_value	FT_NONE	dhcp		0x0	
@@ -951,6 +961,38 @@ F	Auto-Negotiation Support/Status	lldp.ieee.802_3.mac_phy_auto_neg_status	FT_UIN
 F	Auto-Negotiation	lldp.ieee.802_3.mac_phy_auto_neg_status.supported	FT_BOOLEAN	lldp	8	0x1	
 F	Auto-Negotiation	lldp.ieee.802_3.mac_phy_auto_neg_status.enabled	FT_BOOLEAN	lldp	8	0x2	
 F	PMD Auto-Negotiation Advertised Capability	lldp.ieee.802_3.pmd_auto_neg_advertised_caps	FT_UINT16	lldp	BASE_HEX	0x0	
+F	1000BASE-T (full duplex mode)	lldp.ieee.802_3.pmd_auto_neg_advertised_caps.1000base_tfd	FT_BOOLEAN	lldp	16	0x1	
+F	1000BASE-T (half duplex mode)	lldp.ieee.802_3.pmd_auto_neg_advertised_caps.1000base_t	FT_BOOLEAN	lldp	16	0x2	
+F	1000BASE-X (-LX, -SX, -CX full duplex mode)	lldp.ieee.802_3.pmd_auto_neg_advertised_caps.1000base_xfd	FT_BOOLEAN	lldp	16	0x4	
+F	1000BASE-X (-LX, -SX, -CX half duplex mode)	lldp.ieee.802_3.pmd_auto_neg_advertised_caps.1000base_x	FT_BOOLEAN	lldp	16	0x8	
+F	Asymmetric and Symmetric PAUSE (for full-duplex links)	lldp.ieee.802_3.pmd_auto_neg_advertised_caps.fdx_bpause	FT_BOOLEAN	lldp	16	0x10	
+F	Symmetric PAUSE (for full-duplex links)	lldp.ieee.802_3.pmd_auto_neg_advertised_caps.fdx_spause	FT_BOOLEAN	lldp	16	0x20	
+F	Asymmetric PAUSE (for full-duplex links)	lldp.ieee.802_3.pmd_auto_neg_advertised_caps.fdx_apause	FT_BOOLEAN	lldp	16	0x40	
+F	PAUSE (for full-duplex links)	lldp.ieee.802_3.pmd_auto_neg_advertised_caps.fdx_pause	FT_BOOLEAN	lldp	16	0x80	
+F	100BASE-T2 (full duplex mode)	lldp.ieee.802_3.pmd_auto_neg_advertised_caps.100base_t2fd	FT_BOOLEAN	lldp	16	0x100	
+F	100BASE-T2 (half duplex mode)	lldp.ieee.802_3.pmd_auto_neg_advertised_caps.100base_t2	FT_BOOLEAN	lldp	16	0x200	
+F	100BASE-TX (full duplex mode)	lldp.ieee.802_3.pmd_auto_neg_advertised_caps.100base_txfd	FT_BOOLEAN	lldp	16	0x400	
+F	100BASE-TX (half duplex mode)	lldp.ieee.802_3.pmd_auto_neg_advertised_caps.100base_tx	FT_BOOLEAN	lldp	16	0x800	
+F	100BASE-T4	lldp.ieee.802_3.pmd_auto_neg_advertised_caps.100base_t4	FT_BOOLEAN	lldp	16	0x1000	
+F	10BASE-T (full duplex mode)	lldp.ieee.802_3.pmd_auto_neg_advertised_caps.10base_tfd	FT_BOOLEAN	lldp	16	0x2000	
+F	10BASE-T (half duplex mode)	lldp.ieee.802_3.pmd_auto_neg_advertised_caps.10base_t	FT_BOOLEAN	lldp	16	0x4000	
+F	Other or unknown	lldp.ieee.802_3.pmd_auto_neg_advertised_caps.other	FT_BOOLEAN	lldp	16	0x8000	
+F	1000BASE-T (full duplex mode)	lldp.ieee.802_3.pmd_auto_neg_advertised_caps_inv.1000base_tfd	FT_BOOLEAN	lldp	16	0x8000	
+F	1000BASE-T (half duplex mode)	lldp.ieee.802_3.pmd_auto_neg_advertised_caps_inv.1000base_t	FT_BOOLEAN	lldp	16	0x4000	
+F	1000BASE-X (-LX, -SX, -CX full duplex mode)	lldp.ieee.802_3.pmd_auto_neg_advertised_caps_inv.1000base_xfd	FT_BOOLEAN	lldp	16	0x2000	
+F	1000BASE-X (-LX, -SX, -CX half duplex mode)	lldp.ieee.802_3.pmd_auto_neg_advertised_caps_inv.1000base_x	FT_BOOLEAN	lldp	16	0x1000	
+F	Asymmetric and Symmetric PAUSE (for full-duplex links)	lldp.ieee.802_3.pmd_auto_neg_advertised_caps_inv.fdx_bpause	FT_BOOLEAN	lldp	16	0x800	
+F	Symmetric PAUSE (for full-duplex links)	lldp.ieee.802_3.pmd_auto_neg_advertised_caps_inv.fdx_spause	FT_BOOLEAN	lldp	16	0x400	
+F	Asymmetric PAUSE (for full-duplex links)	lldp.ieee.802_3.pmd_auto_neg_advertised_caps_inv.fdx_apause	FT_BOOLEAN	lldp	16	0x200	
+F	PAUSE (for full-duplex links)	lldp.ieee.802_3.pmd_auto_neg_advertised_caps_inv.fdx_pause	FT_BOOLEAN	lldp	16	0x100	
+F	100BASE-T2 (full duplex mode)	lldp.ieee.802_3.pmd_auto_neg_advertised_caps_inv.100base_t2fd	FT_BOOLEAN	lldp	16	0x80	
+F	100BASE-T2 (half duplex mode)	lldp.ieee.802_3.pmd_auto_neg_advertised_caps_inv.100base_t2	FT_BOOLEAN	lldp	16	0x40	
+F	100BASE-TX (full duplex mode)	lldp.ieee.802_3.pmd_auto_neg_advertised_caps_inv.100base_txfd	FT_BOOLEAN	lldp	16	0x20	
+F	100BASE-TX (half duplex mode)	lldp.ieee.802_3.pmd_auto_neg_advertised_caps_inv.100base_tx	FT_BOOLEAN	lldp	16	0x10	
+F	100BASE-T4	lldp.ieee.802_3.pmd_auto_neg_advertised_caps_inv.100base_t4	FT_BOOLEAN	lldp	16	0x8	
+F	10BASE-T (full duplex mode)	lldp.ieee.802_3.pmd_auto_neg_advertised_caps_inv.10base_tfd	FT_BOOLEAN	lldp	16	0x4	
+F	10BASE-T (half duplex mode)	lldp.ieee.802_3.pmd_auto_neg_advertised_caps_inv.10base_t	FT_BOOLEAN	lldp	16	0x2	
+F	Other or unknown	lldp.ieee.802_3.pmd_auto_neg_advertised_caps_inv.other	FT_BOOLEAN	lldp	16	0x1	
 F	Operational MAU Type	lldp.ieee.802_3.pmd_mau_type	FT_UINT16	lldp	BASE_HEX	0x0	Unknown
 F	Aggregation Status	lldp.ieee.802_3.aggregation_status	FT_UINT8	lldp	BASE_HEX	0x0	
 F	Aggregation Capability	lldp.ieee.802_3.aggregation_status.cap	FT_BOOLEAN	lldp	8	0x1	

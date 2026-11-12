@@ -317,17 +317,19 @@ impl DetailWriter {
                 self.write_malformed_line(node);
             }
             // `-O` expansion never prints the expert block; only `-V` does.
+            // A protocol-level malformed marker always uses the same text:
+            // the decoder's internal reason stays out of the display. That
+            // reason is Packetfin's own wording rather than protocol output,
+            // so printing it would invent text the capture does not carry and
+            // would make the display of one capture depend on decoder
+            // internals that the next release may reword.
             if expanded && self.expand_all && (visible || scope.nested) {
-                let message = if expert.group == Group::Malformed
-                    && (expert.message.contains("truncated")
-                        || expert.message.contains("is empty")
-                        || expert.message.contains("shorter than"))
-                {
-                    "Malformed Packet (Exception occurred)"
-                } else {
-                    &expert.message
-                };
-                self.write_expert_message(expert.severity, expert.group, message, 1);
+                self.write_expert_message(
+                    expert.severity,
+                    expert.group,
+                    "Malformed Packet (Exception occurred)",
+                    1,
+                );
             }
         }
 
@@ -380,6 +382,11 @@ impl DetailWriter {
             return;
         }
         self.write_leaf(node, field, depth);
+        // A leaf can own a subtree, such as the DHCP option-82 vendor block
+        // nesting its data length under the enterprise number.
+        for child in &field.children {
+            self.write_field(node, child, depth + 1);
+        }
         for expert in &field.experts {
             self.write_expert(expert, depth + 1);
         }
@@ -391,11 +398,6 @@ impl DetailWriter {
         }
         if checksum_protocol(field.def.abbrev).is_some() {
             self.write_checksum(node, field, depth);
-            return;
-        }
-        if field.def.abbrev == "dhcpv6.status_msg"
-            && matches!(&field.value, Value::String(text) if text.is_empty())
-        {
             return;
         }
         let mut body = String::with_capacity(48);
@@ -1321,7 +1323,9 @@ pub(crate) fn special_showname(
             format!("{}: ({code}) {name}", field.def.name)
         }),
         "dhcp.option.agent_information_option.suboption" => field_value_u64(field).map(|code| {
-            let name = suboption_name(code);
+            let name = u8::try_from(code)
+                .map(packetfin_core::decode::dhcp_agent_suboption_name)
+                .unwrap_or("Unknown");
             format!("{}: ({code}) {name}", field.def.name)
         }),
         "dhcpv6.requested_option_code" => field_value_u64(field).map(|code| {
@@ -1346,19 +1350,6 @@ fn field_value_u64(field: &Field) -> Option<u64> {
         Value::Int32(value) => u64::try_from(*value).ok(),
         Value::Int64(value) => u64::try_from(*value).ok(),
         _ => None,
-    }
-}
-
-fn suboption_name(code: u64) -> &'static str {
-    match code {
-        0 => "Padding",
-        1 => "Agent Circuit ID",
-        2 => "Agent Remote ID",
-        3 => "Reserved",
-        4 => "DOCSIS Device Class",
-        5 => "Link selection",
-        6 => "Subscriber ID",
-        _ => "Unknown",
     }
 }
 
@@ -1387,10 +1378,12 @@ fn custom_value(field: &Field) -> Option<String> {
             Value::Uint32(raw) => Some(format!("{raw}ms")),
             _ => None,
         },
-        "dhcpv6.duiden.enterprise" | "dhcp.client_id.enterprise_num" => match field.value {
-            Value::Uint32(raw) => Some(match raw {
-                32473 => "Example Enterprise Number for Documentation Use (32473)".to_string(),
-                other => format!("Unknown ({other})"),
+        "dhcpv6.duiden.enterprise"
+        | "dhcp.client_id.enterprise_num"
+        | "dhcp.option.agent_information_option.vi.enterprise" => match field.value {
+            Value::Uint32(raw) => Some(match packetfin_core::decode::enterprise_name(raw) {
+                Some(name) => format!("{name} ({raw})"),
+                None => format!("Unknown ({raw})"),
             }),
             _ => None,
         },

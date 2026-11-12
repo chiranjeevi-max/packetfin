@@ -20,6 +20,7 @@ const BIN: &str = env!("CARGO_BIN_EXE_packetfin");
 /// protocol summaries exist.
 const FIELD_CASE_IDS: &[&str] = &[
     "frame-fields",
+    "lldp-8023-fields",
     "interface-fields",
     "eth-fields",
     "link-fields",

@@ -2679,8 +2679,8 @@ fn content_type_name(content_type: u8) -> &'static str {
 ///
 /// The short form names the protocol column and the record-layer prefix
 /// (`TLSv1.2 Record Layer`); the long form follows `Version: ` and
-/// `Supported Version: `, matching the reference's version value table
-/// (`TLS 1.2`, `SSL 3.0`).
+/// `Supported Version: `, matching the version labels the expected output
+/// prints (`TLS 1.2`, `SSL 3.0`).
 const fn version_names(version: u16) -> (&'static str, &'static str) {
     match version {
         0x0300 => ("SSLv3", "SSL 3.0"),

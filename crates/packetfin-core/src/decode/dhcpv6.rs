@@ -435,7 +435,7 @@ fn decode_option(
                 && let Some(message) = body.get(2..)
             {
                 // RFC 8415 §21.13 leaves the message a UTF-8 string; the
-                // display follows the reference: stop at the first NUL,
+                // display follows the expected output: stop at the first NUL,
                 // replace non-ASCII octets, and report any octet after the
                 // terminator as stray. None of this changes the option bound.
                 let (text, stray) = nul_terminated_text(message);

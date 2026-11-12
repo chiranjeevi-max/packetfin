@@ -457,8 +457,8 @@ pub(crate) fn decode(context: &mut DecodeContext<'_>, parent: &mut Node, data: &
     }
     if node.protocol_exception {
         // A malformed TLV ends the decode, but the protocol still spans every
-        // captured byte of the PDU; the reference reports the full extent
-        // rather than the bytes decoded before the failure.
+        // captured byte of the PDU; the expected output reports the full
+        // extent rather than the bytes decoded before the failure.
         node.range = Range::new(base, data.len());
     } else if consumed != 0 {
         node.range = Range::new(base, consumed);

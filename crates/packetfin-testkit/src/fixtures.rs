@@ -33077,10 +33077,10 @@ fn tls10_malformed_writers() -> [tls::Tls12Writer; 2] {
 }
 
 fn build_tls10_malformed() -> Result<Vec<u8>, String> {
-    // Two failures the reference also rejects: a pasted ciphertext octet and
-    // a record that skips its predecessor's sequence number. Each is in its
-    // own conversation so that the held sequence number of one cannot mask
-    // the cause in the other.
+    // Two failures the expected output also rejects: a pasted ciphertext
+    // octet and a record that skips its predecessor's sequence number. Each
+    // is in its own conversation so that the held sequence number of one
+    // cannot mask the cause in the other.
     let mut frames = Vec::new();
     let [mut bad_mac, mut wrong_sequence] = tls10_malformed_writers();
 
@@ -33122,13 +33122,6 @@ fn build_tls10_malformed_keys() -> Result<Vec<u8>, String> {
     Ok(keylog.into_bytes())
 }
 
-/// Two record-protection failures the reference does not reject.
-///
-/// The reference strips CBC padding without validating it and ignores a
-/// record version that differs from the negotiated one, so it decodes both
-/// responses. Packetfin follows RFC 2246 sections 6.2.1 and 6.2.3.2 and
-/// keeps them opaque, which is why this capture has no stored expected
-/// output: `tests/tls.rs` asserts the fail-closed result instead.
 /// The two independently keyed writers of the strict TLS 1.0 fixture.
 fn tls10_strict_writers() -> [tls::Tls12Writer; 2] {
     [
@@ -33151,6 +33144,13 @@ fn tls10_strict_writers() -> [tls::Tls12Writer; 2] {
     ]
 }
 
+/// Two record-protection failures the expected output does not reject.
+///
+/// It strips CBC padding without validating it and ignores a record version
+/// that differs from the negotiated one, so it decodes both responses.
+/// Packetfin follows RFC 2246 sections 6.2.1 and 6.2.3.2 and keeps them
+/// opaque, which is why this capture has no stored expected output:
+/// `tests/tls.rs` asserts the fail-closed result instead.
 fn build_tls10_strict() -> Result<Vec<u8>, String> {
     let mut frames = Vec::new();
     let [mut bad_padding, mut version_mismatch] = tls10_strict_writers();

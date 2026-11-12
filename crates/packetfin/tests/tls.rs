@@ -1120,7 +1120,7 @@ fn tls10_bad_mac_and_wrong_sequence_stop_the_direction() {
 
 #[test]
 fn tls10_bad_padding_and_version_mismatch_stay_opaque() {
-    // The reference decrypts both records; RFC 2246 sections 6.2.1 and
+    // The expected output decrypts both records; RFC 2246 sections 6.2.1 and
     // 6.2.3.2 reject them, so this capture has no stored expected output.
     let stdout = decrypted_fields(
         "tls10-strict.pcap",

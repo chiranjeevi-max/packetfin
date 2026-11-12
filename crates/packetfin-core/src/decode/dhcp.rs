@@ -867,7 +867,7 @@ fn decode_area(
         // The generic value line is replaced by the typed decode only when
         // that decode consumed octets. An option with no value at all keeps
         // the generic line visible beside the typed empty field, which is the
-        // rule the reference follows for zero-length typed options.
+        // rule the expected output follows for zero-length typed options.
         if !typed || (!composite && body.is_empty()) {
             if composite {
                 let value = if body.is_empty() {
@@ -1496,9 +1496,9 @@ fn decode_agent_information(
                 if value.is_empty() {
                     // RFC 7839 §5 requires the access-technology type; a
                     // zero-length value leaves nothing to read, so the
-                    // reference stops the protocol decode here. The marker is
-                    // a child of the suboption, before the value, because the
-                    // integer is never added.
+                    // expected output stops the protocol decode here. The
+                    // marker is a child of the suboption, before the value,
+                    // because the integer is never added.
                     add_type_length_expert(
                         field,
                         offset + position,
@@ -1537,7 +1537,7 @@ fn decode_agent_information(
 
 /// Label of one RFC 3046 suboption container.
 ///
-/// The reference appends the address text to the label of the two IPv4
+/// The expected output appends the address text to the label of the two IPv4
 /// suboptions when the value has the four-octet layout: link selection
 /// (suboption 5) and the RFC 5107 server identifier override (suboption 11).
 fn suboption_label(suboption: u8, value: Option<&[u8]>) -> String {
@@ -1605,7 +1605,7 @@ fn read_be_prefix(value: &[u8]) -> u32 {
 /// that many data octets. Enterprise 4491 normally carries the CableLabs
 /// tag/length/value chain; Packetfin keeps that data opaque, which is a
 /// recorded deviation. Every other enterprise shows the block data through
-/// the generic suboption-value field, matching the reference.
+/// the generic suboption-value field, matching the expected output.
 fn decode_vendor_specific(
     field: &mut dyn FieldParent,
     value: &[u8],
@@ -1696,8 +1696,8 @@ pub fn agent_suboption_name(code: u8) -> &'static str {
 /// and RFC 8415 §11.2 carries one in a DUID-EN; both print the number with the
 /// name from the IANA "Private Enterprise Numbers" registry. The table keeps
 /// only the numbers Packetfin's fixtures exercise, so an unlisted number falls
-/// back to `Unknown (N)` exactly as the reference does. Adding a name means
-/// adding the registry row that publishes it.
+/// back to `Unknown (N)` exactly as the expected output does. Adding a name
+/// means adding the registry row that publishes it.
 pub fn enterprise_name(number: u32) -> Option<&'static str> {
     match number {
         // The registry reserves zero for this purpose and documents 32473 as

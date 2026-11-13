@@ -3,7 +3,7 @@
 //! A header block that spans HEADERS and CONTINUATION decodes once, at
 //! END_HEADERS (RFC 7541 section 2.2), and a block that cannot be decompressed
 //! keeps the fields already decoded and reports one malformed expert. Both
-//! shapes differ from the reference's per-fragment output, so they are
+//! shapes differ from the recorded per-fragment output, so they are
 //! asserted here instead of in a golden case.
 
 use packetfin_core::DecodeSession;

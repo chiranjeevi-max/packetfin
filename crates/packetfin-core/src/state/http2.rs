@@ -41,9 +41,9 @@ pub(crate) const MAX_BODY_BYTES: usize = 1024 * 1024;
 
 /// Header-block bytes buffered between HEADERS and its CONTINUATION frames.
 ///
-/// A header block is bounded by the frame size in the reference, but a
-/// CONTINUATION chain can be arbitrarily long; the cap is the same 1 MiB the
-/// reassembly layer uses for a non-HTTP PDU.
+/// A single frame is bounded by its 24-bit length, but a CONTINUATION chain
+/// can be arbitrarily long; the cap is the same 1 MiB the reassembly layer
+/// uses for a non-HTTP PDU.
 pub(crate) const MAX_BLOCK_BYTES: usize = 1024 * 1024;
 
 /// One direction of an HTTP/2 connection.
@@ -412,8 +412,8 @@ impl SessionState {
     ///
     /// A block that never reaches END_HEADERS is dropped with the direction's
     /// state. A CONTINUATION on a stream with no open block is decoded on its
-    /// own, which is what the reference does and what keeps a stray fragment
-    /// visible.
+    /// own, which is what the expected output does and what keeps a stray
+    /// fragment visible.
     pub(crate) fn http2_fragment(
         &mut self,
         key: Http2Key,

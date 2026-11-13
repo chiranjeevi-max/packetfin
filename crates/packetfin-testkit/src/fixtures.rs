@@ -14049,7 +14049,7 @@ fn build_http2_malformed() -> Result<Vec<u8>, String> {
     let mut client = 10_000_u32;
     let mut payload = H2_PREFACE.to_vec();
     payload.extend_from_slice(&h2_frame(4, 0, 0, &[0, 153, 0, 0, 0, 7]));
-    // HEADERS on stream zero is a protocol error the reference still decodes.
+    // HEADERS on stream zero is a protocol error the decoder still reports.
     payload.extend_from_slice(&h2_frame(1, 0x05, 0, &h2_request_block()));
     // A reserved bit set in the stream identifier.
     let mut reserved = h2_frame(1, 0x05, 0x8000_0001, &h2_request_block());

@@ -43,7 +43,7 @@ pub(crate) const MAX_HEADER_BYTES: usize = 64 * 1024;
 /// The most items one header block may decode.
 ///
 /// The bound covers table size updates as well as header fields, because both
-/// produce a tree item and the reference stops after 200 lines.
+/// produce a tree item and the expected output stops after 200 lines.
 pub(crate) const MAX_HEADER_LINES: usize = 200;
 
 /// One dynamic-table entry.
@@ -177,7 +177,7 @@ pub(crate) enum Representation {
 }
 
 impl Representation {
-    /// The label the reference registry's `http2.header.repr` field prints.
+    /// The label the field registry's `http2.header.repr` prints.
     pub(crate) fn name(self) -> &'static str {
         match self {
             Self::Indexed => "Indexed Header Field",
@@ -237,7 +237,7 @@ pub(crate) struct Block {
     pub(crate) items: Vec<Item>,
     /// Header-list octets, the RFC 7541 section 4.1 entry size.
     pub(crate) header_bytes: u32,
-    /// Header fields plus table size updates, the reference's header count.
+    /// Header fields plus table size updates, the expected header count.
     pub(crate) header_count: u32,
     /// How decoding ended.
     pub(crate) stop: Stop,

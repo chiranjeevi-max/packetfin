@@ -2113,7 +2113,7 @@ impl StreamBuffer {
     /// HTTP/2: the connection preface, then one frame per PDU.
     ///
     /// RFC 9113 section 3.4 opens the connection with a fixed 24-octet
-    /// preface, which the reference reports as its own node. After it, each
+    /// preface, which the expected output reports as its own node. After it,
     /// frame is its nine-octet header plus the payload length that header
     /// declares. A stream that starts mid-connection (no preface) frames its
     /// first bytes as a frame.

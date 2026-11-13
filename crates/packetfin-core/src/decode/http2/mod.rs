@@ -243,7 +243,7 @@ impl<'a> Frame<'a> {
     }
 }
 
-/// The reference name of a frame type.
+/// The registry name of a frame type.
 fn frame_type_name(kind: u8) -> Option<&'static str> {
     Some(match kind {
         DATA => "DATA",
@@ -541,8 +541,8 @@ fn decode_headers(
 ) {
     let payload_base = base.saturating_add(FRAME_HEADER_BYTES);
     // END_STREAM on a HEADERS frame ends the stream's body as well, which is
-    // how trailers complete a message (RFC 9113 section 8.1). The reference
-    // prints the reassembled body on that frame before its own fields.
+    // how trailers complete a message (RFC 9113 section 8.1). The expected
+    // output prints the reassembled body there before the frame's fields.
     if frame.flags & FLAG_END_STREAM != 0
         && let Some(key) = key
         && let outcome = context.state.http2_data(
@@ -684,8 +684,8 @@ fn decode_push_promise(
         if let Some(block) = result.block {
             let request =
                 add_header_block(context, stream, &block, key, frame.stream_id, true, suffix);
-            // The promise's own stream keeps its request URI; the reference
-            // prints it after the promised request URI.
+            // The promise's own stream keeps its request URI; the expected
+            // output prints it after the promised request URI.
             add_stream_uri(context, stream, frame.stream_id, Some(key), false);
             if let Some(request) = request
                 && promised != 0
@@ -1126,8 +1126,8 @@ fn settings_name(id: u16) -> &'static str {
         1 => "Header table size",
         2 => "Enable PUSH",
         3 => "Max concurrent streams",
-        // The reference spells this identifier "Windows"; the registry name
-        // is part of the compatibility contract.
+        // The field registry spells this identifier "Windows"; the name is
+        // part of the output contract.
         4 => "Initial Windows size",
         5 => "Max frame size",
         6 => "Max header list size",
@@ -1767,7 +1767,7 @@ fn curated_header(name: &str) -> Option<&'static FieldDef> {
     })
 }
 
-/// The reason phrase the reference prints for a status code.
+/// The reason phrase for a status code.
 fn status_reason(code: u16) -> &'static str {
     let text = crate::decode::http::status_description(u32::from(code));
     if text.is_empty() { "Unknown" } else { text }

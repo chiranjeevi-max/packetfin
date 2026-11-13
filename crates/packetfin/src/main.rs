@@ -612,28 +612,13 @@ fn drive_frames<S: PacketSink>(
     mut writer_session: Option<WriterSession>,
     mut sink: S,
 ) -> i32 {
-    let mut keylog = KeyLog::new();
-    if let Some(path) = options.tls.keylog_file.as_ref()
-        && let Ok(file) = File::open(path)
-    {
-        keylog = KeyLog::read(BufReader::new(file));
-        if keylog.truncated() {
-            diagnostic("TLS key log reached its size or entry limit; remaining lines ignored");
-        }
-    }
     let mut session = DecodeSession::with_pass(
         options.decode_options.clone(),
         options.state_budget,
         PassMode::One,
     );
     attach_object_export(&mut session, options.exports);
-    session.set_keylog(keylog);
-    session.set_tls_key_export(options.tls.export_session_keys.is_some());
-    let mut tls_keys = options
-        .tls
-        .export_session_keys
-        .as_deref()
-        .and_then(open_tls_key_file);
+    let mut tls_keys = attach_tls_session(&mut session, options.tls);
     let mut statistics = StatsSet::new(options.stats);
     statistics.set_http_desegment(options.decode_options.preferences.tcp_desegment_tcp_streams);
     let mut writer = BufWriter::with_capacity(WRITE_BUFFER_SIZE, io::stdout().lock());
@@ -1336,14 +1321,27 @@ fn finish_writer(writer_session: &mut Option<WriterSession>) -> Result<(), i32> 
 }
 
 /// Load the TLS key log and open the session-key export file.
+///
+/// A file that cannot be opened is reported once and decryption continues
+/// without it, so a mistyped path never silently disables it.
 fn attach_tls_session(session: &mut DecodeSession, tls: &TlsOptions) -> Option<File> {
     let mut keylog = KeyLog::new();
-    if let Some(path) = tls.keylog_file.as_ref()
-        && let Ok(file) = File::open(path)
-    {
-        keylog = KeyLog::read(BufReader::new(file));
-        if keylog.truncated() {
-            diagnostic("TLS key log reached its size or entry limit; remaining lines ignored");
+    if let Some(path) = tls.keylog_file.as_ref() {
+        match File::open(path) {
+            Ok(file) => {
+                keylog = KeyLog::read(BufReader::new(file));
+                if keylog.truncated() {
+                    diagnostic(
+                        "TLS key log reached its size or entry limit; remaining lines ignored",
+                    );
+                }
+            }
+            // Decryption has no key material without the file; say so once
+            // instead of leaving every record opaque with no explanation.
+            Err(error) => diagnostic(&format!(
+                "cannot open TLS key log \"{}\": {error}",
+                path.display()
+            )),
         }
     }
     session.set_keylog(keylog);

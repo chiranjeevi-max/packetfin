@@ -97,7 +97,11 @@ fn parse_server_name(payload: &[u8]) -> Option<&str> {
         if name_type != 0 {
             continue;
         }
-        if name.len() > 255
+        // RFC 6066 section 3 declares `HostName<1..2^16-1>`, so an empty
+        // name is not a valid HostName; only graphic ASCII and dots can
+        // name a host.
+        if name.is_empty()
+            || name.len() > 255
             || name
                 .iter()
                 .any(|byte| !byte.is_ascii_graphic() && *byte != b'.')
@@ -158,6 +162,11 @@ mod tests {
     fn a_complete_hello_yields_the_server_name() {
         let record = client_hello(b"sni.example");
         assert_eq!(client_hello_sni(&record), Some("sni.example"));
+    }
+
+    #[test]
+    fn an_empty_server_name_is_rejected() {
+        assert_eq!(client_hello_sni(&client_hello(b"")), None);
     }
 
     #[test]

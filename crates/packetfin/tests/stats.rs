@@ -688,6 +688,27 @@ fn interval_value(table: &str, spec: &str) -> String {
 }
 
 #[test]
+fn a_signed_maximum_starts_at_zero() {
+    let path = fixture_path_named("ntp-client-server");
+    let run = run(&[
+        OsString::from("-n"),
+        OsString::from("-q"),
+        OsString::from("-r"),
+        path.into_os_string(),
+        OsString::from("-z"),
+        OsString::from("io,stat,0,MAX(ntp.precision)ntp.precision"),
+    ]);
+    assert_eq!(run.status.code(), Some(0), "{}", text(&run.stderr));
+    // Every precision in the fixture is negative (-20, -21, -22), so a
+    // signed maximum would itself be negative. The accumulator starts at
+    // zero (the reference behaviour), so the rendered cell is zero.
+    assert_eq!(
+        interval_value(&text(&run.stdout), "MAX(ntp.precision)"),
+        "0"
+    );
+}
+
+#[test]
 fn nested_protocol_and_field_taps_count_relayed_messages() {
     let path = fixture_path_named("dhcpv6-relay");
     let statistics = |spec: &str| -> String {

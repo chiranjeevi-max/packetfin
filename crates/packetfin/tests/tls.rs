@@ -98,6 +98,35 @@ fn missing_keylog_is_silent_and_keeps_records_opaque() {
 }
 
 #[test]
+fn an_unopenable_keylog_is_reported_once() {
+    let capture = fixture("tls12-gcm.pcap");
+    let keylog = temp_path("missing-keylog").join("absent.log");
+    let args: Vec<OsString> = [
+        "-n",
+        "-r",
+        capture.to_string_lossy().as_ref(),
+        "-o",
+        &format!("tls.keylog_file:{}", keylog.display()),
+        "-T",
+        "fields",
+        "-e",
+        "frame.number",
+    ]
+    .into_iter()
+    .map(OsString::from)
+    .collect();
+    let output = run(&args, &[], None);
+    let (stdout, stderr) = text(&output);
+    assert!(output.status.success(), "status: {:?}", output.status);
+    assert!(!stdout.trim().is_empty(), "stdout: {stdout}");
+    assert_eq!(
+        stderr.matches("cannot open TLS key log").count(),
+        1,
+        "stderr: {stderr}"
+    );
+}
+
+#[test]
 fn sslkeylogfile_environment_is_ignored() {
     let capture = fixture("tls13-aes256.pcap");
     let keylog = fixture("tls13-aes256-keys.log");

@@ -1377,6 +1377,52 @@ fn compressed_sinks_report_flush_failures() -> Result<(), String> {
 }
 
 #[test]
+fn a_failed_finish_is_reported_by_into_inner() -> Result<(), String> {
+    let mut writer = CaptureWriter::new(
+        FlushFailure,
+        WriterOptions {
+            format: OutputFormat::PcapNg,
+            compression: Compression::None,
+            application: "test",
+            capture_comments: &[],
+        },
+    );
+    writer
+        .open_live(&[ethernet_interface(0)])
+        .map_err(|error| error.to_string())?;
+    let options = PacketOptions::default();
+    writer
+        .write_packet(PacketRecord {
+            timestamp: Some(Timestamp {
+                seconds: 1,
+                nanos: 0,
+            }),
+            timestamp_units: Some(1_000_000),
+            interface: 0,
+            captured: &[0; 4],
+            original_len: 4,
+            options: &options,
+        })
+        .map_err(|error| error.to_string())?;
+    let first = writer
+        .finish()
+        .err()
+        .ok_or_else(|| "finish reported success".to_string())?;
+    assert!(first.to_string().contains("flush failed"), "{first}");
+    let repeated = writer
+        .finish()
+        .err()
+        .ok_or_else(|| "a repeated finish reported success".to_string())?;
+    assert_eq!(repeated.to_string(), first.to_string());
+    let inner = writer
+        .into_inner()
+        .err()
+        .ok_or_else(|| "into_inner replaced the first failure".to_string())?;
+    assert_eq!(inner.to_string(), first.to_string());
+    Ok(())
+}
+
+#[test]
 fn a_timestamp_without_units_is_not_silently_a_simple_packet() -> Result<(), String> {
     let mut writer = CaptureWriter::new(
         Vec::new(),

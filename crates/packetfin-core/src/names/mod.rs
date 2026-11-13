@@ -296,19 +296,19 @@ impl NameResolver {
     pub fn add_capture_names(&mut self, names: impl IntoIterator<Item = (IpAddr, String)>) {
         for (address, name) in names {
             if let Some(previous) = self.capture.get(&address) {
-                let previous_cost = entry_bytes(&address, previous);
-                if previous_cost >= entry_bytes(&address, &name) {
+                let previous_cost = entry_bytes(previous);
+                if previous_cost >= entry_bytes(&name) {
                     self.bytes = self.bytes.saturating_sub(previous_cost);
-                    self.bytes = self.bytes.saturating_add(entry_bytes(&address, &name));
+                    self.bytes = self.bytes.saturating_add(entry_bytes(&name));
                     self.capture.insert(address, name);
                     continue;
                 }
-                if !self.make_room(entry_bytes(&address, &name).saturating_sub(previous_cost)) {
+                if !self.make_room(entry_bytes(&name).saturating_sub(previous_cost)) {
                     self.dropped = true;
                     return;
                 }
                 self.bytes = self.bytes.saturating_sub(previous_cost);
-                self.bytes = self.bytes.saturating_add(entry_bytes(&address, &name));
+                self.bytes = self.bytes.saturating_add(entry_bytes(&name));
                 self.capture.insert(address, name);
                 continue;
             }
@@ -430,7 +430,7 @@ impl NameResolver {
     }
 
     fn learn(&mut self, address: IpAddr, name: &str) {
-        let cost = entry_bytes(&address, name);
+        let cost = entry_bytes(name);
         if cost > self.limit {
             self.dropped = true;
             return;
@@ -438,7 +438,7 @@ impl NameResolver {
         let previous_cost = self
             .learned
             .get(&address)
-            .map(|previous| entry_bytes(&address, &previous.name));
+            .map(|previous| entry_bytes(&previous.name));
         if previous_cost.is_none() && self.learned.len() >= MAX_LEARNED {
             self.dropped = true;
             return;
@@ -456,9 +456,7 @@ impl NameResolver {
                 order: self.next_order,
             },
         ) {
-            self.bytes = self
-                .bytes
-                .saturating_sub(entry_bytes(&address, &previous.name));
+            self.bytes = self.bytes.saturating_sub(entry_bytes(&previous.name));
         }
         self.bytes = self.bytes.saturating_add(cost);
         self.order.push_back((address, self.next_order));
@@ -491,16 +489,14 @@ impl NameResolver {
                 .is_some_and(|current| current.order == order)
                 && let Some(removed) = self.learned.remove(&address)
             {
-                self.bytes = self
-                    .bytes
-                    .saturating_sub(entry_bytes(&address, &removed.name));
+                self.bytes = self.bytes.saturating_sub(entry_bytes(&removed.name));
             }
         }
         true
     }
 
     fn charge(&mut self, name: &str) -> bool {
-        let cost = name.len().saturating_add(24);
+        let cost = entry_bytes(name);
         if (cost > self.limit || self.bytes.saturating_add(cost) > self.limit)
             && !self.make_room(cost)
         {
@@ -511,7 +507,9 @@ impl NameResolver {
     }
 }
 
-fn entry_bytes(_address: &IpAddr, name: &str) -> usize {
+/// Bytes one host or capture entry retains: its name, the inline address key
+/// and the map entry that holds both.
+fn entry_bytes(name: &str) -> usize {
     name.len()
         .saturating_add(std::mem::size_of::<IpAddr>())
         .saturating_add(32)
@@ -671,6 +669,24 @@ mod tests {
         }
         assert!(resolver.bytes <= 256);
         assert!(resolver.learned.len() < 100);
+    }
+
+    #[test]
+    fn host_entries_are_charged_and_evicted_with_one_cost() {
+        let first = address("192.0.2.1");
+        let second = address("192.0.2.2");
+        // An entry costs its name plus the inline key and map overhead.
+        let cost = |name: &str| name.len() + std::mem::size_of::<IpAddr>() + 32;
+        // Room for one short name and its overhead, not for two.
+        let limit = cost("first.example");
+        let resolver = NameResolver::with_budget(
+            NameResPrefs::default(),
+            vec![(first, "a".to_string()), (second, "b".to_string())],
+            limit,
+        );
+        assert_eq!(resolver.hosts.len(), 1);
+        assert_eq!(resolver.bytes, cost("a"));
+        assert!(resolver.dropped);
     }
 
     #[test]

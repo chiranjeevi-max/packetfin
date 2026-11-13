@@ -10,7 +10,7 @@ use packetfin_testkit::golden;
 #[test]
 fn fixture_registry_has_unique_names() {
     let fixtures = fixtures::all();
-    assert_eq!(fixtures.len(), 305);
+    assert_eq!(fixtures.len(), 306);
     let mut names = HashSet::new();
     for fixture in fixtures {
         assert!(

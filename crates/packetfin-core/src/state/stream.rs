@@ -1096,6 +1096,16 @@ pub(crate) struct StreamBuffer {
     header_framing: Option<Framing>,
     /// Cursor of the pending chunked-body parser.
     chunk_parse: Option<ChunkScanner>,
+    /// The pending chunked body's framing was already found unusable.
+    ///
+    /// The scanner cannot continue past an unusable size line or a boundary
+    /// that is not CRLF, and the message ends when the covered prefix or the
+    /// stream does. Remembering that keeps a stream being finished from
+    /// rescanning the body from its first chunk on every insert.
+    chunk_invalid: bool,
+    /// New chunked scanners built for the pending body (tests only).
+    #[cfg(test)]
+    chunk_scans: usize,
     /// Contributions from segments that supplied at least one new byte.
     contributions: Vec<Contribution>,
     /// Novel payload bytes retained outside the vectors above.
@@ -1807,6 +1817,10 @@ impl StreamBuffer {
         self.header_scan = 0;
         self.header_framing = None;
         self.chunk_parse = None;
+        self.chunk_invalid = false;
+        // The bounded-rescan test counts the scanners each message builds.
+        #[cfg(test)]
+        let _ = std::mem::take(&mut self.chunk_scans);
     }
 
     /// Advance the HTTP framing scans to the covered prefix.
@@ -2191,10 +2205,10 @@ impl StreamBuffer {
             // says where the message ends. Skip the whole message; never hand
             // partial framing to the decoder.
             return match plan {
-                // A bodyless status, or an answer to HEAD or CONNECT, ends at
-                // the header section: a declared length describes a body the
-                // message does not carry.
-                BodyPlan::Empty | BodyPlan::Answer(_) => FrameLength::HeaderOversized(header_end),
+                // A bodyless status, or a response to HEAD, ends at the header
+                // section: a declared length describes a body the message does
+                // not carry. A CONNECT answer keeps its tunnel bytes.
+                BodyPlan::Empty | BodyPlan::Answer => FrameLength::HeaderOversized(header_end),
                 BodyPlan::Fixed(length) => {
                     FrameLength::HeaderOversized(header_end.saturating_add(length))
                 }
@@ -2236,14 +2250,11 @@ impl StreamBuffer {
         }
         match plan {
             BodyPlan::Empty => FrameLength::Complete(header_end),
-            BodyPlan::Answer(declared) => {
-                // The bytes already present still count as file data and the
-                // consumed length is clamped, so they do not reopen as another
-                // message. A response to HEAD or CONNECT consumes everything
-                // the segment carries, because its body length comes from the
-                // bytes rather than the method.
-                let consumed = declared.map_or(available, |length| length.min(available));
-                FrameLength::Complete(header_end.saturating_add(consumed))
+            BodyPlan::Answer => {
+                // A 2xx answer to CONNECT owns everything the segment carries:
+                // the connection is a tunnel from here (RFC 9112 section
+                // 9.3.6), so the bytes cannot reopen as another message.
+                FrameLength::Complete(header_end.saturating_add(available))
             }
             BodyPlan::Fixed(length) => {
                 let end = header_end.saturating_add(length);
@@ -2304,11 +2315,24 @@ impl StreamBuffer {
     /// chunk line is parsed once. Only the contiguous covered prefix is
     /// trusted; a gap leaves the cursor at the incomplete construct.
     fn chunked_body_end(&mut self, header_end: usize, covered: usize, limit: usize) -> ChunkedEnd {
+        if self.chunk_invalid {
+            // The body already failed its grammar; its end still depends on the
+            // covered prefix or the stream end, and rescanning the chunks could
+            // not produce a different answer.
+            return ChunkedEnd::Invalid;
+        }
         let covered_end = self.head.saturating_add(covered);
         let limit_end = self.head.saturating_add(limit);
-        let mut scanner = self
-            .chunk_parse
-            .unwrap_or(ChunkScanner::new(self.head.saturating_add(header_end)));
+        let mut scanner = match self.chunk_parse {
+            Some(scanner) => scanner,
+            None => {
+                #[cfg(test)]
+                {
+                    self.chunk_scans = self.chunk_scans.saturating_add(1);
+                }
+                ChunkScanner::new(self.head.saturating_add(header_end))
+            }
+        };
         loop {
             match scanner.step(&self.data, covered_end) {
                 ChunkStep::Data { boundary_ok, .. } => {
@@ -2317,6 +2341,7 @@ impl StreamBuffer {
                         // breaks the chunk framing cannot be delimited, so the
                         // available prefix completes it.
                         self.chunk_parse = None;
+                        self.chunk_invalid = true;
                         return ChunkedEnd::Invalid;
                     }
                 }
@@ -2346,6 +2371,7 @@ impl StreamBuffer {
                 }
                 ChunkStep::Invalid { .. } => {
                     self.chunk_parse = None;
+                    self.chunk_invalid = true;
                     return ChunkedEnd::Invalid;
                 }
             }
@@ -3496,6 +3522,35 @@ mod tests {
         };
         assert_eq!(pdu.data.len(), expected);
         assert_eq!(pdu.data, message);
+    }
+
+    #[test]
+    fn an_unusable_chunk_body_is_not_scanned_again() {
+        // Once the chunk grammar fails, the message can only end at the
+        // covered prefix or at the stream close; rescanning the body from its
+        // first chunk on every later insert would be quadratic on a hostile
+        // stream.
+        let mut message = b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n".to_vec();
+        message.extend_from_slice(b"1\r\naXX");
+        let header_end = header_section_end(&message).unwrap_or_default();
+        let mut buffer = StreamBuffer::default();
+        buffer.set_ulp(Ulp::Http);
+        buffer.data = message;
+        buffer.covered = vec![true; buffer.data.len()];
+        buffer.contiguous = buffer.data.len();
+        let covered = buffer.data.len();
+        assert!(matches!(
+            buffer.chunked_body_end(header_end, covered, MAX_PDU_BYTES),
+            ChunkedEnd::Invalid
+        ));
+        let scans = buffer.chunk_scans;
+        assert_eq!(scans, 1, "the body must be scanned once");
+        // A later call for the same pending message reuses the failed result.
+        assert!(matches!(
+            buffer.chunked_body_end(header_end, covered, MAX_PDU_BYTES),
+            ChunkedEnd::Invalid
+        ));
+        assert_eq!(buffer.chunk_scans, scans, "the body was scanned again");
     }
 
     #[test]

@@ -76,16 +76,10 @@ pub(crate) fn looks_like_http(data: &[u8]) -> bool {
 ///
 /// The heuristic recognises the version token in the first segment and then
 /// asks TCP for the rest; a segment that stops before the version (or in
-/// the middle of it) is left to the port dissector.
+/// the middle of it) is left to the port dissector. A line without its LF is
+/// examined whole, so the check still requires a complete start line.
 pub(crate) fn looks_like_http_prefix(data: &[u8]) -> bool {
-    let line_end = data
-        .iter()
-        .position(|byte| *byte == b'\n')
-        .unwrap_or(data.len());
-    let mut line = data.get(..line_end).unwrap_or_default();
-    if let Some(stripped) = line.strip_suffix(b"\r") {
-        line = stripped;
-    }
+    let line = next_line(data, 0).map_or(data, |(line, _)| line);
     parse_start_line(line).is_some()
 }
 
@@ -271,6 +265,10 @@ struct Chunk {
     data: Bytes,
     data_offset: usize,
     boundary_offset: usize,
+    /// The two bytes captured between the chunk data and the next size line.
+    boundary: [u8; 2],
+    /// Whether those bytes are the CRLF RFC 9112 section 7.1 requires.
+    boundary_ok: bool,
     final_chunk: bool,
 }
 
@@ -357,13 +355,11 @@ fn parse_message(data: &[u8], base: usize, options: &MessageOptions<'_>) -> Opti
             // section 6.3 cases 1 and 6).
             consumed = offset;
         }
-        BodyPlan::Answer(declared) => {
-            // The message has no body, but the bytes the segment carried
-            // still belong to it: the declared length caps them when present,
-            // and a HEAD/CONNECT answer owns everything captured.
-            let end = declared.map_or(data.len(), |length| {
-                offset.saturating_add(length).min(data.len())
-            });
+        BodyPlan::Answer => {
+            // A 2xx answer to CONNECT turns the connection into a tunnel
+            // (RFC 9112 section 9.3.6): the bytes the segment carries still
+            // belong to the answer, so they cannot reopen as a message.
+            let end = data.len();
             let bytes = data.get(offset..end).unwrap_or(&[]);
             body = Some(Body {
                 offset,
@@ -610,6 +606,20 @@ fn parse_message(data: &[u8], base: usize, options: &MessageOptions<'_>) -> Opti
         }
     }
 
+    if let Some((def, message)) = framing_expert(&framing, plan)
+        && let Some(field) = node
+            .fields
+            .iter_mut()
+            .rev()
+            .find(|field| std::ptr::eq(field.def, def))
+    {
+        field.add_expert(ExpertInfo {
+            severity: Severity::Error,
+            group: Group::Malformed,
+            message: message.to_string(),
+        });
+    }
+
     if let Some(header) = malformed_header {
         // Stop at the first unusable header line and present the rest of the
         // segment as file data with a `Continuation` summary.
@@ -780,6 +790,30 @@ fn curated_header(name: &str) -> Option<&'static fields::FieldDef> {
     })
 }
 
+/// The header field and text of the one expert an unusable framing produces.
+///
+/// RFC 9112 section 6.3 makes a message whose framing fields cannot declare a
+/// boundary unreadable; the malformed rule keeps the fields decoded before the
+/// error and explains it once, on the field that decided the framing.
+fn framing_expert(
+    framing: &Framing,
+    plan: BodyPlan,
+) -> Option<(&'static fields::FieldDef, &'static str)> {
+    if plan != BodyPlan::InvalidLength {
+        return None;
+    }
+    if framing.invalid_length {
+        return Some((
+            &fields::HTTP_CONTENT_LENGTH_HEADER,
+            "Content-Length does not declare one body length",
+        ));
+    }
+    Some((
+        &fields::HTTP_TRANSFER_ENCODING,
+        "Final transfer coding is not chunked",
+    ))
+}
+
 /// One chunked body's de-chunked bytes and the records the field tree shows.
 struct ChunkedBody {
     /// De-chunked body bytes, in wire order.
@@ -832,7 +866,7 @@ fn parse_chunked(
                 data: data_offset,
                 bytes: chunk_data,
                 boundary,
-                ..
+                boundary_ok,
             } => {
                 // A declared chunk that fits the segment always fits the field
                 // type; the conversion only rejects an impossible size.
@@ -845,7 +879,28 @@ fn parse_chunked(
                         data: shared_bytes(source, data_offset, chunk_data),
                         data_offset,
                         boundary_offset: boundary,
+                        boundary: data
+                            .get(boundary..boundary.saturating_add(2))
+                            .and_then(|captured| <[u8; 2]>::try_from(captured).ok())
+                            .unwrap_or_default(),
+                        boundary_ok,
                         final_chunk: false,
+                    });
+                }
+                if !boundary_ok {
+                    // RFC 9112 section 7.1 requires CRLF after the chunk data.
+                    // Nothing after a malformed boundary can be framed, so the
+                    // records decoded up to it stay, the boundary bytes are
+                    // shown as captured, and the rest of the PDU is consumed
+                    // so it cannot reopen as another message.
+                    return Some(ChunkedBody {
+                        bytes,
+                        end: data.len(),
+                        chunks,
+                        trailer_end: None,
+                        trailers: Vec::new(),
+                        truncated: false,
+                        excess: capped,
                     });
                 }
             }
@@ -871,6 +926,8 @@ fn parse_chunked(
                         data: Bytes::default(),
                         data_offset: end,
                         boundary_offset: end.saturating_sub(2),
+                        boundary: *b"\r\n",
+                        boundary_ok: true,
                         final_chunk: true,
                     });
                 }
@@ -964,6 +1021,11 @@ fn add_chunk_fields(node: &mut Node, body: &Body, base: usize) {
                 prefix: "Chunk data: ",
                 bytes: chunk.data.clone(),
             });
+            let boundary_hex: String = chunk
+                .boundary
+                .iter()
+                .map(|byte| format!("{byte:02x}"))
+                .collect();
             let boundary = child.add_field(
                 &fields::HTTP_CHUNK_BOUNDARY,
                 Range::new(
@@ -971,9 +1033,16 @@ fn add_chunk_fields(node: &mut Node, body: &Body, base: usize) {
                         .saturating_add(chunk.boundary_offset),
                     2,
                 ),
-                Value::bytes(b"\r\n".to_vec()),
+                Value::bytes(chunk.boundary.to_vec()),
             );
-            boundary.showname = Some("Chunk boundary: 0d0a".to_string());
+            boundary.showname = Some(format!("Chunk boundary: {boundary_hex}"));
+            if !chunk.boundary_ok {
+                boundary.add_expert(ExpertInfo {
+                    severity: Severity::Error,
+                    group: Group::Malformed,
+                    message: "Chunk data is not followed by CRLF".to_string(),
+                });
+            }
         }
     }
     for (line_start, line_length, text) in &body.trailers {

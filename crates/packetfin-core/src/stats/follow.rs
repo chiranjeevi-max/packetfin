@@ -22,7 +22,10 @@
 use std::fmt;
 use std::net::{Ipv4Addr, Ipv6Addr};
 
-use crate::http_syntax::{ChunkScanner, ChunkStep, Framing, header_section_end};
+use crate::http_syntax::{
+    Answer, BodyPlan, ChunkScanner, ChunkStep, Framing, header_section_end, next_line,
+    parse_start_line,
+};
 use crate::state::{StreamAddress, StreamKey};
 
 /// Per-follow-specification retained chunk bytes.
@@ -821,28 +824,26 @@ fn write_hex_dump(
     Ok(())
 }
 
+/// Whether a segment begins with a complete HTTP/1.x start line.
+///
+/// Any method token RFC 9110 section 9 defines is acceptable, so a request
+/// whose method is not one of the common ones still starts the follow. A
+/// segment that stops before its first LF is not a start line yet.
 fn starts_with_http_start_line(bytes: &[u8]) -> bool {
-    const METHODS: [&[u8]; 9] = [
-        b"GET ",
-        b"POST ",
-        b"PUT ",
-        b"HEAD ",
-        b"DELETE ",
-        b"OPTIONS ",
-        b"PATCH ",
-        b"CONNECT ",
-        b"TRACE ",
-    ];
-    METHODS.iter().any(|method| bytes.starts_with(method)) || bytes.starts_with(b"HTTP/1.")
+    let Some((line, _)) = next_line(bytes, 0) else {
+        return false;
+    };
+    parse_start_line(line).is_some()
 }
 
 /// Split one un-reassembled HTTP segment into follow records.
 ///
 /// With `tcp.desegment_tcp_streams` disabled the dissector sees one segment
 /// at a time. A request segment is queued whole, while a response header
-/// queues the header and an empty body when the announced length is nonzero.
-/// A body-only segment queues its bytes unchanged. Pipelined start lines are
-/// still separate records.
+/// queues the header and an empty body when the framing announces one. A
+/// body-only segment queues its bytes unchanged. Pipelined start lines are
+/// still separate records, and the body bounds come from the shared
+/// [`Framing::body_plan`] so the tap cannot disagree with the dissector.
 fn split_http_segments(message: &[u8]) -> Vec<Vec<u8>> {
     let mut records = Vec::new();
     let mut offset = 0_usize;
@@ -853,35 +854,49 @@ fn split_http_segments(message: &[u8]) -> Vec<Vec<u8>> {
             break;
         };
         let header = rest.get(..header_length).unwrap_or_default();
-        let framing = Framing::of_block(header);
+        let plan = Framing::of_block(header).body_plan(Answer::default());
         records.push(header.to_vec());
         let body = rest.get(header_length..).unwrap_or_default();
         if body.is_empty() {
-            if framing.response
-                && (framing.chunked || framing.content_length.is_some_and(|length| length > 0))
-            {
+            if announces_body(plan) {
                 // Without reassembly the tap queues an empty body when a
                 // header announces one but its body is in another segment.
                 records.push(Vec::new());
             }
             break;
         }
-        if framing.chunked {
+        if plan == BodyPlan::Chunked {
             // The body segment keeps its chunk framing; only a dissected,
             // reassembled message is de-chunked.
             records.push(body.to_vec());
             break;
         }
-        let take = framing.content_length.unwrap_or(body.len()).min(body.len());
+        let take = match plan {
+            BodyPlan::Fixed(length) => length.min(body.len()),
+            BodyPlan::Empty => 0,
+            BodyPlan::Answer | BodyPlan::InvalidLength | BodyPlan::CloseDelimited => body.len(),
+            BodyPlan::Chunked => body.len(),
+        };
         if take > 0 {
             records.push(body.get(..take).unwrap_or_default().to_vec());
         }
         offset = offset.saturating_add(header_length).saturating_add(take);
-        if take == 0 && !framing.status_bodyless() {
+        if take == 0 && plan != BodyPlan::Empty {
             break;
         }
     }
     records
+}
+
+/// Whether the header announces a body its segment does not carry.
+fn announces_body(plan: BodyPlan) -> bool {
+    match plan {
+        BodyPlan::Chunked => true,
+        BodyPlan::Fixed(length) => length > 0,
+        BodyPlan::Empty | BodyPlan::Answer | BodyPlan::InvalidLength | BodyPlan::CloseDelimited => {
+            false
+        }
+    }
 }
 
 /// Split one HTTP byte run into follow records.
@@ -890,7 +905,7 @@ fn split_http_segments(message: &[u8]) -> Vec<Vec<u8>> {
 /// second; a chunked body is de-chunked into one record even when it is
 /// empty. Pipelined messages in one delivery are split at each complete
 /// header, so a desegmented segment that carries two requests still prints
-/// two records.
+/// two records. The body bounds come from the shared [`Framing::body_plan`].
 fn split_http_records(message: &[u8]) -> Vec<Vec<u8>> {
     let mut records = Vec::new();
     let mut offset = 0_usize;
@@ -906,24 +921,35 @@ fn split_http_records(message: &[u8]) -> Vec<Vec<u8>> {
         if body.is_empty() {
             break;
         }
-        let framing = Framing::of_block(header);
-        if framing.chunked {
-            let (data, consumed) = dechunk(body);
-            records.push(data);
-            if consumed == 0 {
-                break;
+        let plan = Framing::of_block(header).body_plan(Answer::default());
+        match plan {
+            BodyPlan::Chunked => {
+                let (data, consumed) = dechunk(body);
+                records.push(data);
+                if consumed == 0 {
+                    break;
+                }
+                offset = offset
+                    .saturating_add(header_length)
+                    .saturating_add(consumed);
             }
-            offset = offset
-                .saturating_add(header_length)
-                .saturating_add(consumed);
-        } else if framing.status_bodyless() {
-            offset = offset.saturating_add(header_length);
-        } else {
-            let take = framing.content_length.unwrap_or(body.len()).min(body.len());
-            if take > 0 {
-                records.push(body.get(..take).unwrap_or_default().to_vec());
+            BodyPlan::Empty => {
+                // The header section is the whole message; the following bytes
+                // are the next message or a continuation record.
+                offset = offset.saturating_add(header_length);
             }
-            offset = offset.saturating_add(header_length).saturating_add(take);
+            BodyPlan::Fixed(length) => {
+                let take = length.min(body.len());
+                if take > 0 {
+                    records.push(body.get(..take).unwrap_or_default().to_vec());
+                }
+                offset = offset.saturating_add(header_length).saturating_add(take);
+            }
+            BodyPlan::Answer | BodyPlan::InvalidLength | BodyPlan::CloseDelimited => {
+                // Every remaining byte belongs to this message.
+                records.push(body.to_vec());
+                offset = message.len();
+            }
         }
     }
     records

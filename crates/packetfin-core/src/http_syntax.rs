@@ -11,20 +11,23 @@
 //! The rules are RFC 9112 section 6.3 for the message body length, evaluated in
 //! the order its cases are written, and section 7.1 for the chunked transfer
 //! coding: size line with optional extensions, chunk data followed by CRLF,
-//! last-chunk and trailer section. Two details follow the expected output
-//! rather than the strict RFC text, and the comments where they are decided
-//! say so: the last readable Content-Length field frames the body, and a
-//! transfer coding that is not chunked leaves the declared length in charge.
-//! The start-line grammar lives here as well because the reassembler must
-//! recognise a message before the decoder has validated it.
+//! last-chunk and trailer section. The start-line grammar lives here as well
+//! because the reassembler must recognise a message before the decoder has
+//! validated it.
+//!
+//! Repeated Content-Length fields must agree (RFC 9112 section 6.3), only a
+//! final `chunked` transfer coding selects chunk framing (sections 6.1 and
+//! 6.3), and 1xx, 204 and 304 responses and every response to HEAD end at the
+//! header section. Where the reference output framed these message shapes
+//! differently, the difference is recorded as a deviation row.
 
-/// Longest HTTP header block the decoder accepts.
+/// Header bytes both consumers accept for one message.
 ///
-/// This bounds the start line plus all header lines and their terminator. A
-/// message whose header block exceeds it is reported as an oversized PDU by
-/// the stream layer and left undecoded by the decoder, so the two layers
-/// cannot disagree about a huge header. The reassembler itself is not bounded
-/// by this: it must still know where a legally delimited message ends.
+/// [`HeaderBudget`] charges the start line, every field line and the empty line
+/// that ends the section against this single cap. The reassembler stops waiting
+/// when the field lines alone pass it, and a block over the cap still consumes
+/// its framed length, so the bytes after an oversized header stay aligned with
+/// the wire instead of reopening as a message.
 pub(crate) const MAX_HEADER_BYTES: usize = 1024 * 1024;
 
 /// Header lines the decoder retains for one message.
@@ -252,10 +255,13 @@ pub(crate) struct Framing {
     pub(crate) code: Option<u16>,
     /// The Content-Length value the message declares, when it is usable.
     pub(crate) content_length: Option<usize>,
-    /// A Content-Length field was unusable (RFC 9112 section 6.3).
+    /// A Content-Length field was unusable: a value was not a decimal length,
+    /// or repeated values disagreed (RFC 9112 section 6.3).
     pub(crate) invalid_length: bool,
-    /// A Transfer-Encoding field lists the chunked coding, so the body is
-    /// delimited by its chunk framing (RFC 9112 sections 6.1 and 7.1).
+    /// A Transfer-Encoding field carried at least one coding.
+    pub(crate) transfer_coding: bool,
+    /// The final transfer coding is `chunked`, so the body is delimited by its
+    /// chunk framing (RFC 9112 sections 6.1 and 7.1).
     pub(crate) chunked: bool,
 }
 
@@ -274,49 +280,48 @@ impl Framing {
     /// Read the framing facts from a start line and the header lines after it.
     pub(crate) fn of<'a>(start: &[u8], headers: impl Iterator<Item = HeaderLine<'a>>) -> Self {
         let (response, code) = framing_start(start);
-        let mut content_length = None;
+        let mut declared = None;
         let mut invalid_length = false;
-        let mut chunked = false;
+        let mut transfer_coding = false;
+        let mut final_coding: Option<&str> = None;
         for header in headers {
             if !header.valid {
                 continue;
             }
             if header.name.eq_ignore_ascii_case("Content-Length") {
-                match header.value.parse::<usize>() {
-                    // The last field the analyser can read frames the body: a
-                    // later usable value replaces the remembered one and an
-                    // unusable value clears it. RFC 9112 section 6.3 instead
-                    // rejects repeated fields that disagree and any unusable
-                    // value; the expected output pins the last-value rule, so
-                    // this departure from the RFC is deliberate and recorded.
-                    Ok(value) => {
-                        content_length = Some(value);
-                        invalid_length = false;
-                    }
-                    Err(_) => {
-                        content_length = None;
-                        invalid_length = true;
-                    }
+                // RFC 9112 section 6.3: repeated fields may be collapsed only
+                // when they carry the same decimal value; a disagreement or
+                // an unreadable value makes the declared length unusable and
+                // no later field recovers it.
+                match content_length_value(header.value) {
+                    Some(value) => match declared {
+                        Some(previous) if previous != value => invalid_length = true,
+                        Some(_) => {}
+                        None => declared = Some(value),
+                    },
+                    None => invalid_length = true,
                 }
             } else if header.name.eq_ignore_ascii_case("Transfer-Encoding") {
-                // RFC 9112 section 6.1: the field is a list of transfer
-                // codings and chunked is the only one whose framing this
-                // analyzer removes. A message that lists it is de-chunked
-                // ahead of any Content-Length, as the expected output frames
-                // it; a coding list without it carries no framing here.
-                chunked = chunked
-                    || header
-                        .value
-                        .split(',')
-                        .any(|coding| coding.trim().eq_ignore_ascii_case("chunked"));
+                // RFC 9110 section 5.2 combines repeated fields into one list,
+                // so the last coding across every field is the final coding,
+                // and RFC 9112 section 6.1 accepts chunked only in that
+                // position.
+                for coding in header.value.split(',') {
+                    let name = coding.split(';').next().unwrap_or(coding).trim();
+                    if !name.is_empty() {
+                        transfer_coding = true;
+                        final_coding = Some(name);
+                    }
+                }
             }
         }
         Self {
             response,
             code,
-            content_length,
+            content_length: if invalid_length { None } else { declared },
             invalid_length,
-            chunked,
+            transfer_coding,
+            chunked: final_coding.is_some_and(|coding| coding.eq_ignore_ascii_case("chunked")),
         }
     }
 
@@ -343,41 +348,48 @@ impl Framing {
 
     /// The body-length rule of RFC 9112 section 6.3 in its precedence order.
     pub(crate) fn body_plan(&self, answer: Answer) -> BodyPlan {
-        if self.status_bodyless() {
-            // Case 1: the header section is the whole message. A declared
-            // length still caps how many trailing captured bytes belong to it,
-            // so the reassembler does not reopen those bytes as a message.
-            return self
-                .content_length
-                .map_or(BodyPlan::Empty, |length| BodyPlan::Answer(Some(length)));
+        if self.status_bodyless() || self.answers_head(answer) {
+            // Case 1: 1xx, 204, 304 and every response to HEAD end at the
+            // first empty line after the header fields, whatever the fields
+            // say about a body.
+            return BodyPlan::Empty;
         }
-        if self.answers_head(answer) || self.answers_connect(answer) {
-            // Case 1: the response to HEAD or CONNECT has no body; every
-            // captured byte after the header section is that message's file
-            // data, not a new message.
-            return BodyPlan::Answer(self.content_length);
+        if self.answers_connect(answer) {
+            // Section 9.3.6: a 2xx answer to CONNECT turns the connection into
+            // a tunnel, so every captured trailing byte belongs to the answer.
+            return BodyPlan::Answer;
         }
         if self.chunked {
-            // Case 3: a chunked coding delimits the body itself and takes
-            // precedence over any declared length.
+            // Case 3: a final chunked coding delimits the body itself and
+            // takes precedence over any declared length.
             return BodyPlan::Chunked;
         }
+        if self.transfer_coding {
+            // Case 4: a final transfer coding that is not chunked leaves a
+            // response delimited by the connection close, while a request that
+            // carries one cannot be framed at all (section 6.1). The captured
+            // remainder stays with the request so it cannot reopen as another
+            // message.
+            return if self.response {
+                BodyPlan::CloseDelimited
+            } else {
+                BodyPlan::InvalidLength
+            };
+        }
         if let Some(length) = self.content_length {
-            // Case 4.
+            // Case 5.
             return BodyPlan::Fixed(length);
         }
         if self.invalid_length {
-            // The length is unusable, so the message has no declared boundary.
-            // The captured bytes stay with it instead of being guessed at,
-            // which is also what the reassembler needs so the following bytes
-            // cannot reopen as a message.
+            // Case 5 with no usable value: nothing declares a boundary, so the
+            // captured remainder is the message.
             return BodyPlan::InvalidLength;
         }
         if !self.response {
-            // Case 6: a request without framing fields has no body.
+            // Case 7: a request without framing fields has no body.
             return BodyPlan::Empty;
         }
-        // Case 7: a response is delimited by the connection close.
+        // Case 8: a response is delimited by the connection close.
         BodyPlan::CloseDelimited
     }
 }
@@ -390,15 +402,41 @@ pub(crate) enum BodyPlan {
     Empty,
     /// Exactly this many bytes follow it.
     Fixed(usize),
-    /// The message has no body, but captured trailing bytes still belong to
-    /// it, capped by the declared length when one is present.
-    Answer(Option<usize>),
-    /// The declared length is unusable; the captured remainder is body.
+    /// A 2xx answer to CONNECT: the connection becomes a tunnel, so every
+    /// captured trailing byte belongs to the answer (RFC 9112 section 9.3.6).
+    Answer,
+    /// The framing fields are unusable; the captured remainder is body.
     InvalidLength,
     /// The chunked transfer coding delimits the body (RFC 9112 section 7.1).
     Chunked,
     /// The body ends when the connection closes.
     CloseDelimited,
+}
+
+/// One Content-Length field value as a decimal body length.
+///
+/// RFC 9112 section 6.3 lets a recipient collapse a field value that lists
+/// identical decimal values, so `5, 5` is as usable as `5`; every other shape
+/// is unusable. RFC 9110 section 5.6.1 makes an empty list element
+/// insignificant, and the value itself is one or more digits.
+fn content_length_value(value: &str) -> Option<usize> {
+    let mut length = None;
+    for item in value.split(',') {
+        let item = item.trim();
+        if item.is_empty() {
+            continue;
+        }
+        if !item.bytes().all(|byte| byte.is_ascii_digit()) {
+            return None;
+        }
+        let parsed = item.parse::<usize>().ok()?;
+        match length {
+            Some(previous) if previous != parsed => return None,
+            Some(_) => {}
+            None => length = Some(parsed),
+        }
+    }
+    length
 }
 
 /// The response status a framing decision needs.
@@ -738,17 +776,19 @@ mod tests {
     }
 
     #[test]
-    fn a_transfer_coding_that_is_not_chunked_leaves_content_length_in_charge() {
-        // The expected output frames such a message by its declared length:
-        // only the chunked coding can be de-framed here. RFC 9112 section 6.3
-        // cases 3 and 5 would let Transfer-Encoding override the length and
-        // close-delimit the response; this departure is deliberate.
+    fn a_transfer_coding_that_is_not_chunked_overrides_content_length() {
+        // RFC 9112 section 6.1: a message with both fields is framed by its
+        // Transfer-Encoding, never by the declared length. RFC 9112 section
+        // 6.3 case 4 then leaves a response to the connection close; a request
+        // that carries such a coding cannot be framed at all.
         let response = b"HTTP/1.1 200 OK\r\nContent-Length: 5\r\nTransfer-Encoding: gzip\r\n\r\n";
-        assert_eq!(plan(response, Answer::default()), BodyPlan::Fixed(5));
-        // Without a length there is nothing to use, so the response ends at
-        // the connection close (case 7).
+        assert_eq!(plan(response, Answer::default()), BodyPlan::CloseDelimited);
         let response = b"HTTP/1.1 200 OK\r\nTransfer-Encoding: gzip\r\n\r\n";
         assert_eq!(plan(response, Answer::default()), BodyPlan::CloseDelimited);
+        let request = b"POST / HTTP/1.1\r\nContent-Length: 5\r\nTransfer-Encoding: gzip\r\n\r\n";
+        assert_eq!(plan(request, Answer::default()), BodyPlan::InvalidLength);
+        let request = b"POST / HTTP/1.1\r\nTransfer-Encoding: gzip\r\n\r\n";
+        assert_eq!(plan(request, Answer::default()), BodyPlan::InvalidLength);
     }
 
     #[test]
@@ -758,22 +798,43 @@ mod tests {
         let block = b"HTTP/1.1 200 OK\r\nTransfer-Encoding: \r\nContent-Length: 4\r\n\r\n";
         let facts = framing(block);
         assert!(!facts.chunked);
+        assert!(!facts.transfer_coding);
         assert_eq!(facts.body_plan(Answer::default()), BodyPlan::Fixed(4));
     }
 
     #[test]
-    fn any_chunked_coding_selects_chunk_framing() {
-        // RFC 9112 section 6.1 lists transfer codings; the check accepts the
-        // token in any position, which is how the expected output reads it.
-        for value in ["chunked", "gzip, chunked", "chunked, gzip", "CHUNKED"] {
+    fn only_a_final_chunked_coding_selects_chunk_framing() {
+        // RFC 9112 sections 6.1 and 7.1: chunked is usable only as the final
+        // transfer coding.
+        for value in ["chunked", "gzip, chunked", "CHUNKED", "gzip , chunked"] {
             let block = format!("HTTP/1.1 200 OK\r\nTransfer-Encoding: {value}\r\n\r\n");
-            assert!(framing(block.as_bytes()).chunked, "value {value:?}");
+            let facts = framing(block.as_bytes());
+            assert!(facts.transfer_coding, "value {value:?}");
+            assert!(facts.chunked, "value {value:?}");
+            assert_eq!(facts.body_plan(Answer::default()), BodyPlan::Chunked);
         }
-        // A coding whose name merely contains the token is not chunked.
-        for value in ["xchunked", "gzip", ""] {
+        for value in ["chunked, gzip", "chunked,chunked, gzip", "xchunked", "gzip"] {
             let block = format!("HTTP/1.1 200 OK\r\nTransfer-Encoding: {value}\r\n\r\n");
-            assert!(!framing(block.as_bytes()).chunked, "value {value:?}");
+            let facts = framing(block.as_bytes());
+            assert!(facts.transfer_coding, "value {value:?}");
+            assert!(!facts.chunked, "value {value:?}");
+            assert_eq!(
+                facts.body_plan(Answer::default()),
+                BodyPlan::CloseDelimited,
+                "value {value:?}"
+            );
         }
+        // A coding parameter belongs to the coding, not to its name.
+        let parameter = b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked; q=1\r\n\r\n";
+        assert!(framing(parameter).chunked);
+        // Repeated fields combine into one list (RFC 9110 section 5.2), so the
+        // last coding of the last field decides.
+        let block =
+            b"HTTP/1.1 200 OK\r\nTransfer-Encoding: gzip\r\nTransfer-Encoding: chunked\r\n\r\n";
+        assert!(framing(block).chunked);
+        let block =
+            b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\nTransfer-Encoding: gzip\r\n\r\n";
+        assert!(!framing(block).chunked);
     }
 
     #[test]
@@ -785,96 +846,81 @@ mod tests {
     }
 
     #[test]
-    fn the_last_readable_content_length_frames_the_body() {
-        // The expected output frames with the last Content-Length value the
-        // analyser can read. RFC 9112 section 6.3 rejects repeated fields that
-        // disagree and any unusable value; this is the recorded departure.
+    fn repeated_content_length_values_must_agree() {
+        // RFC 9112 section 6.3: repeated fields with the same decimal value
+        // may be collapsed into one; any disagreement or unreadable value
+        // makes the length unusable, and no later field recovers it.
         let same = b"HTTP/1.1 200 OK\r\nContent-Length: 5\r\nContent-Length: 5\r\n\r\n";
-        assert_eq!(plan(same, Answer::default()), BodyPlan::Fixed(5));
-        let padded = b"HTTP/1.1 200 OK\r\nContent-Length: 05\r\nContent-Length: 5\r\n\r\n";
-        assert_eq!(plan(padded, Answer::default()), BodyPlan::Fixed(5));
-        let disagree = b"HTTP/1.1 200 OK\r\nContent-Length: 3\r\nContent-Length: 5\r\n\r\n";
-        assert_eq!(plan(disagree, Answer::default()), BodyPlan::Fixed(5));
-        // An unusable value clears the remembered length and a later field
-        // replaces it.
-        let recovered = b"HTTP/1.1 200 OK\r\nContent-Length: abc\r\nContent-Length: 5\r\n\r\n";
-        let facts = framing(recovered);
+        let facts = framing(same);
         assert!(!facts.invalid_length);
         assert_eq!(facts.content_length, Some(5));
-        let cleared = b"HTTP/1.1 200 OK\r\nContent-Length: 5\r\nContent-Length: abc\r\n\r\n";
-        let facts = framing(cleared);
-        assert!(facts.invalid_length);
-        assert_eq!(facts.content_length, None);
-        assert_eq!(facts.body_plan(Answer::default()), BodyPlan::InvalidLength);
-        // The remainder stays with the message whatever its start line was, so
-        // the following bytes cannot reopen as a new one.
-        let request = b"POST / HTTP/1.1\r\nContent-Length: abc\r\n\r\n";
-        let facts = framing(request);
-        assert!(facts.invalid_length);
-        assert_eq!(facts.body_plan(Answer::default()), BodyPlan::InvalidLength);
+        assert_eq!(facts.body_plan(Answer::default()), BodyPlan::Fixed(5));
+
+        // "05" and "5" carry the same decimal value.
+        let padded = b"HTTP/1.1 200 OK\r\nContent-Length: 05\r\nContent-Length: 5\r\n\r\n";
+        assert_eq!(plan(padded, Answer::default()), BodyPlan::Fixed(5));
+
+        // A single field may list identical decimal values.
+        let listed = b"HTTP/1.1 200 OK\r\nContent-Length: 5, 5\r\n\r\n";
+        assert_eq!(plan(listed, Answer::default()), BodyPlan::Fixed(5));
+
+        for block in [
+            b"HTTP/1.1 200 OK\r\nContent-Length: 3\r\nContent-Length: 5\r\n\r\n".as_slice(),
+            b"HTTP/1.1 200 OK\r\nContent-Length: abc\r\nContent-Length: 5\r\n\r\n",
+            b"HTTP/1.1 200 OK\r\nContent-Length: 5\r\nContent-Length: abc\r\n\r\n",
+            b"HTTP/1.1 200 OK\r\nContent-Length: 5, 6\r\n\r\n",
+            b"HTTP/1.1 200 OK\r\nContent-Length: \r\n\r\n",
+            b"POST / HTTP/1.1\r\nContent-Length: -1\r\n\r\n",
+        ] {
+            let facts = framing(block);
+            assert!(facts.invalid_length, "{block:?}");
+            assert_eq!(facts.content_length, None, "{block:?}");
+            assert_eq!(
+                facts.body_plan(Answer::default()),
+                BodyPlan::InvalidLength,
+                "{block:?}"
+            );
+        }
     }
 
     #[test]
-    fn bodyless_statuses_cap_their_trailing_bytes() {
+    fn bodyless_responses_end_at_the_header_section() {
+        // RFC 9112 section 6.3 case 1: 1xx, 204 and 304 responses are
+        // terminated by the empty line whatever their fields declare.
         for line in [
             b"HTTP/1.1 100 Continue\r\n\r\n".as_slice(),
             b"HTTP/1.1 204 No Content\r\n\r\n",
+            b"HTTP/1.1 204 No Content\r\nContent-Length: 3\r\n\r\n",
             b"HTTP/1.1 304 Not Modified\r\n\r\n",
+            b"HTTP/1.1 304 Not Modified\r\nContent-Length: 5\r\n\r\n",
         ] {
-            assert_eq!(plan(line, Answer::default()), BodyPlan::Empty);
+            assert_eq!(plan(line, Answer::default()), BodyPlan::Empty, "{line:?}");
         }
-        // A declared length still says how many captured bytes belong to the
-        // message, although they are not a body.
-        let block = b"HTTP/1.1 204 No Content\r\nContent-Length: 3\r\n\r\n";
-        assert_eq!(plan(block, Answer::default()), BodyPlan::Answer(Some(3)));
+        // A response to HEAD describes the body a GET answer would carry and
+        // carries none of it.
+        let head = Answer {
+            head: true,
+            connect: false,
+        };
+        let block = b"HTTP/1.1 200 OK\r\nContent-Length: 100\r\n\r\n";
+        assert_eq!(plan(block, head), BodyPlan::Empty);
+        assert_eq!(plan(b"HTTP/1.1 200 OK\r\n\r\n", head), BodyPlan::Empty);
     }
 
     #[test]
-    fn answers_to_head_and_connect_own_their_captured_bytes() {
+    fn only_a_connect_tunnel_owns_its_captured_bytes() {
+        // RFC 9112 section 9.3.6: a 2xx answer to CONNECT turns the connection
+        // into a tunnel, and every captured trailing byte belongs to it.
+        let connect = Answer {
+            head: false,
+            connect: true,
+        };
         let block = b"HTTP/1.1 200 OK\r\nContent-Length: 100\r\n\r\n";
-        assert_eq!(
-            plan(
-                block,
-                Answer {
-                    head: true,
-                    connect: false
-                }
-            ),
-            BodyPlan::Answer(Some(100))
-        );
-        assert_eq!(
-            plan(
-                block,
-                Answer {
-                    head: false,
-                    connect: true
-                }
-            ),
-            BodyPlan::Answer(Some(100))
-        );
-        let no_length = b"HTTP/1.1 200 OK\r\n\r\n";
-        assert_eq!(
-            plan(
-                no_length,
-                Answer {
-                    head: true,
-                    connect: false
-                }
-            ),
-            BodyPlan::Answer(None)
-        );
-        // Only a 2xx answer to CONNECT opens a tunnel.
+        assert_eq!(plan(block, connect), BodyPlan::Answer);
+        assert_eq!(plan(b"HTTP/1.1 200 OK\r\n\r\n", connect), BodyPlan::Answer);
+        // A failed CONNECT keeps the response rules.
         let failed = b"HTTP/1.1 403 Forbidden\r\n\r\n";
-        assert_eq!(
-            plan(
-                failed,
-                Answer {
-                    head: false,
-                    connect: true
-                }
-            ),
-            BodyPlan::CloseDelimited
-        );
+        assert_eq!(plan(failed, connect), BodyPlan::CloseDelimited);
     }
 
     #[test]
@@ -937,8 +983,13 @@ mod tests {
     #[test]
     fn a_continuation_skips_one_crlf_and_rejects_a_start_line() {
         let data = b"\r\ngarbage\n";
-        let Some(continuation) = continuation_at(data) else {
-            return;
+        let step = continuation_at(data);
+        assert!(
+            matches!(step, Some(Continuation { .. })),
+            "a printable non-start line must be a continuation: {step:?}"
+        );
+        let Some(continuation) = step else {
+            unreachable!("the continuation was asserted to be present");
         };
         assert_eq!(continuation.skip, 2);
         assert_eq!(continuation.body, b"garbage\n");
@@ -1008,8 +1059,13 @@ mod tests {
                 trailers: false
             }
         ));
-        let ChunkStep::Data { size, bytes, .. } = scanner.step(body, body.len()) else {
-            return;
+        let step = scanner.step(body, body.len());
+        assert!(
+            matches!(step, ChunkStep::Data { .. }),
+            "a complete chunk must be reported as data: {step:?}"
+        );
+        let ChunkStep::Data { size, bytes, .. } = step else {
+            unreachable!("the step was asserted to be a data chunk");
         };
         assert_eq!(size, 5);
         assert_eq!(bytes, b"Hello");
@@ -1024,13 +1080,24 @@ mod tests {
     fn chunk_data_split_across_calls_reports_the_pending_chunk() {
         let body = b"5\r\nHel";
         let mut scanner = ChunkScanner::new(0);
+        let step = scanner.step(body, body.len());
+        assert!(
+            matches!(
+                step,
+                ChunkStep::Incomplete {
+                    pending: Some(_),
+                    ..
+                }
+            ),
+            "a partially delivered chunk must report its pending size: {step:?}"
+        );
         let ChunkStep::Incomplete {
             restart,
             pending: Some(pending),
             trailers,
-        } = scanner.step(body, body.len())
+        } = step
         else {
-            return;
+            unreachable!("the step was asserted to carry a pending chunk");
         };
         assert_eq!(restart, 3);
         assert!(!trailers);
@@ -1062,18 +1129,34 @@ mod tests {
     fn a_malformed_chunk_boundary_is_reported_not_resynchronised() {
         let body = b"1\r\naXX1\r\nb\r\n0\r\n\r\n";
         let mut scanner = ChunkScanner::new(0);
+        let step = scanner.step(body, body.len());
+        assert!(
+            matches!(
+                step,
+                ChunkStep::Data {
+                    boundary_ok: false,
+                    ..
+                }
+            ),
+            "the non-CRLF boundary must be reported: {step:?}"
+        );
         let ChunkStep::Data {
             line, boundary_ok, ..
-        } = scanner.step(body, body.len())
+        } = step
         else {
-            return;
+            unreachable!("the step was asserted to be a data chunk");
         };
         assert_eq!(line, 0);
         assert!(!boundary_ok);
         // The two bytes are consumed, so the next size line is read from the
         // position the wire declares.
-        let ChunkStep::Data { line, .. } = scanner.step(body, body.len()) else {
-            return;
+        let step = scanner.step(body, body.len());
+        assert!(
+            matches!(step, ChunkStep::Data { .. }),
+            "the next chunk must still decode: {step:?}"
+        );
+        let ChunkStep::Data { line, .. } = step else {
+            unreachable!("the step was asserted to be a data chunk");
         };
         assert_eq!(line, 6);
     }
@@ -1087,13 +1170,18 @@ mod tests {
             scanner.step(body, body.len()),
             ChunkStep::Trailer { line: 3, .. }
         ));
+        let step = scanner.step(body, body.len());
+        assert!(
+            matches!(step, ChunkStep::Incomplete { trailers: true, .. }),
+            "an unterminated trailer section must wait for bytes: {step:?}"
+        );
         let ChunkStep::Incomplete {
             restart,
             pending: None,
             trailers: true,
-        } = scanner.step(body, body.len())
+        } = step
         else {
-            return;
+            unreachable!("the step was asserted to be an incomplete trailer section");
         };
         assert_eq!(restart, body.len());
     }

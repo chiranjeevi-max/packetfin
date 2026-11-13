@@ -11554,6 +11554,12 @@ static FIXTURES: &[Fixture] = &[
         case_specs: HTTP1_EDGE_CASE_SPECS,
     },
     Fixture {
+        name: "http-framing-rfc",
+        extension: "pcap",
+        builder: build_http_framing_rfc,
+        case_specs: &[],
+    },
+    Fixture {
         name: "http2",
         extension: "pcap",
         builder: build_http2,
@@ -31584,14 +31590,6 @@ fn build_http_objects_split() -> Result<Vec<u8>, String> {
         connection.server_fin(b"")?;
     }
 
-    // Extra bytes in a HEAD response's frame are its body for export.
-    {
-        let mut connection = ObjectConnection::new(&mut frames, 40_510);
-        connection.client(b"HEAD /head-extra HTTP/1.1\r\nHost: h\r\n\r\n")?;
-        connection.server(b"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\njunk\n")?;
-        connection.server_fin(b"")?;
-    }
-
     // A close-delimited response carried entirely by the FIN segment.
     {
         let mut connection = ObjectConnection::new(&mut frames, 40_511);
@@ -36987,14 +36985,6 @@ fn build_http1_edge() -> Result<Vec<u8>, String> {
         b"HTTP/1.1 304 Not Modified\r\nContent-Length: 100\r\n\r\n",
         &mut frames,
     )?;
-    push_server(
-        b"HTTP/1.1 304 Not Modified\r\nContent-Length: 5\r\n\r\nabc",
-        &mut frames,
-    )?;
-    push_client(
-        b"POST /dup HTTP/1.1\r\nHost: x\r\nContent-Length: 3\r\nContent-Length: 5\r\n\r\nhello",
-        &mut frames,
-    )?;
     push_client(b"GET /chunk HTTP/1.1\r\nHost: x\r\n\r\n", &mut frames)?;
     push_server(
         b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n1\r\na\r\n0\r\nX: y\r\n\r\n",
@@ -37018,15 +37008,92 @@ fn build_http1_edge() -> Result<Vec<u8>, String> {
         1,
         b"HTTP/1.1 200 OK\r\nContent-Length: 3\r\nContent-Length: abc\r\n\r\nhello",
     )?);
-    frames.push(tcp_payload_between(
-        T20_SERVER,
-        T20_CLIENT,
-        80,
-        40_132,
-        1000,
-        1,
-        b"HTTP/1.1 200 OK\r\nContent-Length: abc\r\nContent-Length: 3\r\n\r\nhello",
-    )?);
+    link_pcap(u32::from(LINKTYPE_ETHERNET), &frames)
+}
+
+fn build_http_framing_rfc() -> Result<Vec<u8>, String> {
+    let mut frames = Vec::new();
+
+    // A method outside the common set still starts a message and a follow
+    // record. This connection comes first so it is stream 0.
+    {
+        let mut connection = ObjectConnection::new(&mut frames, 40_600);
+        connection.client(b"PROPFIND /dav HTTP/1.1\r\nHost: h\r\nContent-Length: 0\r\n\r\n")?;
+        connection.server(b"HTTP/1.1 207 Multi-Status\r\nContent-Length: 0\r\n\r\n")?;
+        connection.server_fin(b"")?;
+    }
+
+    // Repeated Content-Length fields that agree frame the declared body once.
+    {
+        let mut connection = ObjectConnection::new(&mut frames, 40_601);
+        connection.client(b"GET /agree HTTP/1.1\r\nHost: h\r\n\r\n")?;
+        connection
+            .server(b"HTTP/1.1 200 OK\r\nContent-Length: 5\r\nContent-Length: 5\r\n\r\nhello")?;
+        connection.server_fin(b"")?;
+    }
+
+    // Repeated Content-Length fields that disagree make the length unusable;
+    // the captured remainder stays with the message.
+    {
+        let mut connection = ObjectConnection::new(&mut frames, 40_602);
+        connection.client(b"POST /disagree HTTP/1.1\r\nHost: h\r\n\r\n")?;
+        connection
+            .server(b"HTTP/1.1 200 OK\r\nContent-Length: 3\r\nContent-Length: 5\r\n\r\nhello!")?;
+        connection.server_fin(b"")?;
+    }
+
+    // An unreadable Content-Length before a usable one stays unusable.
+    {
+        let mut connection = ObjectConnection::new(&mut frames, 40_603);
+        connection.client(b"GET /unreadable HTTP/1.1\r\nHost: h\r\n\r\n")?;
+        connection
+            .server(b"HTTP/1.1 200 OK\r\nContent-Length: abc\r\nContent-Length: 5\r\n\r\nhello!")?;
+        connection.server_fin(b"")?;
+    }
+
+    // A final transfer coding that is not chunked close-delimits a response.
+    {
+        let mut connection = ObjectConnection::new(&mut frames, 40_604);
+        connection.client(b"GET /coding HTTP/1.1\r\nHost: h\r\n\r\n")?;
+        connection.server(b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked, gzip\r\n\r\nbody")?;
+        connection.server_fin(b"")?;
+    }
+
+    // A request whose final transfer coding is not chunked cannot be framed;
+    // the captured remainder stays with it.
+    {
+        let mut connection = ObjectConnection::new(&mut frames, 40_605);
+        connection
+            .client(b"POST /coding HTTP/1.1\r\nHost: h\r\nTransfer-Encoding: gzip\r\n\r\nbody")?;
+        connection.server_fin(b"")?;
+    }
+
+    // A 304 response ends at the header section; the fragment after it cannot
+    // start a message, so it becomes a continuation record.
+    {
+        let mut connection = ObjectConnection::new(&mut frames, 40_606);
+        connection.client(b"GET /304 HTTP/1.1\r\nHost: h\r\n\r\n")?;
+        connection.server(b"HTTP/1.1 304 Not Modified\r\nContent-Length: 5\r\n\r\njunk\r\n")?;
+        connection.server_fin(b"")?;
+    }
+
+    // A response to HEAD carries no body even when its fields declare one.
+    {
+        let mut connection = ObjectConnection::new(&mut frames, 40_607);
+        connection.client(b"HEAD /head HTTP/1.1\r\nHost: h\r\n\r\n")?;
+        connection.server(b"HTTP/1.1 200 OK\r\nContent-Length: 4\r\n\r\njunk\r\n")?;
+        connection.server_fin(b"")?;
+    }
+
+    // A chunk boundary that is not CRLF keeps the decoded chunk, shows the
+    // captured bytes and carries one malformed expert.
+    {
+        let mut connection = ObjectConnection::new(&mut frames, 40_608);
+        connection.client(b"GET /boundary HTTP/1.1\r\nHost: h\r\n\r\n")?;
+        connection.server(b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n1\r\naXX")?;
+        connection.server_fin(b"")?;
+    }
+
     link_pcap(u32::from(LINKTYPE_ETHERNET), &frames)
 }
 

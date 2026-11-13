@@ -779,6 +779,17 @@ impl Ulp {
         matches!(self, Self::Dns | Self::Bgp | Self::Http2)
     }
 
+    /// The most PDUs this upper layer emits from one segment/frame.
+    ///
+    /// HTTP/2 frames are small and numerous, and each is a tree node, so its
+    /// per-insert bound is lower than the generic one.
+    fn insert_pdu_limit(self) -> usize {
+        match self {
+            Self::Http2 => MAX_HTTP2_PDUS_PER_INSERT,
+            Self::Dns | Self::Tls | Self::Http | Self::Bgp => MAX_PDUS_PER_INSERT,
+        }
+    }
+
     /// The largest message this upper layer reassembles in one direction.
     fn pdu_limit(self) -> usize {
         match self {
@@ -875,6 +886,16 @@ const MAX_PDU_SEGMENTS: usize = 4096;
 /// A 1 MiB window of tiny messages would otherwise create an unbounded action
 /// list and Info string.
 const MAX_PDUS_PER_INSERT: usize = 4096;
+
+/// The most HTTP/2 frames one segment/frame emits.
+///
+/// Each frame becomes a protocol node with several fields, so the generic PDU
+/// bound still lets a hostile segment of one-byte DATA frames retain tens of
+/// megabytes of tree metadata for one packet. The bound is one and a half
+/// times the body-view cap, so a body that just exceeds that cap still
+/// completes in one segment while a flood stops with the existing sequence
+/// expert; 384 frames is far beyond any real per-segment flight.
+const MAX_HTTP2_PDUS_PER_INSERT: usize = 384;
 
 /// DNS's TCP length prefix.
 const DNS_LENGTH_BYTES: usize = 2;
@@ -1621,7 +1642,7 @@ impl StreamBuffer {
             if self.start.is_none() {
                 return;
             }
-            if emitted >= MAX_PDUS_PER_INSERT {
+            if emitted >= ulp.insert_pdu_limit() {
                 report.error = true;
                 report.error_frame = Some(frame);
                 report.limit_reached = true;
@@ -3224,6 +3245,23 @@ mod tests {
         let report = buffer.insert(100, &payload, 1, false);
         assert!(report.limit_reached);
         assert!(report.actions.len() <= MAX_PDUS_PER_INSERT);
+        assert!(buffer.refused);
+    }
+
+    #[test]
+    fn a_window_of_tiny_http2_frames_is_capped() {
+        // Each frame is one protocol node, so the HTTP/2 per-insert bound is
+        // much lower than the generic PDU bound; a hostile segment must stop
+        // before its tree metadata outgrows the published ceiling.
+        let mut buffer = StreamBuffer::default();
+        buffer.set_ulp(Ulp::Http2);
+        let mut payload = b"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n".to_vec();
+        for _ in 0..400 {
+            payload.extend_from_slice(&[0, 0, 1, 0, 0, 0, 0, 0, 1, b'A']);
+        }
+        let report = buffer.insert(100, &payload, 1, false);
+        assert!(report.limit_reached);
+        assert!(report.actions.len() <= MAX_HTTP2_PDUS_PER_INSERT);
         assert!(buffer.refused);
     }
 

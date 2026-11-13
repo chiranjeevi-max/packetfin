@@ -131,12 +131,15 @@ impl SummaryWriter {
     /// The first file frame becomes the delta reference again and the first
     /// `-t d` delta of the new session is blank; the following delta is
     /// therefore measured from the first file frame. `-t dd` deltas continue
-    /// from the previous displayed frame.
+    /// from the previous displayed frame. Frame numbers restart with the
+    /// session, so an echo request from the old numbering cannot answer for
+    /// a frame in the new one.
     pub fn reset_session(&mut self) {
         if self.options.format == TimeFormat::Delta {
             self.previous_captured = self.first_timestamp;
             self.suppress_captured_delta = true;
         }
+        self.echo_requests = EchoBook::default();
     }
 
     /// Seed the time baseline from a frame that will not be displayed.
@@ -3070,6 +3073,24 @@ mod tests {
         let text = String::from_utf8(output).unwrap_or_default();
         assert!(!text.contains("SEQ/ACK"), "{text}");
         assert!(!text.contains("TCP Analysis Flags"), "{text}");
+    }
+
+    #[test]
+    fn a_session_reset_forgets_echo_requests() {
+        let mut writer = SummaryWriter::new(TimeOptions::default());
+        writer.echo_requests.remember(
+            (
+                false,
+                "192.0.2.1".to_string(),
+                "198.51.100.2".to_string(),
+                1,
+                2,
+            ),
+            7,
+        );
+        assert_eq!(writer.echo_requests.len(), 1);
+        writer.reset_session();
+        assert_eq!(writer.echo_requests.len(), 0);
     }
 }
 

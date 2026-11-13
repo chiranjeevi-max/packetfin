@@ -30,7 +30,7 @@ use crate::decode::DecodeContext;
 use crate::decode::bytes::{hex_lower, read_u16_be, read_u24_be, read_u32_be};
 use crate::decode::http;
 use crate::fields;
-use crate::state::{ConversationKey, PduAction};
+use crate::state::{ConversationKey, PduAction, PlaintextAlpn};
 use crate::tree::{Field, Node, Range, RawField, RawSource, Value};
 
 use self::cipher::{Suite, suite};
@@ -627,7 +627,7 @@ pub(crate) fn decode(context: &mut DecodeContext<'_>, parent: &mut Node, data: &
         );
     }
 
-    let alpn_http2 = flow.as_ref().is_some_and(TlsFlow::http2_alpn);
+    let selected_http2 = flow.as_ref().and_then(TlsFlow::selected_http2);
     let alpn_http = flow
         .as_ref()
         .is_some_and(|flow| flow.http_alpn() || flow.http2_alpn());
@@ -680,7 +680,7 @@ pub(crate) fn decode(context: &mut DecodeContext<'_>, parent: &mut Node, data: &
             plaintext_direction,
             &mut client_plaintext,
             plaintext_info,
-            alpn_http2,
+            selected_http2,
         );
         plaintext_info = info;
         client_http |= http;
@@ -694,7 +694,7 @@ pub(crate) fn decode(context: &mut DecodeContext<'_>, parent: &mut Node, data: &
             plaintext_direction,
             &mut server_plaintext,
             plaintext_info,
-            alpn_http2,
+            selected_http2,
         );
         plaintext_info = info;
         server_http |= http;
@@ -732,7 +732,7 @@ fn decode_plaintext(
     direction: usize,
     plaintext: &mut Vec<u8>,
     info: Option<String>,
-    http2: bool,
+    selected_http2: Option<bool>,
 ) -> (bool, Option<String>) {
     if plaintext.is_empty() {
         return (false, info);
@@ -747,7 +747,11 @@ fn decode_plaintext(
         context.frame.number,
         plaintext,
         false,
-        http2,
+        match selected_http2 {
+            Some(true) => PlaintextAlpn::Http2,
+            Some(false) => PlaintextAlpn::Other,
+            None => PlaintextAlpn::Unknown,
+        },
     );
     plaintext.clear();
     (

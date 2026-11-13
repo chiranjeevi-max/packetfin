@@ -377,7 +377,7 @@ impl SessionState {
         frame: u64,
         bytes: &[u8],
         fin: bool,
-        http2: bool,
+        alpn: PlaintextAlpn,
     ) -> (ReassemblyReport, bool) {
         if self.budget.suspended() || (bytes.is_empty() && !fin) {
             return (ReassemblyReport::default(), false);
@@ -389,16 +389,23 @@ impl SessionState {
             .unwrap_or_default();
         let direction = direction.min(1);
         {
-            // ALPN `h2` fixes HTTP/2 for both directions: the client opens
-            // with the connection preface, but the server's first record is a
-            // SETTINGS frame with no marker of its own. Without ALPN, a
-            // plaintext that starts with the preface still selects HTTP/2;
-            // `set_ulp` keeps the direction's first value.
+            // An ALPN `h2` selection fixes HTTP/2 for both directions: the
+            // client opens with the connection preface, but the server's
+            // first record is a SETTINGS frame with no marker of its own.
+            // Without a decrypted selection, the preface or an already
+            // recognised peer direction supplies the same fact; `set_ulp`
+            // keeps the direction's first value.
+            let peer_http2 = plaintext.streams.direction(direction ^ 1).ulp() == Some(Ulp::Http2);
             let stream = plaintext.streams.direction_mut(direction);
-            let ulp = if http2 || crate::decode::http2::looks_like_http2_prefix(bytes) {
-                Ulp::Http2
-            } else {
-                Ulp::Http
+            let ulp = match alpn {
+                PlaintextAlpn::Http2 => Ulp::Http2,
+                PlaintextAlpn::Other => Ulp::Http,
+                PlaintextAlpn::Unknown
+                    if peer_http2 || crate::decode::http2::looks_like_http2_prefix(bytes) =>
+                {
+                    Ulp::Http2
+                }
+                PlaintextAlpn::Unknown => Ulp::Http,
             };
             stream.set_ulp(ulp);
         }
@@ -748,6 +755,22 @@ pub(crate) enum Ulp {
     Http,
     /// HTTP/2: the connection preface and one frame at a time.
     Http2,
+}
+
+/// What the TLS layer knows about the application protocol before plaintext.
+///
+/// ALPN is authoritative when the server's selection was decrypted
+/// (RFC 7301 section 3.2). A TLS 1.3 key log may carry only application
+/// traffic secrets, which cannot decrypt EncryptedExtensions; in that case
+/// the client preface or the peer direction identifies HTTP/2.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum PlaintextAlpn {
+    /// No selection was decrypted; infer it from the preface or the peer.
+    Unknown,
+    /// The server selected HTTP/2.
+    Http2,
+    /// The server selected another protocol.
+    Other,
 }
 
 impl Ulp {
@@ -1161,6 +1184,11 @@ impl StreamBuffer {
         if self.ulp.is_none() {
             self.ulp = Some(ulp);
         }
+    }
+
+    /// The upper protocol recognised for this direction, if any.
+    pub(crate) fn ulp(&self) -> Option<Ulp> {
+        self.ulp
     }
 
     /// Bytes retained for the pending PDU, for budget accounting.
@@ -2795,7 +2823,7 @@ mod tests {
                 u64::try_from(frame).unwrap_or(0),
                 chunk,
                 false,
-                false,
+                PlaintextAlpn::Other,
             );
             for action in report.actions {
                 if let PduAction::Reassembled { pdu, .. } = action {
@@ -3757,7 +3785,7 @@ mod tests {
         let mut session = SessionState::new(4096);
         let (key, _) = ConversationKey::ipv4([192, 0, 2, 1], 40_000, [192, 0, 2, 2], 80);
         let chunk = vec![b'A'; 8192];
-        let _ = session.insert_tls_plaintext(key, 0, 1, &chunk, false, false);
+        let _ = session.insert_tls_plaintext(key, 0, 1, &chunk, false, PlaintextAlpn::Other);
         assert!(session.take_dropped(), "the state ledger accepted 8 KiB");
     }
 }

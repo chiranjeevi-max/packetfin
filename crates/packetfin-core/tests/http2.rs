@@ -691,6 +691,113 @@ fn tls_frame(number: u64, sequence: u32, from_client: bool, payload: &[u8]) -> F
     }
 }
 
+#[test]
+fn application_only_keylog_infers_http2_for_the_server_direction() {
+    use packetfin_testkit::tls;
+
+    let mut writer = tls::Tls13Writer::new(0x1302);
+    let client_hello = tls::client_hello(
+        tls::TLS12_VERSION,
+        writer.client_random(),
+        &[],
+        &[0x1302, 0x1301],
+        &[
+            (16, vec![0, 3, 2, b'h', b'2']),
+            (43, vec![4, 0x03, 0x04, 0x03, 0x03]),
+        ],
+    );
+    let server_hello = tls::server_hello(
+        tls::TLS12_VERSION,
+        writer.server_random(),
+        &[],
+        0x1302,
+        &[(43, vec![0x03, 0x04])],
+    );
+    let mut client = PREFACE.to_vec();
+    client.extend_from_slice(&h2_frame(4, 0, 0, &[]));
+    client.extend_from_slice(&h2_frame(1, 0x05, 1, &[0x82, 0x86, 0x84]));
+    let mut server = h2_frame(4, 0, 0, &[]);
+    server.extend_from_slice(&h2_frame(1, 0x04, 1, &[0x88]));
+    server.extend_from_slice(&h2_frame(0, 0x01, 1, b"hi"));
+    let records = [
+        (
+            true,
+            tls::plain_record(tls::HANDSHAKE, 0x0301, &client_hello),
+        ),
+        (
+            false,
+            tls::plain_record(tls::HANDSHAKE, 0x0303, &server_hello),
+        ),
+        (
+            true,
+            writer.record(
+                true,
+                tls::Epoch::Application,
+                tls::APPLICATION_DATA,
+                &client,
+            ),
+        ),
+        (
+            false,
+            writer.record(
+                false,
+                tls::Epoch::Application,
+                tls::APPLICATION_DATA,
+                &server,
+            ),
+        ),
+    ];
+    // Application traffic secrets alone cannot decrypt EncryptedExtensions,
+    // so ALPN is unknown and the preface must settle the framing.
+    let keylog = writer
+        .keylog()
+        .lines()
+        .filter(|line| {
+            line.starts_with("CLIENT_TRAFFIC_SECRET_0")
+                || line.starts_with("SERVER_TRAFFIC_SECRET_0")
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+        + "\n";
+    let mut session = DecodeSession::new(DecodeOptions::default());
+    session.set_keylog(KeyLog::read(keylog.as_bytes()));
+    let mut client_sequence = 1_u32;
+    let mut server_sequence = 1_u32;
+    let mut frames = Vec::new();
+    for (index, (from_client, record)) in records.iter().enumerate() {
+        let number = u64::try_from(index).unwrap_or(0) + 1;
+        let sequence = if *from_client {
+            client_sequence
+        } else {
+            server_sequence
+        };
+        let packet = session.decode_at(&tls_frame(number, sequence, *from_client, record), number);
+        frames.push(packet);
+        let next = sequence.saturating_add(u32::try_from(record.len()).unwrap_or(u32::MAX));
+        if *from_client {
+            client_sequence = next;
+        } else {
+            server_sequence = next;
+        }
+    }
+    let server_app = frames
+        .get(3)
+        .unwrap_or_else(|| unreachable!("server app data"));
+    let stream = stream_with(server_app, "http2.header")
+        .unwrap_or_else(|| unreachable!("the server SETTINGS and HEADERS decode as HTTP/2"));
+    assert_eq!(
+        child_value(stream, "http2.headers.status").as_deref(),
+        Some("200")
+    );
+    let client_app = frames
+        .get(2)
+        .unwrap_or_else(|| unreachable!("client app data"));
+    assert!(
+        stream_with(client_app, "http2.header").is_some(),
+        "the preface and request frames decode as HTTP/2"
+    );
+}
+
 /// The first value of `abbrev` anywhere in the packet tree.
 fn tree_field(packet: &packetfin_core::Packet, abbrev: &str) -> Option<String> {
     packet

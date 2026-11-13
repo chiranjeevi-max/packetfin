@@ -479,9 +479,9 @@ pub(crate) struct TlsFlow {
     /// The client offered HTTP/1.x in ALPN; application data takes that
     /// protocol label even when the record cannot be decrypted.
     http: bool,
-    /// The server selected HTTP/2 in ALPN; both application directions use
-    /// the HTTP/2 framing.
-    selected_h2: bool,
+    /// The server's ALPN selection: `Some(true)` for `h2`, `Some(false)` for
+    /// another protocol, `None` when no selection was decrypted.
+    selected_h2: Option<bool>,
 }
 
 impl TlsFlow {
@@ -491,7 +491,7 @@ impl TlsFlow {
             client_port,
             sessions: Vec::new(),
             http: false,
-            selected_h2: false,
+            selected_h2: None,
         }
     }
 
@@ -507,10 +507,18 @@ impl TlsFlow {
 
     /// Remember the application protocol the server selected.
     ///
-    /// A TLS 1.2 ServerHello or a TLS 1.3 EncryptedExtensions carries it;
-    /// until it arrives, only the client preface can identify HTTP/2.
+    /// A TLS 1.2 ServerHello or a TLS 1.3 EncryptedExtensions carries it.
+    /// An absent extension is not a selection: the client preface can still
+    /// identify HTTP/2 when only application traffic secrets are available.
     pub(crate) fn set_selected_alpn(&mut self, alpn: Option<&str>) {
-        self.selected_h2 = alpn.is_some_and(|protocol| protocol.eq_ignore_ascii_case("h2"));
+        if let Some(protocol) = alpn {
+            self.selected_h2 = Some(protocol.eq_ignore_ascii_case("h2"));
+        }
+    }
+
+    /// The server's explicit ALPN selection, when one was decrypted.
+    pub(crate) fn selected_http2(&self) -> Option<bool> {
+        self.selected_h2
     }
 
     /// Whether the session negotiated HTTP/1.x in ALPN.
@@ -525,7 +533,7 @@ impl TlsFlow {
     /// SETTINGS rather than the client preface, so its first plaintext record
     /// has no marker of its own; an ALPN selection is the only evidence.
     pub(crate) fn http2_alpn(&self) -> bool {
-        self.selected_h2
+        self.selected_h2 == Some(true)
     }
 
     /// Whether a TLS 1.3 ServerHello makes plaintext records state-opaque.
@@ -598,7 +606,7 @@ impl TlsFlow {
         }
         // ALPN is negotiated per connection (RFC 7301 section 3.1), so a new
         // handshake starts without a selection.
-        self.selected_h2 = false;
+        self.selected_h2 = None;
         self.sessions
             .push(TlsSession::new(client_random, session_id, ticket));
         self.sessions.last_mut()

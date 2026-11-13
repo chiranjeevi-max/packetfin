@@ -30,8 +30,10 @@ use crate::tree::{ExpertInfo, Group, Severity};
 /// fixed value between 60 and 120 seconds; this implementation uses the
 /// recommended lower bound.  A capture can hold two datagrams that reuse a
 /// 16-bit identification minutes apart, so a buffer must not outlive the
-/// timeout and merge the later datagram into the stale one.
-const REASSEMBLY_TIMEOUT_SECONDS: i64 = 60;
+/// timeout and merge the later datagram into the stale one.  Microseconds
+/// keep sub-second timestamp fractions at the same one-word cost as whole
+/// seconds and span capture dates far beyond `i64` nanoseconds.
+const REASSEMBLY_TIMEOUT_MICROS: i64 = 60_000_000;
 
 /// Most fragments retained for one datagram.
 pub(crate) const MAX_FRAGMENTS: usize = 128;
@@ -200,8 +202,10 @@ pub(crate) struct FragmentBuffer {
     total_len: Option<usize>,
     /// Capture time of the first stored fragment, in whole seconds.
     ///
-    /// The timeout has minute resolution, so storing the seconds keeps the
-    /// per-buffer cost at one machine word while still measuring it.
+    /// The first fragment's capture time in microseconds since the epoch.
+    ///
+    /// One machine word per buffer, and fractions of a second are retained,
+    /// so a fragment 60.9 seconds after the first is stale.
     first_seen: Option<i64>,
 }
 
@@ -280,7 +284,7 @@ impl FragmentBuffer {
         };
 
         if self.first_seen.is_none() {
-            self.first_seen = part.timestamp.map(|timestamp| timestamp.seconds);
+            self.first_seen = part.timestamp.map(timestamp_micros);
         }
         self.parts.push(FragmentRecord {
             offset: part.offset,
@@ -347,7 +351,7 @@ impl FragmentBuffer {
         let (Some(first), Some(now)) = (self.first_seen, now) else {
             return;
         };
-        if now.seconds.saturating_sub(first) > REASSEMBLY_TIMEOUT_SECONDS {
+        if timestamp_micros(now).saturating_sub(first) > REASSEMBLY_TIMEOUT_MICROS {
             self.parts.clear();
             self.total_len = None;
             self.first_seen = None;
@@ -423,6 +427,15 @@ impl FragmentBuffer {
     }
 }
 
+/// A capture time in microseconds since the epoch, saturating at the `i64`
+/// limits. The range covers every capture date a file can plausibly carry.
+fn timestamp_micros(timestamp: Timestamp) -> i64 {
+    timestamp
+        .seconds
+        .saturating_mul(1_000_000)
+        .saturating_add(i64::from(timestamp.nanos) / 1000)
+}
+
 impl StateValue for FragmentBuffer {
     fn state_bytes(&self) -> usize {
         // Only out-of-line bytes: the parts vector and the fragment data.
@@ -481,6 +494,21 @@ mod tests {
         }
     }
 
+    fn timed_nanos<'a>(
+        offset: usize,
+        data: &'a [u8],
+        declared_len: usize,
+        frame: u64,
+        more: bool,
+        seconds: i64,
+        nanos: u32,
+    ) -> FragmentPart<'a> {
+        FragmentPart {
+            timestamp: Some(Timestamp { seconds, nanos }),
+            ..part(offset, data, declared_len, frame, more)
+        }
+    }
+
     #[expect(
         clippy::panic,
         reason = "a different outcome means the reassembly test failed"
@@ -527,6 +555,31 @@ mod tests {
             complete(buffer.insert(timed(80, &last, 20, 2, false, 1_060), MAX_IPV4_DATAGRAM));
         assert_eq!(reassembled.total_len, 100);
         assert_eq!(&reassembled.data[80..], &last);
+    }
+
+    #[test]
+    fn a_fractional_second_past_the_timeout_is_stale() {
+        let first = [12_u8; 80];
+        let last = [13_u8; 20];
+        let mut buffer = FragmentBuffer::default();
+        assert!(matches!(
+            buffer.insert(
+                timed_nanos(0, &first, 80, 1, true, 1_000, 0),
+                MAX_IPV4_DATAGRAM
+            ),
+            FragmentOutcome::Buffered
+        ));
+        // 60.9 seconds later is past the 60-second timeout even though the
+        // whole-second difference is still 60.
+        assert!(matches!(
+            buffer.insert(
+                timed_nanos(80, &last, 20, 2, false, 1_060, 900_000_000),
+                MAX_IPV4_DATAGRAM
+            ),
+            FragmentOutcome::Buffered
+        ));
+        assert_eq!(buffer.parts.len(), 1);
+        assert_eq!(buffer.parts[0].offset, 80);
     }
 
     #[test]

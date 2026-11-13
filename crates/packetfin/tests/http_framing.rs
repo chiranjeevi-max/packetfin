@@ -1,10 +1,10 @@
 //! End-to-end checks for the HTTP/1.x framing rules of RFC 9112 where the
-//! reference output disagrees with them.
+//! expected output disagrees with them.
 //!
 //! The `http-framing-rfc` fixture has no golden case: its messages are exactly
 //! the shapes whose expected output disagrees with the standard, so the
 //! assertions below state the RFC rules (sections 6.1, 6.3, 7.1 and 9.3.6)
-//! instead of storing reference output.
+//! instead of storing expected output.
 
 use std::path::PathBuf;
 use std::process::{Command, Stdio};

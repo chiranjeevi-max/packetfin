@@ -1989,7 +1989,7 @@ impl StreamBuffer {
         let segment_offset =
             usize::try_from(segment_sequence.wrapping_sub(start) as i32).unwrap_or(usize::MAX);
         if ulp == Ulp::Http2 {
-            // The reference buffers a split HTTP/2 frame without exposing
+            // The expected output buffers a split HTTP/2 frame without
             // `tcp.segment_data`; the frame decodes once, on the completing
             // segment.
             return;

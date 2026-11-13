@@ -18,7 +18,7 @@
 //! Repeated Content-Length fields must agree (RFC 9112 section 6.3), only a
 //! final `chunked` transfer coding selects chunk framing (sections 6.1 and
 //! 6.3), and 1xx, 204 and 304 responses and every response to HEAD end at the
-//! header section. Where the reference output framed these message shapes
+//! header section. Where the expected output framed these message shapes
 //! differently, the difference is recorded as a deviation row.
 
 /// Header bytes both consumers accept for one message.

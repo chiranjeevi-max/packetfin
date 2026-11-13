@@ -7,4 +7,3 @@
 7	CONNECT					example.com:443			Host: x\r\n
 8	GET				486f737420780d0a0d0a			1	
 9	GET					http://x/name			Bad Name: v\r\n,Host: x\r\n
-10		200		3	68656c6c6f				

@@ -21,7 +21,7 @@ use crate::export::ObjectName;
 use crate::fields;
 use crate::http_syntax::{
     Answer, BodyPlan, ChunkScanner, ChunkStep, Framing, HeaderBudget, HeaderLine, StartLine,
-    continuation_at, next_line, parse_header_line, parse_start_line,
+    content_length_value, continuation_at, next_line, parse_header_line, parse_start_line,
 };
 use crate::tree::{Bytes, ExpertInfo, Group, HexShowname, Node, Range, Severity, Value};
 
@@ -218,6 +218,26 @@ pub(crate) fn decode(context: &mut DecodeContext<'_>, parent: &mut Node, data: &
         }
         offset = offset.saturating_add(consumed);
     }
+    if decoded && offset < data.len() {
+        // A completed message ends the decode loop when the bytes after it
+        // cannot start another message. The reassembler presents those bytes
+        // as their own continuation PDU; a direct decode has them in the same
+        // segment and must reach the same fields, or a bodyless response
+        // would silently drop everything after its header section (RFC 9112
+        // section 6.3 case 1).
+        let rest = data.get(offset..).unwrap_or_default();
+        if let Some(continuation) = continuation_at(rest) {
+            add_continuation(
+                context,
+                parent,
+                continuation.body,
+                base.saturating_add(offset)
+                    .saturating_add(continuation.skip),
+                true,
+            );
+            info.push_str("Continuation");
+        }
+    }
     if decoded {
         context.columns.info = Some(info);
         context.depth = context.depth.saturating_sub(1);
@@ -350,9 +370,9 @@ fn parse_message(data: &[u8], base: usize, options: &MessageOptions<'_>) -> Opti
     let consumed;
     match plan {
         BodyPlan::Empty => {
-            // A request without framing fields has no body, and a bodyless
-            // status owns nothing after its header section (RFC 9112
-            // section 6.3 cases 1 and 6).
+            // A request without framing fields has no body (RFC 9112
+            // section 6.3 case 7), and a bodyless status owns nothing after
+            // its header section (case 1).
             consumed = offset;
         }
         BodyPlan::Answer => {
@@ -619,6 +639,26 @@ fn parse_message(data: &[u8], base: usize, options: &MessageOptions<'_>) -> Opti
             message: message.to_string(),
         });
     }
+    if framing.transfer_coding && framing.content_length.is_some() {
+        // RFC 9112 section 6.3 case 3: Transfer-Encoding overrides
+        // Content-Length, and a message with both fields "ought to be handled
+        // as an error". The coding still frames the message; one warning on
+        // the Content-Length field explains the combination.
+        if let Some(field) = node
+            .fields
+            .iter_mut()
+            .rev()
+            .find(|field| std::ptr::eq(field.def, &fields::HTTP_CONTENT_LENGTH_HEADER))
+        {
+            field.add_expert(ExpertInfo {
+                severity: Severity::Warning,
+                group: Group::Malformed,
+                message: "The Content-Length and Transfer-Encoding header must not be set \
+                          together"
+                    .to_string(),
+            });
+        }
+    }
 
     if let Some(header) = malformed_header {
         // Stop at the first unusable header line and present the rest of the
@@ -748,7 +788,8 @@ fn add_header_fields(node: &mut Node, header: &HeaderLine<'_>, base: usize, is_r
         let field = node.add_field(def, full_range, Value::String(header.value.to_string()));
         field.showname = Some(showname.clone());
         if header.name.eq_ignore_ascii_case("Content-Length")
-            && let Ok(length) = header.value.parse::<u64>()
+            && let Some(length) = content_length_value(header.value)
+            && let Ok(length) = u64::try_from(length)
         {
             let child = field.add_field(
                 &fields::HTTP_CONTENT_LENGTH,

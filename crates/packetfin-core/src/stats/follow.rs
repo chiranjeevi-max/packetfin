@@ -23,7 +23,7 @@ use std::fmt;
 use std::net::{Ipv4Addr, Ipv6Addr};
 
 use crate::http_syntax::{
-    Answer, BodyPlan, ChunkScanner, ChunkStep, Framing, header_section_end, next_line,
+    Answer, BodyPlan, ChunkScanner, ChunkStep, Framing, StartLine, header_section_end, next_line,
     parse_start_line,
 };
 use crate::state::{StreamAddress, StreamKey};
@@ -332,6 +332,9 @@ pub(crate) struct State {
     limit: usize,
     http_desegment: bool,
     http_started: bool,
+    /// The peer request each direction last carried, for the HEAD and CONNECT
+    /// framing rules (RFC 9112 section 6.3 cases 1 and 2).
+    answers: [Answer; 2],
     truncated: bool,
 }
 
@@ -353,6 +356,7 @@ impl State {
             limit: limit.min(SPEC_LIMIT),
             http_desegment: true,
             http_started: false,
+            answers: [Answer::default(); 2],
             truncated: false,
         }
     }
@@ -396,7 +400,8 @@ impl State {
             }
             self.establish(key);
             let direction = self.direction_of(key);
-            for data in split_http_segments(payload) {
+            let records = split_http_segments(payload, direction, &mut self.answers);
+            for data in records {
                 self.push(direction, data);
             }
             return;
@@ -506,9 +511,9 @@ impl State {
         self.establish(key);
         let direction = self.direction_of(key);
         let records = if self.http_desegment {
-            split_http_records(message)
+            split_http_records(message, direction, &mut self.answers)
         } else {
-            split_http_segments(message)
+            split_http_segments(message, direction, &mut self.answers)
         };
         for data in records {
             self.push(direction, data);
@@ -844,7 +849,7 @@ fn starts_with_http_start_line(bytes: &[u8]) -> bool {
 /// body-only segment queues its bytes unchanged. Pipelined start lines are
 /// still separate records, and the body bounds come from the shared
 /// [`Framing::body_plan`] so the tap cannot disagree with the dissector.
-fn split_http_segments(message: &[u8]) -> Vec<Vec<u8>> {
+fn split_http_segments(message: &[u8], direction: u8, answers: &mut [Answer; 2]) -> Vec<Vec<u8>> {
     let mut records = Vec::new();
     let mut offset = 0_usize;
     while offset < message.len() {
@@ -854,8 +859,14 @@ fn split_http_segments(message: &[u8]) -> Vec<Vec<u8>> {
             break;
         };
         let header = rest.get(..header_length).unwrap_or_default();
-        let plan = Framing::of_block(header).body_plan(Answer::default());
+        let plan = Framing::of_block(header).body_plan(
+            answers
+                .get(direction_of_answer(direction))
+                .copied()
+                .unwrap_or_default(),
+        );
         records.push(header.to_vec());
+        note_http_message(header, direction, answers);
         let body = rest.get(header_length..).unwrap_or_default();
         if body.is_empty() {
             if announces_body(plan) {
@@ -888,6 +899,42 @@ fn split_http_segments(message: &[u8]) -> Vec<Vec<u8>> {
     records
 }
 
+/// The direction that answers `direction`: a response in one direction
+/// answers the request in the other.
+fn direction_of_answer(direction: u8) -> usize {
+    usize::from(direction.min(1)) ^ 1
+}
+
+/// Record the request method a later response answers.
+///
+/// A request replaces the answer its own direction carries; a final response
+/// consumes the other direction's, because it answered that request (a 1xx
+/// answer leaves it pending).
+fn note_http_message(header: &[u8], direction: u8, answers: &mut [Answer; 2]) {
+    let Some((line, _)) = next_line(header, 0) else {
+        return;
+    };
+    let index = usize::from(direction.min(1));
+    match parse_start_line(line) {
+        Some(StartLine::Request { method, .. }) => {
+            if let Some(answer) = answers.get_mut(index) {
+                *answer = Answer {
+                    head: method.eq_ignore_ascii_case("HEAD"),
+                    connect: method.eq_ignore_ascii_case("CONNECT"),
+                };
+            }
+        }
+        Some(StartLine::Response { code, .. }) => {
+            if code >= 200
+                && let Some(answer) = answers.get_mut(index ^ 1)
+            {
+                *answer = Answer::default();
+            }
+        }
+        None => {}
+    }
+}
+
 /// Whether the header announces a body its segment does not carry.
 fn announces_body(plan: BodyPlan) -> bool {
     match plan {
@@ -906,7 +953,7 @@ fn announces_body(plan: BodyPlan) -> bool {
 /// empty. Pipelined messages in one delivery are split at each complete
 /// header, so a desegmented segment that carries two requests still prints
 /// two records. The body bounds come from the shared [`Framing::body_plan`].
-fn split_http_records(message: &[u8]) -> Vec<Vec<u8>> {
+fn split_http_records(message: &[u8], direction: u8, answers: &mut [Answer; 2]) -> Vec<Vec<u8>> {
     let mut records = Vec::new();
     let mut offset = 0_usize;
     while offset < message.len() {
@@ -919,9 +966,16 @@ fn split_http_records(message: &[u8]) -> Vec<Vec<u8>> {
         records.push(header.to_vec());
         let body = rest.get(header_length..).unwrap_or_default();
         if body.is_empty() {
+            note_http_message(header, direction, answers);
             break;
         }
-        let plan = Framing::of_block(header).body_plan(Answer::default());
+        let plan = Framing::of_block(header).body_plan(
+            answers
+                .get(direction_of_answer(direction))
+                .copied()
+                .unwrap_or_default(),
+        );
+        note_http_message(header, direction, answers);
         match plan {
             BodyPlan::Chunked => {
                 let (data, consumed) = dechunk(body);
@@ -1050,6 +1104,39 @@ CCCC"
 DDDD"
             ),
             "{output}"
+        );
+    }
+
+    #[test]
+    fn a_follow_respects_the_head_request_it_answers() {
+        // RFC 9112 section 6.3 case 1: a response to HEAD ends at the header
+        // section. The tap must split the trailing bytes as one record, not
+        // as the declared length plus the rest.
+        let mut state = follow("follow,http,ascii,0");
+        state.set_http_desegment(false);
+        state.tcp_event(
+            key(0, 1, 2),
+            0,
+            1,
+            1,
+            b"HEAD /head HTTP/1.1\r\nHost: h\r\n\r\n",
+        );
+        state.tcp_event(
+            key(0, 2, 1),
+            1,
+            1,
+            33,
+            b"HTTP/1.1 200 OK\r\nContent-Length: 4\r\n\r\njunk\r\n",
+        );
+        let mut output = String::new();
+        state.finish(&mut output).unwrap_or(());
+        assert!(
+            output.contains("6\njunk\r\n"),
+            "the trailing bytes must be one record: {output}"
+        );
+        assert!(
+            !output.contains("4\njunk"),
+            "the declared length must not split a HEAD answer: {output}"
         );
     }
 

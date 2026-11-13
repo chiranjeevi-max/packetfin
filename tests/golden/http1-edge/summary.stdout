@@ -7,4 +7,3 @@
     7   0.000006    192.0.2.1 → 192.0.2.2    HTTP 99 CONNECT example.com:443 HTTP/1.1 
     8   0.000007    192.0.2.1 → 192.0.2.2    HTTP 83 GET /bad HTTP/1.1 Continuation
     9   0.000008    192.0.2.1 → 192.0.2.2    HTTP 98 GET /name HTTP/1.1 
-   10   0.000009    192.0.2.2 → 192.0.2.1    HTTP 118 HTTP/1.1 200 OK 

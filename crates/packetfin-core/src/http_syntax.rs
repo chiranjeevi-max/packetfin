@@ -303,10 +303,12 @@ impl Framing {
                 }
             } else if header.name.eq_ignore_ascii_case("Transfer-Encoding") {
                 // RFC 9110 section 5.2 combines repeated fields into one list,
-                // so the last coding across every field is the final coding,
-                // and RFC 9112 section 6.1 accepts chunked only in that
-                // position.
-                for coding in header.value.split(',') {
+                // so the last coding across every field is the final coding.
+                // RFC 9112 section 6.1 requires chunked to be the final coding,
+                // and section 6.3 case 4 frames the body by it only in that
+                // position. The list is split with quoting, so a comma inside
+                // a transfer parameter's quoted string stays with its coding.
+                for coding in list_elements(header.value) {
                     let name = coding.split(';').next().unwrap_or(coding).trim();
                     if !name.is_empty() {
                         transfer_coding = true;
@@ -360,16 +362,16 @@ impl Framing {
             return BodyPlan::Answer;
         }
         if self.chunked {
-            // Case 3: a final chunked coding delimits the body itself and
-            // takes precedence over any declared length.
+            // Case 4: a final chunked coding delimits the body itself and
+            // takes precedence over any declared length (section 6.1).
             return BodyPlan::Chunked;
         }
         if self.transfer_coding {
             // Case 4: a final transfer coding that is not chunked leaves a
             // response delimited by the connection close, while a request that
-            // carries one cannot be framed at all (section 6.1). The captured
-            // remainder stays with the request so it cannot reopen as another
-            // message.
+            // carries one cannot be framed at all (the case's second
+            // paragraph). The captured remainder stays with the request so it
+            // cannot reopen as another message.
             return if self.response {
                 BodyPlan::CloseDelimited
             } else {
@@ -377,7 +379,8 @@ impl Framing {
             };
         }
         if let Some(length) = self.content_length {
-            // Case 5.
+            // Case 6: a valid length without Transfer-Encoding is the body
+            // length.
             return BodyPlan::Fixed(length);
         }
         if self.invalid_length {
@@ -418,10 +421,12 @@ pub(crate) enum BodyPlan {
 /// RFC 9112 section 6.3 lets a recipient collapse a field value that lists
 /// identical decimal values, so `5, 5` is as usable as `5`; every other shape
 /// is unusable. RFC 9110 section 5.6.1 makes an empty list element
-/// insignificant, and the value itself is one or more digits.
-fn content_length_value(value: &str) -> Option<usize> {
+/// insignificant, and the value itself is one or more digits. The decoder
+/// renders the same value it framed with, so the field tree cannot show a
+/// length the message does not use.
+pub(crate) fn content_length_value(value: &str) -> Option<usize> {
     let mut length = None;
-    for item in value.split(',') {
+    for item in list_elements(value) {
         let item = item.trim();
         if item.is_empty() {
             continue;
@@ -437,6 +442,56 @@ fn content_length_value(value: &str) -> Option<usize> {
         }
     }
     length
+}
+
+/// The elements of one comma-separated field value (RFC 9110 section 5.6.1).
+///
+/// A comma inside a quoted string belongs to that string, so a transfer
+/// parameter (section 5.6.6) such as `q="a,b"` does not split its coding, and
+/// a quoted-pair backslash keeps the scan inside the string (section 5.6.4).
+/// The iterator borrows the value, so parsing a field costs no allocation.
+struct ListElements<'a> {
+    value: &'a str,
+    start: usize,
+}
+
+/// Split one comma-separated field value into its list elements.
+fn list_elements(value: &str) -> ListElements<'_> {
+    ListElements { value, start: 0 }
+}
+
+impl<'a> Iterator for ListElements<'a> {
+    type Item = &'a str;
+
+    fn next(&mut self) -> Option<&'a str> {
+        let bytes = self.value.as_bytes();
+        let start = self.start;
+        if start > bytes.len() {
+            return None;
+        }
+        let mut quoted = false;
+        let mut escaped = false;
+        let mut end = start;
+        while let Some(&byte) = bytes.get(end) {
+            if quoted {
+                if escaped {
+                    escaped = false;
+                } else if byte == b'\\' {
+                    escaped = true;
+                } else if byte == b'"' {
+                    quoted = false;
+                }
+            } else if byte == b'"' {
+                quoted = true;
+            } else if byte == b',' {
+                self.start = end.saturating_add(1);
+                return self.value.get(start..end);
+            }
+            end = end.saturating_add(1);
+        }
+        self.start = bytes.len().saturating_add(1);
+        self.value.get(start..bytes.len())
+    }
 }
 
 /// The response status a framing decision needs.
@@ -777,10 +832,10 @@ mod tests {
 
     #[test]
     fn a_transfer_coding_that_is_not_chunked_overrides_content_length() {
-        // RFC 9112 section 6.1: a message with both fields is framed by its
-        // Transfer-Encoding, never by the declared length. RFC 9112 section
-        // 6.3 case 4 then leaves a response to the connection close; a request
-        // that carries such a coding cannot be framed at all.
+        // RFC 9112 section 6.3 case 3 (and section 6.1): a message with both
+        // fields is framed by its Transfer-Encoding, never by the declared
+        // length. Case 4 then leaves a response to the connection close; a
+        // request that carries such a coding cannot be framed at all.
         let response = b"HTTP/1.1 200 OK\r\nContent-Length: 5\r\nTransfer-Encoding: gzip\r\n\r\n";
         assert_eq!(plan(response, Answer::default()), BodyPlan::CloseDelimited);
         let response = b"HTTP/1.1 200 OK\r\nTransfer-Encoding: gzip\r\n\r\n";
@@ -804,8 +859,9 @@ mod tests {
 
     #[test]
     fn only_a_final_chunked_coding_selects_chunk_framing() {
-        // RFC 9112 sections 6.1 and 7.1: chunked is usable only as the final
-        // transfer coding.
+        // RFC 9112 section 6.1 requires chunked as the final transfer coding,
+        // and section 6.3 case 4 frames the body by it; section 7.1 defines
+        // the coding itself.
         for value in ["chunked", "gzip, chunked", "CHUNKED", "gzip , chunked"] {
             let block = format!("HTTP/1.1 200 OK\r\nTransfer-Encoding: {value}\r\n\r\n");
             let facts = framing(block.as_bytes());
@@ -834,6 +890,33 @@ mod tests {
         assert!(framing(block).chunked);
         let block =
             b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\nTransfer-Encoding: gzip\r\n\r\n";
+        assert!(!framing(block).chunked);
+    }
+
+    #[test]
+    fn a_quoted_comma_stays_in_its_transfer_coding() {
+        // RFC 9110 section 5.6.1 splits a field value into list elements at
+        // commas, and section 5.6.6 puts a transfer parameter's value in a
+        // quoted string; a comma inside that string does not start a new
+        // coding, so the coding list must be scanned with quoting.
+        for value in ["chunked; q=\"a,b\"", "gzip, chunked; q=\"a,b\""] {
+            let block = format!("HTTP/1.1 200 OK\r\nTransfer-Encoding: {value}\r\n\r\n");
+            let facts = framing(block.as_bytes());
+            assert!(facts.chunked, "value {value:?}");
+            assert_eq!(
+                facts.body_plan(Answer::default()),
+                BodyPlan::Chunked,
+                "value {value:?}"
+            );
+        }
+        // A quoted comma in an earlier coding does not hide the final one.
+        let block = b"HTTP/1.1 200 OK\r\nTransfer-Encoding: gzip; q=\"a,b\", chunked\r\n\r\n";
+        assert!(framing(block).chunked);
+        // A quoted-pair keeps the scan inside the string.
+        let block = b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked; q=\"a\\\",b\"\r\n\r\n";
+        assert!(framing(block).chunked);
+        // The element after a quoted comma still decides the framing.
+        let block = b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked; q=\"a,b\", gzip\r\n\r\n";
         assert!(!framing(block).chunked);
     }
 
@@ -870,6 +953,7 @@ mod tests {
             b"HTTP/1.1 200 OK\r\nContent-Length: 5\r\nContent-Length: abc\r\n\r\n",
             b"HTTP/1.1 200 OK\r\nContent-Length: 5, 6\r\n\r\n",
             b"HTTP/1.1 200 OK\r\nContent-Length: \r\n\r\n",
+            b"HTTP/1.1 200 OK\r\nContent-Length: +5\r\n\r\n",
             b"POST / HTTP/1.1\r\nContent-Length: -1\r\n\r\n",
         ] {
             let facts = framing(block);

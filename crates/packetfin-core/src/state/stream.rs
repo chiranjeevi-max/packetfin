@@ -1530,12 +1530,14 @@ impl StreamBuffer {
         report
     }
 
-    /// Finish a close-delimited HTTP response when the connection closes.
+    /// Finish an HTTP response whose body ends when the connection closes.
     ///
     /// A TCP FIN ends the stream, and the bytes that follow a response header
-    /// without a length delimiter decode as the body. The empty FIN frame is
-    /// named in the reassembly list, and the FIN sequence bounds the completed
-    /// body.
+    /// without a usable length delimiter decode as the body: a close-delimited
+    /// response (RFC 9112 section 6.3 case 8) and a response whose
+    /// Content-Length is unusable (case 5) both end here. The empty FIN frame
+    /// is named in the reassembly list, and the FIN sequence bounds the
+    /// completed body.
     fn finish_on_close(
         &mut self,
         ulp: Ulp,
@@ -1581,12 +1583,12 @@ impl StreamBuffer {
             return;
         }
         // Only a response the rules delimit by the connection close belongs to
-        // this path (RFC 9112 section 6.3 case 7); every other framing ends the
-        // message earlier and was already emitted.
+        // this path (RFC 9112 section 6.3 cases 5 and 8); every other framing
+        // ends the message earlier and was already emitted.
         if covered == 0
             || !matches!(
                 Framing::of_block(header).body_plan(self.answer()),
-                BodyPlan::CloseDelimited
+                BodyPlan::CloseDelimited | BodyPlan::InvalidLength
             )
         {
             return;
@@ -2255,9 +2257,8 @@ impl StreamBuffer {
                         FrameLength::FatalOversized("1 MiB header")
                     }
                 },
-                // An unusable length has no declared end to skip over.
-                BodyPlan::InvalidLength => FrameLength::FatalOversized("1 MiB header"),
-                // A close-delimited response needs FIN to know its end.
+                // A response without a declared end, close-delimited or with
+                // an unusable length, needs FIN to know its end.
                 BodyPlan::CloseDelimited => {
                     if let Some(end) = fin_end {
                         if covered < end {
@@ -2270,6 +2271,21 @@ impl StreamBuffer {
                     }
                     return FrameLength::NeedMore;
                 }
+                BodyPlan::InvalidLength if framing.response => {
+                    if let Some(end) = fin_end {
+                        if covered < end {
+                            return FrameLength::NeedMore;
+                        }
+                        return FrameLength::HeaderOversized(end);
+                    }
+                    if covered >= limit {
+                        return FrameLength::FatalOversized("1 MiB header");
+                    }
+                    return FrameLength::NeedMore;
+                }
+                // A request is never close-delimited (RFC 9112 section 6.3
+                // note), so an unusable length has no end to skip over.
+                BodyPlan::InvalidLength => FrameLength::FatalOversized("1 MiB header"),
             };
         }
         match plan {
@@ -2313,9 +2329,24 @@ impl StreamBuffer {
                     None => FrameLength::Complete(covered),
                 },
             },
-            BodyPlan::InvalidLength => {
+            BodyPlan::InvalidLength if framing.response => {
                 // An unusable Content-Length leaves a response without a
-                // declared boundary; the captured prefix is its body.
+                // declared boundary, so the connection close ends its body
+                // (RFC 9112 section 6.3 case 5 makes the framing invalid, and
+                // case 8 bounds it by the close). Waiting for FIN keeps a
+                // split capture and a one-segment capture identical.
+                let Some(end) = fin_end else {
+                    return FrameLength::NeedMore;
+                };
+                if covered < end {
+                    return FrameLength::NeedMore;
+                }
+                FrameLength::Complete(end.min(covered))
+            }
+            BodyPlan::InvalidLength => {
+                // A request is never close-delimited (RFC 9112 section 6.3
+                // note); the captured remainder is the message, so the next
+                // segment cannot reopen as another one.
                 FrameLength::Complete(covered)
             }
             BodyPlan::CloseDelimited => {
@@ -3116,6 +3147,75 @@ mod tests {
                 .collect::<Vec<_>>(),
             [1, 2]
         );
+        assert!(!buffer.has_pending());
+    }
+
+    #[test]
+    fn an_unusable_content_length_waits_for_fin_and_keeps_the_body() {
+        // RFC 9112 section 6.3 case 5 makes the framing invalid, and case 8
+        // bounds a response without a declared length by the connection
+        // close. A body that arrives in a later segment must belong to the
+        // message, not disappear.
+        let mut buffer = StreamBuffer::default();
+        buffer.set_ulp(Ulp::Http);
+        let header = b"HTTP/1.1 200 OK\r\nContent-Length: 3\r\nContent-Length: 5\r\n\r\n";
+        let report = buffer.insert(1000, header, 1, false);
+        assert!(
+            matches!(report.actions.first(), Some(PduAction::Partial { .. })),
+            "the message must stay pending: {:?}",
+            report.actions
+        );
+        assert!(buffer.has_pending());
+        let sequence = 1000_u32.saturating_add(u32::try_from(header.len()).unwrap_or(0));
+        let report = buffer.insert(sequence, b"hello!", 2, false);
+        assert!(
+            !report.actions.iter().any(|action| matches!(
+                action,
+                PduAction::Standalone { .. } | PduAction::Reassembled { .. }
+            )),
+            "the message must still be pending: {:?}",
+            report.actions
+        );
+        let fin = sequence.saturating_add(6);
+        let report = buffer.insert_with_fin(fin, b"", 3, false, true);
+        assert!(
+            matches!(report.actions.first(), Some(PduAction::Reassembled { .. })),
+            "{:?}",
+            report.actions
+        );
+        let Some(PduAction::Reassembled { pdu, .. }) = report.actions.first() else {
+            unreachable!("the reassembled action was asserted to be present");
+        };
+        let mut expected = header.to_vec();
+        expected.extend_from_slice(b"hello!");
+        assert_eq!(pdu.data, expected);
+        assert_eq!(
+            pdu.segments
+                .iter()
+                .map(|segment| segment.frame)
+                .collect::<Vec<_>>(),
+            [1, 2, 3]
+        );
+        assert!(!buffer.has_pending());
+    }
+
+    #[test]
+    fn a_request_with_an_unusable_content_length_keeps_its_remainder() {
+        // A request is never close-delimited (RFC 9112 section 6.3 note), so
+        // its captured remainder ends the message even without a FIN.
+        let mut buffer = StreamBuffer::default();
+        buffer.set_ulp(Ulp::Http);
+        let message = b"POST /x HTTP/1.1\r\nContent-Length: 3\r\nContent-Length: 5\r\n\r\nhello!";
+        let report = buffer.insert(1000, message, 1, false);
+        assert!(
+            matches!(report.actions.first(), Some(PduAction::Standalone { .. })),
+            "{:?}",
+            report.actions
+        );
+        let Some(PduAction::Standalone { data, .. }) = report.actions.first() else {
+            unreachable!("the standalone action was asserted to be present");
+        };
+        assert_eq!(data.as_ref(), message);
         assert!(!buffer.has_pending());
     }
 

@@ -36999,15 +36999,6 @@ fn build_http1_edge() -> Result<Vec<u8>, String> {
         b"GET /name HTTP/1.1\r\nBad Name: v\r\nHost: x\r\n\r\n",
         &mut frames,
     )?;
-    frames.push(tcp_payload_between(
-        T20_SERVER,
-        T20_CLIENT,
-        80,
-        40_131,
-        1000,
-        1,
-        b"HTTP/1.1 200 OK\r\nContent-Length: 3\r\nContent-Length: abc\r\n\r\nhello",
-    )?);
     link_pcap(u32::from(LINKTYPE_ETHERNET), &frames)
 }
 
@@ -37091,6 +37082,80 @@ fn build_http_framing_rfc() -> Result<Vec<u8>, String> {
         let mut connection = ObjectConnection::new(&mut frames, 40_608);
         connection.client(b"GET /boundary HTTP/1.1\r\nHost: h\r\n\r\n")?;
         connection.server(b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n1\r\naXX")?;
+        connection.server_fin(b"")?;
+    }
+
+    // The same unusable Content-Length with the body in a later segment: the
+    // message must own those bytes too, so both segmentations frame one body.
+    {
+        let mut connection = ObjectConnection::new(&mut frames, 40_609);
+        connection.client(b"GET /disagree-split HTTP/1.1\r\nHost: h\r\n\r\n")?;
+        connection.server(b"HTTP/1.1 200 OK\r\nContent-Length: 3\r\nContent-Length: 5\r\n\r\n")?;
+        connection.server(b"hello!")?;
+        connection.server_fin(b"")?;
+    }
+
+    // An unusable Content-Length without a connection close: the response has
+    // no declared boundary and no FIN to bound it, so it stays a TCP row.
+    {
+        let mut connection = ObjectConnection::new(&mut frames, 40_610);
+        connection
+            .server(b"HTTP/1.1 200 OK\r\nContent-Length: 3\r\nContent-Length: abc\r\n\r\nhello")?;
+    }
+
+    // A transfer parameter's quoted comma does not split the coding list, so
+    // the response is de-chunked and the pipelined 204 still decodes.
+    {
+        let mut connection = ObjectConnection::new(&mut frames, 40_611);
+        connection.client(b"GET /quoted HTTP/1.1\r\nHost: h\r\n\r\n")?;
+        connection.server(
+            b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked; q=\"a,b\"\r\n\r\n1\r\na\r\n0\r\n\r\n\
+              HTTP/1.1 204 No Content\r\n\r\n",
+        )?;
+        connection.server_fin(b"")?;
+    }
+
+    // A plus-signed length is not one or more digits, so it declares nothing
+    // and the field must not render a length the framing does not use.
+    {
+        let mut connection = ObjectConnection::new(&mut frames, 40_612);
+        connection.client(b"GET /plus HTTP/1.1\r\nHost: h\r\n\r\n")?;
+        connection.server(b"HTTP/1.1 200 OK\r\nContent-Length: +5\r\n\r\nhello")?;
+        connection.server_fin(b"")?;
+    }
+
+    // A list of identical decimal values collapses to one usable length.
+    {
+        let mut connection = ObjectConnection::new(&mut frames, 40_613);
+        connection.client(b"GET /list HTTP/1.1\r\nHost: h\r\n\r\n")?;
+        connection.server(b"HTTP/1.1 200 OK\r\nContent-Length: 5, 5\r\n\r\nhello")?;
+        connection.server_fin(b"")?;
+    }
+
+    // Both framing fields: the chunked coding still frames the body, and the
+    // combination carries one warning expert on the Content-Length field.
+    {
+        let mut connection = ObjectConnection::new(&mut frames, 40_614);
+        connection.client(
+            b"POST /te-cl HTTP/1.1\r\nHost: h\r\nTransfer-Encoding: chunked\r\n\
+              Content-Length: 5\r\n\r\n5\r\nhello\r\n0\r\n\r\n",
+        )?;
+        connection.server(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n")?;
+        connection.server_fin(b"")?;
+    }
+
+    // A request with an unusable length split before its body: requests are
+    // never close-delimited (RFC 9112 section 6.3 note), so the message ends
+    // at the segment that completed its header and the later body segment is
+    // not attached. The shape is pinned so the limitation stays measured.
+    {
+        let mut connection = ObjectConnection::new(&mut frames, 40_615);
+        connection.client(
+            b"POST /split-req HTTP/1.1\r\nHost: h\r\nContent-Length: 3\r\n\
+              Content-Length: 5\r\n\r\n",
+        )?;
+        connection.client(b"hello!")?;
+        connection.server(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n")?;
         connection.server_fin(b"")?;
     }
 

@@ -13968,7 +13968,10 @@ fn build_http2() -> Result<Vec<u8>, String> {
     let mut push = vec![0, 0, 0, 2];
     push.extend_from_slice(&h2_push_block());
     response.extend_from_slice(&h2_frame(5, 0x04, 1, &push));
-    response.extend_from_slice(&h2_frame(1, 0x05, 1, &h2_response_block()));
+    // The response block declares content-length 5, so the stream carries the
+    // five octets before END_STREAM (RFC 9113 section 8.1.1).
+    response.extend_from_slice(&h2_frame(1, 0x04, 1, &h2_response_block()));
+    response.extend_from_slice(&h2_frame(0, 0x01, 1, b"world"));
     response.extend_from_slice(&h2_frame(6, 0, 0, b"abcdefgh"));
     response.extend_from_slice(&h2_frame(8, 0, 0, &[0, 0, 0x03, 0xe8]));
     response.extend_from_slice(&h2_frame(7, 0, 0, &[0, 0, 0, 1, 0, 0, 0, 0]));
@@ -14087,13 +14090,15 @@ fn build_http2_padded() -> Result<Vec<u8>, String> {
     let mut padded_headers = vec![2];
     padded_headers.extend_from_slice(&h2_request_block());
     padded_headers.extend_from_slice(&[0, 0]);
-    payload.extend_from_slice(&h2_frame(1, 0x0d, 1, &padded_headers));
+    // The padded DATA frame that follows ends the stream; this header block
+    // only carries END_HEADERS and PADDED (RFC 9113 section 6.2).
+    payload.extend_from_slice(&h2_frame(1, 0x0c, 1, &padded_headers));
     let mut padded_data = vec![3];
     padded_data.extend_from_slice(b"hello");
     padded_data.extend_from_slice(&[0, 0, 0]);
     payload.extend_from_slice(&h2_frame(0, 0x09, 1, &padded_data));
     let mut priority = vec![0x80, 0, 0, 3, 15];
-    priority.extend_from_slice(&h2_response_block());
+    priority.extend_from_slice(&h2_request_block());
     payload.extend_from_slice(&h2_frame(1, 0x25, 3, &priority));
     h2_push(
         T20_CLIENT,

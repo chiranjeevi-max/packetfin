@@ -1165,7 +1165,7 @@ fn protocol_and_info(
 
     // Append [Illegal Segments] to the upper-layer Info when the
     // completing TCP segment carried a conflicting overlap.
-    if top.is_some_and(|top| matches!(top.protocol.filter_name, "http" | "tls" | "bgp"))
+    if top.is_some_and(|top| matches!(top.protocol.filter_name, "http" | "http2" | "tls" | "bgp"))
         && !info.contains("[Illegal Segments]")
         && let Some(tcp) = chain
             .iter()
@@ -1235,7 +1235,9 @@ fn protocol_and_info(
             expert.group == packetfin_core::tree::Group::Malformed
                 && !expert.message.starts_with("Bad length value")
         })
-    });
+    }) || chain
+        .last()
+        .is_some_and(|node| node.protocol.filter_name == "http2" && http2_malformed(packet));
     if (packet.malformed || force_malformed) && !info.contains("[Malformed Packet") {
         if let Some(detail) = malformed_detail(chain) {
             let _ = write!(info, "[Malformed Packet: {detail}]");
@@ -3179,4 +3181,29 @@ mod echo_tests {
         assert_eq!(ntp_status_text(0x27), "NTP Version 4, private");
         assert_eq!(ntp_status_text(0x24), "NTP Version 4, server");
     }
+}
+
+/// Whether any HTTP/2 subtree in `packet` carries a malformed expert.
+///
+/// HTTP/2 decodes several frames per packet and attaches a frame's expert to
+/// its `http2.stream` field, not to the protocol node the outer chain ends
+/// with, so a node-only check cannot see it. The chain follows one child at
+/// each level, which also hides sibling HTTP/2 nodes.
+fn http2_malformed(packet: &packetfin_core::Packet) -> bool {
+    fn malformed(expert: &packetfin_core::tree::ExpertInfo) -> bool {
+        expert.group == packetfin_core::tree::Group::Malformed
+            && !expert.message.starts_with("Bad length value")
+    }
+    fn field_has_malformed(field: &packetfin_core::tree::Field) -> bool {
+        let mut found = false;
+        field.for_each_in_subtree(&mut |candidate| {
+            found |= candidate.experts.iter().any(malformed);
+        });
+        found
+    }
+    let mut nodes = Vec::new();
+    collect_protocol_nodes(&packet.tree.frame, "http2", &mut nodes);
+    nodes.iter().any(|node| {
+        node.experts.iter().any(malformed) || node.fields.iter().any(field_has_malformed)
+    })
 }

@@ -361,8 +361,12 @@ fn frame_violation(frame: &Frame<'_>) -> Option<FrameViolation> {
             "HTTP/2 PUSH_PROMISE frame is on stream 0",
         )),
         PING => {
-            if on_stream_zero {
-                Some(FrameViolation::Fatal("HTTP/2 PING frame is on stream 0"))
+            // RFC 9113 section 6.7: PING is a connection-level frame, so a
+            // stream identifier other than zero is a connection error.
+            if !on_stream_zero {
+                Some(FrameViolation::Fatal(
+                    "HTTP/2 PING frame is not on stream 0",
+                ))
             } else if length != 8 {
                 Some(FrameViolation::Fatal("HTTP/2 PING frame length is not 8"))
             } else {
@@ -1691,6 +1695,18 @@ fn add_header_block(
                 "HTTP/2 table size update after a header field",
             );
         }
+        hpack::Stop::Desynchronized => {
+            // The block is valid; earlier damage left the decoder's table
+            // out of step, so reporting the packet malformed would blame the
+            // wrong frame.
+            stream.add_expert(ExpertInfo {
+                severity: Severity::Warning,
+                group: Group::Undecoded,
+                message: "HTTP/2 dynamic table lost after an earlier decoding error; \
+                          indexed fields were not resolved"
+                    .to_string(),
+            });
+        }
     }
     let conversation = key.conversation;
     if let Some(status) = summary.status {
@@ -2014,6 +2030,25 @@ mod tests {
         assert!(!looks_like_http2_prefix(b"PRI"));
         assert!(!looks_like_http2_prefix(b"POST / HTTP/1.1"));
         assert!(!looks_like_http2_prefix(b"GET / HTTP/1.1"));
+    }
+
+    #[test]
+    fn ping_is_legal_only_on_stream_zero() {
+        let on_zero = [
+            0x00, 0x00, 0x08, PING, 0x00, 0x00, 0x00, 0x00, 0x00, 0, 0, 0, 0, 0, 0, 0, 0,
+        ];
+        let frame = Frame::parse(&on_zero).unwrap_or_else(|| unreachable!("complete PING"));
+        assert!(frame_violation(&frame).is_none());
+        // RFC 9113 section 6.7: a non-zero stream identifier is a
+        // connection error, the reverse of the other connection frames.
+        let on_stream_one = [
+            0x00, 0x00, 0x08, PING, 0x00, 0x00, 0x00, 0x00, 0x01, 0, 0, 0, 0, 0, 0, 0, 0,
+        ];
+        let frame = Frame::parse(&on_stream_one).unwrap_or_else(|| unreachable!("complete PING"));
+        assert!(matches!(
+            frame_violation(&frame),
+            Some(FrameViolation::Fatal(_))
+        ));
     }
 
     #[test]

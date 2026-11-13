@@ -617,6 +617,11 @@ impl SessionState {
                 pending.bytes.extend_from_slice(fragment);
             }
         }
+        if overflow || unexpected {
+            // A block was dropped or abandoned, so its table mutations never
+            // reached the decoder; later dynamic references cannot be trusted.
+            direction.table.mark_lost();
+        }
         self.http2.put_with(&mut self.budget, key, direction);
         FragmentResult {
             block,

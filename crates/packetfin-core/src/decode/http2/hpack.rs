@@ -9,8 +9,9 @@
 //!
 //! Every output is bounded. A string decodes to at most
 //! [`MAX_STRING_BYTES`], a header block produces at most [`MAX_HEADER_LINES`]
-//! items and [`MAX_HEADER_BYTES`] octets of header list (the RFC 7541 section
-//! 4.1 entry size), and the dynamic table never exceeds [`MAX_TABLE_SIZE`].
+//! items and [`MAX_HEADER_BYTES`] octets of header list (name, value and the
+//! 32-octet overhead of RFC 9113 section 6.5.2), and the dynamic table never
+//! exceeds [`MAX_TABLE_SIZE`].
 //! Reaching a list bound stops emission and reports it to the caller, but
 //! decoding continues so the dynamic-table changes later in the block stay
 //! consistent for the next block.
@@ -78,6 +79,8 @@ pub(crate) struct DynamicTable {
     entries: VecDeque<Entry>,
     size: usize,
     capacity: usize,
+    /// A dropped block left this table out of step with the peer's encoder.
+    lost: bool,
 }
 
 impl Default for DynamicTable {
@@ -93,6 +96,7 @@ impl DynamicTable {
             entries: VecDeque::new(),
             size: 0,
             capacity: DEFAULT_TABLE_SIZE,
+            lost: false,
         }
     }
 
@@ -103,6 +107,21 @@ impl DynamicTable {
     pub(crate) fn set_capacity(&mut self, capacity: usize) {
         self.capacity = capacity.min(MAX_TABLE_SIZE);
         self.evict();
+        if self.capacity == 0 {
+            // RFC 7541 section 4.3: a size update to zero empties the
+            // encoder's and decoder's dynamic tables, so they agree again.
+            self.lost = false;
+        }
+    }
+
+    /// Mark the table as out of step with the peer's encoder.
+    pub(crate) fn mark_lost(&mut self) {
+        self.lost = true;
+    }
+
+    /// Whether an earlier dropped block left this table unsynchronized.
+    pub(crate) fn is_lost(&self) -> bool {
+        self.lost
     }
 
     /// Insert one entry, evicting from the oldest end until it fits.
@@ -212,10 +231,6 @@ pub(crate) struct Header {
     pub(crate) name: String,
     /// Field value, converted for display.
     pub(crate) value: String,
-    /// Octets in the wire name, before display conversion.
-    name_length: usize,
-    /// Octets in the wire value, before display conversion.
-    value_length: usize,
     /// The representation that produced it.
     pub(crate) representation: Representation,
     /// The static or dynamic index used, when the representation names one.
@@ -244,6 +259,9 @@ pub(crate) enum Stop {
     SizeUpdateAfterHeader,
     /// A representation was invalid: an index, integer or Huffman code.
     Invalid,
+    /// An earlier block lost table mutations; a dynamic reference cannot be
+    /// resolved until the peer provably empties the table.
+    Desynchronized,
 }
 
 /// A decoded header block.
@@ -251,8 +269,11 @@ pub(crate) enum Stop {
 pub(crate) struct Block {
     /// Decoded items in wire order.
     pub(crate) items: Vec<Item>,
-    /// Header-list octets, the RFC 7541 section 4.1 entry size.
+    /// Header-list octets as the display counts them (name, value and eight).
     pub(crate) header_bytes: u32,
+    /// Header-list octets as RFC 9113 section 6.5.2 counts them (name, value
+    /// and 32), the value [`MAX_HEADER_BYTES`] bounds.
+    list_bytes: u32,
     /// Header fields plus table size updates, the expected header count.
     pub(crate) header_count: u32,
     /// How decoding ended.
@@ -278,9 +299,20 @@ impl Block {
 /// adding items to [`Block::items`] but the loop still applies every later
 /// table insertion and size update.
 pub(crate) fn decode_block(data: &[u8], table: &mut DynamicTable, table_limit: usize) -> Block {
+    let block = decode_block_inner(data, table, table_limit);
+    if matches!(block.stop, Stop::Invalid | Stop::SizeUpdateAfterHeader) {
+        // The block stopped before applying every mutation the peer applied,
+        // so later blocks cannot trust a dynamic index.
+        table.mark_lost();
+    }
+    block
+}
+
+fn decode_block_inner(data: &[u8], table: &mut DynamicTable, table_limit: usize) -> Block {
     let mut block = Block {
         items: Vec::new(),
         header_bytes: 0,
+        list_bytes: 0,
         header_count: 0,
         stop: Stop::Complete,
     };
@@ -301,20 +333,24 @@ pub(crate) fn decode_block(data: &[u8], table: &mut DynamicTable, table_limit: u
             };
             position = next;
             let index = u32::try_from(index).unwrap_or(u32::MAX);
+            if table.is_lost() && index as usize > STATIC_TABLE.len() {
+                block.stop = Stop::Desynchronized;
+                return block;
+            }
             let Some((name, value)) = table.get(index as usize) else {
                 block.stop = Stop::Invalid;
                 return block;
             };
             seen_header = true;
-            let header = Header {
-                name: display_text(name),
-                value: display_text(value),
-                name_length: name.len(),
-                value_length: value.len(),
-                representation: Representation::Indexed,
-                index: Some(index),
-            };
-            if emitting && !push_header(&mut block, header) {
+            if emitting
+                && !push_header(
+                    &mut block,
+                    name,
+                    value,
+                    Representation::Indexed,
+                    Some(index),
+                )
+            {
                 emitting = false;
             }
             continue;
@@ -371,6 +407,10 @@ pub(crate) fn decode_block(data: &[u8], table: &mut DynamicTable, table_limit: u
             (name, None)
         } else {
             let index = u32::try_from(name_index).unwrap_or(u32::MAX);
+            if table.is_lost() && index as usize > STATIC_TABLE.len() {
+                block.stop = Stop::Desynchronized;
+                return block;
+            }
             let Some((name, _)) = table.get(name_index as usize) else {
                 block.stop = Stop::Invalid;
                 return block;
@@ -391,21 +431,16 @@ pub(crate) fn decode_block(data: &[u8], table: &mut DynamicTable, table_limit: u
             }
             (other, _) => other,
         };
+        // Emission first, so the raw name and value can move into the table
+        // below instead of being cloned; conversion happens only when a field
+        // is kept.
+        if emitting && !push_header(&mut block, &name, &value, representation, index) {
+            emitting = false;
+        }
         if representation == Representation::IncrementalIndexedName
             || representation == Representation::IncrementalNewName
         {
-            table.insert(name.clone(), value.clone());
-        }
-        let header = Header {
-            name: display_text(&name),
-            value: display_text(&value),
-            name_length: name.len(),
-            value_length: value.len(),
-            representation,
-            index,
-        };
-        if emitting && !push_header(&mut block, header) {
-            emitting = false;
+            table.insert(name, value);
         }
     }
     block
@@ -415,15 +450,21 @@ pub(crate) fn decode_block(data: &[u8], table: &mut DynamicTable, table_limit: u
 ///
 /// Returns whether decoding may continue. The offending header is not
 /// emitted, so the tree keeps only what fit the bound.
-fn push_header(block: &mut Block, header: Header) -> bool {
-    let bytes = header
-        .name_length
-        .saturating_add(header.value_length)
-        .saturating_add(8);
-    let next_bytes = usize::try_from(block.header_bytes)
+fn push_header(
+    block: &mut Block,
+    name: &[u8],
+    value: &[u8],
+    representation: Representation,
+    index: Option<u32>,
+) -> bool {
+    let field_octets = name.len().saturating_add(value.len());
+    // RFC 9113 section 6.5.2 counts 32 octets per field for the header-list
+    // size; the displayed Header Length keeps the recorded convention of
+    // eight, so the two counters are kept separately.
+    let next_list = usize::try_from(block.list_bytes)
         .unwrap_or(usize::MAX)
-        .saturating_add(bytes);
-    if next_bytes > MAX_HEADER_BYTES {
+        .saturating_add(field_octets.saturating_add(ENTRY_OVERHEAD));
+    if next_list > MAX_HEADER_BYTES {
         block.stop = Stop::SizeExceeded;
         return false;
     }
@@ -434,9 +475,20 @@ fn push_header(block: &mut Block, header: Header) -> bool {
         block.stop = Stop::LinesExceeded;
         return false;
     }
-    block.header_bytes = u32::try_from(next_bytes).unwrap_or(u32::MAX);
+    block.header_bytes = u32::try_from(
+        usize::try_from(block.header_bytes)
+            .unwrap_or(usize::MAX)
+            .saturating_add(field_octets.saturating_add(8)),
+    )
+    .unwrap_or(u32::MAX);
+    block.list_bytes = u32::try_from(next_list).unwrap_or(u32::MAX);
     block.header_count = u32::try_from(next_count).unwrap_or(u32::MAX);
-    block.items.push(Item::Header(header));
+    block.items.push(Item::Header(Header {
+        name: display_text(name),
+        value: display_text(value),
+        representation,
+        index,
+    }));
     true
 }
 
@@ -697,6 +749,60 @@ mod tests {
                 ("cache-control", "no-cache"),
             ]
         );
+    }
+
+    #[test]
+    fn a_lost_table_stops_dynamic_references_until_it_is_reset() {
+        let mut table = DynamicTable::new();
+        let inserted = decode_block(
+            &[0x40, 0x01, b'x', 0x03, b'o', b'l', b'd'],
+            &mut table,
+            DEFAULT_TABLE_SIZE,
+        );
+        assert_eq!(inserted.stop, Stop::Complete);
+        // Indexed field with index zero is invalid and the block is dropped
+        // before every mutation the peer applied.
+        let bad = decode_block(&[0x80], &mut table, DEFAULT_TABLE_SIZE);
+        assert_eq!(bad.stop, Stop::Invalid);
+        assert!(table.is_lost());
+
+        let dynamic = decode_block(&[0xbe], &mut table, DEFAULT_TABLE_SIZE);
+        assert_eq!(dynamic.stop, Stop::Desynchronized);
+        assert_eq!(dynamic.items.len(), 0);
+
+        // A size update to zero at the block start empties both tables, and a
+        // following non-zero update lets both sides refill from a known state.
+        let reset = decode_block(
+            &[
+                0x20, 0x3f, 0xe1, 0x1f, 0x40, 0x01, b'x', 0x03, b'n', b'e', b'w',
+            ],
+            &mut table,
+            DEFAULT_TABLE_SIZE,
+        );
+        assert_eq!(reset.stop, Stop::Complete);
+        assert!(!table.is_lost());
+        let headers: Vec<(&str, &str)> = reset
+            .headers()
+            .map(|header| (header.name.as_str(), header.value.as_str()))
+            .collect();
+        assert_eq!(headers, vec![("x", "new")]);
+
+        let resolved = decode_block(&[0xbe], &mut table, DEFAULT_TABLE_SIZE);
+        assert_eq!(resolved.stop, Stop::Complete);
+        let headers: Vec<(&str, &str)> = resolved
+            .headers()
+            .map(|header| (header.name.as_str(), header.value.as_str()))
+            .collect();
+        assert_eq!(headers, vec![("x", "new")]);
+    }
+
+    #[test]
+    fn a_size_update_after_a_header_loses_the_table() {
+        let mut table = DynamicTable::new();
+        // A valid indexed field, then a table size update in the middle.
+        let block = decode_block(&[0x82, 0x20], &mut table, DEFAULT_TABLE_SIZE);
+        assert_eq!(block.stop, Stop::SizeUpdateAfterHeader);
+        assert!(table.is_lost());
     }
 
     #[test]

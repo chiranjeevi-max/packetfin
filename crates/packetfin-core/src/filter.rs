@@ -1065,6 +1065,27 @@ fn resolve_binary(
                 ),
             ));
         }
+        // A time operand combines with a number (or another time); anything
+        // else, such as an address, cannot be converted and would otherwise
+        // resolve and then silently match nothing.
+        for (operand, ty) in [(&*left, left_type), (&*right, right_type)] {
+            if ty != Type::Untyped
+                && !matches!(
+                    ty,
+                    Type::Uint(_) | Type::Int(_) | Type::Double | Type::Time | Type::Relative
+                )
+            {
+                return Err(FilterError::at_span(
+                    operand.start,
+                    operand.end,
+                    format!(
+                        "{} cannot be used with {}",
+                        ty.name(),
+                        arith_symbol(operator)
+                    ),
+                ));
+            }
+        }
         let operand_type = match operator {
             ArithOp::Multiply | ArithOp::Divide => Type::Int(64),
             _ => target,

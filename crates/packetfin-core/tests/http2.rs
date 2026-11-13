@@ -596,19 +596,6 @@ fn a_tiny_fragment_flood_keeps_the_body_and_bounds_the_views() {
 /// preface and frames in both directions, so the decrypted plaintext must be
 /// framed as HTTP/2 rather than HTTP/1.x.
 fn tls12_h2_records() -> (String, Vec<(bool, Vec<u8>)>) {
-    use packetfin_testkit::tls;
-    let mut writer = tls::Tls12Writer::new(0xc030, false);
-    let alpn = vec![0, 3, 2, b'h', b'2'];
-    let client_extensions = vec![(16, alpn)];
-    let client_hello = tls::client_hello(
-        tls::TLS12_VERSION,
-        writer.client_random(),
-        &[],
-        &[0xc030],
-        &client_extensions,
-    );
-    let server_hello =
-        tls::server_hello(tls::TLS12_VERSION, writer.server_random(), &[], 0xc030, &[]);
     let mut client_h2 = PREFACE.to_vec();
     client_h2.extend_from_slice(&h2_frame(4, 0, 0, &[]));
     client_h2.extend_from_slice(&h2_frame(1, 0x04, 1, &[0x82, 0x86, 0x84]));
@@ -616,6 +603,42 @@ fn tls12_h2_records() -> (String, Vec<(bool, Vec<u8>)>) {
     server_h2.extend_from_slice(&h2_frame(1, 0x04, 1, &[0x88]));
     server_h2.extend_from_slice(&h2_frame(0, 0x01, 1, b"hi"));
     let client_body = h2_frame(0, 0x01, 1, b"ok");
+    tls12_alpn_records(
+        vec![0, 3, 2, b'h', b'2'],
+        vec![0, 3, 2, b'h', b'2'],
+        &client_h2,
+        &server_h2,
+        &client_body,
+    )
+}
+
+/// One TLS 1.2 exchange with the offered and selected ALPN protocol.
+fn tls12_alpn_records(
+    client_alpn: Vec<u8>,
+    server_alpn: Vec<u8>,
+    client_app: &[u8],
+    server_app: &[u8],
+    client_body: &[u8],
+) -> (String, Vec<(bool, Vec<u8>)>) {
+    use packetfin_testkit::tls;
+    let mut writer = tls::Tls12Writer::new(0xc030, false);
+    let client_extensions = vec![(16, client_alpn)];
+    let client_hello = tls::client_hello(
+        tls::TLS12_VERSION,
+        writer.client_random(),
+        &[],
+        &[0xc030],
+        &client_extensions,
+    );
+    // RFC 7301 section 3.2: the server's selection, not the client offer,
+    // decides the application protocol.
+    let server_hello = tls::server_hello(
+        tls::TLS12_VERSION,
+        writer.server_random(),
+        &[],
+        0xc030,
+        &[(16, server_alpn)],
+    );
     let records = vec![
         (
             true,
@@ -641,16 +664,19 @@ fn tls12_h2_records() -> (String, Vec<(bool, Vec<u8>)>) {
             true,
             writer.record(true, tls::HANDSHAKE, &tls::handshake(20, &[0xbb; 12])),
         ),
-        (true, writer.record(true, tls::APPLICATION_DATA, &client_h2)),
+        (true, writer.record(true, tls::APPLICATION_DATA, client_app)),
         (
             false,
-            writer.record(false, tls::APPLICATION_DATA, &server_h2),
-        ),
-        (
-            true,
-            writer.record(true, tls::APPLICATION_DATA, &client_body),
+            writer.record(false, tls::APPLICATION_DATA, server_app),
         ),
     ];
+    let mut records = records;
+    if !client_body.is_empty() {
+        records.push((
+            true,
+            writer.record(true, tls::APPLICATION_DATA, client_body),
+        ));
+    }
     (writer.keylog(), records)
 }
 
@@ -663,6 +689,69 @@ fn tls_frame(number: u64, sequence: u32, from_client: bool, payload: &[u8]) -> F
     } else {
         frame_between(number, sequence, server, client, payload)
     }
+}
+
+/// The first value of `abbrev` anywhere in the packet tree.
+fn tree_field(packet: &packetfin_core::Packet, abbrev: &str) -> Option<String> {
+    packet
+        .tree
+        .fields()
+        .find(|field| field.def.abbrev == abbrev)
+        .map(|field| field.value.render(field.def.display))
+}
+
+#[test]
+fn a_server_that_selects_http11_keeps_http11_plaintext() {
+    // The client offers h2 first; the server selects http/1.1 (RFC 7301
+    // section 3.2), so the plaintext must stay HTTP/1.x.
+    let client_alpn = vec![
+        0, 12, 2, b'h', b'2', 8, b'h', b't', b't', b'p', b'/', b'1', b'.', b'1',
+    ];
+    let server_alpn = vec![0, 9, 8, b'h', b't', b't', b'p', b'/', b'1', b'.', b'1'];
+    let (keylog, records) = tls12_alpn_records(
+        client_alpn,
+        server_alpn,
+        b"GET /h1 HTTP/1.1\r\nHost: x\r\n\r\n",
+        b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nhi",
+        b"",
+    );
+    let mut session = DecodeSession::new(DecodeOptions::default());
+    session.set_keylog(KeyLog::read(keylog.as_bytes()));
+    let mut client_sequence = 1_u32;
+    let mut server_sequence = 1_u32;
+    let mut frames = Vec::new();
+    for (index, (from_client, record)) in records.iter().enumerate() {
+        let number = u64::try_from(index).unwrap_or(0) + 1;
+        let sequence = if *from_client {
+            client_sequence
+        } else {
+            server_sequence
+        };
+        let packet = session.decode_at(&tls_frame(number, sequence, *from_client, record), number);
+        frames.push(packet);
+        let next = sequence.saturating_add(u32::try_from(record.len()).unwrap_or(u32::MAX));
+        if *from_client {
+            client_sequence = next;
+        } else {
+            server_sequence = next;
+        }
+    }
+    let client = frames
+        .get(6)
+        .unwrap_or_else(|| unreachable!("client app data"));
+    assert_eq!(
+        tree_field(client, "http.request.method").as_deref(),
+        Some("GET")
+    );
+    assert!(stream_with(client, "http2.header").is_none());
+    let server = frames
+        .get(7)
+        .unwrap_or_else(|| unreachable!("server app data"));
+    assert_eq!(
+        tree_field(server, "http.response.code").as_deref(),
+        Some("200")
+    );
+    assert!(stream_with(server, "http2.header").is_none());
 }
 
 /// The `http2.stream` container that carries `abbrev`, when one decoded.

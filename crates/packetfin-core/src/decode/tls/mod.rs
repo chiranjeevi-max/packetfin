@@ -52,6 +52,7 @@ const CONTENT_HEARTBEAT: u8 = 24;
 const HANDSHAKE_CLIENT_HELLO: u8 = 1;
 const HANDSHAKE_SERVER_HELLO: u8 = 2;
 const HANDSHAKE_NEW_SESSION_TICKET: u8 = 4;
+const HANDSHAKE_ENCRYPTED_EXTENSIONS: u8 = 8;
 const HANDSHAKE_FINISHED: u8 = 20;
 const HANDSHAKE_KEY_UPDATE: u8 = 24;
 
@@ -87,6 +88,10 @@ enum HandshakeEvent {
         session_id: Vec<u8>,
         encrypt_then_mac: bool,
         hello_retry_request: bool,
+        alpn: Option<String>,
+    },
+    EncryptedExtensions {
+        alpn: Option<String>,
     },
     NewSessionTicket {
         ticket: Vec<u8>,
@@ -910,10 +915,14 @@ fn process_event(
             session_id,
             encrypt_then_mac,
             hello_retry_request,
+            alpn,
         } => {
             let Some(flow) = flow.as_mut() else {
                 return;
             };
+            // RFC 7301 section 3.2: only the server's selection fixes the
+            // application protocol; the client's offer order proves nothing.
+            flow.set_selected_alpn(alpn.as_deref());
             let Some(session) = flow.last_session_mut() else {
                 return;
             };
@@ -977,6 +986,11 @@ fn process_event(
             if let Some(master) = session.master_secret().and_then(Secret::duplicate) {
                 let id = session.session_id_for_cache().to_vec();
                 context.state.cache_tls_secret(&id, &master);
+            }
+        }
+        HandshakeEvent::EncryptedExtensions { alpn } => {
+            if let Some(flow) = flow.as_mut() {
+                flow.set_selected_alpn(alpn.as_deref());
             }
         }
         HandshakeEvent::NewSessionTicket { ticket } => {
@@ -1421,10 +1435,16 @@ fn decode_handshake(
                         session_id: info.session_id,
                         encrypt_then_mac: info.encrypt_then_mac,
                         hello_retry_request: hrr,
+                        alpn: info.alpn,
                     });
                 } else {
                     events.push(HandshakeEvent::Message(message_type));
                 }
+            }
+            HANDSHAKE_ENCRYPTED_EXTENSIONS => {
+                let alpn = parse_encrypted_extensions(handshake, message_body, message_body_base);
+                infos.push(message_name.to_string());
+                events.push(HandshakeEvent::EncryptedExtensions { alpn });
             }
             HANDSHAKE_NEW_SESSION_TICKET => {
                 if let Some(ticket) = parse_new_session_ticket(
@@ -1613,6 +1633,7 @@ struct ServerHelloInfo {
     cipher_suite: Option<u16>,
     session_id: Vec<u8>,
     encrypt_then_mac: bool,
+    alpn: Option<String>,
 }
 
 /// Parse a ClientHello and add `tls.handshake.*` fields.
@@ -1850,6 +1871,42 @@ fn server_hello_supported_version(body: &[u8]) -> Option<u16> {
     None
 }
 
+/// Parse a TLS 1.3 EncryptedExtensions and return its ALPN selection.
+///
+/// The body is a two-octet extension-vector length followed by the same
+/// extension encoding a hello carries (RFC 8446 section 4.3.1).
+fn parse_encrypted_extensions(field: &mut Field, body: &[u8], base: usize) -> Option<String> {
+    let length = read_u16_be(body, 0)?;
+    field.add_field(
+        &fields::TLS_HANDSHAKE_EXTENSIONS_LENGTH,
+        Range::new(base, 2),
+        Value::Uint16(length),
+    );
+    let start = 2_usize;
+    let end = start.checked_add(usize::from(length))?;
+    let data = body.get(start..end)?;
+    let mut info = ClientHelloInfo {
+        version: 0,
+        last_supported_version: None,
+        max_supported_version: None,
+        cipher_suites: Vec::new(),
+        extensions: Vec::new(),
+        groups: Vec::new(),
+        formats: Vec::new(),
+        signature_algorithms: Vec::new(),
+        sni: None,
+        has_sni: false,
+        alpn: None,
+        client_random: None,
+        session_id: Vec::new(),
+        ticket: None,
+        first_tls13_suite: None,
+        encrypt_then_mac: false,
+    };
+    parse_extensions(field, data, base.saturating_add(start), false, &mut info);
+    info.alpn
+}
+
 /// Parse a ServerHello and add `tls.handshake.*` fields.
 fn parse_server_hello(field: &mut Field, body: &[u8], base: usize) -> ServerHelloInfo {
     let mut negotiated = read_u16_be(body, 0).unwrap_or(0);
@@ -1865,6 +1922,7 @@ fn parse_server_hello(field: &mut Field, body: &[u8], base: usize) -> ServerHell
     let mut server_random = None;
     let mut session_id = Vec::new();
     let mut encrypt_then_mac = false;
+    let mut alpn = None;
     if let Some(random) = body.get(2..34) {
         let mut parsed = [0_u8; 32];
         parsed.copy_from_slice(random);
@@ -1891,6 +1949,7 @@ fn parse_server_hello(field: &mut Field, body: &[u8], base: usize) -> ServerHell
             cipher_suite: Some(cipher_suite),
             session_id,
             encrypt_then_mac,
+            alpn: None,
         };
     };
     field.add_field(
@@ -1969,6 +2028,7 @@ fn parse_server_hello(field: &mut Field, body: &[u8], base: usize) -> ServerHell
         );
         extensions = hello.extensions;
         encrypt_then_mac = hello.encrypt_then_mac;
+        alpn = hello.alpn;
         if legacy == VERSION_TLS_1_2
             && let Some(supported) = hello.last_supported_version
         {
@@ -1997,6 +2057,7 @@ fn parse_server_hello(field: &mut Field, body: &[u8], base: usize) -> ServerHell
         cipher_suite: Some(cipher_suite),
         session_id,
         encrypt_then_mac,
+        alpn,
     }
 }
 
@@ -2189,9 +2250,12 @@ fn parse_alpn(field: &mut Field, data: &[u8], base: usize) -> Option<String> {
         Range::new(base.saturating_add(2), usize::from(length)),
         Some("ALPN Protocol".to_string()),
     );
+    // RFC 7301 section 3.1: the ProtocolNameList length bounds the names;
+    // bytes after it belong to no protocol and are not read.
+    let list_end = 2_usize.saturating_add(usize::from(length));
     let mut offset = 2_usize;
     let mut first = None;
-    while offset < data.len() {
+    while offset < list_end {
         let Some(protocol_length) = data.get(offset).copied() else {
             break;
         };
@@ -2200,7 +2264,7 @@ fn parse_alpn(field: &mut Field, data: &[u8], base: usize) -> Option<String> {
         let Some(end) = start.checked_add(protocol_length) else {
             break;
         };
-        if end > data.len() {
+        if end > list_end || end > data.len() {
             break;
         }
         list.add_field(
@@ -2930,6 +2994,52 @@ mod tests {
             first_tls13_suite: None,
             encrypt_then_mac: false,
         }
+    }
+
+    #[test]
+    fn encrypted_extensions_select_their_alpn_protocol() {
+        let mut node = Node::new(&fields::TLS_PROTOCOL, Range::default());
+        let field = node.add_field(
+            &fields::TLS_HANDSHAKE_LENGTH,
+            Range::default(),
+            Value::Uint32(0),
+        );
+        // EncryptedExtensions: a 9-octet extension vector holding one ALPN
+        // extension whose list names h2 (RFC 8446 section 4.3.1).
+        let body = [
+            0x00, 0x09, 0x00, 0x10, 0x00, 0x05, 0x00, 0x03, 0x02, b'h', b'2',
+        ];
+        assert_eq!(
+            parse_encrypted_extensions(field, &body, 0).as_deref(),
+            Some("h2")
+        );
+    }
+
+    #[test]
+    fn an_alpn_list_stops_at_its_declared_length() {
+        let mut node = Node::new(&fields::TLS_PROTOCOL, Range::default());
+        let field = node.add_field(
+            &fields::TLS_HANDSHAKE_LENGTH,
+            Range::default(),
+            Value::Uint32(0),
+        );
+        // A three-octet list names h2; the trailing octets are not a second
+        // protocol and must not be read as one.
+        let data = [0x00, 0x03, 0x02, b'h', b'2', 0x02, b'h', b'3'];
+        assert_eq!(parse_alpn(field, &data, 0).as_deref(), Some("h2"));
+        let mut node = Node::new(&fields::TLS_PROTOCOL, Range::default());
+        let field = node.add_field(
+            &fields::TLS_HANDSHAKE_LENGTH,
+            Range::default(),
+            Value::Uint32(0),
+        );
+        let data = [0x00, 0x03, 0x02, b'h', b'2', 0x02, b'h', b'3'];
+        let count = {
+            parse_alpn(field, &data, 0);
+            field.children.len()
+        };
+        // The ALPN length field and the list; the straddling name adds none.
+        assert_eq!(count, 2);
     }
 
     #[test]

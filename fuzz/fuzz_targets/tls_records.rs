@@ -30,8 +30,18 @@ fuzz_target!(|data: &[u8]| {
     let Some((secret_length, rest)) = rest.split_first() else {
         return;
     };
-    let suite = SUITES[usize::from(*suite_selector) % SUITES.len()];
-    let version = VERSIONS[usize::from(*protocol_selector & 0x03)];
+    let Some(suite) = SUITES
+        .get(usize::from(*suite_selector) % SUITES.len())
+        .copied()
+    else {
+        return;
+    };
+    let Some(version) = VERSIONS
+        .get(usize::from(*protocol_selector & 0x03))
+        .copied()
+    else {
+        return;
+    };
     let encrypt_then_mac = *protocol_selector & 0x04 != 0;
     let sequence = u64::from(*protocol_selector >> 4);
 

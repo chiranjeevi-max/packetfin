@@ -31,7 +31,7 @@ use crate::tree::{ExpertInfo, Group, Severity};
 /// recommended lower bound.  A capture can hold two datagrams that reuse a
 /// 16-bit identification minutes apart, so a buffer must not outlive the
 /// timeout and merge the later datagram into the stale one.
-const REASSEMBLY_TIMEOUT_NANOS: i128 = 60 * 1_000_000_000;
+const REASSEMBLY_TIMEOUT_SECONDS: i64 = 60;
 
 /// Most fragments retained for one datagram.
 pub(crate) const MAX_FRAGMENTS: usize = 128;
@@ -198,8 +198,11 @@ impl FragmentOutcome {
 pub(crate) struct FragmentBuffer {
     parts: Vec<FragmentRecord>,
     total_len: Option<usize>,
-    /// Capture time of the first stored fragment, the timeout's baseline.
-    first_seen: Option<Timestamp>,
+    /// Capture time of the first stored fragment, in whole seconds.
+    ///
+    /// The timeout has minute resolution, so storing the seconds keeps the
+    /// per-buffer cost at one machine word while still measuring it.
+    first_seen: Option<i64>,
 }
 
 impl FragmentBuffer {
@@ -277,7 +280,7 @@ impl FragmentBuffer {
         };
 
         if self.first_seen.is_none() {
-            self.first_seen = part.timestamp;
+            self.first_seen = part.timestamp.map(|timestamp| timestamp.seconds);
         }
         self.parts.push(FragmentRecord {
             offset: part.offset,
@@ -344,8 +347,7 @@ impl FragmentBuffer {
         let (Some(first), Some(now)) = (self.first_seen, now) else {
             return;
         };
-        let elapsed = timestamp_nanos(now).saturating_sub(timestamp_nanos(first));
-        if elapsed > REASSEMBLY_TIMEOUT_NANOS {
+        if now.seconds.saturating_sub(first) > REASSEMBLY_TIMEOUT_SECONDS {
             self.parts.clear();
             self.total_len = None;
             self.first_seen = None;
@@ -437,13 +439,6 @@ impl StateValue for FragmentBuffer {
                     .sum::<usize>(),
             )
     }
-}
-
-/// A capture time as signed nanoseconds, saturating at the i128 limits.
-fn timestamp_nanos(timestamp: Timestamp) -> i128 {
-    i128::from(timestamp.seconds)
-        .saturating_mul(1_000_000_000)
-        .saturating_add(i128::from(timestamp.nanos))
 }
 
 #[cfg(test)]

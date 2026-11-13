@@ -808,13 +808,27 @@ fn decode_plaintext_actions(
         // allocation with the fields already added, so no body copy is made.
         context.set_data_source(source, data);
         if let Some(current) = current {
-            info = Some(match info {
-                Some(previous) => format!("{previous}{current}"),
-                None => current,
-            });
+            info = Some(join_plaintext_info(
+                info,
+                current,
+                ulp == crate::state::Ulp::Http2,
+            ));
         }
     }
     info
+}
+
+/// Append one PDU's summary to the plaintext column.
+///
+/// HTTP/2 summaries carry no separators of their own, so a preface PDU and a
+/// following frame PDU would otherwise read `MagicSETTINGS[0]`. HTTP/1.x
+/// messages keep their existing spacing.
+fn join_plaintext_info(info: Option<String>, current: String, http2: bool) -> String {
+    match info {
+        Some(previous) if http2 => format!("{previous}, {current}"),
+        Some(previous) => format!("{previous}{current}"),
+        None => current,
+    }
 }
 
 /// Name the inner protocol on the records whose plaintext the HTTP decoder
@@ -3024,22 +3038,38 @@ mod tests {
             Value::Uint32(0),
         );
         // A three-octet list names h2; the trailing octets are not a second
-        // protocol and must not be read as one.
+        // protocol.
         let data = [0x00, 0x03, 0x02, b'h', b'2', 0x02, b'h', b'3'];
         assert_eq!(parse_alpn(field, &data, 0).as_deref(), Some("h2"));
+        let list = field
+            .children
+            .get(1)
+            .unwrap_or_else(|| unreachable!("the ALPN list container"));
+        // Only h2's length and value sit inside the declared list.
+        assert_eq!(list.children.len(), 2);
+
         let mut node = Node::new(&fields::TLS_PROTOCOL, Range::default());
         let field = node.add_field(
             &fields::TLS_HANDSHAKE_LENGTH,
             Range::default(),
             Value::Uint32(0),
         );
-        let data = [0x00, 0x03, 0x02, b'h', b'2', 0x02, b'h', b'3'];
-        let count = {
-            parse_alpn(field, &data, 0);
-            field.children.len()
-        };
-        // The ALPN length field and the list; the straddling name adds none.
-        assert_eq!(count, 2);
+        // A two-octet list cannot hold the two-octet name that starts at its
+        // last octet, so the crossing name is not a protocol at all.
+        let data = [0x00, 0x02, 0x02, b'h', b'2'];
+        assert_eq!(parse_alpn(field, &data, 0), None);
+    }
+
+    #[test]
+    fn http2_plaintext_summaries_keep_their_separator() {
+        assert_eq!(
+            join_plaintext_info(Some("Magic".to_string()), "SETTINGS[0]".to_string(), true),
+            "Magic, SETTINGS[0]"
+        );
+        assert_eq!(
+            join_plaintext_info(Some("GET / ".to_string()), "HTTP/1.1".to_string(), false),
+            "GET / HTTP/1.1"
+        );
     }
 
     #[test]

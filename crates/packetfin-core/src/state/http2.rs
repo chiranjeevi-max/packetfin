@@ -39,6 +39,16 @@ pub(crate) const MAX_STREAMS: usize = 256;
 /// more than a TCP PDU.
 pub(crate) const MAX_BODY_BYTES: usize = 1024 * 1024;
 
+/// DATA fragments whose frame and offset metadata one direction retains.
+///
+/// The body itself is kept whole in one buffer; only the per-fragment view
+/// the completing frame prints is capped. A 1 MiB body in 4 KiB DATA frames
+/// needs 256 entries, so a flood of one-octet DATA frames keeps its bytes and
+/// bounds its metadata. Beyond the cap the frame and offset are dropped,
+/// [`DataOutcome::truncated`] reports it on the completing frame, and the
+/// body bytes still reassemble.
+pub(crate) const MAX_BODY_FRAGMENTS: usize = 256;
+
 /// Header-block bytes buffered between HEADERS and its CONTINUATION frames.
 ///
 /// A single frame is bounded by its 24-bit length, but a CONTINUATION chain
@@ -55,11 +65,55 @@ pub(crate) struct Http2Key {
     pub(crate) direction: u8,
 }
 
+/// Where a header block started and what it promises.
+///
+/// RFC 9113 section 6.10 lets a block span CONTINUATION frames, so the
+/// promised stream identifier and the frame that carried it belong to the
+/// block, not to the frame that completes it.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct BlockStart {
+    /// Whether this is a PUSH_PROMISE block.
+    pub(crate) push: bool,
+    /// The promised stream identifier of a PUSH_PROMISE block, else zero.
+    pub(crate) promised: u32,
+    /// Display frame number that opened the block.
+    pub(crate) frame: u32,
+    /// Capture frame number that opened the block.
+    pub(crate) file: u32,
+    /// Capture time of the frame that opened the block.
+    pub(crate) time: Option<Timestamp>,
+}
+
+/// Where a header-block fragment came from.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct BlockOrigin {
+    /// Display frame number of the fragment's frame.
+    pub(crate) frame: u32,
+    /// Capture frame number of the fragment's frame.
+    pub(crate) file: u32,
+    /// Capture time of the fragment's frame.
+    pub(crate) time: Option<Timestamp>,
+}
+
+/// Which frame type carries a header-block fragment.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum BlockFragment {
+    /// A HEADERS frame, which opens a request or response block.
+    Headers,
+    /// A PUSH_PROMISE frame, which opens a block for the promised stream.
+    PushPromise {
+        /// The promised stream identifier in the frame payload.
+        promised: u32,
+    },
+    /// A CONTINUATION frame, which continues the open block on its stream.
+    Continuation,
+}
+
 /// A header block whose END_HEADERS has not arrived.
 #[derive(Debug)]
 struct PendingBlock {
     stream_id: u32,
-    push: bool,
+    start: BlockStart,
     bytes: Vec<u8>,
 }
 
@@ -85,6 +139,11 @@ struct Windows {
     pending_connection: i32,
     /// Per-stream bytes consumed or granted during the current frame.
     pending_streams: Vec<(u32, i32)>,
+    /// SETTINGS_INITIAL_WINDOW_SIZE the peer announced in this direction.
+    ///
+    /// RFC 9113 section 6.9.2: a stream that has no window of its own starts
+    /// at this value, and a change to it adjusts every open stream window.
+    initial_stream_window: i32,
 }
 
 impl Default for Windows {
@@ -97,6 +156,7 @@ impl Default for Windows {
             snapshot_streams: Vec::new(),
             pending_connection: 0,
             pending_streams: Vec::new(),
+            initial_stream_window: 65535,
         }
     }
 }
@@ -119,7 +179,9 @@ impl Windows {
         for (id, delta) in std::mem::take(&mut self.pending_streams) {
             match self.streams.iter_mut().find(|(stream, _)| *stream == id) {
                 Some((_, window)) => *window = window.saturating_add(delta),
-                None => self.streams.push((id, 65535_i32.saturating_add(delta))),
+                None => self
+                    .streams
+                    .push((id, self.initial_stream_window.saturating_add(delta))),
             }
         }
         self.snapshot_connection = self.connection;
@@ -139,7 +201,21 @@ impl Windows {
                     .find(|(id, _)| *id == stream_id)
                     .map(|(_, window)| *window)
             })
-            .unwrap_or(65535)
+            .unwrap_or(self.initial_stream_window)
+    }
+
+    /// Apply a SETTINGS_INITIAL_WINDOW_SIZE change to every open stream.
+    ///
+    /// RFC 9113 section 6.9.2: a receiver adjusts all stream windows by the
+    /// difference between the new and the old initial size. The connection
+    /// window is unchanged.
+    fn set_initial_stream_window(&mut self, value: i32) {
+        let delta = value.saturating_sub(self.initial_stream_window);
+        self.initial_stream_window = value;
+        for (_, window) in &mut self.streams {
+            *window = window.saturating_add(delta);
+        }
+        self.snapshot_streams.clear();
     }
 
     fn add_connection(&mut self, delta: i32) {
@@ -192,8 +268,12 @@ impl StateValue for Http2Direction {
     }
 }
 
-/// One DATA fragment retained for a stream body.
-#[derive(Clone, Debug)]
+/// One DATA fragment's position in a stream body.
+///
+/// The octets live in the body's single buffer, not here: keeping a `Vec` per
+/// fragment made a flood of one-octet DATA frames cost more metadata than
+/// payload.
+#[derive(Clone, Copy, Debug)]
 struct BodyFragment {
     /// Display frame number of the contributing DATA frame.
     frame: u64,
@@ -201,20 +281,48 @@ struct BodyFragment {
     file: u64,
     /// Offset of the fragment within the body.
     offset: usize,
-    /// The fragment bytes.
-    bytes: Vec<u8>,
+    /// Fragment length.
+    length: usize,
 }
 
-/// A stream body assembled from its DATA frames.
+/// One direction of a stream body assembled from its DATA frames.
+///
+/// Request and response bodies never share a buffer: one stream carries both
+/// directions, and the completing frame prints only its own direction's body.
 #[derive(Debug, Default)]
 struct Body {
+    /// The whole body, appended in wire order.
+    bytes: Vec<u8>,
+    /// Bounded fragment metadata, in wire order.
     fragments: Vec<BodyFragment>,
+    /// DATA frames that carried at least one octet.
+    fragment_count: usize,
+    /// Body octets retained, including those past the metadata cap.
     total: usize,
+    /// END_STREAM arrived for this direction.
     complete: bool,
+    /// The body exceeded [`MAX_BODY_BYTES`] and is not retained.
     dropped: bool,
+    /// Fragment metadata was dropped past [`MAX_BODY_FRAGMENTS`].
+    truncated: bool,
 }
 
-/// Request/response state and the DATA body of one stream.
+impl Body {
+    /// Forget this direction's body for a new message.
+    fn reset(&mut self) {
+        *self = Self::default();
+    }
+
+    fn state_bytes(&self) -> usize {
+        self.bytes.capacity().saturating_add(
+            self.fragments
+                .capacity()
+                .saturating_mul(size_of::<BodyFragment>()),
+        )
+    }
+}
+
+/// Request/response state and the DATA bodies of one stream.
 #[derive(Debug, Default)]
 pub(crate) struct Http2Stream {
     id: u32,
@@ -223,7 +331,8 @@ pub(crate) struct Http2Stream {
     request_time: Option<Timestamp>,
     request_uri: Option<String>,
     response_frame: u32,
-    body: Body,
+    /// One body per direction, indexed by [`Http2Key::direction`].
+    bodies: [Body; 2],
     /// Least-recently-used stamp for [`MAX_STREAMS`] eviction.
     touch: u64,
 }
@@ -233,19 +342,7 @@ impl Http2Stream {
         self.request_uri
             .as_ref()
             .map_or(0, |uri| uri.capacity())
-            .saturating_add(
-                self.body
-                    .fragments
-                    .capacity()
-                    .saturating_mul(size_of::<BodyFragment>()),
-            )
-            .saturating_add(
-                self.body
-                    .fragments
-                    .iter()
-                    .map(|fragment| fragment.bytes.capacity())
-                    .sum::<usize>(),
-            )
+            .saturating_add(self.bodies.iter().map(Body::state_bytes).sum::<usize>())
     }
 }
 
@@ -329,6 +426,8 @@ pub(crate) struct FragmentResult {
     pub(crate) unexpected: bool,
     /// The buffered block exceeded [`MAX_BLOCK_BYTES`] and was dropped.
     pub(crate) overflow: bool,
+    /// The frame and promise the completed block started with.
+    pub(crate) start: Option<BlockStart>,
 }
 
 /// One DATA frame's effect on the stream.
@@ -344,12 +443,16 @@ pub(crate) struct DataOutcome {
     pub(crate) stream_after: i32,
     /// The body fragments to show on the completing frame.
     pub(crate) fragments: Vec<BodyFragmentView>,
+    /// DATA frames that carried at least one octet.
+    pub(crate) fragment_count: usize,
     /// Reassembled body bytes when this frame ended the stream.
     pub(crate) data: Option<Vec<u8>>,
     /// Total body octets retained.
     pub(crate) total: usize,
     /// The body exceeded [`MAX_BODY_BYTES`] and is not retained.
     pub(crate) dropped: bool,
+    /// Fragment metadata was dropped past [`MAX_BODY_FRAGMENTS`].
+    pub(crate) truncated: bool,
     /// A stream was evicted to make room for this one.
     pub(crate) evicted: bool,
 }
@@ -413,12 +516,15 @@ impl SessionState {
     /// A block that never reaches END_HEADERS is dropped with the direction's
     /// state. A CONTINUATION on a stream with no open block is decoded on its
     /// own, which is what the expected output does and what keeps a stray
-    /// fragment visible.
+    /// fragment visible. A CONTINUATION inherits the open block's kind and
+    /// promised stream identifier, so a fragmented PUSH_PROMISE stays a
+    /// PUSH_PROMISE through its last frame (RFC 9113 section 6.10).
     pub(crate) fn http2_fragment(
         &mut self,
         key: Http2Key,
         stream_id: u32,
-        push: bool,
+        fragment_kind: BlockFragment,
+        origin: BlockOrigin,
         fragment: &[u8],
         end_headers: bool,
     ) -> FragmentResult {
@@ -428,17 +534,57 @@ impl SessionState {
             .unwrap_or_default();
         let mut unexpected = false;
         let mut overflow = false;
-        if let Some(pending) = direction.pending.as_ref()
-            && (pending.stream_id != stream_id || pending.push != push)
-        {
+        match fragment_kind {
             // RFC 9113 section 6.10 requires CONTINUATION on the same stream;
             // an interleaved block is a connection error. The reference keeps
-            // decoding, so the abandoned block is dropped and the new
-            // fragment is treated as a block of its own.
-            direction.pending = None;
-            unexpected = true;
+            // decoding, so the abandoned block is dropped and the fragment is
+            // treated as a block of its own.
+            BlockFragment::Continuation => {
+                let same_stream = direction
+                    .pending
+                    .as_ref()
+                    .is_some_and(|pending| pending.stream_id == stream_id);
+                if direction.pending.is_some() && !same_stream {
+                    direction.pending = None;
+                    unexpected = true;
+                }
+            }
+            // A new block cannot start before the open one ends.
+            BlockFragment::Headers | BlockFragment::PushPromise { .. } => {
+                if direction.pending.take().is_some() {
+                    unexpected = true;
+                }
+            }
         }
+        let started = match fragment_kind {
+            BlockFragment::Headers => BlockStart {
+                push: false,
+                promised: 0,
+                frame: origin.frame,
+                file: origin.file,
+                time: origin.time,
+            },
+            BlockFragment::PushPromise { promised } => BlockStart {
+                push: true,
+                promised,
+                frame: origin.frame,
+                file: origin.file,
+                time: origin.time,
+            },
+            BlockFragment::Continuation => direction
+                .pending
+                .as_ref()
+                .map(|pending| pending.start)
+                .unwrap_or(BlockStart {
+                    push: false,
+                    promised: 0,
+                    frame: origin.frame,
+                    file: origin.file,
+                    time: origin.time,
+                }),
+        };
         let mut block = None;
+        let mut start = None;
         if end_headers {
             let bytes = match direction.pending.take() {
                 Some(pending) => {
@@ -456,11 +602,12 @@ impl SessionState {
                     &mut direction.table,
                     direction.peer_table_limit,
                 ));
+                start = Some(started);
             }
         } else {
             let pending = direction.pending.get_or_insert_with(|| PendingBlock {
                 stream_id,
-                push,
+                start: started,
                 bytes: Vec::new(),
             });
             if pending.bytes.len().saturating_add(fragment.len()) > MAX_BLOCK_BYTES {
@@ -475,22 +622,22 @@ impl SessionState {
             block,
             unexpected,
             overflow,
+            start,
         }
     }
 
     /// Record one SETTINGS value.
     ///
-    /// Only the header-table size changes how later blocks decode: it bounds
-    /// the size update the peer's encoder may send (RFC 7541 section 6.3),
-    /// so it is applied to the *opposite* direction, whose blocks that
-    /// encoder produces.
+    /// Both values that change how later frames behave belong to the peer's
+    /// sends, so they are applied to the *opposite* direction:
+    /// SETTINGS_HEADER_TABLE_SIZE bounds the size update that encoder may
+    /// send (RFC 7541 section 6.3), and SETTINGS_INITIAL_WINDOW_SIZE sets the
+    /// initial stream window of the data that encoder sends (RFC 9113
+    /// section 6.9.2).
     pub(crate) fn http2_settings(&mut self, key: Http2Key, id: u16, value: u32) {
-        if id != 1 {
+        if id != 1 && id != 4 {
             return;
         }
-        let limit = usize::try_from(value)
-            .unwrap_or(MAX_TABLE_SIZE)
-            .min(MAX_TABLE_SIZE);
         let peer = Http2Key {
             conversation: key.conversation,
             direction: 1_u8.saturating_sub(key.direction.min(1)),
@@ -499,7 +646,14 @@ impl SessionState {
             .http2
             .take_with(&mut self.budget, &peer)
             .unwrap_or_default();
-        direction.peer_table_limit = limit;
+        if id == 1 {
+            direction.peer_table_limit = usize::try_from(value)
+                .unwrap_or(MAX_TABLE_SIZE)
+                .min(MAX_TABLE_SIZE);
+        } else {
+            let window = i32::try_from(value).unwrap_or(i32::MAX);
+            direction.windows.set_initial_stream_window(window);
+        }
         self.http2.put_with(&mut self.budget, peer, direction);
     }
 
@@ -521,8 +675,10 @@ impl SessionState {
         let connection_before = direction.windows.snapshot_connection;
         let stream_before = direction.windows.snapshot_stream(stream_id);
         let length = i32::try_from(data.len()).unwrap_or(i32::MAX);
-        direction.windows.add_connection(length);
-        direction.windows.add_stream(stream_id, length);
+        // RFC 9113 section 6.9.1: sending DATA consumes the sender's
+        // connection and stream windows, so the persistent deltas debit.
+        direction.windows.add_connection(-length);
+        direction.windows.add_stream(stream_id, -length);
         let connection_after = connection_before.saturating_sub(length);
         let stream_after = stream_before.saturating_sub(length);
         self.http2.put_with(&mut self.budget, key, direction);
@@ -538,58 +694,66 @@ impl SessionState {
             stream_before,
             stream_after,
             fragments: Vec::new(),
+            fragment_count: 0,
             data: None,
             total: 0,
             dropped: false,
+            truncated: false,
             evicted,
         };
-        if let Some(stream) = stream {
-            if stream.body.complete {
-                stream.body = Body::default();
+        if let Some(stream) = stream
+            && let Some(body) = stream.bodies.get_mut(usize::from(key.direction & 1))
+        {
+            if body.complete {
+                body.reset();
             }
-            let body = &mut stream.body;
             if !body.dropped {
                 let offset = body.total;
                 let next = offset.saturating_add(data.len());
                 if next > MAX_BODY_BYTES {
                     body.dropped = true;
                     body.fragments.clear();
+                    body.bytes.clear();
+                    body.bytes.shrink_to_fit();
                     body.total = 0;
                 } else {
                     body.total = next;
+                    body.bytes.extend_from_slice(data);
                     if !data.is_empty() {
-                        body.fragments.push(BodyFragment {
-                            frame,
-                            file,
-                            offset,
-                            bytes: data.to_vec(),
-                        });
+                        body.fragment_count = body.fragment_count.saturating_add(1);
+                        if body.fragments.len() < MAX_BODY_FRAGMENTS {
+                            body.fragments.push(BodyFragment {
+                                frame,
+                                file,
+                                offset,
+                                length: data.len(),
+                            });
+                        } else {
+                            body.truncated = true;
+                        }
                     }
                 }
             }
-            outcome.fragments = body
-                .fragments
-                .iter()
-                .map(|fragment| BodyFragmentView {
-                    frame: fragment.frame,
-                    file: fragment.file,
-                    offset: fragment.offset,
-                    length: fragment.bytes.len(),
-                })
-                .collect();
             outcome.total = body.total;
             outcome.dropped = body.dropped;
+            outcome.fragment_count = body.fragment_count;
+            outcome.truncated = body.truncated;
             if end_stream {
                 body.complete = true;
                 if !body.dropped {
-                    let mut assembled = Vec::with_capacity(body.total);
-                    let mut fragments = std::mem::take(&mut body.fragments);
-                    fragments.sort_by_key(|fragment| fragment.offset);
-                    for fragment in &fragments {
-                        assembled.extend_from_slice(&fragment.bytes);
-                    }
-                    outcome.data = Some(assembled);
-                    body.fragments = fragments;
+                    // The views are built once, on the frame that prints
+                    // them; a partial frame only appends its bytes.
+                    outcome.fragments = body
+                        .fragments
+                        .iter()
+                        .map(|fragment| BodyFragmentView {
+                            frame: fragment.frame,
+                            file: fragment.file,
+                            offset: fragment.offset,
+                            length: fragment.length,
+                        })
+                        .collect();
+                    outcome.data = Some(std::mem::take(&mut body.bytes));
                 }
             }
         }
@@ -599,6 +763,10 @@ impl SessionState {
     }
 
     /// Account one WINDOW_UPDATE and return the window before and after.
+    ///
+    /// RFC 9113 section 6.9: a WINDOW_UPDATE sent by one endpoint grants send
+    /// credit to its peer, so the increment belongs to the opposite
+    /// direction's windows.
     pub(crate) fn http2_window_update(
         &mut self,
         key: Http2Key,
@@ -606,9 +774,13 @@ impl SessionState {
         increment: u32,
         file: u64,
     ) -> (i32, i32) {
+        let peer = Http2Key {
+            conversation: key.conversation,
+            direction: 1_u8.saturating_sub(key.direction.min(1)),
+        };
         let mut direction = self
             .http2
-            .take_with(&mut self.budget, &key)
+            .take_with(&mut self.budget, &peer)
             .unwrap_or_default();
         direction.windows.begin_frame(file);
         let delta = i32::try_from(increment).unwrap_or(i32::MAX);
@@ -623,7 +795,7 @@ impl SessionState {
             let before = direction.windows.snapshot_stream(stream_id);
             (before, before.saturating_add(delta))
         };
-        self.http2.put_with(&mut self.budget, key, direction);
+        self.http2.put_with(&mut self.budget, peer, direction);
         (before, after)
     }
 
@@ -698,5 +870,132 @@ impl SessionState {
         self.http2_streams
             .put_with(&mut self.budget, conversation, streams);
         uri
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// One conversation and the two directions' keys.
+    fn keys() -> (Http2Key, Http2Key) {
+        let (conversation, _) = ConversationKey::ipv4([192, 0, 2, 1], 40_000, [192, 0, 2, 2], 8080);
+        (
+            Http2Key {
+                conversation,
+                direction: 0,
+            },
+            Http2Key {
+                conversation,
+                direction: 1,
+            },
+        )
+    }
+
+    #[test]
+    fn fragment_views_are_built_only_when_the_body_completes() {
+        let mut state = SessionState::new(64 * 1024 * 1024);
+        let (client, _) = keys();
+        let outcome = state.http2_data(client, 1, b"a", false, 1, 1);
+        assert!(
+            outcome.fragments.is_empty(),
+            "a partial frame emits no fragment views"
+        );
+    }
+
+    #[test]
+    fn body_fragment_metadata_is_bounded_and_the_body_survives() {
+        let mut state = SessionState::new(64 * 1024 * 1024);
+        let (client, _) = keys();
+        let frames = 300_usize;
+        let mut last = None;
+        for index in 0..frames {
+            let end = index + 1 == frames;
+            last = Some(state.http2_data(
+                client,
+                1,
+                b"x",
+                end,
+                u64::try_from(index).unwrap_or(0) + 1,
+                u64::try_from(index).unwrap_or(0) + 1,
+            ));
+        }
+        let outcome = last.unwrap_or_else(|| unreachable!("one outcome"));
+        let body = outcome
+            .data
+            .unwrap_or_else(|| unreachable!("the body is retained whole"));
+        assert_eq!(body.len(), frames, "every DATA octet survives");
+        assert!(
+            outcome.fragments.len() <= 256,
+            "fragment metadata is bounded, got {}",
+            outcome.fragments.len()
+        );
+        assert_eq!(outcome.fragments.len(), 256);
+    }
+
+    #[test]
+    fn request_and_response_bodies_stay_separate() {
+        let mut state = SessionState::new(64 * 1024 * 1024);
+        let (client, server) = keys();
+        let _ = state.http2_data(client, 1, b"A", false, 1, 1);
+        let _ = state.http2_data(server, 1, b"B", false, 2, 2);
+        let request = state.http2_data(client, 1, b"C", true, 3, 3);
+        let response = state.http2_data(server, 1, b"D", true, 4, 4);
+        assert_eq!(request.data.as_deref(), Some(b"AC".as_slice()));
+        assert_eq!(response.data.as_deref(), Some(b"BD".as_slice()));
+    }
+
+    #[test]
+    fn data_debits_the_persistent_window() {
+        let mut state = SessionState::new(64 * 1024 * 1024);
+        let (client, _) = keys();
+        let first = state.http2_data(client, 1, b"a", false, 1, 1);
+        assert_eq!(
+            (first.connection_before, first.connection_after),
+            (65535, 65534)
+        );
+        let second = state.http2_data(client, 1, b"b", false, 2, 2);
+        assert_eq!(
+            (second.connection_before, second.connection_after),
+            (65534, 65533)
+        );
+        assert_eq!((second.stream_before, second.stream_after), (65534, 65533));
+    }
+
+    #[test]
+    fn a_window_update_credits_the_peer_direction() {
+        let mut state = SessionState::new(64 * 1024 * 1024);
+        let (client, server) = keys();
+        let (before, after) = state.http2_window_update(client, 0, 100, 1);
+        assert_eq!((before, after), (65535, 65635));
+        let data = state.http2_data(server, 1, b"a", false, 2, 2);
+        assert_eq!(data.connection_before, 65635);
+    }
+
+    #[test]
+    fn initial_window_size_changes_the_peer_stream_windows() {
+        let mut state = SessionState::new(64 * 1024 * 1024);
+        let (client, server) = keys();
+        state.http2_settings(client, 4, 1000);
+        let data = state.http2_data(server, 1, b"a", false, 1, 1);
+        assert_eq!(data.stream_before, 1000);
+        state.http2_settings(client, 4, 900);
+        let next = state.http2_data(server, 1, b"b", false, 2, 2);
+        // The one octet already sent came out of the new 900 window.
+        assert_eq!((next.stream_before, next.stream_after), (899, 898));
+    }
+
+    #[test]
+    fn a_tiny_fragment_flood_charges_bounded_state() {
+        let mut state = SessionState::new(64 * 1024 * 1024);
+        let (client, _) = keys();
+        for index in 0..4096_u64 {
+            let _ = state.http2_data(client, 1, b"x", false, index + 1, index + 1);
+        }
+        assert!(
+            state.used() < 64 * 1024,
+            "fragment metadata is charged to the ledger, used {}",
+            state.used()
+        );
     }
 }

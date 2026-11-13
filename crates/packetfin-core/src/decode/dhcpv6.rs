@@ -12,9 +12,7 @@
 //! Each option is a `dhcpv6.option.type_str` container that holds its type,
 //! length and decoded subfields.
 
-use crate::decode::bytes::{
-    ascii_lossy, hex_lower, link_layer_mac, link_layer_text, nul_terminated_text,
-};
+use crate::decode::bytes::{ascii_lossy, hex_lower, link_layer_mac, link_layer_text};
 use crate::decode::{DecodeContext, MAX_DECODE_DEPTH};
 use crate::fields;
 use crate::tree::{ExpertInfo, FieldParent, Group, Node, Range, Severity, Value};
@@ -434,26 +432,15 @@ fn decode_option(
             if body.len() > 2
                 && let Some(message) = body.get(2..)
             {
-                // RFC 8415 §21.13 leaves the message a UTF-8 string; the
-                // display follows the expected output: stop at the first NUL,
-                // replace non-ASCII octets, and report any octet after the
-                // terminator as stray. None of this changes the option bound.
-                let (text, stray) = nul_terminated_text(message);
-                let field = parent.add_field(
+                // RFC 8415 section 21.13 delimits the message by the option
+                // length and defines it as a UTF-8 string. Control octets stay
+                // in the value for filters and export; the detail line escapes
+                // them when it renders the text.
+                parent.add_field(
                     &fields::DHCPV6_STATUS_MSG,
                     Range::new(offset + 2, message.len()),
-                    Value::String(text),
+                    Value::String(String::from_utf8_lossy(message).into_owned()),
                 );
-                if stray {
-                    field.add_expert_for(
-                        ExpertInfo {
-                            severity: Severity::Warning,
-                            group: Group::Undecoded,
-                            message: "Trailing stray characters".to_string(),
-                        },
-                        &fields::TRAILING_STRAY_CHARACTERS,
-                    );
-                }
             }
         }
         OPTION_INTERFACE_ID => {

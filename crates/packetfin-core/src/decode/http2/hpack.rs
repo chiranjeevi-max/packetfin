@@ -11,8 +11,9 @@
 //! [`MAX_STRING_BYTES`], a header block produces at most [`MAX_HEADER_LINES`]
 //! items and [`MAX_HEADER_BYTES`] octets of header list (the RFC 7541 section
 //! 4.1 entry size), and the dynamic table never exceeds [`MAX_TABLE_SIZE`].
-//! Reaching a bound stops decompression and reports it to the caller instead
-//! of aborting the packet.
+//! Reaching a list bound stops emission and reports it to the caller, but
+//! decoding continues so the dynamic-table changes later in the block stay
+//! consistent for the next block.
 
 use std::collections::VecDeque;
 use std::mem::size_of;
@@ -47,10 +48,16 @@ pub(crate) const MAX_HEADER_BYTES: usize = 64 * 1024;
 pub(crate) const MAX_HEADER_LINES: usize = 200;
 
 /// One dynamic-table entry.
+///
+/// The name and value keep the exact octets the block carried. RFC 7541
+/// section 4.1 measures an entry in octets, and a lossy UTF-8 conversion
+/// before measuring would turn one invalid octet into three replacement
+/// octets and evict an entry that fits. The display conversion happens only
+/// when a header field is emitted.
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct Entry {
-    name: String,
-    value: String,
+    name: Vec<u8>,
+    value: Vec<u8>,
 }
 
 impl Entry {
@@ -102,7 +109,7 @@ impl DynamicTable {
     ///
     /// RFC 7541 section 4.4: an entry larger than the whole table empties the
     /// table and is not inserted.
-    pub(crate) fn insert(&mut self, name: String, value: String) {
+    pub(crate) fn insert(&mut self, name: Vec<u8>, value: Vec<u8>) {
         let entry = Entry { name, value };
         let size = entry.size();
         self.entries.push_front(entry);
@@ -111,12 +118,15 @@ impl DynamicTable {
     }
 
     /// Look up one 1-based HPACK index across the static and dynamic tables.
-    pub(crate) fn get(&self, index: usize) -> Option<(&str, &str)> {
+    ///
+    /// The entry is returned as raw octets so a caller that inserts it again
+    /// preserves the exact name the peer indexed.
+    pub(crate) fn get(&self, index: usize) -> Option<(&[u8], &[u8])> {
         if index == 0 {
             return None;
         }
         if let Some((name, value)) = STATIC_TABLE.get(index.saturating_sub(1)) {
-            return Some((name, value));
+            return Some((name.as_bytes(), value.as_bytes()));
         }
         let dynamic = index.saturating_sub(STATIC_TABLE.len().saturating_add(1));
         let entry = self.entries.get(dynamic)?;
@@ -198,10 +208,14 @@ impl Representation {
 /// One decoded header field.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct Header {
-    /// Field name, lower-case as HPACK transmits it.
+    /// Field name, lower-case as HPACK transmits it, converted for display.
     pub(crate) name: String,
-    /// Field value.
+    /// Field value, converted for display.
     pub(crate) value: String,
+    /// Octets in the wire name, before display conversion.
+    name_length: usize,
+    /// Octets in the wire value, before display conversion.
+    value_length: usize,
     /// The representation that produced it.
     pub(crate) representation: Representation,
     /// The static or dynamic index used, when the representation names one.
@@ -226,6 +240,8 @@ pub(crate) enum Stop {
     SizeExceeded,
     /// The item-count bound stopped decompression.
     LinesExceeded,
+    /// A table size update appeared after a header field (RFC 7541 4.2).
+    SizeUpdateAfterHeader,
     /// A representation was invalid: an index, integer or Huffman code.
     Invalid,
 }
@@ -258,7 +274,9 @@ impl Block {
 /// `table_limit` is the largest dynamic table size the peer's SETTINGS allows
 /// (RFC 7541 section 6.3); a size update above it is invalid. The dynamic
 /// table is updated as representations complete, so a later block that
-/// references an entry inserted here decodes correctly.
+/// references an entry inserted here decodes correctly. A list bound stops
+/// adding items to [`Block::items`] but the loop still applies every later
+/// table insertion and size update.
 pub(crate) fn decode_block(data: &[u8], table: &mut DynamicTable, table_limit: usize) -> Block {
     let mut block = Block {
         items: Vec::new(),
@@ -267,6 +285,11 @@ pub(crate) fn decode_block(data: &[u8], table: &mut DynamicTable, table_limit: u
         stop: Stop::Complete,
     };
     let mut position = 0_usize;
+    let mut seen_header = false;
+    // A list bound stops emission, not decompression: RFC 7541 section 2.2
+    // makes header blocks stateful, so the dynamic-table changes later in the
+    // block must still be applied for the next block to decode correctly.
+    let mut emitting = true;
     while position < data.len() {
         let Some(&first) = data.get(position) else {
             break;
@@ -282,14 +305,17 @@ pub(crate) fn decode_block(data: &[u8], table: &mut DynamicTable, table_limit: u
                 block.stop = Stop::Invalid;
                 return block;
             };
+            seen_header = true;
             let header = Header {
-                name: name.to_string(),
-                value: value.to_string(),
+                name: display_text(name),
+                value: display_text(value),
+                name_length: name.len(),
+                value_length: value.len(),
                 representation: Representation::Indexed,
                 index: Some(index),
             };
-            if !push_header(&mut block, header) {
-                return block;
+            if emitting && !push_header(&mut block, header) {
+                emitting = false;
             }
             continue;
         }
@@ -303,18 +329,27 @@ pub(crate) fn decode_block(data: &[u8], table: &mut DynamicTable, table_limit: u
                 return block;
             };
             position = next;
+            if seen_header {
+                // RFC 7541 section 4.2 requires a dynamic table size update at
+                // the start of the block; the block is otherwise a decoding
+                // error and the update is not applied.
+                block.stop = Stop::SizeUpdateAfterHeader;
+                return block;
+            }
             if size > u64::try_from(table_limit).unwrap_or(u64::MAX) {
                 block.stop = Stop::Invalid;
                 return block;
             }
             table.set_capacity(usize::try_from(size).unwrap_or(MAX_TABLE_SIZE));
-            block.items.push(Item::TableSizeUpdate(
-                u32::try_from(size).unwrap_or(u32::MAX),
-            ));
-            block.header_count = block.header_count.saturating_add(1);
-            if usize::try_from(block.header_count).unwrap_or(usize::MAX) > MAX_HEADER_LINES {
-                block.stop = Stop::LinesExceeded;
-                return block;
+            if emitting {
+                block.items.push(Item::TableSizeUpdate(
+                    u32::try_from(size).unwrap_or(u32::MAX),
+                ));
+                block.header_count = block.header_count.saturating_add(1);
+                if usize::try_from(block.header_count).unwrap_or(usize::MAX) > MAX_HEADER_LINES {
+                    block.stop = Stop::LinesExceeded;
+                    emitting = false;
+                }
             }
             continue;
         } else if first & 0x10 != 0 {
@@ -340,13 +375,14 @@ pub(crate) fn decode_block(data: &[u8], table: &mut DynamicTable, table_limit: u
                 block.stop = Stop::Invalid;
                 return block;
             };
-            (name.to_string(), Some(index))
+            (name.to_vec(), Some(index))
         };
         let Some((value, next)) = decode_string(data, position) else {
             block.stop = Stop::Invalid;
             return block;
         };
         position = next;
+        seen_header = true;
         let representation = match (representation, index.is_some()) {
             (Representation::IncrementalNewName, true) => Representation::IncrementalIndexedName,
             (Representation::NeverIndexedNewName, true) => Representation::NeverIndexedIndexedName,
@@ -361,13 +397,15 @@ pub(crate) fn decode_block(data: &[u8], table: &mut DynamicTable, table_limit: u
             table.insert(name.clone(), value.clone());
         }
         let header = Header {
-            name,
-            value,
+            name: display_text(&name),
+            value: display_text(&value),
+            name_length: name.len(),
+            value_length: value.len(),
             representation,
             index,
         };
-        if !push_header(&mut block, header) {
-            return block;
+        if emitting && !push_header(&mut block, header) {
+            emitting = false;
         }
     }
     block
@@ -379,9 +417,8 @@ pub(crate) fn decode_block(data: &[u8], table: &mut DynamicTable, table_limit: u
 /// emitted, so the tree keeps only what fit the bound.
 fn push_header(block: &mut Block, header: Header) -> bool {
     let bytes = header
-        .name
-        .len()
-        .saturating_add(header.value.len())
+        .name_length
+        .saturating_add(header.value_length)
         .saturating_add(8);
     let next_bytes = usize::try_from(block.header_bytes)
         .unwrap_or(usize::MAX)
@@ -433,10 +470,19 @@ fn decode_integer(data: &[u8], start: usize, prefix_bits: u8) -> Option<(u64, us
     }
 }
 
+/// Convert wire octets to the text a header field shows.
+///
+/// HPACK strings are octet sequences (RFC 7541 section 5.2); the tree renders
+/// them as text, so an invalid sequence becomes replacement characters here
+/// and nowhere earlier.
+fn display_text(bytes: &[u8]) -> String {
+    String::from_utf8_lossy(bytes).into_owned()
+}
+
 /// Decode one HPACK string literal (RFC 7541 section 5.2).
 ///
-/// Returns the decoded string and the position after it.
-fn decode_string(data: &[u8], start: usize) -> Option<(String, usize)> {
+/// Returns the decoded octets and the position after them.
+fn decode_string(data: &[u8], start: usize) -> Option<(Vec<u8>, usize)> {
     let first = *data.get(start)?;
     let huffman = first & 0x80 != 0;
     let (length, position) = decode_integer(data, start, 7)?;
@@ -449,7 +495,7 @@ fn decode_string(data: &[u8], start: usize) -> Option<(String, usize)> {
     let text = if huffman {
         huffman_decode(bytes)?
     } else {
-        String::from_utf8_lossy(bytes).into_owned()
+        bytes.to_vec()
     };
     Some((text, end))
 }
@@ -523,7 +569,7 @@ static HUFFMAN: LazyLock<HuffmanTable> = LazyLock::new(HuffmanTable::build);
 /// The final byte may carry up to seven padding bits, all ones, which must be
 /// a prefix of the EOS code (section 5.2). Any other leftover bits, an EOS in
 /// the middle, or output beyond the string bound is invalid.
-fn huffman_decode(bytes: &[u8]) -> Option<String> {
+fn huffman_decode(bytes: &[u8]) -> Option<Vec<u8>> {
     let table = &*HUFFMAN;
     let mut output = Vec::with_capacity(bytes.len());
     let mut code = 0_u32;
@@ -553,7 +599,7 @@ fn huffman_decode(bytes: &[u8]) -> Option<String> {
     if length > 0 && code != (1_u32 << length).wrapping_sub(1) {
         return None;
     }
-    Some(String::from_utf8_lossy(&output).into_owned())
+    Some(output)
 }
 
 #[cfg(test)]
@@ -675,13 +721,13 @@ mod tests {
     fn eviction_follows_the_entry_size_rule() {
         let mut table = DynamicTable::new();
         table.set_capacity(64);
-        table.insert("a".to_string(), "b".to_string());
+        table.insert(b"a".to_vec(), b"b".to_vec());
         assert_eq!(table.len(), 1);
-        assert_eq!(table.get(62), Some(("a", "b")));
+        assert_eq!(table.get(62), Some((&b"a"[..], &b"b"[..])));
         // Two 33-octet entries do not fit in 64 octets.
-        table.insert("c".to_string(), "d".to_string());
+        table.insert(b"c".to_vec(), b"d".to_vec());
         assert_eq!(table.len(), 1);
-        assert_eq!(table.get(62), Some(("c", "d")));
+        assert_eq!(table.get(62), Some((&b"c"[..], &b"d"[..])));
         assert_eq!(table.get(63), None);
     }
 
@@ -689,10 +735,105 @@ mod tests {
     fn an_oversized_entry_empties_the_table() {
         let mut table = DynamicTable::new();
         table.set_capacity(40);
-        table.insert("x".to_string(), "y".to_string());
+        table.insert(b"x".to_vec(), b"y".to_vec());
         assert_eq!(table.len(), 1);
-        table.insert("n".repeat(32), String::new());
+        table.insert(b"n".repeat(32), Vec::new());
         assert_eq!(table.len(), 0);
+    }
+
+    #[test]
+    fn entry_size_counts_the_raw_value_octets() {
+        let mut table = DynamicTable::new();
+        // A size update to 35 octets, then a literal with a one-octet name and
+        // a one-octet value that is not valid UTF-8. RFC 7541 section 4.1
+        // measures the entry in octets, so 1 + 1 + 32 fits.
+        let block = decode_block(
+            &[0x3f, 0x04, 0x40, 0x01, b'x', 0x01, 0xff],
+            &mut table,
+            DEFAULT_TABLE_SIZE,
+        );
+        assert_eq!(block.stop, Stop::Complete);
+        assert_eq!(
+            table.len(),
+            1,
+            "an entry of 34 raw octets fits a 35-octet table"
+        );
+        assert_eq!(table.get(62), Some((&b"x"[..], &[0xff][..])));
+        let header = block
+            .headers()
+            .next()
+            .unwrap_or_else(|| unreachable!("one header"));
+        assert_eq!(header.name, "x");
+        assert_eq!(header.value, "\u{FFFD}");
+    }
+
+    #[test]
+    fn a_capped_block_still_applies_later_table_insertions() {
+        let mut table = DynamicTable::new();
+        // Insert x: old, exceed the 200-line cap, then insert x: new. The
+        // block stops emitting at the cap, but the table must still process
+        // the rest, or the next block resolves a stale entry.
+        let mut data = vec![0x40, 0x01, b'x', 0x03, b'o', b'l', b'd'];
+        data.extend(std::iter::repeat_n(0x82, MAX_HEADER_LINES + 1));
+        data.extend_from_slice(&[0x40, 0x01, b'x', 0x03, b'n', b'e', b'w']);
+        let first = decode_block(&data, &mut table, DEFAULT_TABLE_SIZE);
+        assert_eq!(first.stop, Stop::LinesExceeded);
+        assert_eq!(first.header_count, 200, "only the emitted lines count");
+        let second = decode_block(&[0xbe], &mut table, DEFAULT_TABLE_SIZE);
+        assert_eq!(second.stop, Stop::Complete);
+        let header = second
+            .headers()
+            .next()
+            .unwrap_or_else(|| unreachable!("index 62 resolves"));
+        assert_eq!(header.value, "new", "the entry inserted after the cap");
+    }
+
+    #[test]
+    fn a_size_capped_block_still_applies_later_table_insertions() {
+        let mut table = DynamicTable::new();
+        // Six 13,000-octet values take the list past 64 KiB. The sixth is not
+        // emitted, but the incremental literal after it must still enter the
+        // table.
+        let mut data = Vec::new();
+        for _ in 0..6 {
+            data.extend_from_slice(&[0x40, 0x01, b'x', 0x7f, 0xc9, 0x64]);
+            data.extend(std::iter::repeat_n(b'v', 13_000));
+        }
+        data.extend_from_slice(&[0x40, 0x01, b'y', 0x03, b'n', b'e', b'w']);
+        let first = decode_block(&data, &mut table, DEFAULT_TABLE_SIZE);
+        assert_eq!(first.stop, Stop::SizeExceeded);
+        assert_eq!(first.header_count, 5, "only the emitted lines count");
+        let second = decode_block(&[0xbe], &mut table, DEFAULT_TABLE_SIZE);
+        assert_eq!(second.stop, Stop::Complete);
+        let header = second
+            .headers()
+            .next()
+            .unwrap_or_else(|| unreachable!("index 62 resolves"));
+        assert_eq!(header.name, "y");
+        assert_eq!(header.value, "new");
+    }
+
+    #[test]
+    fn a_table_size_update_after_a_header_is_invalid() {
+        let mut table = DynamicTable::new();
+        // 0x82 is :method GET; 0x20 is a size update to zero (RFC 7541 6.3),
+        // which section 4.2 allows only at the start of the block.
+        let block = decode_block(&[0x82, 0x20, 0x86, 0x84], &mut table, DEFAULT_TABLE_SIZE);
+        assert_ne!(
+            block.stop,
+            Stop::Complete,
+            "a table size update after a header field is a decoding error"
+        );
+        assert_eq!(
+            block.headers().count(),
+            1,
+            "the header before the update stays"
+        );
+        assert_eq!(
+            table.capacity(),
+            DEFAULT_TABLE_SIZE,
+            "the rejected update is not applied"
+        );
     }
 
     #[test]
@@ -701,7 +842,7 @@ mod tests {
         let decoded = huffman_decode(&[
             0xf1, 0xe3, 0xc2, 0xe5, 0xf2, 0x3a, 0x6b, 0xa0, 0xab, 0x90, 0xf4, 0xff,
         ]);
-        assert_eq!(decoded.as_deref(), Some("www.example.com"));
+        assert_eq!(decoded.as_deref(), Some(b"www.example.com".as_slice()));
         // A final byte with a zero pad bit is invalid.
         assert!(huffman_decode(&[0x00]).is_none());
         // EOS in the middle of the string is invalid.

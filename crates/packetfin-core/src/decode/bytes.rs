@@ -67,21 +67,6 @@ pub(crate) fn ascii_lossy(data: &[u8]) -> String {
         .collect()
 }
 
-/// Decode an option string that ends at the first NUL octet.
-///
-/// Returns the text and whether octets follow the terminator. The expected
-/// output stops at the first NUL and reports any later octet as stray, so the
-/// same rule is applied to every caller that decodes a terminated string.
-pub(crate) fn nul_terminated_text(data: &[u8]) -> (String, bool) {
-    match data.iter().position(|byte| *byte == 0) {
-        Some(end) => (
-            ascii_lossy(data.get(..end).unwrap_or(&[])),
-            end.saturating_add(1) < data.len(),
-        ),
-        None => (ascii_lossy(data), false),
-    }
-}
-
 /// Whether a link-layer type is Ethernet-like for display purposes.
 pub(crate) fn is_ethernet_link_layer(hardware_type: u16) -> bool {
     matches!(hardware_type, 1 | 6)

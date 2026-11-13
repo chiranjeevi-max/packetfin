@@ -479,6 +479,9 @@ pub(crate) struct TlsFlow {
     /// The client offered HTTP/1.x in ALPN; application data takes that
     /// protocol label even when the record cannot be decrypted.
     http: bool,
+    /// The client offered HTTP/2 in ALPN; both application directions use
+    /// the HTTP/2 framing and label.
+    http2: bool,
 }
 
 impl TlsFlow {
@@ -488,6 +491,7 @@ impl TlsFlow {
             client_port,
             sessions: Vec::new(),
             http: false,
+            http2: false,
         }
     }
 
@@ -496,11 +500,22 @@ impl TlsFlow {
         self.http = alpn.is_some_and(|protocol| {
             protocol.eq_ignore_ascii_case("h1") || protocol.eq_ignore_ascii_case("http/1.1")
         });
+        self.http2 = alpn.is_some_and(|protocol| protocol.eq_ignore_ascii_case("h2"));
     }
 
     /// Whether the session negotiated HTTP/1.x in ALPN.
     pub(crate) fn http_alpn(&self) -> bool {
         self.http
+    }
+
+    /// Whether the session negotiated HTTP/2 in ALPN.
+    ///
+    /// RFC 9113 section 3.3: `h2` identifies HTTP/2 over TLS, and the
+    /// negotiation fixes the framing for both directions. The server opens
+    /// with SETTINGS rather than the client preface, so its first plaintext
+    /// record has no marker of its own.
+    pub(crate) fn http2_alpn(&self) -> bool {
+        self.http2
     }
 
     /// Whether a TLS 1.3 ServerHello makes plaintext records state-opaque.

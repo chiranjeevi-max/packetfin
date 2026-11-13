@@ -2511,7 +2511,7 @@ fn dhcp_zero_length_typed_option_keeps_the_generic_value_line() {
 }
 
 #[test]
-fn dhcpv6_status_message_stops_at_the_nul_and_reports_trailing_octets() {
+fn dhcpv6_status_message_keeps_the_length_delimited_value() {
     let mut message = vec![7, 0x01, 0x02, 0x03];
     message.extend_from_slice(&dhcpv6_option(13, &[0x00, 0x00, b'h', b'i', 0x00, b'x']));
     let packet = decode_frame(&captured_frame(1, services_udp_frame(547, 546, &message)));
@@ -2522,24 +2522,33 @@ fn dhcpv6_status_message_stops_at_the_nul_and_reports_trailing_octets() {
         .find(|field| field.def.abbrev == "dhcpv6.option.type_str")
         .unwrap_or_else(|| unreachable!());
     let status = suboption_field(option, "dhcpv6.status_msg").unwrap_or_else(|| unreachable!());
-    assert!(matches!(&status.value, Value::String(text) if text == "hi"));
-    let expert = status.experts.first().unwrap_or_else(|| unreachable!());
-    assert_eq!(expert.severity, Severity::Warning);
-    assert_eq!(expert.group, Group::Undecoded);
-    assert_eq!(expert.message, "Trailing stray characters");
-    assert_eq!(
-        status
-            .expert_field
-            .map(|definition| definition.abbrev)
-            .unwrap_or(""),
-        "_ws.string.trailing_stray_characters"
-    );
-    // The option is still whole: the trailing octet is a display concern.
+    // RFC 8415 section 21.13 delimits the message by the option length, so a
+    // NUL inside it is part of the value.
+    assert!(matches!(&status.value, Value::String(text) if text == "hi\u{0}x"));
+    assert!(status.experts.is_empty(), "the whole value is the message");
     assert!(!packet.malformed);
 }
 
 #[test]
-fn dhcpv6_status_message_keeps_an_empty_terminated_value() {
+fn dhcpv6_status_message_decodes_utf8() {
+    let mut message = vec![7, 0x01, 0x02, 0x03];
+    message.extend_from_slice(&dhcpv6_option(
+        13,
+        &[0x00, 0x00, b'c', b'a', b'f', 0xc3, 0xa9],
+    ));
+    let packet = decode_frame(&captured_frame(1, services_udp_frame(547, 546, &message)));
+    let dhcpv6 = child_node(&packet.tree.frame, "dhcpv6").unwrap_or_else(|| unreachable!());
+    let option = dhcpv6
+        .fields
+        .iter()
+        .find(|field| field.def.abbrev == "dhcpv6.option.type_str")
+        .unwrap_or_else(|| unreachable!());
+    let status = suboption_field(option, "dhcpv6.status_msg").unwrap_or_else(|| unreachable!());
+    assert!(matches!(&status.value, Value::String(text) if text == "caf\u{e9}"));
+}
+
+#[test]
+fn dhcpv6_status_message_keeps_a_single_nul_value() {
     let mut message = vec![7, 0x01, 0x02, 0x03];
     message.extend_from_slice(&dhcpv6_option(13, &[0x00, 0x00, 0x00]));
     let packet = decode_frame(&captured_frame(1, services_udp_frame(547, 546, &message)));
@@ -2550,8 +2559,7 @@ fn dhcpv6_status_message_keeps_an_empty_terminated_value() {
         .find(|field| field.def.abbrev == "dhcpv6.option.type_str")
         .unwrap_or_else(|| unreachable!());
     let status = suboption_field(option, "dhcpv6.status_msg").unwrap_or_else(|| unreachable!());
-    assert!(matches!(&status.value, Value::String(text) if text.is_empty()));
-    // A terminator in the last octet leaves nothing stray to report.
+    assert!(matches!(&status.value, Value::String(text) if text == "\u{0}"));
     assert!(status.experts.is_empty());
 }
 

@@ -22,7 +22,7 @@ mod stream;
 mod tcp;
 mod template;
 
-pub(crate) use http2::{BodyFragmentView, Http2Key};
+pub(crate) use http2::{BlockFragment, BlockOrigin, BodyFragmentView, DataOutcome, Http2Key};
 pub(crate) use stream::{PduAction, ReassembledPdu, ReassemblyReport, SegmentDataPiece, Ulp};
 pub(crate) use tcp::{TcpAnalysisOptions, TcpObservation, TcpPacketState};
 

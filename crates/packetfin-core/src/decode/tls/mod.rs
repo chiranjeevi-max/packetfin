@@ -622,7 +622,10 @@ pub(crate) fn decode(context: &mut DecodeContext<'_>, parent: &mut Node, data: &
         );
     }
 
-    let alpn_http = flow.as_ref().is_some_and(TlsFlow::http_alpn);
+    let alpn_http2 = flow.as_ref().is_some_and(TlsFlow::http2_alpn);
+    let alpn_http = flow
+        .as_ref()
+        .is_some_and(|flow| flow.http_alpn() || flow.http2_alpn());
     if !context.quoted
         && let Some(key) = conversation
     {
@@ -672,6 +675,7 @@ pub(crate) fn decode(context: &mut DecodeContext<'_>, parent: &mut Node, data: &
             plaintext_direction,
             &mut client_plaintext,
             plaintext_info,
+            alpn_http2,
         );
         plaintext_info = info;
         client_http |= http;
@@ -685,6 +689,7 @@ pub(crate) fn decode(context: &mut DecodeContext<'_>, parent: &mut Node, data: &
             plaintext_direction,
             &mut server_plaintext,
             plaintext_info,
+            alpn_http2,
         );
         plaintext_info = info;
         server_http |= http;
@@ -722,6 +727,7 @@ fn decode_plaintext(
     direction: usize,
     plaintext: &mut Vec<u8>,
     info: Option<String>,
+    http2: bool,
 ) -> (bool, Option<String>) {
     if plaintext.is_empty() {
         return (false, info);
@@ -736,6 +742,7 @@ fn decode_plaintext(
         context.frame.number,
         plaintext,
         false,
+        http2,
     );
     plaintext.clear();
     (
@@ -765,28 +772,23 @@ fn decode_plaintext_actions(
     mut info: Option<String>,
 ) -> Option<String> {
     for action in actions {
-        let data = match action {
-            PduAction::Standalone {
-                ulp: crate::state::Ulp::Http,
-                data,
-                ..
-            }
-            | PduAction::Reassembled {
-                pdu:
-                    crate::state::ReassembledPdu {
-                        ulp: crate::state::Ulp::Http,
-                        data,
-                        ..
-                    },
-                ..
-            } => data,
+        let (ulp, data) = match action {
+            PduAction::Standalone { ulp, data, .. } => (ulp, data),
+            PduAction::Reassembled { pdu, .. } => (pdu.ulp, pdu.data),
             _ => continue,
         };
+        if !matches!(ulp, crate::state::Ulp::Http | crate::state::Ulp::Http2) {
+            continue;
+        }
         let before = parent.children.len();
         let source = context.reserve_plaintext_source();
         let previous = std::mem::replace(&mut context.tls_plaintext, true);
         let previous_info = context.columns.info.take();
-        http::decode(context, parent, &data, 0);
+        if ulp == crate::state::Ulp::Http2 {
+            crate::decode::http2::decode(context, parent, &data, 0);
+        } else {
+            http::decode(context, parent, &data, 0);
+        }
         context.tls_plaintext = previous;
         let current = context.columns.info.take();
         context.columns.info = previous_info;

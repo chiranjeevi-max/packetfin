@@ -377,6 +377,7 @@ impl SessionState {
         frame: u64,
         bytes: &[u8],
         fin: bool,
+        http2: bool,
     ) -> (ReassemblyReport, bool) {
         if self.budget.suspended() || (bytes.is_empty() && !fin) {
             return (ReassemblyReport::default(), false);
@@ -388,11 +389,13 @@ impl SessionState {
             .unwrap_or_default();
         let direction = direction.min(1);
         {
-            // A TLS connection that negotiated HTTP/2 still opens with the
-            // client preface, so the first plaintext record fixes the framing
-            // for the direction; `set_ulp` keeps the first value.
+            // ALPN `h2` fixes HTTP/2 for both directions: the client opens
+            // with the connection preface, but the server's first record is a
+            // SETTINGS frame with no marker of its own. Without ALPN, a
+            // plaintext that starts with the preface still selects HTTP/2;
+            // `set_ulp` keeps the direction's first value.
             let stream = plaintext.streams.direction_mut(direction);
-            let ulp = if crate::decode::http2::looks_like_http2_prefix(bytes) {
+            let ulp = if http2 || crate::decode::http2::looks_like_http2_prefix(bytes) {
                 Ulp::Http2
             } else {
                 Ulp::Http
@@ -2740,6 +2743,7 @@ mod tests {
                 u64::try_from(frame).unwrap_or(0),
                 chunk,
                 false,
+                false,
             );
             for action in report.actions {
                 if let PduAction::Reassembled { pdu, .. } = action {
@@ -3615,7 +3619,7 @@ mod tests {
         let mut session = SessionState::new(4096);
         let (key, _) = ConversationKey::ipv4([192, 0, 2, 1], 40_000, [192, 0, 2, 2], 80);
         let chunk = vec![b'A'; 8192];
-        let _ = session.insert_tls_plaintext(key, 0, 1, &chunk, false);
+        let _ = session.insert_tls_plaintext(key, 0, 1, &chunk, false, false);
         assert!(session.take_dropped(), "the state ledger accepted 8 KiB");
     }
 }

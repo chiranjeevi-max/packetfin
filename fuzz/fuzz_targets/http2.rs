@@ -10,16 +10,24 @@
 use libfuzzer_sys::fuzz_target;
 use packetfin_core::capture::{Frame, Timestamp};
 use packetfin_core::decode::{DecodeOptions, Preferences, decode_frame, decode_frame_with_options};
+use packetfin_core::tree::Node;
 
 /// Port the cleartext heuristic is registered on.
 const PORT: u16 = 80;
 
+/// A committed corpus entry that must reach the HTTP/2 decoder.
+const SEED: &[u8] = include_bytes!("../corpus/http2/settings-headers");
+
 fn frame(payload: &[u8]) -> Frame {
-    let length = u16::try_from(8_usize.saturating_add(payload.len())).unwrap_or(u16::MAX);
-    let mut segment = Vec::with_capacity(8 + payload.len());
+    let mut segment = Vec::with_capacity(20 + payload.len());
     segment.extend_from_slice(&40_000_u16.to_be_bytes());
     segment.extend_from_slice(&PORT.to_be_bytes());
-    segment.extend_from_slice(&length.to_be_bytes());
+    segment.extend_from_slice(&1_u32.to_be_bytes());
+    segment.extend_from_slice(&1_u32.to_be_bytes());
+    // Data offset 5 and PSH|ACK, a full window, no checksum or urgent data.
+    segment.extend_from_slice(&[0x50, 0x18]);
+    segment.extend_from_slice(&65535_u16.to_be_bytes());
+    segment.extend_from_slice(&[0, 0]);
     segment.extend_from_slice(&[0, 0]);
     segment.extend_from_slice(payload);
 
@@ -65,6 +73,14 @@ fuzz_target!(|data: &[u8]| {
     let frame = frame(data);
     let mut rendered = 0_usize;
     let packet = decode_frame(&frame);
+    if data == SEED {
+        // The committed seed must reach the parser: a wrapper that builds an
+        // invalid TCP header would fuzz nothing while reporting a clean run.
+        assert!(
+            reaches_http2(&packet.tree.frame),
+            "the committed corpus seed did not reach the HTTP/2 decoder"
+        );
+    }
     for field in packet.tree.fields() {
         rendered =
             rendered.saturating_add(field.value.formatted(field.def.display).to_string().len());
@@ -82,3 +98,8 @@ fuzz_target!(|data: &[u8]| {
     );
     std::hint::black_box((rendered, validated.tree.fields().count()));
 });
+
+/// Whether the decoded tree contains an HTTP/2 protocol node.
+fn reaches_http2(node: &Node) -> bool {
+    node.protocol.filter_name == "http2" || node.children.iter().any(reaches_http2)
+}

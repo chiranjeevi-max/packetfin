@@ -18,7 +18,7 @@ mod hpack_tables;
 
 use crate::decode::DecodeContext;
 use crate::fields::{self, FieldDef};
-use crate::state::{BodyFragmentView, Http2Key};
+use crate::state::{BlockFragment, BlockOrigin, BodyFragmentView, DataOutcome, Http2Key};
 use crate::tree::{
     Bytes, ExpertInfo, Field, Group, Node, Range, RawField, RawSource, Severity, Value,
 };
@@ -208,6 +208,15 @@ fn state_key(context: &DecodeContext<'_>) -> Option<Http2Key> {
     })
 }
 
+/// The frame reference a header block records when it starts.
+fn block_origin(context: &DecodeContext<'_>) -> BlockOrigin {
+    BlockOrigin {
+        frame: u32::try_from(context.frame.number).unwrap_or(u32::MAX),
+        file: u32::try_from(context.frame.file_number).unwrap_or(u32::MAX),
+        time: context.frame.timestamp,
+    }
+}
+
 /// One parsed frame header and the payload bytes it declares.
 struct Frame<'a> {
     length: u32,
@@ -287,6 +296,102 @@ struct Suffix {
     text: String,
 }
 
+/// A rule RFC 9113 makes mandatory before a frame payload means anything.
+enum FrameViolation {
+    /// The payload is not interpreted; one malformed expert is reported.
+    Fatal(&'static str),
+    /// The payload still decodes, but a standards expert is reported.
+    Protocol(&'static str),
+}
+
+/// Check the type-specific length and stream rules of RFC 9113 section 6.
+///
+/// HEADERS and CONTINUATION on stream zero are protocol errors, but the
+/// expected output still decodes their payload, so they only gain an expert.
+/// Every other violation stops the payload, keeping the frame header fields
+/// already added and reporting one expert.
+fn frame_violation(frame: &Frame<'_>) -> Option<FrameViolation> {
+    let length = usize::try_from(frame.length).unwrap_or(usize::MAX);
+    let on_stream_zero = frame.stream_id == 0;
+    match frame.kind {
+        DATA => on_stream_zero.then_some(FrameViolation::Fatal("HTTP/2 DATA frame is on stream 0")),
+        HEADERS => on_stream_zero.then_some(FrameViolation::Protocol(
+            "HTTP/2 HEADERS frame is on stream 0",
+        )),
+        PRIORITY => {
+            if on_stream_zero {
+                Some(FrameViolation::Fatal(
+                    "HTTP/2 PRIORITY frame is on stream 0",
+                ))
+            } else if length != 5 {
+                Some(FrameViolation::Fatal(
+                    "HTTP/2 PRIORITY frame length is not 5",
+                ))
+            } else {
+                None
+            }
+        }
+        RST_STREAM => {
+            if on_stream_zero {
+                Some(FrameViolation::Fatal(
+                    "HTTP/2 RST_STREAM frame is on stream 0",
+                ))
+            } else if length != 4 {
+                Some(FrameViolation::Fatal(
+                    "HTTP/2 RST_STREAM frame length is not 4",
+                ))
+            } else {
+                None
+            }
+        }
+        SETTINGS => {
+            if !on_stream_zero {
+                Some(FrameViolation::Fatal(
+                    "HTTP/2 SETTINGS frame is not on stream 0",
+                ))
+            } else if frame.flags & FLAG_ACK != 0 && length != 0 {
+                Some(FrameViolation::Fatal(
+                    "HTTP/2 SETTINGS ACK frame carries a payload",
+                ))
+            } else {
+                None
+            }
+        }
+        PUSH_PROMISE => on_stream_zero.then_some(FrameViolation::Fatal(
+            "HTTP/2 PUSH_PROMISE frame is on stream 0",
+        )),
+        PING => {
+            if on_stream_zero {
+                Some(FrameViolation::Fatal("HTTP/2 PING frame is on stream 0"))
+            } else if length != 8 {
+                Some(FrameViolation::Fatal("HTTP/2 PING frame length is not 8"))
+            } else {
+                None
+            }
+        }
+        GOAWAY => {
+            if !on_stream_zero {
+                Some(FrameViolation::Fatal(
+                    "HTTP/2 GOAWAY frame is not on stream 0",
+                ))
+            } else if length < 8 {
+                Some(FrameViolation::Fatal(
+                    "HTTP/2 GOAWAY frame is shorter than 8 octets",
+                ))
+            } else {
+                None
+            }
+        }
+        WINDOW_UPDATE => (length != 4).then_some(FrameViolation::Fatal(
+            "HTTP/2 WINDOW_UPDATE frame length is not 4",
+        )),
+        CONTINUATION => on_stream_zero.then_some(FrameViolation::Protocol(
+            "HTTP/2 CONTINUATION frame is on stream 0",
+        )),
+        _ => None,
+    }
+}
+
 /// Add one frame node, returning its summary-column text.
 fn add_frame(
     context: &mut DecodeContext<'_>,
@@ -305,25 +410,43 @@ fn add_frame(
     {
         let stream = node.add_container(&fields::HTTP2_STREAM, range, None);
         add_header_fields(&mut *stream, frame, base);
-        match frame.kind {
-            HEADERS => decode_headers(context, &mut *stream, frame, base, key, &mut suffix),
-            PUSH_PROMISE => {
-                decode_push_promise(context, &mut *stream, frame, base, key, &mut suffix)
+        let mut blocked = false;
+        if let Some(violation) = frame_violation(frame) {
+            match violation {
+                FrameViolation::Fatal(message) => {
+                    field_malformed(context, &mut *stream, message);
+                    blocked = true;
+                }
+                FrameViolation::Protocol(message) => {
+                    stream.add_expert(ExpertInfo {
+                        severity: Severity::Warning,
+                        group: Group::Protocol,
+                        message: message.to_string(),
+                    });
+                }
             }
-            CONTINUATION => {
-                decode_continuation(context, &mut *stream, frame, base, key, &mut suffix)
+        }
+        if !blocked {
+            match frame.kind {
+                HEADERS => decode_headers(context, &mut *stream, frame, base, key, &mut suffix),
+                PUSH_PROMISE => {
+                    decode_push_promise(context, &mut *stream, frame, base, key, &mut suffix)
+                }
+                CONTINUATION => {
+                    decode_continuation(context, &mut *stream, frame, base, key, &mut suffix)
+                }
+                DATA => decode_data(context, &mut *stream, frame, base, key, &mut suffix),
+                PRIORITY => decode_priority(&mut *stream, frame, base),
+                RST_STREAM => decode_rst_stream(&mut *stream, frame, base),
+                SETTINGS => decode_settings(context, &mut *stream, frame, base, key),
+                PING => decode_ping(&mut *stream, frame, base),
+                GOAWAY => decode_goaway(&mut *stream, frame, base),
+                WINDOW_UPDATE => decode_window_update(context, &mut *stream, frame, base, key),
+                ALTSVC => decode_altsvc(&mut *stream, frame, base),
+                ORIGIN => decode_origin(&mut *stream, frame, base),
+                PRIORITY_UPDATE => decode_priority_update(&mut *stream, frame, base),
+                _ => decode_unknown(&mut *stream, frame, base),
             }
-            DATA => decode_data(context, &mut *stream, frame, base, key, &mut suffix),
-            PRIORITY => decode_priority(&mut *stream, frame, base),
-            RST_STREAM => decode_rst_stream(&mut *stream, frame, base),
-            SETTINGS => decode_settings(context, &mut *stream, frame, base, key),
-            PING => decode_ping(&mut *stream, frame, base),
-            GOAWAY => decode_goaway(&mut *stream, frame, base),
-            WINDOW_UPDATE => decode_window_update(context, &mut *stream, frame, base, key),
-            ALTSVC => decode_altsvc(&mut *stream, frame, base),
-            ORIGIN => decode_origin(&mut *stream, frame, base),
-            PRIORITY_UPDATE => decode_priority_update(&mut *stream, frame, base),
-            _ => decode_unknown(&mut *stream, frame, base),
         }
         let mut label = String::new();
         match type_name {
@@ -545,25 +668,28 @@ fn decode_headers(
     // output prints the reassembled body there before the frame's fields.
     if frame.flags & FLAG_END_STREAM != 0
         && let Some(key) = key
-        && let outcome = context.state.http2_data(
+    {
+        let outcome = context.state.http2_data(
             key,
             frame.stream_id,
             &[],
             true,
             context.frame.number,
             context.frame.file_number,
-        )
-        && let Some(body) = outcome.data
-        && !outcome.fragments.is_empty()
-    {
-        if outcome.fragments.len() > 1 {
-            add_body_fragments(stream, &outcome.fragments, body.len(), &body);
-        }
-        stream.add_field(
-            &fields::HTTP2_DATA_DATA,
-            Range::new(0, body.len()),
-            Value::bytes(body),
         );
+        report_body_truncation(stream, &outcome);
+        if let Some(body) = outcome.data
+            && !outcome.fragments.is_empty()
+        {
+            if outcome.fragments.len() > 1 {
+                add_body_fragments(stream, &outcome.fragments, body.len(), &body);
+            }
+            stream.add_field(
+                &fields::HTTP2_DATA_DATA,
+                Range::new(0, body.len()),
+                Value::bytes(body),
+            );
+        }
     }
     let mut offset = 0_usize;
     let pad = pad_length(frame, stream, payload_base, &mut offset);
@@ -580,10 +706,15 @@ fn decode_headers(
     add_fragment(stream, &fields::HTTP2_HEADERS, fragment, fragment_base);
     let end_headers = frame.flags & FLAG_END_HEADERS != 0;
     if let Some(key) = key {
-        let result =
-            context
-                .state
-                .http2_fragment(key, frame.stream_id, false, fragment, end_headers);
+        let origin = block_origin(context);
+        let result = context.state.http2_fragment(
+            key,
+            frame.stream_id,
+            BlockFragment::Headers,
+            origin,
+            fragment,
+            end_headers,
+        );
         if result.overflow {
             field_malformed(
                 context,
@@ -670,10 +801,15 @@ fn decode_push_promise(
     );
     let end_headers = frame.flags & FLAG_END_HEADERS != 0;
     if let Some(key) = key {
-        let result =
-            context
-                .state
-                .http2_fragment(key, frame.stream_id, true, fragment, end_headers);
+        let origin = block_origin(context);
+        let result = context.state.http2_fragment(
+            key,
+            frame.stream_id,
+            BlockFragment::PushPromise { promised },
+            origin,
+            fragment,
+            end_headers,
+        );
         if result.overflow {
             field_malformed(
                 context,
@@ -682,21 +818,23 @@ fn decode_push_promise(
             );
         }
         if let Some(block) = result.block {
+            let start = result.start;
+            let push = start.is_some_and(|start| start.push);
             let request =
-                add_header_block(context, stream, &block, key, frame.stream_id, true, suffix);
+                add_header_block(context, stream, &block, key, frame.stream_id, push, suffix);
             // The promise's own stream keeps its request URI; the expected
             // output prints it after the promised request URI.
             add_stream_uri(context, stream, frame.stream_id, Some(key), false);
-            if let Some(request) = request
-                && promised != 0
+            if let (Some(start), Some(request)) = (start, request)
+                && start.push
+                && start.promised != 0
             {
-                let conversation = key.conversation;
                 context.state.http2_record_request(
-                    conversation,
-                    promised,
-                    u32::try_from(context.frame.number).unwrap_or(u32::MAX),
-                    u32::try_from(context.frame.file_number).unwrap_or(u32::MAX),
-                    context.frame.timestamp,
+                    key.conversation,
+                    start.promised,
+                    start.frame,
+                    start.file,
+                    start.time,
                     request.uri,
                 );
             }
@@ -734,10 +872,15 @@ fn decode_continuation(
     );
     let end_headers = frame.flags & FLAG_END_HEADERS != 0;
     if let Some(key) = key {
-        let result =
-            context
-                .state
-                .http2_fragment(key, frame.stream_id, false, fragment, end_headers);
+        let origin = block_origin(context);
+        let result = context.state.http2_fragment(
+            key,
+            frame.stream_id,
+            BlockFragment::Continuation,
+            origin,
+            fragment,
+            end_headers,
+        );
         if result.overflow {
             field_malformed(
                 context,
@@ -753,7 +896,27 @@ fn decode_continuation(
             });
         }
         if let Some(block) = result.block {
-            add_header_block(context, stream, &block, key, frame.stream_id, false, suffix);
+            let start = result.start;
+            let push = start.is_some_and(|start| start.push);
+            let request =
+                add_header_block(context, stream, &block, key, frame.stream_id, push, suffix);
+            if push {
+                // A completed PUSH_PROMISE block records the promised request
+                // against the frame that opened it, not this continuation.
+                add_stream_uri(context, stream, frame.stream_id, Some(key), false);
+                if let (Some(start), Some(request)) = (start, request)
+                    && start.promised != 0
+                {
+                    context.state.http2_record_request(
+                        key.conversation,
+                        start.promised,
+                        start.frame,
+                        start.file,
+                        start.time,
+                        request.uri,
+                    );
+                }
+            }
         }
     }
 }
@@ -807,6 +970,9 @@ fn decode_data(
                 message: "HTTP/2 body exceeds the 1 MiB reassembly limit".to_string(),
             });
         }
+        if end_stream && !outcome.dropped {
+            report_body_truncation(stream, &outcome);
+        }
         if let Some(body) = outcome.data {
             if outcome.fragments.len() > 1 {
                 add_body_fragments(stream, &outcome.fragments, body.len(), &body);
@@ -853,6 +1019,26 @@ fn decode_data(
     if !end_stream && !dropped {
         suffix.text = " (partial entity body)".to_string();
     }
+}
+
+/// Report, once on the completing frame, that fragment metadata was capped.
+///
+/// The body itself stays whole; only the per-fragment frame and offset list is
+/// bounded by [`crate::state::MAX_BODY_FRAGMENTS`], so the count here is the
+/// number of DATA frames and the retained views are fewer.
+fn report_body_truncation(stream: &mut Field, outcome: &DataOutcome) {
+    if !outcome.truncated {
+        return;
+    }
+    stream.add_expert(ExpertInfo {
+        severity: Severity::Warning,
+        group: Group::Reassemble,
+        message: format!(
+            "HTTP/2 body has {} DATA fragments; {} fragment views retained",
+            outcome.fragment_count,
+            outcome.fragments.len()
+        ),
+    });
 }
 
 /// Add the `N Body fragments` container the completing DATA frame carries.
@@ -1497,6 +1683,13 @@ fn add_header_block(
                 "Decompression stopped after 200 header lines.",
             );
             field_malformed(context, stream, "HTTP/2 header block exceeds 200 lines");
+        }
+        hpack::Stop::SizeUpdateAfterHeader => {
+            field_malformed(
+                context,
+                stream,
+                "HTTP/2 table size update after a header field",
+            );
         }
     }
     let conversation = key.conversation;

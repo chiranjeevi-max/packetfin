@@ -6081,23 +6081,6 @@ pub static DHCP_OPTION_AGENT_INFORMATION_OPTION_ANI_ATT: FieldDef = FieldDef {
     generated: false,
 };
 
-/// `_ws.string.trailing_stray_characters`: the zero-length marker named by a
-/// terminated-string expert.
-///
-/// A NUL-terminated option string that keeps octets after the terminator
-/// reports the trailing data through this generated field instead of the
-/// string field itself.
-pub(crate) static TRAILING_STRAY_CHARACTERS: FieldDef = FieldDef {
-    abbrev: "_ws.string.trailing_stray_characters",
-    name: "Trailing stray characters",
-    field_type: FieldType::None,
-    parent: "_ws.string",
-    display: Display::None,
-    bitmask: None,
-    blurb: "",
-    generated: false,
-};
-
 /// `dhcp.option.end`.
 pub static DHCP_OPTION_END: FieldDef = FieldDef {
     abbrev: "dhcp.option.end",

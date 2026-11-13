@@ -20,6 +20,7 @@ use crate::decode::bytes::{byte_count_text, read_u16_be, read_u32_be};
 use crate::decode::{DecodeContext, LayerType, NetworkContext};
 use crate::decode::{bgp, checksum, dns, http, looks_like_http_prefix, tls};
 use crate::fields;
+use crate::fields::Protocol;
 use crate::state::{
     ConversationKey, PduAction, TcpAnalysisOptions, TcpObservation, TcpPacketState, TcpSegment, Ulp,
 };
@@ -175,8 +176,20 @@ pub(crate) fn decode(context: &mut DecodeContext<'_>, parent: &mut Node, data: &
     } else {
         &[]
     };
+    // A forced decode-as replaces the port table. HTTP/2 is the exception:
+    // its frames are length-delimited across TCP segments, so the forced
+    // protocol still goes through the stream framer like the heuristic one.
+    let forced = context.options.decode_as.lookup(
+        LayerType::TcpPort,
+        &[u32::from(source_port), u32::from(destination_port)],
+    );
+    let forced_http2 =
+        forced == Some(Protocol::Http2) && context.options.policy.enabled(Protocol::Http2);
+    let forced_tcp = forced.is_some() && !forced_http2;
     let detected_ulp = if context.quoted {
         None
+    } else if forced_http2 {
+        Some(Ulp::Http2)
     } else {
         ulp_for_ports(source_port, destination_port, payload)
     };
@@ -626,14 +639,6 @@ pub(crate) fn decode(context: &mut DecodeContext<'_>, parent: &mut Node, data: &
         add_analysis_fields(&mut node, base, state);
     }
 
-    let forced_tcp = context
-        .options
-        .decode_as
-        .lookup(
-            LayerType::TcpPort,
-            &[u32::from(source_port), u32::from(destination_port)],
-        )
-        .is_some();
     if let Some(payload) = data.get(header_length..)
         && !payload.is_empty()
         && !rst

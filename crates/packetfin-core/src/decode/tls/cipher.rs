@@ -330,6 +330,15 @@ pub(crate) struct RecordKeys {
     exhausted: bool,
 }
 
+// CBC decrypt attempts on the current test thread. Encrypt-then-MAC must
+// reject a forged tag before the block cipher runs, so the regression test
+// observes this counter rather than only the returned value, which is `None`
+// for every failure.
+#[cfg(test)]
+thread_local! {
+    static CBC_DECRYPTS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
 impl RecordKeys {
     /// Build keys for one direction of a TLS 1.0, 1.1 or 1.2 session.
     ///
@@ -589,6 +598,47 @@ impl RecordKeys {
         if !self.encrypt_then_mac && ciphertext.len() < mac_len.saturating_add(1) {
             return None;
         }
+        // RFC 7366 section 3 authenticates the protected fragment before any
+        // ciphertext is decrypted, so a forged tag never reaches the block
+        // cipher or its padding check. Classic CBC authenticates after
+        // unpadding because its MAC travels inside the ciphertext
+        // (RFC 2246 section 6.2.3.1).
+        if let Some(tag) = outer_tag {
+            let mut mac_input = [0_u8; 13];
+            mac_input
+                .get_mut(..8)?
+                .copy_from_slice(&sequence.to_be_bytes());
+            *mac_input.get_mut(8)? = content_type;
+            mac_input
+                .get_mut(9..11)?
+                .copy_from_slice(&version.to_be_bytes());
+            // The tag covers the protected fragment as carried: the explicit
+            // IV of TLS 1.1 and later plus the ciphertext, or only the
+            // ciphertext for TLS 1.0, whose record has no IV field.
+            mac_input
+                .get_mut(11..13)?
+                .copy_from_slice(&u16::try_from(record.len()).ok()?.to_be_bytes());
+            let verified = if self.protocol.has_explicit_iv() {
+                verify_hmac_parts(
+                    self.suite.mac_hash,
+                    mac_key.as_bytes(),
+                    &[&mac_input, &iv, ciphertext],
+                    tag,
+                )
+            } else {
+                verify_hmac_parts(
+                    self.suite.mac_hash,
+                    mac_key.as_bytes(),
+                    &[&mac_input, ciphertext],
+                    tag,
+                )
+            };
+            if !verified {
+                return None;
+            }
+        }
+        #[cfg(test)]
+        CBC_DECRYPTS.with(|count| count.set(count.get().saturating_add(1)));
         let mut buffer = zeroize::Zeroizing::new(ciphertext.to_vec());
         if !match self.suite.bulk {
             BulkCipher::Aes128Cbc => {
@@ -624,65 +674,38 @@ impl RecordKeys {
         if accumulator != 0 {
             return None;
         }
-        let content_length = if self.encrypt_then_mac {
-            split
+        let content = if self.encrypt_then_mac {
+            buffer.get(..split)?
         } else {
-            split.checked_sub(mac_len)?
-        };
-        let content = buffer.get(..content_length)?;
-        if content.len() > usize::from(u16::MAX) {
-            return None;
-        }
-        let mut mac_input = [0_u8; 13];
-        mac_input
-            .get_mut(..8)?
-            .copy_from_slice(&sequence.to_be_bytes());
-        *mac_input.get_mut(8)? = content_type;
-        mac_input
-            .get_mut(9..11)?
-            .copy_from_slice(&version.to_be_bytes());
-        // RFC 7366 MACs the protected fragment as carried, IV included when
-        // the protocol has an explicit one; classic CBC MACs the plaintext
-        // length instead (RFC 2246 section 6.2.3.1).
-        let mac_length = if self.encrypt_then_mac {
-            record.len()
-        } else {
-            content_length
-        };
-        mac_input
-            .get_mut(11..13)?
-            .copy_from_slice(&u16::try_from(mac_length).ok()?.to_be_bytes());
-        let verified = if let Some(tag) = outer_tag {
-            // RFC 7366 section 3 MACs the explicit IV of TLS 1.1 and later,
-            // and MACs only the ciphertext for TLS 1.0, whose record has no
-            // IV field.
-            if self.protocol.has_explicit_iv() {
-                verify_hmac_parts(
-                    self.suite.mac_hash,
-                    mac_key.as_bytes(),
-                    &[&mac_input, &iv, ciphertext],
-                    tag,
-                )
-            } else {
-                verify_hmac_parts(
-                    self.suite.mac_hash,
-                    mac_key.as_bytes(),
-                    &[&mac_input, ciphertext],
-                    tag,
-                )
-            }
-        } else {
+            let content_length = split.checked_sub(mac_len)?;
+            let content = buffer.get(..content_length)?;
+            let mut mac_input = [0_u8; 13];
+            mac_input
+                .get_mut(..8)?
+                .copy_from_slice(&sequence.to_be_bytes());
+            *mac_input.get_mut(8)? = content_type;
+            mac_input
+                .get_mut(9..11)?
+                .copy_from_slice(&version.to_be_bytes());
+            // Classic CBC MACs the plaintext length (RFC 2246 section
+            // 6.2.3.1), and its tag travels inside the ciphertext.
+            mac_input
+                .get_mut(11..13)?
+                .copy_from_slice(&u16::try_from(content_length).ok()?.to_be_bytes());
             let tag_start = content_length;
             let tag = buffer.get(tag_start..tag_start.checked_add(mac_len)?)?;
-            verify_hmac(
+            if !verify_hmac(
                 self.suite.mac_hash,
                 mac_key.as_bytes(),
                 &mac_input,
                 content,
                 tag,
-            )
+            ) {
+                return None;
+            }
+            content
         };
-        if !verified {
+        if content.len() > usize::from(u16::MAX) {
             return None;
         }
         if !self.protocol.has_explicit_iv() {
@@ -1533,6 +1556,62 @@ mod tests {
         let last = bad.len() - 1;
         bad[last] ^= 1;
         assert!(keys.open_pre13(content_type, version, &bad).is_none());
+    }
+
+    #[test]
+    fn tls12_encrypt_then_mac_rejects_a_forged_tag_before_decrypting() {
+        // A full block whose last octet cannot be a padding length: only the
+        // MAC decides whether the CBC path is reachable, and the counter
+        // proves the forged record never gets there.
+        let suite = suite(0xc014).expect("suite");
+        let master = [0x47_u8; 48];
+        let block = derive_key_block(&master, &[1_u8; 32], &[2_u8; 32], suite, Protocol::Tls12)
+            .expect("block");
+        let mac_key = block.client_mac.expect("mac");
+        let key = block.client_key;
+        let sequence = 5_u64;
+        let content_type = 23_u8;
+        let version = 0x0303_u16;
+        let mut plaintext = vec![0x2a_u8; 16];
+        plaintext[15] = 0xff;
+        let iv = [0x7c_u8; 16];
+        let cipher =
+            cbc::Encryptor::<Aes256>::new_from_slices(key.as_bytes(), &iv).expect("cipher");
+        let mut buffer = plaintext;
+        let length = buffer.len();
+        let ciphertext = cipher
+            .encrypt_padded::<cbc::cipher::block_padding::NoPadding>(&mut buffer, length)
+            .expect("encrypt")
+            .to_vec();
+        let mut record = iv.to_vec();
+        record.extend_from_slice(&ciphertext);
+        let mut mac_input = [0_u8; 13];
+        mac_input[..8].copy_from_slice(&sequence.to_be_bytes());
+        mac_input[8] = content_type;
+        mac_input[9..11].copy_from_slice(&version.to_be_bytes());
+        mac_input[11..]
+            .copy_from_slice(&u16::try_from(record.len()).expect("length").to_be_bytes());
+        let mut mac = Hmac::<Sha1>::new_from_slice(mac_key.as_bytes()).expect("hmac");
+        mac.update(&mac_input);
+        mac.update(&record);
+        let tag = mac.finalize().into_bytes();
+        let mut keys =
+            RecordKeys::tls(Protocol::Tls12, key, [0_u8; 16], Some(mac_key), suite, true)
+                .expect("keys");
+        keys.set_sequence(sequence);
+        CBC_DECRYPTS.with(|count| count.set(0));
+        let mut forged = record.clone();
+        forged.extend_from_slice(&tag);
+        let last = forged.len() - 1;
+        forged[last] ^= 1;
+        assert!(keys.open_pre13(content_type, version, &forged).is_none());
+        assert_eq!(CBC_DECRYPTS.with(|count| count.get()), 0);
+        // The authentic record reaches the cipher, then the padding rejects
+        // it, which shows the counter observes real CBC attempts.
+        let mut authentic = record;
+        authentic.extend_from_slice(&tag);
+        assert!(keys.open_pre13(content_type, version, &authentic).is_none());
+        assert_eq!(CBC_DECRYPTS.with(|count| count.get()), 1);
     }
 
     #[test]

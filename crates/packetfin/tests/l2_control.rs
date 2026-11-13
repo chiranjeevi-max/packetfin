@@ -81,6 +81,54 @@ fn lldp_pdml_uses_tlv_offsets_and_nests_capability_bits() {
 }
 
 #[test]
+fn lldp_malformed_organization_tlv_keeps_its_header() {
+    let path = fixture("lldp-8023");
+    let fields = run(&[
+        "-n".into(),
+        "-r".into(),
+        path.clone().into_os_string(),
+        "-Y".into(),
+        "frame.number == 6".into(),
+        "-T".into(),
+        "fields".into(),
+        "-e".into(),
+        "lldp.tlv.type".into(),
+        "-e".into(),
+        "lldp.tlv.len".into(),
+    ]);
+    assert_eq!(fields.trim(), "1,2,3,127\t7,5,2,2", "{fields}");
+    let detail = run(&[
+        "-n".into(),
+        "-r".into(),
+        path.into_os_string(),
+        "-Y".into(),
+        "frame.number == 6".into(),
+        "-O".into(),
+        "lldp".into(),
+        "-V".into(),
+    ]);
+    // The header stays in the tree and the protocol marker reports the stop.
+    assert!(detail.contains("[Malformed Packet: LLDP]"), "{detail}");
+}
+
+#[test]
+fn lldp_802_3_excess_length_is_filterable() {
+    let path = fixture("lldp-8023");
+    let frames = run(&[
+        "-n".into(),
+        "-r".into(),
+        path.into_os_string(),
+        "-Y".into(),
+        "lldp.excess_length".into(),
+        "-T".into(),
+        "fields".into(),
+        "-e".into(),
+        "frame.number".into(),
+    ]);
+    assert_eq!(frames.trim(), "5", "{frames}");
+}
+
+#[test]
 fn lldp_pdml_stops_at_the_end_tlv() {
     let path = fixture("lldp");
     let tree = run(&[

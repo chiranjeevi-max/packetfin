@@ -272,7 +272,6 @@ pub(crate) fn decode(context: &mut DecodeContext<'_>, parent: &mut Node, data: &
             Some(String::new()),
         );
         let mut stop = false;
-        let mut discard = false;
         if tlv_type == TLV_TTL
             && let Some(ttl) = read_u16_be(content, 0)
         {
@@ -420,11 +419,13 @@ pub(crate) fn decode(context: &mut DecodeContext<'_>, parent: &mut Node, data: &
                 }
                 TLV_ORGANIZATION => {
                     if content.len() < 4 {
-                        // The OUI and subtype cannot be read, so the TLV is
-                        // not reported at all; only the protocol-level
-                        // malformed marker remains.
+                        // The type and length octets were decoded before the
+                        // OUI and subtype failed, so the header stays in the
+                        // tree and the protocol-level marker explains the
+                        // stop (fields-before-error rule). The expected output
+                        // drops the header; that difference is recorded as a
+                        // deviation.
                         context.mark_malformed(&mut node, "LLDP organization TLV is too short");
-                        discard = true;
                         stop = true;
                         break 'tlv;
                     }
@@ -443,9 +444,7 @@ pub(crate) fn decode(context: &mut DecodeContext<'_>, parent: &mut Node, data: &
                 }
             }
         }
-        if !discard {
-            node.fields.push(tlv);
-        }
+        node.fields.push(tlv);
         if stop {
             break;
         }
@@ -1347,7 +1346,9 @@ fn invalid_fixed_length(
 ///
 /// The expert belongs to an unnamed group spanning the extra bytes, not to
 /// the TLV length field, so the detail view prints it after the decoded
-/// sub-fields; `lldp.excess_length` is its zero-length marker.
+/// sub-fields. The group also carries a hidden `lldp.excess_length`
+/// occurrence, like the TLV-level expert path, so field traversal and display
+/// filters see the expert even though the detail view hides the occurrence.
 fn mark_excess_length(tlv: &mut Field, start: usize, length: usize) {
     let group = tlv.add_unnamed(
         Range::new(start, length),
@@ -1361,6 +1362,9 @@ fn mark_excess_length(tlv: &mut Field, start: usize, length: usize) {
         },
         &fields::LLDP_EXCESS_LENGTH,
     );
+    let occurrence = group.add_field(&fields::LLDP_EXCESS_LENGTH, Range::new(0, 0), Value::None);
+    occurrence.hide();
+    occurrence.showname = Some("LLDP excess TLV length".to_string());
 }
 
 fn add_tlv_expert(

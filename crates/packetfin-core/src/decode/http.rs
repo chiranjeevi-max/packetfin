@@ -49,6 +49,16 @@ static CHUNKED_BODY: fields::FieldDef = fields::FieldDef {
     generated: false,
 };
 
+/// The most chunk and trailer records one chunked body keeps.
+///
+/// Each record becomes a container plus several field occurrences, so a body
+/// of tiny chunks expands its metadata far beyond its transfer size: a
+/// 1.5 MB body of one-octet chunks would retain hundreds of megabytes.
+/// The cap matches the stream layer's contributing-segment bound and keeps a
+/// message's retained metadata inside the published memory ceiling. The
+/// decoder keeps the complete record prefix and reports one expert.
+const MAX_CHUNK_RECORDS: usize = 4096;
+
 /// Whether a payload begins with a complete HTTP/1.x start line.
 ///
 /// The check accepts the RFC 7230 token grammar and requires the URI and
@@ -251,6 +261,8 @@ struct Body {
     trailer_end: Option<usize>,
     /// Trailer lines: offset, length and text within the message data.
     trailers: Vec<(usize, usize, String)>,
+    /// De-chunking stopped at the record cap, so the chunk list is a prefix.
+    chunk_excess: bool,
 }
 
 struct Chunk {
@@ -362,6 +374,7 @@ fn parse_message(data: &[u8], base: usize, options: &MessageOptions<'_>) -> Opti
                 chunks: Vec::new(),
                 trailer_end: None,
                 trailers: Vec::new(),
+                chunk_excess: false,
             });
             consumed = end;
         }
@@ -377,6 +390,7 @@ fn parse_message(data: &[u8], base: usize, options: &MessageOptions<'_>) -> Opti
                 chunks: Vec::new(),
                 trailer_end: None,
                 trailers: Vec::new(),
+                chunk_excess: false,
             });
             consumed = end;
         }
@@ -400,6 +414,7 @@ fn parse_message(data: &[u8], base: usize, options: &MessageOptions<'_>) -> Opti
                 chunks: chunked_body.chunks,
                 trailer_end: chunked_body.trailer_end,
                 trailers: chunked_body.trailers,
+                chunk_excess: chunked_body.excess,
             });
             consumed = end;
         }
@@ -416,6 +431,7 @@ fn parse_message(data: &[u8], base: usize, options: &MessageOptions<'_>) -> Opti
                 chunks: Vec::new(),
                 trailer_end: None,
                 trailers: Vec::new(),
+                chunk_excess: false,
             });
             consumed = data.len();
         }
@@ -433,6 +449,7 @@ fn parse_message(data: &[u8], base: usize, options: &MessageOptions<'_>) -> Opti
                 chunks: Vec::new(),
                 trailer_end: None,
                 trailers: Vec::new(),
+                chunk_excess: false,
             });
             consumed = data.len();
         }
@@ -637,6 +654,7 @@ fn parse_message(data: &[u8], base: usize, options: &MessageOptions<'_>) -> Opti
                 chunks: Vec::new(),
                 trailer_end: None,
                 trailers: Vec::new(),
+                chunk_excess: false,
             }),
         };
         if let Some(request) = &message.request {
@@ -776,6 +794,9 @@ struct ChunkedBody {
     trailers: Vec<(usize, usize, String)>,
     /// The body stopped at the end of the stream before its last chunk.
     truncated: bool,
+    /// The record prefix reached [`MAX_CHUNK_RECORDS`] and de-chunking
+    /// stopped; the captured remainder stays with the message.
+    excess: bool,
 }
 
 /// Parse a chunked body, or `None` when it does not fit the segment.
@@ -795,6 +816,21 @@ fn parse_chunked(
     let mut bytes = Vec::with_capacity(data.len());
     let mut trailers = Vec::new();
     loop {
+        // One chunk of a hostile body can be three wire octets, so the record
+        // list is bounded before the next record is built. The prefix stays
+        // intact and the remaining bytes are consumed with the message, so
+        // they cannot reopen as another message.
+        if chunks.len() >= MAX_CHUNK_RECORDS || trailers.len() >= MAX_CHUNK_RECORDS {
+            return Some(ChunkedBody {
+                bytes,
+                end: data.len(),
+                chunks,
+                trailer_end: None,
+                trailers,
+                truncated: false,
+                excess: true,
+            });
+        }
         match scanner.step(data, data.len()) {
             ChunkStep::Data {
                 line,
@@ -845,6 +881,7 @@ fn parse_chunked(
                     trailer_end: Some(end),
                     trailers,
                     truncated: false,
+                    excess: false,
                 });
             }
             ChunkStep::Incomplete { restart, .. } => {
@@ -855,6 +892,7 @@ fn parse_chunked(
                     trailer_end: None,
                     trailers: Vec::new(),
                     truncated: true,
+                    excess: false,
                 });
             }
             ChunkStep::Invalid { .. } => {
@@ -868,6 +906,7 @@ fn parse_chunked(
                     trailer_end: None,
                     trailers: Vec::new(),
                     truncated: false,
+                    excess: false,
                 });
             }
         }
@@ -959,6 +998,17 @@ fn add_chunk_fields(node: &mut Node, body: &Body, base: usize) {
             Value::String("\\r\\n".to_string()),
         );
         field.showname = Some("\\r\\n".to_string());
+    }
+    if body.chunk_excess {
+        // A bounded prefix is still a decoded body, so the message keeps its
+        // fields and one expert explains why the record list stops here.
+        container.add_expert(ExpertInfo {
+            severity: Severity::Warning,
+            group: Group::Malformed,
+            message: format!(
+                "Chunk record limit reached; de-chunking stopped after {MAX_CHUNK_RECORDS} records"
+            ),
+        });
     }
 }
 
@@ -1360,6 +1410,21 @@ mod tests {
     use super::*;
     use crate::http_syntax::MAX_HEADER_LINES;
 
+    fn parse_response(message: &[u8], fin: bool) -> Option<HttpMessage> {
+        parse_message(
+            message,
+            0,
+            &MessageOptions {
+                tls_plaintext: false,
+                response_to_head: false,
+                response_to_connect: false,
+                export: false,
+                fin,
+                source: None,
+            },
+        )
+    }
+
     #[test]
     fn published_start_line_forms_are_recognized() {
         assert!(looks_like_http(b"GET / HTTP/1.1\r\nHost: x\r\n\r\n"));
@@ -1462,5 +1527,51 @@ mod tests {
         assert!(!has_zlib_wrapper(&[0x4b, 0x4c, 0x4a, 0x06]));
         assert!(!has_zlib_wrapper(&[]));
         assert!(!has_zlib_wrapper(&[0x78]));
+    }
+
+    #[test]
+    fn a_hostile_chunked_body_keeps_a_bounded_record_list() {
+        // One-octet chunks expand into far more metadata than transfer bytes;
+        // the record list must stop at the cap and leave the rest consumed.
+        let mut message = b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n".to_vec();
+        for _ in 0..MAX_CHUNK_RECORDS.saturating_add(64) {
+            message.extend_from_slice(b"1\r\na\r\n");
+        }
+        message.extend_from_slice(b"0\r\n\r\n");
+        let parsed = parse_response(&message, false).unwrap_or_else(|| unreachable!());
+        let body = parsed.body.unwrap_or_else(|| unreachable!());
+        assert!(body.chunked);
+        assert_eq!(body.chunks.len(), MAX_CHUNK_RECORDS);
+        assert!(body.chunk_excess);
+        assert_eq!(body.bytes.as_slice(), &vec![b'a'; MAX_CHUNK_RECORDS]);
+        assert_eq!(parsed.consumed, message.len());
+    }
+
+    #[test]
+    fn a_small_chunked_body_keeps_every_record() {
+        let message =
+            b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n5\r\nabcde\r\n6\r\nfghijk\r\n0\r\n\r\n";
+        let parsed = parse_response(message, false).unwrap_or_else(|| unreachable!());
+        let body = parsed.body.unwrap_or_else(|| unreachable!());
+        assert_eq!(body.chunks.len(), 3);
+        assert!(!body.chunk_excess);
+        assert_eq!(body.bytes.as_slice(), b"abcdefghijk");
+        assert_eq!(body.trailers.len(), 0);
+        assert_eq!(parsed.consumed, message.len());
+    }
+
+    #[test]
+    fn a_hostile_trailer_list_is_bounded() {
+        let mut message =
+            b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n1\r\na\r\n0\r\n".to_vec();
+        for index in 0..MAX_CHUNK_RECORDS.saturating_add(64) {
+            message.extend_from_slice(format!("X-{index}: v\r\n").as_bytes());
+        }
+        message.extend_from_slice(b"\r\n");
+        let parsed = parse_response(&message, true).unwrap_or_else(|| unreachable!());
+        let body = parsed.body.unwrap_or_else(|| unreachable!());
+        assert_eq!(body.trailers.len(), MAX_CHUNK_RECORDS);
+        assert!(body.chunk_excess);
+        assert_eq!(parsed.consumed, message.len());
     }
 }

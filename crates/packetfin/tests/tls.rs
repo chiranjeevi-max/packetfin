@@ -1108,10 +1108,27 @@ fn tls10_bad_mac_and_wrong_sequence_stop_the_direction() {
     let stdout = decrypted_fields(
         "tls10-malformed.pcap",
         "tls10-malformed-keys.log",
-        &["frame.number", "http.request.uri", "http.response.code"],
+        &[
+            "frame.number",
+            "tls.record.content_type",
+            "http.request.uri",
+            "http.response.code",
+        ],
     );
     assert!(stdout.contains("/bad-mac"), "{stdout}");
     assert!(stdout.contains("/sequence"), "{stdout}");
+    // Each conversation keeps its protected application record: the
+    // bad-MAC response, and the second response, which was protected with
+    // the next server sequence number after the first response was dropped
+    // from the capture, so it arrives where the first one is expected.
+    assert!(
+        stdout.lines().any(|line| line == "8\t23\t\t"),
+        "the bad-MAC response record stays opaque: {stdout}"
+    );
+    assert!(
+        stdout.lines().any(|line| line == "16\t23\t\t"),
+        "the sequence-skipping response record stays in the capture and opaque: {stdout}"
+    );
     assert!(
         !stdout.contains("200"),
         "records with a bad MAC or a skipped sequence number stay opaque: {stdout}"

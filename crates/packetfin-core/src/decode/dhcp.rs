@@ -1493,40 +1493,25 @@ fn decode_agent_information(
                 value_range,
             ),
             13 => {
-                if value.is_empty() {
-                    // RFC 7839 §5 requires the access-technology type; a
-                    // zero-length value leaves nothing to read, so the
-                    // expected output stops the protocol decode here. The
-                    // marker is a child of the suboption, before the value,
-                    // because the integer is never added.
-                    add_type_length_expert(
-                        field,
-                        offset + position,
-                        &fields::TYPE_LENGTH_MISMATCH,
-                        Severity::Error,
-                        "Trying to fetch an unsigned integer with length",
-                        0,
+                // RFC 7839 §4.2 fixes the length at two octets: one Reserved
+                // octet the receiver ignores, then the ATT octet. The field
+                // covers the ATT octet only; any other length is malformed
+                // and adds no value. A zero-length value leaves nothing to
+                // read, so that decoder stops; a wider or narrower value is
+                // reported like every other fixed-size suboption and the
+                // remaining options still decode.
+                if value.len() == 2 {
+                    field.add_field(
+                        &fields::DHCP_OPTION_AGENT_INFORMATION_OPTION_ANI_ATT,
+                        Range::new(value_range.offset.saturating_add(1), 1),
+                        Value::Uint8(value.get(1).copied().unwrap_or(0)),
                     );
-                    return Some("DHCP Option 82 access technology type is empty");
+                } else {
+                    bad_length(field, offset + position, "length isn't 2");
+                    if value.is_empty() {
+                        return Some("DHCP Option 82 access technology type is empty");
+                    }
                 }
-                if value.len() > 4 {
-                    add_type_length_expert(
-                        field,
-                        offset + position,
-                        &fields::TYPE_LENGTH_MISMATCH_WARN,
-                        Severity::Warning,
-                        "Trying to fetch an unsigned integer with length",
-                        value.len(),
-                    );
-                }
-                // The integer field spans the whole value so its bytes stay
-                // visible; the display reads the first four octets.
-                let numeric = read_be_prefix(value);
-                field.add_field(
-                    &fields::DHCP_OPTION_AGENT_INFORMATION_OPTION_ANI_ATT,
-                    value_range,
-                    Value::Uint32(numeric),
-                );
             }
             _ => {}
         }
@@ -1572,33 +1557,6 @@ fn add_suboption_bytes(
 /// The expert lives on its own zero-length field so the detail view, PDML and
 /// EK all place it between the suboption length and the value, which is where
 /// the generic type-length helper reports it.
-fn add_type_length_expert(
-    field: &mut dyn FieldParent,
-    option_offset: usize,
-    definition: &'static fields::FieldDef,
-    severity: Severity,
-    message: &'static str,
-    length: usize,
-) {
-    let marker = field.add_field(definition, Range::new(option_offset, 0), Value::None);
-    marker.add_expert_for(
-        ExpertInfo {
-            severity,
-            group: Group::Malformed,
-            message: format!("{message} {length}"),
-        },
-        definition,
-    );
-}
-
-/// Read up to four big-endian octets from the start of `value`.
-fn read_be_prefix(value: &[u8]) -> u32 {
-    value
-        .iter()
-        .take(4)
-        .fold(0_u32, |number, byte| (number << 8) | u32::from(*byte))
-}
-
 /// Decode the RFC 4243 vendor-specific information blocks.
 ///
 /// A block is a four-octet enterprise number, a one-octet data length and
@@ -1659,8 +1617,9 @@ fn decode_vendor_specific(
 /// Registry name of a DHCP relay agent information suboption.
 ///
 /// The names come from the IANA "DHCP Relay Agent Sub-Option Codes" registry;
-/// codes 151 and 152 are the RFC 6607 virtual subnet selection pair, which
-/// Packetfin does not decode but names for the detail view.
+/// RFC 6607 §3.2 and §3.3 assign code 151 to the virtual subnet selection
+/// sub-option and code 152 to its control sub-option, which Packetfin does not
+/// decode but names for the detail view. Neither code has a registry alias.
 pub fn agent_suboption_name(code: u8) -> &'static str {
     match code {
         0 => "Padding",
@@ -1684,8 +1643,8 @@ pub fn agent_suboption_name(code: u8) -> &'static str {
         18 => "Access Network Operator Realm",
         19 => "Source Port",
         150 => "Link selection (Cisco proprietary)",
-        151 => "VRF name/VPN ID",
-        152 => "Server ID Override (Cisco proprietary)",
+        151 => "VSS",
+        152 => "VSS-Control",
         _ => "Unknown",
     }
 }

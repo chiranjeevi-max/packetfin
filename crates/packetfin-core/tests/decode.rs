@@ -2281,7 +2281,7 @@ fn dhcp_agent_typed_suboptions_match_the_registry_layout() {
     agent.extend_from_slice(&[10, 1, 0x05]);
     agent.extend_from_slice(&[11, 4, 198, 51, 100, 10]);
     agent.extend_from_slice(&[12, 1, 0x03]);
-    agent.extend_from_slice(&[13, 4, 0x0a, 0xa0, 0x0b, 0x0c]);
+    agent.extend_from_slice(&[13, 2, 0x0a, 0xa0]);
     let suboptions = agent_suboptions(&agent);
     assert_eq!(suboptions.len(), 7);
 
@@ -2341,8 +2341,8 @@ fn dhcp_agent_typed_suboptions_match_the_registry_layout() {
         "dhcp.option.agent_information_option.ani_att",
     )
     .unwrap_or_else(|| unreachable!());
-    assert_eq!(access.value, Value::Uint32(0x0aa0_0b0c));
-    assert_eq!(access.range.length, 4);
+    assert_eq!(access.value, Value::Uint8(0xa0));
+    assert_eq!(access.range.length, 1);
 
     // Every typed suboption replaces the generic value line.
     for suboption in &suboptions {
@@ -2378,56 +2378,48 @@ fn dhcp_agent_wrong_length_suboptions_report_a_protocol_expert() {
 }
 
 #[test]
-fn dhcp_agent_access_technology_reports_the_type_length_marker() {
-    // An empty value has nothing to read, so the protocol decode stops.
-    let empty = decode_agent_payload(&[13, 0]);
-    assert!(empty.malformed);
-    let dhcp = child_node(&empty.tree.frame, "dhcp").unwrap_or_else(|| unreachable!());
-    let option = option_container(dhcp, 82).unwrap_or_else(|| unreachable!());
-    let suboption = option
-        .children
-        .iter()
-        .find(|field| field.def.abbrev == "dhcp.option.agent_information_option.suboption")
-        .unwrap_or_else(|| unreachable!());
-    let marker =
-        suboption_field(suboption, "_ws.type_length.mismatch").unwrap_or_else(|| unreachable!());
-    let expert = marker.experts.first().unwrap_or_else(|| unreachable!());
-    assert_eq!(expert.severity, Severity::Error);
-    assert_eq!(expert.group, Group::Malformed);
-    assert_eq!(
-        expert.message,
-        "Trying to fetch an unsigned integer with length 0"
-    );
-    assert!(
-        suboption
-            .children
-            .iter()
-            .all(|field| field.def.abbrev != "dhcp.option.agent_information_option.ani_att")
-    );
-
-    // A longer value keeps the first four octets and only warns.
-    let longer = decode_agent_payload(&[13, 5, 0x01, 0x02, 0x03, 0x04, 0x05]);
-    assert!(!longer.malformed);
-    let dhcp = child_node(&longer.tree.frame, "dhcp").unwrap_or_else(|| unreachable!());
-    let option = option_container(dhcp, 82).unwrap_or_else(|| unreachable!());
-    let suboption = option
-        .children
-        .iter()
-        .find(|field| field.def.abbrev == "dhcp.option.agent_information_option.suboption")
-        .unwrap_or_else(|| unreachable!());
-    let marker = suboption_field(suboption, "_ws.type_length.mismatch_warn")
-        .unwrap_or_else(|| unreachable!());
-    let expert = marker.experts.first().unwrap_or_else(|| unreachable!());
-    assert_eq!(expert.severity, Severity::Warning);
-    assert_eq!(
-        expert.message,
-        "Trying to fetch an unsigned integer with length 5"
-    );
+fn dhcp_agent_access_technology_reads_the_att_octet() {
+    // RFC 7839 §4.2: a Reserved octet the receiver ignores, then the ATT.
+    let packet = decode_agent_payload(&[13, 2, 0xff, 0x06]);
+    assert!(!packet.malformed);
+    let suboptions = agent_suboptions(&[13, 2, 0xff, 0x06]);
+    let suboption = suboptions.first().unwrap_or_else(|| unreachable!());
     let access = suboption_field(suboption, "dhcp.option.agent_information_option.ani_att")
         .unwrap_or_else(|| unreachable!());
-    assert_eq!(access.value, Value::Uint32(0x0102_0304));
-    // The occurrence spans the whole value; the display keeps four octets.
-    assert_eq!(access.range.length, 5);
+    assert_eq!(access.value, Value::Uint8(6));
+    assert_eq!(access.range.length, 1);
+}
+
+#[test]
+fn dhcp_agent_access_technology_rejects_other_lengths() {
+    for value in [
+        &[][..],
+        &[0x01][..],
+        &[0x01, 0x02, 0x03][..],
+        &[0x01, 0x02, 0x03, 0x04, 0x05][..],
+    ] {
+        let mut agent = vec![13, u8::try_from(value.len()).unwrap_or(u8::MAX)];
+        agent.extend_from_slice(value);
+        let suboptions = agent_suboptions(&agent);
+        let suboption = suboptions.first().unwrap_or_else(|| unreachable!());
+        assert!(
+            suboption
+                .children
+                .iter()
+                .all(|field| field.def.abbrev != "dhcp.option.agent_information_option.ani_att"),
+            "length {} decoded an ATT: {suboption:?}",
+            value.len()
+        );
+        let marker =
+            suboption_field(suboption, "dhcp.bad_length").unwrap_or_else(|| unreachable!());
+        let expert = marker.experts.first().unwrap_or_else(|| unreachable!());
+        assert_eq!(expert.severity, Severity::Error);
+        assert_eq!(expert.group, Group::Protocol);
+        assert_eq!(expert.message, "length isn't 2");
+        // An absent value stops the decoder; a present but wrong-sized
+        // value leaves the remaining options decodable.
+        assert_eq!(decode_agent_payload(&agent).malformed, value.is_empty());
+    }
 }
 
 #[test]
@@ -2584,5 +2576,18 @@ fn dhcpv6_truncated_status_code_stays_malformed() {
             .children
             .iter()
             .all(|field| field.def.abbrev != "dhcpv6.status_code")
+    );
+}
+
+#[test]
+fn dhcp_relay_suboption_names_follow_the_registry() {
+    // RFC 6607 §3.2 and §3.3 assign 151 to VSS and 152 to VSS-Control.
+    assert_eq!(
+        packetfin_core::decode::dhcp_agent_suboption_name(151),
+        "VSS"
+    );
+    assert_eq!(
+        packetfin_core::decode::dhcp_agent_suboption_name(152),
+        "VSS-Control"
     );
 }

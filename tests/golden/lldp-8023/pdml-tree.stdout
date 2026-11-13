@@ -439,43 +439,4 @@
 </packet>
 
 
-<packet>
-  <proto name="geninfo" pos="0" showname="General information" size="40">
-    <field name="num" pos="0" show="6" showname="Number" value="6" size="40"/>
-    <field name="len" pos="0" show="40" showname="Frame Length" value="28" size="40"/>
-    <field name="caplen" pos="0" show="40" showname="Captured Length" value="28" size="40"/>
-    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:20.123461000 UTC" showname="Captured Time" value="1700000000.123461000" size="40"/>
-  </proto>
-  <proto name="frame" showname="Frame 6: Packet, 40 bytes on wire (320 bits), 40 bytes captured (320 bits)" size="40" pos="0">
-    <field name="filtered" value="frame" />
-  </proto>
-  <proto name="eth" showname="Ethernet II, Src: 02:00:00:00:00:01, Dst: 01:80:c2:00:00:0e" size="14" pos="0">
-    <field name="filtered" value="eth" />
-  </proto>
-  <proto name="lldp" showname="Link Layer Discovery Protocol" size="26" pos="14">
-    <field name="" show="Chassis Subtype = MAC address, Id: 00:11:22:33:44:55" size="9" pos="14" value="020704001122334455">
-      <field name="lldp.tlv.type" showname="0000 001. .... .... = TLV Type: Chassis Id (1)" size="2" pos="14" show="1" value="1" unmaskedvalue="0207"/>
-      <field name="lldp.tlv.len" showname=".... ...0 0000 0111 = TLV Length: 7" size="2" pos="14" show="7" value="7" unmaskedvalue="0207"/>
-      <field name="lldp.chassis.subtype" showname="Chassis Id Subtype: MAC address (4)" size="1" pos="16" show="4" value="04"/>
-      <field name="lldp.chassis.id.mac" showname="Chassis Id: 00:11:22:33:44:55" size="6" pos="17" show="00:11:22:33:44:55" value="001122334455"/>
-    </field>
-    <field name="" show="Port Subtype = Interface name, Id: eth0" size="7" pos="23" value="04050565746830">
-      <field name="lldp.tlv.type" showname="0000 010. .... .... = TLV Type: Port Id (2)" size="2" pos="23" show="2" value="2" unmaskedvalue="0405"/>
-      <field name="lldp.tlv.len" showname=".... ...0 0000 0101 = TLV Length: 5" size="2" pos="23" show="5" value="5" unmaskedvalue="0405"/>
-      <field name="lldp.port.subtype" showname="Port Id Subtype: Interface name (5)" size="1" pos="25" show="5" value="05"/>
-      <field name="lldp.port.id" showname="Port Id: eth0" size="4" pos="26" show="eth0" value="65746830"/>
-    </field>
-    <field name="" show="Time To Live = 120 sec" size="4" pos="30" value="06020078">
-      <field name="lldp.pdu_type" showname="Normal LLDPDU" size="4" pos="30" show="" value=""/>
-      <field name="lldp.tlv.type" showname="0000 011. .... .... = TLV Type: Time to Live (3)" size="2" pos="30" show="3" value="3" unmaskedvalue="0602"/>
-      <field name="lldp.tlv.len" showname=".... ...0 0000 0010 = TLV Length: 2" size="2" pos="30" show="2" value="2" unmaskedvalue="0602"/>
-      <field name="lldp.time_to_live" showname="Seconds: 120" size="2" pos="32" show="120" value="0078"/>
-    </field>
-  </proto>
-  <proto name="_ws.malformed" showname="[Malformed Packet: LLDP]" size="0" pos="14">
-    <field name="filtered" value="_ws.malformed" />
-  </proto>
-</packet>
-
-
 </pdml>

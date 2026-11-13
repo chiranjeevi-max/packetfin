@@ -6067,9 +6067,9 @@ pub static DHCP_OPTION_AGENT_INFORMATION_OPTION_RELAY_AGENT_ID: FieldDef = Field
 
 /// `dhcp.option.agent_information_option.ani_att`.
 ///
-/// RFC 7839 §5 defines the access-technology type as the whole suboption
-/// value; the width is 1–4 octets on the wire, so the occurrence range can be
-/// longer than the one-octet registry type.
+/// RFC 7839 §4.2 defines a two-octet value: a Reserved octet the receiver
+/// ignores and then the one-octet access-technology type, which is the
+/// occurrence this field covers.
 pub static DHCP_OPTION_AGENT_INFORMATION_OPTION_ANI_ATT: FieldDef = FieldDef {
     abbrev: "dhcp.option.agent_information_option.ani_att",
     name: "Access Technology Type",
@@ -6078,38 +6078,6 @@ pub static DHCP_OPTION_AGENT_INFORMATION_OPTION_ANI_ATT: FieldDef = FieldDef {
     display: Display::Decimal,
     bitmask: None,
     blurb: "Option 82:13 Access Technology Type",
-    generated: false,
-};
-
-/// `_ws.type_length.mismatch`: the zero-length marker used when a suboption
-/// value is too short for the integer it carries.
-///
-/// The generic type-length helper registers two generated entries,
-/// `_ws.type_length.mismatch` (error) and `_ws.type_length.mismatch_warn`
-/// (warning). Packetfin models them as tree markers so the expert block and
-/// its offending field keep their registry names; they are not part of any
-/// protocol's `-G fields` report.
-pub(crate) static TYPE_LENGTH_MISMATCH: FieldDef = FieldDef {
-    abbrev: "_ws.type_length.mismatch",
-    name: "Trying to fetch X with length Y",
-    field_type: FieldType::None,
-    parent: "_ws.type_length",
-    display: Display::None,
-    bitmask: None,
-    blurb: "",
-    generated: false,
-};
-
-/// `_ws.type_length.mismatch_warn`: the warning variant of
-/// [`TYPE_LENGTH_MISMATCH`], used when a longer value is still displayed.
-pub(crate) static TYPE_LENGTH_MISMATCH_WARN: FieldDef = FieldDef {
-    abbrev: "_ws.type_length.mismatch_warn",
-    name: "Trying to fetch X with length Y",
-    field_type: FieldType::None,
-    parent: "_ws.type_length",
-    display: Display::None,
-    bitmask: None,
-    blurb: "",
     generated: false,
 };
 

@@ -300,23 +300,3 @@ Link Layer Discovery Protocol
         0000 000. .... .... = TLV Type: End of LLDPDU (0)
         .... ...0 0000 0000 = TLV Length: 0
 
-Frame 6: Packet, 40 bytes on wire (320 bits), 40 bytes captured (320 bits)
-Ethernet II, Src: 02:00:00:00:00:01, Dst: 01:80:c2:00:00:0e
-Link Layer Discovery Protocol
-    Chassis Subtype = MAC address, Id: 00:11:22:33:44:55
-        0000 001. .... .... = TLV Type: Chassis Id (1)
-        .... ...0 0000 0111 = TLV Length: 7
-        Chassis Id Subtype: MAC address (4)
-        Chassis Id: 00:11:22:33:44:55
-    Port Subtype = Interface name, Id: eth0
-        0000 010. .... .... = TLV Type: Port Id (2)
-        .... ...0 0000 0101 = TLV Length: 5
-        Port Id Subtype: Interface name (5)
-        Port Id: eth0
-    Time To Live = 120 sec
-        [Normal LLDPDU]
-        0000 011. .... .... = TLV Type: Time to Live (3)
-        .... ...0 0000 0010 = TLV Length: 2
-        Seconds: 120
-[Malformed Packet: LLDP]
-

@@ -13,3 +13,4 @@
    13   0.000012    192.0.2.1 → 192.0.2.2    TLSv1 60 Change Cipher Spec
    14   0.000013    192.0.2.1 → 192.0.2.2    TLSv1 107 Encrypted Handshake Message
    15   0.000014    192.0.2.1 → 192.0.2.2    TLSv1 123 Application Data
+   16   0.000015    192.0.2.2 → 192.0.2.1    TLSv1 123 Application Data

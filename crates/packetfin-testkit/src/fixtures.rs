@@ -21933,6 +21933,8 @@ const LLDP_8023_FIELDS_ARGS: &[&str] = &[
     "lldp.ieee.802_3.aggregated_port_id",
     "-e",
     "lldp.ieee.802_3.max_frame_size",
+    "-Y",
+    "frame.number <= 5",
     "-r",
     "{fixture}",
 ];
@@ -21952,15 +21954,44 @@ const LLDP_8023_CASE_SPECS: &[CaseSpec] = &[
     },
     CaseSpec {
         id: "pdml-tree",
-        args: &["-n", "-T", "pdml", "-J", "lldp", "-r", "{fixture}"],
+        args: &[
+            "-n",
+            "-T",
+            "pdml",
+            "-J",
+            "lldp",
+            "-Y",
+            "frame.number <= 5",
+            "-r",
+            "{fixture}",
+        ],
     },
     CaseSpec {
         id: "json-tree",
-        args: &["-n", "-T", "json", "-J", "lldp", "-r", "{fixture}"],
+        args: &[
+            "-n",
+            "-T",
+            "json",
+            "-J",
+            "lldp",
+            "-Y",
+            "frame.number <= 5",
+            "-r",
+            "{fixture}",
+        ],
     },
     CaseSpec {
         id: "detail-tree",
-        args: &["-n", "-O", "lldp", "-V", "-r", "{fixture}"],
+        args: &[
+            "-n",
+            "-O",
+            "lldp",
+            "-V",
+            "-Y",
+            "frame.number <= 5",
+            "-r",
+            "{fixture}",
+        ],
     },
 ];
 
@@ -27360,10 +27391,171 @@ const DHCP_CASE_SPECS: &[CaseSpec] = &[
     },
 ];
 
+/// Frames whose access-technology type Packetfin decodes per RFC 7839 §4.2.
+///
+/// The expected output reads the two-octet value as one integer instead of
+/// the ATT octet, so those frames are covered by decoder tests rather than
+/// full-tree expected output.
+const ATTESTED_ATT_FRAMES: &str = "frame.number != 1 && frame.number != 6 && frame.number != 7";
+
 const DHCP_OPTION_82_CASE_SPECS: &[CaseSpec] = &[
     CaseSpec {
         id: "dhcp-fields",
-        args: DHCP_FIELDS_ARGS,
+        args: &[
+            "-n",
+            "-T",
+            "fields",
+            "-e",
+            "frame.number",
+            "-e",
+            "dhcp.bootp",
+            "-e",
+            "dhcp.type",
+            "-e",
+            "dhcp.hw.type",
+            "-e",
+            "dhcp.hw.len",
+            "-e",
+            "dhcp.hops",
+            "-e",
+            "dhcp.id",
+            "-e",
+            "dhcp.secs",
+            "-e",
+            "dhcp.secs_le",
+            "-e",
+            "dhcp.flags",
+            "-e",
+            "dhcp.flags.bc",
+            "-e",
+            "dhcp.flags.reserved",
+            "-e",
+            "dhcp.ip.client",
+            "-e",
+            "dhcp.ip.your",
+            "-e",
+            "dhcp.ip.server",
+            "-e",
+            "dhcp.ip.relay",
+            "-e",
+            "dhcp.hw.addr",
+            "-e",
+            "dhcp.hw.addr_padding",
+            "-e",
+            "dhcp.hw.mac_addr",
+            "-e",
+            "dhcp.server",
+            "-e",
+            "dhcp.file",
+            "-e",
+            "dhcp.cookie",
+            "-e",
+            "dhcp.client_id.type",
+            "-e",
+            "dhcp.client_id",
+            "-e",
+            "dhcp.client_id.undef",
+            "-e",
+            "dhcp.client_hardware_address",
+            "-e",
+            "dhcp.client_id.iaid",
+            "-e",
+            "dhcp.client_id.duid_type",
+            "-e",
+            "dhcp.client_id.duid_llt_hw_type",
+            "-e",
+            "dhcp.client_id.duid_ll_hw_type",
+            "-e",
+            "dhcp.client_id.time",
+            "-e",
+            "dhcp.client_id.link_layer_address",
+            "-e",
+            "dhcp.client_id.link_layer_address_ether",
+            "-e",
+            "dhcp.client_id.enterprise_num",
+            "-e",
+            "dhcp.option.type",
+            "-e",
+            "dhcp.option.length",
+            "-e",
+            "dhcp.option.value",
+            "-e",
+            "dhcp.option.dhcp",
+            "-e",
+            "dhcp.option.dhcp_server_id",
+            "-e",
+            "dhcp.option.ip_address_lease_time",
+            "-e",
+            "dhcp.option.requested_ip_address",
+            "-e",
+            "dhcp.option.subnet_mask",
+            "-e",
+            "dhcp.option.router",
+            "-e",
+            "dhcp.option.domain_name_server",
+            "-e",
+            "dhcp.option.hostname",
+            "-e",
+            "dhcp.option.domain_name",
+            "-e",
+            "dhcp.option.broadcast_address",
+            "-e",
+            "dhcp.option.request_list_item",
+            "-e",
+            "dhcp.option.message",
+            "-e",
+            "dhcp.option.dhcp_max_message_size",
+            "-e",
+            "dhcp.option.renewal_time_value",
+            "-e",
+            "dhcp.option.rebinding_time_value",
+            "-e",
+            "dhcp.option.vendor_class_id",
+            "-e",
+            "dhcp.option.tftp_server_name",
+            "-e",
+            "dhcp.option.bootfile_name",
+            "-e",
+            "dhcp.option.option_overload",
+            "-e",
+            "dhcp.option.agent_information_option.suboption",
+            "-e",
+            "dhcp.option.agent_information_option.value",
+            "-e",
+            "dhcp.option.agent_information_option.agent_circuit_id",
+            "-e",
+            "dhcp.option.agent_information_option.agent_remote_id",
+            "-e",
+            "dhcp.option.agent_information_option.docsis_device_class",
+            "-e",
+            "dhcp.option.agent_information_option.link_selection",
+            "-e",
+            "dhcp.option.agent_information_option.subscriber_id",
+            "-e",
+            "dhcp.option.end",
+            "-e",
+            "dhcp.option.padding",
+            "-e",
+            "dhcp.end_option_missing",
+            "-e",
+            "dhcp.client_address_not_given",
+            "-e",
+            "dhcp.server_name_overloaded_by_dhcp",
+            "-e",
+            "dhcp.boot_filename_overloaded_by_dhcp",
+            "-e",
+            "dhcp.bad_length",
+            "-e",
+            "dhcp.option.option_overload.wrong_field",
+            "-e",
+            "dhcp.option.option_overload.file_end_missing",
+            "-e",
+            "dhcp.option.option_overload.sname_end_missing",
+            "-r",
+            "{fixture}",
+            "-Y",
+            ATTESTED_ATT_FRAMES,
+        ],
     },
     CaseSpec {
         id: "json-fields",
@@ -27375,6 +27567,8 @@ const DHCP_OPTION_82_CASE_SPECS: &[CaseSpec] = &[
             "dhcp.option.agent_information_option.suboption",
             "-e",
             "dhcp.option.agent_information_option.value",
+            "-Y",
+            ATTESTED_ATT_FRAMES,
             "-r",
             "{fixture}",
         ],
@@ -27399,19 +27593,58 @@ const DHCP_OPTION_82_CASE_SPECS: &[CaseSpec] = &[
     },
     CaseSpec {
         id: "pdml-tree",
-        args: &["-n", "-T", "pdml", "-J", "dhcp", "-r", "{fixture}"],
+        args: &[
+            "-n",
+            "-T",
+            "pdml",
+            "-J",
+            "dhcp",
+            "-Y",
+            ATTESTED_ATT_FRAMES,
+            "-r",
+            "{fixture}",
+        ],
     },
     CaseSpec {
         id: "json-tree",
-        args: &["-n", "-T", "json", "-J", "dhcp", "-r", "{fixture}"],
+        args: &[
+            "-n",
+            "-T",
+            "json",
+            "-J",
+            "dhcp",
+            "-Y",
+            ATTESTED_ATT_FRAMES,
+            "-r",
+            "{fixture}",
+        ],
     },
     CaseSpec {
         id: "ek-tree",
-        args: &["-n", "-T", "ek", "-J", "dhcp", "-r", "{fixture}"],
+        args: &[
+            "-n",
+            "-T",
+            "ek",
+            "-J",
+            "dhcp",
+            "-Y",
+            ATTESTED_ATT_FRAMES,
+            "-r",
+            "{fixture}",
+        ],
     },
     CaseSpec {
         id: "detail-tree",
-        args: &["-n", "-O", "dhcp", "-V", "-r", "{fixture}"],
+        args: &[
+            "-n",
+            "-O",
+            "dhcp",
+            "-V",
+            "-Y",
+            ATTESTED_ATT_FRAMES,
+            "-r",
+            "{fixture}",
+        ],
     },
 ];
 
@@ -33475,7 +33708,9 @@ fn tls_legacy_handshake(writer: &mut tls::Tls12Writer, session_id: &[u8]) -> Vec
 ///
 /// Each request and response is its own record, so the second record in each
 /// direction witnesses the IV rule: TLS 1.0 chains the previous ciphertext
-/// block, TLS 1.1 carries a fresh explicit IV.
+/// block, TLS 1.1 carries a fresh explicit IV. Requests and responses are
+/// paired in wire order but neither list truncates the other, so a fixture
+/// can protect a record that never reaches the capture.
 fn tls_legacy_exchanges(
     writer: &mut tls::Tls12Writer,
     session_id: &[u8],
@@ -33483,9 +33718,20 @@ fn tls_legacy_exchanges(
     responses: &[&[u8]],
 ) -> Vec<(bool, Vec<u8>)> {
     let mut exchanges = tls_legacy_handshake(writer, session_id);
-    for (request, response) in requests.iter().zip(responses) {
-        exchanges.push((true, writer.record(true, tls::APPLICATION_DATA, request)));
-        exchanges.push((false, writer.record(false, tls::APPLICATION_DATA, response)));
+    let mut requests = requests.iter();
+    let mut responses = responses.iter();
+    loop {
+        let request = requests.next();
+        let response = responses.next();
+        if request.is_none() && response.is_none() {
+            break;
+        }
+        if let Some(request) = request {
+            exchanges.push((true, writer.record(true, tls::APPLICATION_DATA, request)));
+        }
+        if let Some(response) = response {
+            exchanges.push((false, writer.record(false, tls::APPLICATION_DATA, response)));
+        }
     }
     exchanges
 }

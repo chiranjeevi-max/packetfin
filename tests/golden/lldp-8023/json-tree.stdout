@@ -437,42 +437,5 @@
         }
       }
     }
-  },
-  {
-    "_index": "packets-2023-11-14",
-    "_score": null,
-    "_source": {
-      "layers": {
-        "frame": {
-          "filtered": "frame"
-        },
-        "eth": {
-          "filtered": "eth"
-        },
-        "lldp": {
-          "Chassis Subtype = MAC address, Id: 00:11:22:33:44:55": {
-            "lldp.tlv.type": "1",
-            "lldp.tlv.len": "7",
-            "lldp.chassis.subtype": "4",
-            "lldp.chassis.id.mac": "00:11:22:33:44:55"
-          },
-          "Port Subtype = Interface name, Id: eth0": {
-            "lldp.tlv.type": "2",
-            "lldp.tlv.len": "5",
-            "lldp.port.subtype": "5",
-            "lldp.port.id": "eth0"
-          },
-          "Time To Live = 120 sec": {
-            "lldp.pdu_type": "",
-            "lldp.tlv.type": "3",
-            "lldp.tlv.len": "2",
-            "lldp.time_to_live": "120"
-          }
-        },
-        "_ws.malformed": {
-          "filtered": "_ws.malformed"
-        }
-      }
-    }
   }
 ]

@@ -528,7 +528,44 @@ impl State {
     /// Whether this specification follows `key`.
     fn selects(&self, key: StreamKey) -> bool {
         match &self.spec.selector {
-            FollowSelector::Stream(index) => key.index == *index,
+            // Before the first segment the index is the only identity. After
+            // it, the endpoints identify the connection: `-M` restarts the
+            // index at zero for a new capture pass, and the followed
+            // connection keeps flowing under its new index.
+            FollowSelector::Stream(index) => match self.endpoints {
+                Some((source, source_port, destination, destination_port)) => {
+                    (endpoint_matches(
+                        key.source,
+                        key.source_port,
+                        FollowEndpoint {
+                            address: source,
+                            port: source_port,
+                        },
+                    ) && endpoint_matches(
+                        key.destination,
+                        key.destination_port,
+                        FollowEndpoint {
+                            address: destination,
+                            port: destination_port,
+                        },
+                    )) || (endpoint_matches(
+                        key.source,
+                        key.source_port,
+                        FollowEndpoint {
+                            address: destination,
+                            port: destination_port,
+                        },
+                    ) && endpoint_matches(
+                        key.destination,
+                        key.destination_port,
+                        FollowEndpoint {
+                            address: source,
+                            port: source_port,
+                        },
+                    ))
+                }
+                None => key.index == *index,
+            },
             FollowSelector::Address { first, second } => {
                 endpoint_matches(key.source, key.source_port, *first)
                     && endpoint_matches(key.destination, key.destination_port, *second)
@@ -1069,11 +1106,26 @@ mod tests {
     }
 
     #[test]
+    fn a_followed_index_keeps_its_endpoints_across_a_session_reset() {
+        let mut state = follow("follow,tcp,ascii,0");
+        state.tcp_event(key(0, 1, 2), 0, 1, 1, b"first");
+        // A second connection takes index 0 again; it is not the followed one.
+        state.tcp_event(key(0, 3, 4), 0, 1, 1, b"other");
+        // The followed connection reappears under a new index after a reset.
+        state.tcp_event(reverse_key(7, 2, 1), 1, 1, 6, b"second");
+        let mut output = String::new();
+        state.finish(&mut output).unwrap_or(());
+        assert!(output.contains("first"), "{output}");
+        assert!(output.contains("second"), "{output}");
+        assert!(!output.contains("other"), "{output}");
+    }
+
+    #[test]
     fn tcp_follow_fills_a_gap_from_the_peer_ack() {
         let mut state = follow("follow,tcp,ascii,0");
         state.tcp_event(key(0, 1, 2), 0, 1, 1, b"BBBB");
         state.tcp_event(key(0, 1, 2), 0, 9, 1, b"CCCC");
-        state.tcp_event(key(0, 2, 1), 1, 1, 13, b"");
+        state.tcp_event(reverse_key(0, 2, 1), 1, 1, 13, b"");
         state.tcp_event(key(0, 1, 2), 0, 13, 1, b"DDDD");
         let mut output = String::new();
         state.finish(&mut output).unwrap_or(());
@@ -1122,7 +1174,7 @@ DDDD"
             b"HEAD /head HTTP/1.1\r\nHost: h\r\n\r\n",
         );
         state.tcp_event(
-            key(0, 2, 1),
+            reverse_key(0, 2, 1),
             1,
             1,
             33,
@@ -1188,7 +1240,7 @@ DDDD"
     fn ranges_skip_records_but_keep_per_direction_hex_offsets() {
         let mut state = follow("follow,tcp,hex,0,2-2");
         state.tcp_event(key(0, 1, 2), 0, 1, 1, b"aaaa");
-        state.tcp_event(key(0, 2, 1), 1, 1, 5, b"bbbb");
+        state.tcp_event(reverse_key(0, 2, 1), 1, 1, 5, b"bbbb");
         let mut output = String::new();
         state.finish(&mut output).unwrap_or(());
         assert!(!output.contains("aaaa"), "{output}");

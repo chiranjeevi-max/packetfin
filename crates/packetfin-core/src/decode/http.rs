@@ -53,10 +53,10 @@ static CHUNKED_BODY: fields::FieldDef = fields::FieldDef {
 ///
 /// Each record becomes a container plus several field occurrences, so a body
 /// of tiny chunks expands its metadata far beyond its transfer size: a
-/// 1.5 MB body of one-octet chunks would retain hundreds of megabytes.
-/// The cap matches the stream layer's contributing-segment bound and keeps a
-/// message's retained metadata inside the published memory ceiling. The
-/// decoder keeps the complete record prefix and reports one expert.
+/// 1.5 MB body of one-octet chunks would retain hundreds of megabytes. The
+/// cap bounds that metadata only; the de-chunked body keeps growing to the
+/// export object cap, so a large body still exports whole. The decoder keeps
+/// the complete record prefix and reports one expert.
 const MAX_CHUNK_RECORDS: usize = 4096;
 
 /// Whether a payload begins with a complete HTTP/1.x start line.
@@ -815,21 +815,15 @@ fn parse_chunked(
     let mut chunks = Vec::new();
     let mut bytes = Vec::with_capacity(data.len());
     let mut trailers = Vec::new();
+    let mut capped = false;
     loop {
-        // One chunk of a hostile body can be three wire octets, so the record
-        // list is bounded before the next record is built. The prefix stays
-        // intact and the remaining bytes are consumed with the message, so
-        // they cannot reopen as another message.
-        if chunks.len() >= MAX_CHUNK_RECORDS || trailers.len() >= MAX_CHUNK_RECORDS {
-            return Some(ChunkedBody {
-                bytes,
-                end: data.len(),
-                chunks,
-                trailer_end: None,
-                trailers,
-                truncated: false,
-                excess: true,
-            });
+        // The record list is metadata, while `bytes` is the de-chunked body
+        // the export path needs; a hostile body of tiny chunks must bound the
+        // first without truncating the second, which the object cap already
+        // bounds. Once the record list is full the scan continues, so the
+        // body still completes and the message end stays exact.
+        if !capped && (chunks.len() >= MAX_CHUNK_RECORDS || trailers.len() >= MAX_CHUNK_RECORDS) {
+            capped = true;
         }
         match scanner.step(data, data.len()) {
             ChunkStep::Data {
@@ -844,14 +838,16 @@ fn parse_chunked(
                 // type; the conversion only rejects an impossible size.
                 let size = u32::try_from(size).ok()?;
                 bytes.extend_from_slice(chunk_data);
-                chunks.push(Chunk {
-                    size,
-                    offset: line,
-                    data: shared_bytes(source, data_offset, chunk_data),
-                    data_offset,
-                    boundary_offset: boundary,
-                    final_chunk: false,
-                });
+                if !capped {
+                    chunks.push(Chunk {
+                        size,
+                        offset: line,
+                        data: shared_bytes(source, data_offset, chunk_data),
+                        data_offset,
+                        boundary_offset: boundary,
+                        final_chunk: false,
+                    });
+                }
             }
             ChunkStep::Last { .. } => {}
             ChunkStep::Trailer { line, consumed } => {
@@ -859,21 +855,25 @@ fn parse_chunked(
                     .get(line..line.saturating_add(consumed))
                     .unwrap_or_default();
                 let text = text.strip_suffix(b"\r\n").unwrap_or(text);
-                trailers.push((
-                    line,
-                    consumed,
-                    format!("{}\r\n", String::from_utf8_lossy(text)),
-                ));
+                if !capped {
+                    trailers.push((
+                        line,
+                        consumed,
+                        format!("{}\r\n", String::from_utf8_lossy(text)),
+                    ));
+                }
             }
             ChunkStep::TrailerEnd { end, last } => {
-                chunks.push(Chunk {
-                    size: 0,
-                    offset: last,
-                    data: Bytes::default(),
-                    data_offset: end,
-                    boundary_offset: end.saturating_sub(2),
-                    final_chunk: true,
-                });
+                if !capped {
+                    chunks.push(Chunk {
+                        size: 0,
+                        offset: last,
+                        data: Bytes::default(),
+                        data_offset: end,
+                        boundary_offset: end.saturating_sub(2),
+                        final_chunk: true,
+                    });
+                }
                 return Some(ChunkedBody {
                     bytes,
                     end,
@@ -881,7 +881,7 @@ fn parse_chunked(
                     trailer_end: Some(end),
                     trailers,
                     truncated: false,
-                    excess: false,
+                    excess: capped,
                 });
             }
             ChunkStep::Incomplete { restart, .. } => {
@@ -892,7 +892,7 @@ fn parse_chunked(
                     trailer_end: None,
                     trailers: Vec::new(),
                     truncated: true,
-                    excess: false,
+                    excess: capped,
                 });
             }
             ChunkStep::Invalid { .. } => {
@@ -906,7 +906,7 @@ fn parse_chunked(
                     trailer_end: None,
                     trailers: Vec::new(),
                     truncated: false,
-                    excess: false,
+                    excess: capped,
                 });
             }
         }
@@ -1006,7 +1006,7 @@ fn add_chunk_fields(node: &mut Node, body: &Body, base: usize) {
             severity: Severity::Warning,
             group: Group::Malformed,
             message: format!(
-                "Chunk record limit reached; de-chunking stopped after {MAX_CHUNK_RECORDS} records"
+                "Chunk record limit reached; the chunk list stops after {MAX_CHUNK_RECORDS} records"
             ),
         });
     }
@@ -1543,7 +1543,9 @@ mod tests {
         assert!(body.chunked);
         assert_eq!(body.chunks.len(), MAX_CHUNK_RECORDS);
         assert!(body.chunk_excess);
-        assert_eq!(body.bytes.as_slice(), &vec![b'a'; MAX_CHUNK_RECORDS]);
+        // The record list stops at the cap, but every chunk's data is still
+        // de-chunked: the export path must receive the whole body.
+        assert_eq!(body.bytes.len(), MAX_CHUNK_RECORDS.saturating_add(64));
         assert_eq!(parsed.consumed, message.len());
     }
 

@@ -1065,6 +1065,13 @@ fn resolve_binary(
                 ),
             ));
         }
+        // A relative time combined with an absolute time is a scalar
+        // duration in seconds (RFC 3339 timestamps are offsets from an
+        // epoch): the sum or difference stays numeric, as the reference
+        // implementation evaluates it. Multiplication and division by an
+        // absolute time has no meaning and is rejected at parse time.
+        let mixed_absolute =
+            target == Type::Relative && (left_type == Type::Time || right_type == Type::Time);
         // A time operand combines with a number (or another time); anything
         // else, such as an address, cannot be converted and would otherwise
         // resolve and then silently match nothing.
@@ -1085,6 +1092,27 @@ fn resolve_binary(
                     ),
                 ));
             }
+        }
+        if mixed_absolute {
+            if matches!(operator, ArithOp::Multiply | ArithOp::Divide) {
+                return Err(FilterError::at_span(
+                    right.start,
+                    right.end,
+                    format!(
+                        "{} cannot be the right-hand operand of {}",
+                        Type::Time.name(),
+                        arith_symbol(operator)
+                    ),
+                ));
+            }
+            if has_unconverted(left) {
+                resolve_operand(left, Some(Type::Relative))?;
+            }
+            if has_unconverted(right) {
+                resolve_operand(right, Some(Type::Relative))?;
+            }
+            *ty = Type::Double;
+            return Ok(Type::Double);
         }
         let operand_type = match operator {
             ArithOp::Multiply | ArithOp::Divide => Type::Int(64),
@@ -1477,7 +1505,7 @@ fn evaluate_operand<'a>(operand: &'a Operand, tree: &'a Tree) -> Sequence<'a> {
             for left_value in &left.values {
                 for right_value in &right.values {
                     if let Some(value) =
-                        apply_arithmetic(*operator, left_value, right.ty, right_value, *ty)
+                        apply_arithmetic(*operator, left.ty, left_value, right.ty, right_value, *ty)
                     {
                         values.push(value);
                     }
@@ -1553,11 +1581,29 @@ fn time_value(nanos: i128) -> Option<RuntimeValue<'static>> {
 
 fn apply_arithmetic(
     operator: ArithOp,
+    left_type: Type,
     left: &RuntimeValue<'_>,
     right_type: Type,
     right: &RuntimeValue<'_>,
     ty: Type,
 ) -> Option<RuntimeValue<'static>> {
+    if ty == Type::Double
+        && (left_type == Type::Time || right_type == Type::Time)
+        && (left_type == Type::Relative || right_type == Type::Relative)
+    {
+        // A relative time beside an absolute time: both become seconds, so
+        // the result is the numeric duration the comparison literals use.
+        let left = arithmetic_seconds(left, left_type)?;
+        let right = arithmetic_seconds(right, right_type)?;
+        let value = match operator {
+            ArithOp::Add => left + right,
+            ArithOp::Subtract => left - right,
+            ArithOp::Multiply | ArithOp::Divide | ArithOp::Modulo | ArithOp::BitwiseAnd => {
+                return None;
+            }
+        };
+        return value.is_finite().then_some(RuntimeValue::Double(value));
+    }
     if ty == Type::Double {
         let left = double_value(left)?;
         let right = double_value(right)?;
@@ -1610,6 +1656,22 @@ fn double_value(value: &RuntimeValue<'_>) -> Option<f64> {
         RuntimeValue::Double(value) => Some(*value),
         RuntimeValue::Int(value) => Some(*value as f64),
         RuntimeValue::Bool(value) => Some(f64::from(u8::from(*value))),
+        _ => None,
+    }
+}
+
+/// One operand of mixed absolute/relative arithmetic, in seconds.
+///
+/// Relative fields store nanoseconds, so their integer value is scaled; an
+/// absolute time carries whole seconds and a nanosecond fraction.
+fn arithmetic_seconds(value: &RuntimeValue<'_>, ty: Type) -> Option<f64> {
+    match value {
+        RuntimeValue::Time { seconds, nanos } => {
+            Some(*seconds as f64 + f64::from(*nanos) / 1_000_000_000.0)
+        }
+        RuntimeValue::Int(value) if ty == Type::Relative => Some(*value as f64 / 1_000_000_000.0),
+        RuntimeValue::Int(value) => Some(*value as f64),
+        RuntimeValue::Double(value) => Some(*value),
         _ => None,
     }
 }
@@ -4805,6 +4867,50 @@ mod tests {
             );
             assert_eq!(ty, Type::Uint(bits));
         }
+    }
+
+    #[test]
+    fn relative_and_absolute_times_combine_in_seconds() {
+        use crate::capture::Timestamp;
+        use crate::tree::Range;
+
+        let mut frame = Node::new(&fields::FRAME_PROTOCOL, Range::new(0, 0));
+        frame.add_field(
+            &fields::FRAME_TIME_RELATIVE,
+            Range::new(0, 0),
+            Value::RelativeTime(1_500_000_000),
+        );
+        frame.add_field(
+            &fields::FRAME_TIME_EPOCH,
+            Range::new(0, 0),
+            Value::AbsoluteTime(Timestamp {
+                seconds: 1_700_000_000,
+                nanos: 0,
+            }),
+        );
+        let tree = Tree::new(frame);
+        let matches =
+            |expression: &str| Filter::parse(expression).is_ok_and(|filter| filter.matches(&tree));
+
+        // 1.5 s relative plus 1,700,000,000 s epoch is a scalar in seconds,
+        // so a whole-second comparison literal applies directly.
+        assert!(matches(
+            "frame.time_relative + frame.time_epoch > 1700000001"
+        ));
+        assert!(matches("frame.time_relative - frame.time_epoch < 0"));
+        assert!(!matches(
+            "frame.time_relative + frame.time_epoch > 1700000002"
+        ));
+
+        // An absolute time cannot scale another value.
+        let Err(error) = Filter::parse("frame.time_relative * frame.time_epoch > 0") else {
+            unreachable!("multiplication by an absolute time must be rejected")
+        };
+        assert!(
+            error.message().contains("right-hand operand"),
+            "{}",
+            error.message()
+        );
     }
 
     #[test]

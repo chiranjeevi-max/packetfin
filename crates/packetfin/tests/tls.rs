@@ -1221,3 +1221,46 @@ fn export_option_requires_a_value() {
     assert_eq!(output.status.code(), Some(1), "stderr: {stderr}");
     assert!(stderr.contains("requires a value"), "stderr: {stderr}");
 }
+
+#[test]
+fn a_session_reset_keeps_the_key_log_and_key_export() {
+    let directory = temp_path("reset-tls");
+    let capture = fixture("tls10-strict.pcap");
+    let keylog = fixture("tls10-strict-keys.log");
+    let exported = directory.join("exported.log");
+    // The capture holds two handshakes; the second one starts after the
+    // reset, so it can only be decrypted and exported if the key log and the
+    // export flag survive the reset.
+    let args: Vec<OsString> = [
+        "-n",
+        "-r",
+        capture.to_string_lossy().as_ref(),
+        "-o",
+        &format!("tls.keylog_file:{}", keylog.display()),
+        "-M",
+        "8",
+        "--export-tls-session-keys",
+        exported.to_string_lossy().as_ref(),
+        "-T",
+        "fields",
+        "-e",
+        "http.request.uri",
+    ]
+    .into_iter()
+    .map(OsString::from)
+    .collect();
+    let output = run(&args, &[], None);
+    let (stdout, stderr) = text(&output);
+    assert!(output.status.success(), "stderr: {stderr}");
+    assert!(stdout.contains("/bad-padding"), "stdout: {stdout}");
+    assert!(stdout.contains("/version"), "stdout: {stdout}");
+    let keys = fs::read_to_string(&exported).expect("exported keys");
+    assert_eq!(
+        keys.lines()
+            .filter(|line| line.starts_with("CLIENT_RANDOM "))
+            .count(),
+        2,
+        "exported keys: {keys}"
+    );
+    let _ = fs::remove_dir_all(&directory);
+}

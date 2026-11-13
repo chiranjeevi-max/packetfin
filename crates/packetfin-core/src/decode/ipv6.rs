@@ -944,6 +944,7 @@ fn decode_fraghdr(
                 frame: context.frame.number,
                 file: context.frame.file_number,
                 more: word & 0x0001 != 0,
+                timestamp: context.frame.timestamp,
             },
         );
         match outcome {

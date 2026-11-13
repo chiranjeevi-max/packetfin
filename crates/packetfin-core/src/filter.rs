@@ -907,6 +907,20 @@ fn resolve_operand(operand: &mut Operand, expected: Option<Type>) -> Result<Type
             if inner_type == Type::Untyped {
                 return Ok(Type::Untyped);
             }
+            // A protocol slice would read the protocol's own frame bytes, and
+            // the evaluator keeps no byte source for a protocol node. Reject
+            // it here so the deviation is a parse error instead of a filter
+            // that silently matches nothing.
+            if inner_type == Type::Protocol {
+                return Err(FilterError::at_span(
+                    inner.start,
+                    inner.end,
+                    format!(
+                        "{} cannot be sliced into a sequence of bytes",
+                        inner_type.name()
+                    ),
+                ));
+            }
             if !inner_type.is_sequence() {
                 return Err(FilterError::at_span(
                     inner.start,
@@ -1035,21 +1049,25 @@ fn resolve_binary(
         *ty = Type::Untyped;
         return Ok(Type::Untyped);
     }
-    let time = target == Type::Time;
+    // A relative time is stored in nanoseconds like an absolute time, but a
+    // bare scalar beside `*` or `/` counts seconds rather than nanoseconds:
+    // the scalar scales the value, it is not itself a duration.
+    let time = matches!(target, Type::Time | Type::Relative);
     if time {
         if matches!(operator, ArithOp::Modulo | ArithOp::BitwiseAnd) {
             return Err(FilterError::at_span(
                 start,
                 end,
                 format!(
-                    "\"{}\" is not a valid arithmetic operator for a date and time",
-                    arith_symbol(operator)
+                    "\"{}\" is not a valid arithmetic operator for {}",
+                    arith_symbol(operator),
+                    target.name()
                 ),
             ));
         }
         let operand_type = match operator {
             ArithOp::Multiply | ArithOp::Divide => Type::Int(64),
-            _ => Type::Time,
+            _ => target,
         };
         if has_unconverted(left) {
             resolve_operand(left, Some(operand_type))?;

@@ -876,6 +876,11 @@ impl<'a> EkWriter<'a> {
             .captured
             .get(offset..offset.saturating_add(length))
             .unwrap_or(&[]);
+        // The layer's own raw bytes sit beside the decoded layer, as they do
+        // for every other protocol under `-x`.
+        if self.print_hex {
+            push_layer(layers, "data_raw".to_string(), Ek::string(hex_lower(bytes)));
+        }
         let flag = self.flag(state, "data");
         if flag == Flag::Filtered {
             push_layer(layers, "data".to_string(), Ek::filtered("data"));

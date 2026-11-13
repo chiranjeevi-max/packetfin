@@ -540,6 +540,71 @@ fn stdin_is_fifo() -> bool {
     false
 }
 
+/// `-M`: reset the decode session every N frames and restart display
+/// numbering.
+///
+/// The file loop and the live loop share this schedule, so the interval means
+/// the same thing for a capture file and for live traffic.  The capture writer
+/// is not reset: `-M` starts a new analysis session, not a new file.
+struct SessionReset {
+    interval: Option<u32>,
+    displayed: u64,
+}
+
+impl SessionReset {
+    fn new(interval: Option<u32>) -> Self {
+        Self {
+            interval,
+            displayed: 0,
+        }
+    }
+
+    /// Apply the reset due before the frame read `read`-th.
+    ///
+    /// Returns the number to display for the frame when `-M` is active, or
+    /// `None` when the frame keeps its own number.
+    fn advance<S: PacketSink>(
+        &mut self,
+        read: u64,
+        session: &mut DecodeSession,
+        sink: &mut S,
+    ) -> Option<u64> {
+        let interval = self.interval?;
+        if read > 1 && (read - 1).is_multiple_of(u64::from(interval)) {
+            // The notice goes to stderr, and neither -q nor -Q suppresses it,
+            // unlike the summary line.
+            let mut stderr = io::stderr().lock();
+            let _ = writeln!(stderr, "resetting session.");
+            session.reset_session();
+            sink.reset();
+            self.displayed = 0;
+        }
+        self.displayed = self.displayed.saturating_add(1);
+        Some(self.displayed)
+    }
+}
+
+/// Close a partial output document after a capture error.
+///
+/// `-T pdml`, `-T psml` and `-T ps` write an envelope around the packets, so a
+/// run that stops on a capture error must abort the sink (which finishes the
+/// envelope), render statistics and finish the capture writer, exactly as a
+/// normal run's tail does.  A statistics write failure wins over the capture
+/// error because the output stream is already broken.
+fn close_partial_output<S: PacketSink>(
+    sink: &mut S,
+    writer: &mut impl Write,
+    statistics: &mut StatsSet,
+    stats_options: &StatsOptions,
+    writer_session: &mut Option<WriterSession>,
+) -> Option<i32> {
+    sink.abort(writer);
+    let _ = writer.flush();
+    let status = render_statistics(statistics, stats_options, writer);
+    let _ = finish_writer(writer_session);
+    status
+}
+
 /// Run one pass over the frames, writing selected packets through `sink`.
 fn drive_frames<S: PacketSink>(
     options: &CaptureOptions<'_>,
@@ -583,8 +648,7 @@ fn drive_frames<S: PacketSink>(
     // filter; `-a packets` counts the packets that are selected instead.
     let mut read_packets = 0_u64;
     let mut selected_packets = 0_u64;
-    let reset_interval = options.write.reset_interval;
-    let mut displayed_number = 0_u64;
+    let mut reset = SessionReset::new(options.write.reset_interval);
     loop {
         if options
             .packet_count
@@ -598,13 +662,15 @@ fn drive_frames<S: PacketSink>(
             Err(error) => {
                 // Frames read before the error are already buffered; emit what
                 // can be written before reporting why the capture stopped.
-                sink.abort(&mut writer);
-                let _ = writer.flush();
-                if let Some(status) = render_statistics(&mut statistics, options.stats, &mut writer)
-                {
+                if let Some(status) = close_partial_output(
+                    &mut sink,
+                    &mut writer,
+                    &mut statistics,
+                    options.stats,
+                    &mut writer_session,
+                ) {
                     return status;
                 }
-                let _ = finish_writer(&mut writer_session);
                 diagnostic(&error.to_string());
                 return capture_exit_code(&error);
             }
@@ -628,21 +694,8 @@ fn drive_frames<S: PacketSink>(
 
         read_packets = read_packets.saturating_add(1);
         let file_number = frame.number;
-        if let Some(interval) = reset_interval
-            && read_packets > 1
-            && (read_packets - 1).is_multiple_of(u64::from(interval))
-        {
-            // The notice goes to stderr, and neither -q nor -Q suppresses
-            // it, unlike the summary line.
-            let mut stderr = io::stderr().lock();
-            let _ = writeln!(stderr, "resetting session.");
-            session.reset_session();
-            sink.reset();
-            displayed_number = 0;
-        }
-        if reset_interval.is_some() {
-            displayed_number = displayed_number.saturating_add(1);
-            frame.number = displayed_number;
+        if let Some(number) = reset.advance(read_packets, &mut session, &mut sink) {
+            frame.number = number;
         }
         let outcome = match output_frame(
             &frame,
@@ -808,13 +861,15 @@ fn second_pass<S: PacketSink>(
             Ok(Some(event)) => event,
             Ok(None) => break,
             Err(error) => {
-                sink.abort(&mut writer);
-                let _ = writer.flush();
-                if let Some(status) = render_statistics(&mut statistics, options.stats, &mut writer)
-                {
+                if let Some(status) = close_partial_output(
+                    &mut sink,
+                    &mut writer,
+                    &mut statistics,
+                    options.stats,
+                    &mut writer_session,
+                ) {
                     return status;
                 }
-                let _ = finish_writer(&mut writer_session);
                 diagnostic(&error.to_string());
                 return capture_exit_code(&error);
             }
@@ -1102,6 +1157,7 @@ fn drive_live<S: PacketSink>(
 
     let mut captured = 0_u64;
     let mut selected = 0_u64;
+    let mut reset = SessionReset::new(options.write.reset_interval);
     loop {
         if live.stop_requested()
             || options
@@ -1143,12 +1199,26 @@ fn drive_live<S: PacketSink>(
                 continue;
             }
             Err(error) => {
+                // A device can disappear mid-capture; close any partial
+                // document before reporting it, as the file loop does.
+                if let Some(status) = close_partial_output(
+                    &mut sink,
+                    &mut writer,
+                    &mut statistics,
+                    options.stats,
+                    &mut writer_session,
+                ) {
+                    return status;
+                }
                 diagnostic(&error.to_string());
-                let _ = finish_writer(&mut writer_session);
                 return 1;
             }
         };
         captured = captured.saturating_add(1);
+        let mut frame = frame;
+        if let Some(number) = reset.advance(captured, &mut session, &mut sink) {
+            frame.number = number;
+        }
         match output_frame(
             &frame,
             &mut session,
@@ -2012,4 +2082,64 @@ fn stdin_is_special() -> bool {
 #[cfg(not(unix))]
 fn stdin_is_special() -> bool {
     false
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A sink that records how often the driver restarted its state.
+    #[derive(Default)]
+    struct ResettingSink {
+        resets: usize,
+    }
+
+    impl PacketSink for ResettingSink {
+        fn reset(&mut self) {
+            self.resets = self.resets.saturating_add(1);
+        }
+
+        fn packet(
+            &mut self,
+            _writer: &mut impl Write,
+            _frame: &Frame,
+            _packet: &mut Packet,
+            _matched: bool,
+        ) -> io::Result<bool> {
+            Ok(false)
+        }
+    }
+
+    fn session() -> DecodeSession {
+        DecodeSession::with_pass(DecodeOptions::default(), 64 * 1024, PassMode::One)
+    }
+
+    #[test]
+    fn the_session_reset_applies_at_every_interval() {
+        let mut reset = SessionReset::new(Some(3));
+        let mut session = session();
+        let mut sink = ResettingSink::default();
+        let numbers: Vec<u64> = (1..=8)
+            .map(|read| {
+                reset
+                    .advance(read, &mut session, &mut sink)
+                    .unwrap_or_default()
+            })
+            .collect();
+        // The reset happens before the fourth and seventh frames read, so
+        // display numbering restarts at one each time.
+        assert_eq!(numbers, [1, 2, 3, 1, 2, 3, 1, 2]);
+        assert_eq!(sink.resets, 2);
+    }
+
+    #[test]
+    fn without_an_interval_the_frame_number_is_kept() {
+        let mut reset = SessionReset::new(None);
+        let mut session = session();
+        let mut sink = ResettingSink::default();
+        for read in 1..=5 {
+            assert_eq!(reset.advance(read, &mut session, &mut sink), None);
+        }
+        assert_eq!(sink.resets, 0);
+    }
 }

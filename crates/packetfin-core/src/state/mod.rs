@@ -634,10 +634,17 @@ impl DecodeSession {
     /// Clear every table and counter, starting a new analysis session.
     ///
     /// `-M` uses this every N frames. Budgets stay as configured; stream
-    /// counters restart at zero and no protocol state survives.
+    /// counters restart at zero and no protocol state survives. The TLS key
+    /// log and the key-export setting are session configuration rather than
+    /// per-frame state, so they carry over: dropping them would silently
+    /// stop decryption and key export after the first reset.
     pub fn reset_session(&mut self) {
-        self.state =
+        let mut replacement =
             SessionState::with_annotation_budget(self.state.limit(), self.state.annotation_limit());
+        replacement.keylog = self.state.keylog.take();
+        replacement.export_tls_keys = self.state.export_tls_keys;
+        replacement.exported_tls_keys = std::mem::take(&mut self.state.exported_tls_keys);
+        self.state = replacement;
     }
 
     /// Finish the recording pass: queries left waiting are unanswered.

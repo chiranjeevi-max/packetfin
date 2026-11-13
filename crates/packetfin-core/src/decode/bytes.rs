@@ -55,21 +55,6 @@ pub fn hex_lower(data: &[u8]) -> String {
 ///
 /// ASCII bytes map to their characters; every byte at or above 0x80 becomes
 /// one U+FFFD, including bytes that would form valid UTF-8.
-/// Decode an option string that ends at the first NUL octet.
-///
-/// Returns the text and whether octets follow the terminator. The reference
-/// stops at the first NUL and reports any later octet as stray, so the same
-/// rule is applied to every caller that decodes a terminated option string.
-pub(crate) fn nul_terminated_text(data: &[u8]) -> (String, bool) {
-    match data.iter().position(|byte| *byte == 0) {
-        Some(end) => (
-            ascii_lossy(data.get(..end).unwrap_or(&[])),
-            end.saturating_add(1) < data.len(),
-        ),
-        None => (ascii_lossy(data), false),
-    }
-}
-
 pub(crate) fn ascii_lossy(data: &[u8]) -> String {
     data.iter()
         .map(|byte| {

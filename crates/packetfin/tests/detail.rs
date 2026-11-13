@@ -456,3 +456,38 @@ fn two_pass_tls_partial_segments_are_plain_tcp() {
         "split TLS frame 1 must not claim TLS in two-pass"
     );
 }
+
+/// Every text a capture can drive is escaped before it reaches the terminal.
+#[test]
+fn capture_control_bytes_are_escaped_in_every_text_format() {
+    let Some(path) = fixture("lldp-controls") else {
+        eprintln!("no lldp-controls fixture");
+        std::process::exit(1);
+    };
+    // Each format spells the escape its own way, but none may pass the
+    // terminal control byte through.
+    for (args, escaped) in [
+        (vec!["-V"], "\\x1B[2J"),
+        (vec!["-T", "text"], "\\x1B[2J"),
+        (vec!["-T", "tabs"], "\\x1B[2J"),
+        (vec!["-x", "-V"], "\\x1B[2J"),
+        (vec!["-T", "json"], "\\u001b[2J"),
+        (vec!["-T", "psml"], "\\x1b[2J"),
+    ] {
+        let mut arguments = vec![OsString::from("-n")];
+        arguments.extend(args.iter().map(OsString::from));
+        arguments.push(OsString::from("-r"));
+        arguments.push(path.clone().into_os_string());
+        let run = run(&arguments);
+        assert_eq!(run.status.code(), Some(0), "{args:?}");
+        let stdout = String::from_utf8_lossy(&run.stdout);
+        assert!(
+            !stdout.contains('\u{1b}'),
+            "{args:?}: raw escape byte in {stdout}"
+        );
+        assert!(
+            stdout.contains(escaped),
+            "{args:?}: no escaped form {escaped:?} in {stdout}"
+        );
+    }
+}

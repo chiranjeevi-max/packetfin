@@ -672,3 +672,102 @@ fn stats_budget_caps_a_flow_flood() -> Result<(), String> {
     std::fs::remove_dir_all(&directory).map_err(|error| error.to_string())?;
     Ok(())
 }
+
+/// The first data cell of the single `io,stat` interval row.
+fn interval_value(table: &str, spec: &str) -> String {
+    let row = table
+        .lines()
+        .find(|line| line.contains("0.000 <> 0.000"))
+        .unwrap_or_default();
+    let cell = row.split('|').nth(2).unwrap_or_default().trim();
+    assert!(
+        !cell.is_empty(),
+        "{spec}: no interval value in table: {table}"
+    );
+    cell.to_string()
+}
+
+#[test]
+fn nested_protocol_and_field_taps_count_relayed_messages() {
+    let path = fixture_path_named("dhcpv6-relay");
+    let statistics = |spec: &str| -> String {
+        let run = run(&[
+            OsString::from("-n"),
+            OsString::from("-q"),
+            OsString::from("-r"),
+            path.clone().into_os_string(),
+            OsString::from("-z"),
+            OsString::from(spec),
+        ]);
+        assert_eq!(run.status.code(), Some(0), "{spec}: {}", text(&run.stderr));
+        text(&run.stdout)
+    };
+    // Each relay message carries a whole DHCPv6 message inside a field
+    // node, so a tap counts both protocol occurrences.
+    assert_eq!(
+        interval_value(&statistics("io,stat,0,COUNT(dhcpv6)dhcpv6"), "dhcpv6"),
+        "10"
+    );
+    // The message type appears on the outer and the inner message.
+    assert_eq!(
+        interval_value(
+            &statistics("io,stat,0,COUNT(dhcpv6.msgtype)dhcpv6.msgtype"),
+            "msgtype"
+        ),
+        "10"
+    );
+    // Only the inner message has a transaction ID.
+    assert_eq!(
+        interval_value(&statistics("io,stat,0,COUNT(dhcpv6.xid)dhcpv6.xid"), "xid"),
+        "5"
+    );
+    // The protocol hierarchy counts one layer per frame; the nested message
+    // shares its enclosing layer.
+    let hierarchy = statistics("io,phs");
+    let rows: Vec<&str> = hierarchy
+        .lines()
+        .filter(|line| line.contains("dhcpv6"))
+        .collect();
+    assert_eq!(rows.len(), 1, "{hierarchy}");
+    let Some(row) = rows.first() else {
+        eprintln!("no protocol hierarchy row for dhcpv6: {hierarchy}");
+        std::process::exit(1);
+    };
+    assert!(row.ends_with("frames:5 bytes:513"), "{hierarchy}");
+}
+
+#[test]
+fn a_capture_read_error_closes_a_partial_pdml_document() {
+    let path = fixture_path_named("stats-truncated-read");
+    let run = run(&[
+        OsString::from("-n"),
+        OsString::from("-q"),
+        OsString::from("-r"),
+        path.into_os_string(),
+        OsString::from("-T"),
+        OsString::from("pdml"),
+        OsString::from("-z"),
+        OsString::from("io,phs"),
+    ]);
+    assert_eq!(run.status.code(), Some(14), "{}", text(&run.stderr));
+    let stdout = text(&run.stdout);
+    let Some(close) = stdout.find("</pdml>") else {
+        eprintln!("the document is not closed: {stdout}");
+        std::process::exit(1);
+    };
+    let Some(statistics) = stdout.find("Protocol Hierarchy Statistics") else {
+        eprintln!("statistics did not render: {stdout}");
+        std::process::exit(1);
+    };
+    assert!(
+        close < statistics,
+        "statistics must follow the closed document: {stdout}"
+    );
+    let after = stdout
+        .get(close.saturating_add("</pdml>".len())..)
+        .unwrap_or_default();
+    assert!(
+        !after.contains("<packet>"),
+        "no packet may follow the closing tag: {stdout}"
+    );
+}

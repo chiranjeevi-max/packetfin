@@ -999,21 +999,41 @@ fn a_first_section_truncated_spb_becomes_an_enhanced_block() -> Result<(), Strin
 }
 
 #[test]
-fn a_later_section_untruncated_spb_stays_simple() -> Result<(), String> {
+fn a_later_section_untruncated_spb_keeps_its_interface() -> Result<(), String> {
     let mut file = pcapng::PcapNg::new(ByteOrder::Little);
     file.add_interface(pcapng::Interface::ethernet())?;
     file.add_section(ByteOrder::Little)?;
-    file.add_interface(pcapng::Interface::ethernet())?;
+    file.add_interface(pcapng::Interface {
+        link_type: 101,
+        ..pcapng::Interface::ethernet()
+    })?;
     file.add_simple_packet(pcapng::SimplePacket::new(vec![0xbb; 4]))?;
     let output = rewrite(&file.to_bytes()?, OutputFormat::PcapNg)?;
+    let links: Vec<u32> = events(&output)?
+        .into_iter()
+        .filter_map(|event| match event {
+            CaptureEvent::Interface(info) => Some(info.link_type),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(links, vec![1, 101]);
     let frame = frames(&output)?
         .into_iter()
         .next()
         .ok_or_else(|| "missing simple packet".to_string())?;
-    assert_eq!(frame.global_interface, 0);
-    assert_eq!(frame.interface_id, 0);
-    assert_eq!(frame.timestamp, None);
-    assert_eq!(frame.timestamp_units, None);
+    // The source simple packet belongs to the second section's interface, so
+    // the output must keep it there instead of reattributing it to interface
+    // 0 with the wrong link type.
+    assert_eq!(frame.global_interface, 1);
+    assert_eq!(frame.interface_id, 1);
+    assert_eq!(
+        frame.timestamp,
+        Some(Timestamp {
+            seconds: 0,
+            nanos: 0
+        })
+    );
+    assert_eq!(frame.timestamp_units, Some(0));
     assert_eq!(frame.captured, vec![0xbb; 4]);
     assert_eq!(frame.original_len, 4);
     Ok(())

@@ -21,6 +21,7 @@ use packetfin_core::names::service_name;
 use packetfin_core::tree::{Node, Severity, Value};
 
 use crate::color;
+use crate::detail::escape_capture_string;
 
 /// A `-t` time stamp format.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -185,6 +186,12 @@ impl SummaryWriter {
         }
 
         let columns = self.columns(frame, packet);
+        // Resolved names and protocol text can carry capture bytes; escape
+        // them here so the text and tab styles never write a raw control
+        // character.  The PSML writer escapes the raw columns in XML style.
+        let source = escape_capture_string(&columns.source);
+        let destination = escape_capture_string(&columns.destination);
+        let info = escape_capture_string(&columns.info);
         self.line.clear();
         match self.style {
             SummaryStyle::Text => {
@@ -193,11 +200,11 @@ impl SummaryWriter {
                     "{:>5} {:>10} {:>12} \u{2192} {:<12} {} {} {}",
                     columns.number,
                     columns.time,
-                    columns.source,
-                    columns.destination,
+                    source,
+                    destination,
                     columns.protocol,
                     columns.length,
-                    columns.info
+                    info
                 );
             }
             SummaryStyle::Tabs => {
@@ -206,11 +213,11 @@ impl SummaryWriter {
                     "{:>5}\t{:>10}\t{:>12}\t\u{2192}\t{:<12}\t{}\t{}\t{}",
                     columns.number,
                     columns.time,
-                    columns.source,
-                    columns.destination,
+                    source,
+                    destination,
                     columns.protocol,
                     columns.length,
-                    columns.info
+                    info
                 );
             }
         }
@@ -3020,6 +3027,8 @@ fn field_text_value(field: &packetfin_core::tree::Field) -> Option<String> {
                 .join("."),
         ),
         Value::Ipv6(_) => Some(field.value.formatted(field.def.display).to_string()),
+        // A string value can carry capture bytes into the summary line (an
+        // LLDP system name), so escape it as the detail view does.
         Value::String(value) => Some(value.clone()),
         Value::Uint8(value) => Some(value.to_string()),
         Value::Uint16(value) => Some(value.to_string()),

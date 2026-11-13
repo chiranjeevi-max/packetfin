@@ -11302,6 +11302,12 @@ static FIXTURES: &[Fixture] = &[
         case_specs: LLDP_8023_CASE_SPECS,
     },
     Fixture {
+        name: "lldp-controls",
+        extension: "pcap",
+        builder: build_lldp_controls,
+        case_specs: &[],
+    },
+    Fixture {
         name: "stp",
         extension: "pcap",
         builder: build_stp,
@@ -22634,6 +22640,19 @@ fn build_lldp() -> Result<Vec<u8>, String> {
             lldp_frame(&oid, false),
         ],
     )
+}
+
+/// An LLDP frame whose text TLVs carry terminal control bytes.
+///
+/// The port description and system name reach the detail and summary
+/// renderers through a showname, so output escaping is checked against this
+/// capture.
+fn build_lldp_controls() -> Result<Vec<u8>, String> {
+    let mut payload = lldp_mandatory();
+    payload.extend_from_slice(&lldp_tlv(4, b"eth0\x1b[2J"));
+    payload.extend_from_slice(&lldp_tlv(5, b"switch-a\x1b[2J"));
+    payload.extend_from_slice(&lldp_tlv(0, b""));
+    link_pcap(u32::from(LINKTYPE_ETHERNET), &[lldp_frame(&payload, false)])
 }
 
 fn build_lldp_malformed() -> Result<Vec<u8>, String> {

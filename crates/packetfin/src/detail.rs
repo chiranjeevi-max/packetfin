@@ -405,9 +405,12 @@ impl DetailWriter {
             body.push('[');
         }
         if let Some(showname) = field.showname_text() {
-            body.push_str(&showname);
+            // A showname can embed bytes the decoder copied out of the
+            // capture (an LLDP system name), so escape it before it reaches
+            // the terminal.
+            write_escaped(&mut body, &showname);
         } else if let Some(text) = special_showname(node, field, self.resolution) {
-            body.push_str(&text);
+            write_escaped(&mut body, &text);
         } else if let Value::Bytes(bytes) = &field.value {
             let mut prefix = String::with_capacity(field.def.name.len() + 8);
             if field.generated {
@@ -455,7 +458,7 @@ impl DetailWriter {
             body.push('[');
         }
         match &field.showname {
-            Some(showname) => body.push_str(showname),
+            Some(showname) => write_escaped(&mut body, showname),
             None if matches!(field.value, Value::None | Value::Missing) => {
                 body.push_str(field.def.name);
             }
@@ -643,6 +646,9 @@ impl DetailWriter {
         message: &str,
         depth: usize,
     ) {
+        // An expert message may quote capture bytes, so escape it like a
+        // showname.
+        let message = escape_capture_string(message);
         self.write_line(
             depth,
             &format!(
@@ -2078,7 +2084,7 @@ fn payload_nonempty(node: &Node, abbrev: &str) -> bool {
 /// The C0 controls with C escape names (`\a`, `\b`, `\t`, `\n`, `\v`, `\f`,
 /// `\r`) print those names; every other control byte becomes an uppercase
 /// `\xNN`. Backslashes and quotes stay unchanged.
-fn escape_capture_string(text: &str) -> String {
+pub(crate) fn escape_capture_string(text: &str) -> String {
     let mut escaped = String::with_capacity(text.len());
     write_escaped(&mut escaped, text);
     escaped

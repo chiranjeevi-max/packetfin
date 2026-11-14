@@ -154,13 +154,26 @@ impl AnnotationStore {
 
     /// Record that `response` answers `request`.
     ///
-    /// Every request of the transaction gets the link, including its
-    /// retransmissions.
+    /// Both records get the link: the request points forward at its
+    /// response and the response keeps the frame that asked, so the output
+    /// pass prints `request_in` even when no delay could be measured. The
+    /// delay itself is recorded only by [`Self::link_response`], and an
+    /// existing response link is kept: a retransmitted query must not
+    /// replace the request its response actually answered.
+    ///
+    /// Returns whether both records were reserved.
     pub fn link_response_in(&mut self, request: u64, response: u64) -> bool {
-        self.entry(request).is_some_and(|record| {
+        let request_link = self.entry(request).is_some_and(|record| {
             record.response_in = u32::try_from(response).unwrap_or(u32::MAX);
             true
-        })
+        });
+        let response_link = self.entry(response).is_some_and(|record| {
+            if record.request_in == 0 {
+                record.request_in = u32::try_from(request).unwrap_or(u32::MAX);
+            }
+            true
+        });
+        request_link && response_link
     }
 
     /// Record that a query was never answered.
@@ -914,6 +927,7 @@ pub fn expert_offending(field: &Field) -> &'static fields::FieldDef {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::tree::Tree;
 
     #[test]
     fn growth_stays_within_the_budget_and_reports_overflow_once() {
@@ -954,6 +968,95 @@ mod tests {
         assert_eq!(response.request_in, 1);
         assert!(response.time_present());
         assert_eq!(response.time_ns, 0);
+    }
+
+    /// Find the first field with `abbrev` inside a node or its containers.
+    fn field_named<'a>(node: &'a Node, abbrev: &str) -> Option<&'a Field> {
+        fn in_field<'a>(field: &'a Field, abbrev: &str) -> Option<&'a Field> {
+            if field.def.abbrev == abbrev {
+                return Some(field);
+            }
+            field
+                .children
+                .iter()
+                .find_map(|child| in_field(child, abbrev))
+        }
+
+        node.fields
+            .iter()
+            .find_map(|field| in_field(field, abbrev))
+            .or_else(|| {
+                node.children
+                    .iter()
+                    .find_map(|child| field_named(child, abbrev))
+            })
+    }
+
+    /// An HTTP/2 packet whose stream carries a response status.
+    fn http2_response_packet() -> Packet {
+        let mut frame = Node::new(&fields::FRAME_PROTOCOL, Range::new(0, 0));
+        let mut http2 = Node::new(&fields::HTTP2_PROTOCOL, Range::new(0, 0));
+        let stream = http2.add_container(&fields::HTTP2_STREAM, Range::new(0, 0), None);
+        stream.add_field(
+            &fields::HTTP2_HEADERS_STATUS,
+            Range::new(0, 0),
+            Value::String("200".to_string()),
+        );
+        frame.add_child(http2);
+        Packet {
+            tree: Tree::new(frame),
+            columns: crate::decode::Columns::default(),
+            protocol_stack: Vec::new(),
+            malformed: false,
+            network: None,
+            forced_data: false,
+            resolution: crate::NameResolution::default(),
+            data_sources: Vec::new(),
+            data_source_kinds: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn a_link_without_a_delay_still_renders_request_in() {
+        let mut store = AnnotationStore::with_budget(DEFAULT_ANNOTATION_BUDGET);
+        assert!(store.link_response_in(1, 2));
+        assert_eq!(store.get(1).copied().unwrap_or_default().response_in, 2);
+        let linked = store.get(2).copied().unwrap_or_default();
+        assert_eq!(linked.request_in, 1);
+        assert!(!linked.time_present());
+        assert_eq!(linked.time_ns, 0);
+
+        // A retransmitted query links forward as well, but the response
+        // keeps the request it was first matched to.
+        assert!(store.link_response_in(3, 2));
+        assert_eq!(store.get(2).copied().unwrap_or_default().request_in, 1);
+
+        // The output pass prints the link without a timing field.
+        let renumber = RenumberMap::new([1, 2, 3, 4]);
+        let mut packet = http2_response_packet();
+        apply_annotations(&mut packet, &linked, &renumber);
+        assert_eq!(
+            field_named(&packet.tree.frame, "http2.request_in").map(|field| &field.value),
+            Some(&Value::Uint32(1))
+        );
+        assert!(field_named(&packet.tree.frame, "http2.time").is_none());
+
+        // A measured delay keeps both the link and its time.
+        assert!(store.link_response(4, 3, 1_500_000_000));
+        let timed = store.get(4).copied().unwrap_or_default();
+        assert_eq!(timed.request_in, 3);
+        assert!(timed.time_present());
+        assert_eq!(timed.time_ns, 1_500_000_000);
+        let mut packet = http2_response_packet();
+        apply_annotations(&mut packet, &timed, &renumber);
+        assert_eq!(
+            field_named(&packet.tree.frame, "http2.request_in").map(|field| &field.value),
+            Some(&Value::Uint32(3))
+        );
+        assert_eq!(
+            field_named(&packet.tree.frame, "http2.time").map(|field| &field.value),
+            Some(&Value::RelativeTime(1_500_000_000))
+        );
     }
 
     #[test]

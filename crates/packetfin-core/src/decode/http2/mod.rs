@@ -19,7 +19,7 @@ mod hpack_tables;
 use crate::decode::DecodeContext;
 use crate::fields::{self, FieldDef};
 use crate::state::{
-    BlockFragment, BlockOrigin, BodyFragmentView, DataOutcome, Http2Data, Http2Key,
+    BlockFragment, BlockOrigin, BlockStart, BodyFragmentView, DataOutcome, Http2Data, Http2Key,
 };
 use crate::tree::{
     Bytes, ExpertInfo, Field, Group, Node, Range, RawField, RawSource, Severity, Value,
@@ -500,6 +500,17 @@ fn add_frame(
     {
         let stream = node.add_container(&fields::HTTP2_STREAM, range, None);
         add_header_fields(&mut *stream, frame, base);
+        // RFC 9113 section 6.10 makes a header block uninterruptible: any
+        // other frame on the connection ends it as a connection error. The
+        // state drops the buffered fragment and marks the dynamic table
+        // lost, because the interrupted block's mutations are unknown; the
+        // interrupting frame itself still decodes normally.
+        if !matches!(frame.kind, HEADERS | PUSH_PROMISE | CONTINUATION)
+            && let Some(key) = key
+            && context.state.http2_interrupt_pending(key)
+        {
+            block_protocol_expert(&mut *stream, "HTTP/2 frame interrupts an open header block");
+        }
         let mut blocked = false;
         // RFC 9113 section 4.2: a frame whose declared length exceeds the
         // SETTINGS_MAX_FRAME_SIZE the peer advertised for this direction is a
@@ -811,12 +822,24 @@ fn decode_headers(
     let mut offset = 0_usize;
     let pad = pad_length(frame, stream, payload_base, &mut offset);
     if frame.flags & FLAG_PRIORITY != 0 {
+        // RFC 9113 section 6.2: the Priority field is five octets after the
+        // Pad Length. A payload too short for it is a FRAME_SIZE_ERROR, and
+        // the remainder cannot be a header block.
+        let priority_end = offset.saturating_add(5);
+        if frame.payload.get(offset..priority_end).is_none() {
+            field_malformed(
+                context,
+                stream,
+                "HTTP/2 HEADERS priority fields are truncated; FRAME_SIZE_ERROR",
+            );
+            return;
+        }
         add_priority(
             stream,
             frame.payload.get(offset..),
             payload_base.saturating_add(offset),
         );
-        offset = offset.saturating_add(5);
+        offset = priority_end;
     }
     let (fragment, padding) = split_payload(frame.payload, offset, pad);
     let fragment_base = payload_base.saturating_add(offset);
@@ -845,8 +868,8 @@ fn decode_headers(
                 "HTTP/2 header block is interrupted by another frame",
             );
         }
-        if let Some(block) = result.block {
-            add_header_block(context, stream, &block, key, frame.stream_id, false, suffix);
+        if let (Some(block), Some(start)) = (result.block, result.start) {
+            add_header_block(context, stream, &block, start, key, frame.stream_id, suffix);
         }
     }
     if let Some(padding) = padding {
@@ -939,15 +962,13 @@ fn decode_push_promise(
                 "HTTP/2 header block is interrupted by another frame",
             );
         }
-        if let Some(block) = result.block {
-            let start = result.start;
-            let push = start.is_some_and(|start| start.push);
+        if let (Some(block), Some(start)) = (result.block, result.start) {
             let request =
-                add_header_block(context, stream, &block, key, frame.stream_id, push, suffix);
+                add_header_block(context, stream, &block, start, key, frame.stream_id, suffix);
             // The promise's own stream keeps its request URI; the expected
             // output prints it after the promised request URI.
             add_stream_uri(context, stream, frame.stream_id, Some(key), false);
-            if let (Some(start), Some(request)) = (start, request)
+            if let Some(request) = request
                 && start.push
                 && start.promised != 0
                 && !context.observe_only
@@ -1014,16 +1035,14 @@ fn decode_continuation(
         if result.unexpected {
             block_protocol_expert(stream, "CONTINUATION without an open header block");
         }
-        if let Some(block) = result.block {
-            let start = result.start;
-            let push = start.is_some_and(|start| start.push);
+        if let (Some(block), Some(start)) = (result.block, result.start) {
             let request =
-                add_header_block(context, stream, &block, key, frame.stream_id, push, suffix);
-            if push {
+                add_header_block(context, stream, &block, start, key, frame.stream_id, suffix);
+            if start.push {
                 // A completed PUSH_PROMISE block records the promised request
                 // against the frame that opened it, not this continuation.
                 add_stream_uri(context, stream, frame.stream_id, Some(key), false);
-                if let (Some(start), Some(request)) = (start, request)
+                if let Some(request) = request
                     && start.promised != 0
                     && !context.observe_only
                 {
@@ -1791,11 +1810,12 @@ fn add_header_block(
     context: &mut DecodeContext<'_>,
     stream: &mut Field,
     block: &hpack::Block,
+    start: BlockStart,
     key: Http2Key,
     stream_id: u32,
-    push: bool,
     suffix: &mut Suffix,
 ) -> Option<HeaderSummary> {
+    let push = start.push;
     let mut summary = HeaderSummary::default();
     stream.add_field(
         &fields::HTTP2_HEADER_LENGTH,
@@ -1865,6 +1885,13 @@ fn add_header_block(
                 "HTTP/2 table size update after a header field",
             );
         }
+        hpack::Stop::SizeUpdateRequired => {
+            field_malformed(
+                context,
+                stream,
+                "HTTP/2 header block did not begin with the required table size update",
+            );
+        }
         hpack::Stop::Desynchronized => {
             // The block is valid; earlier damage left the decoder's table
             // out of step, so reporting the packet malformed would blame the
@@ -1932,12 +1959,15 @@ fn add_header_block(
         suffix.text = format!(", {method} {path}");
         if !push && !context.observe_only {
             let uri = summary.uri.clone();
+            // RFC 9113 section 6.10 makes the block one unit: a request split
+            // across CONTINUATION frames belongs to the frame that opened it,
+            // not the one that completed it.
             context.state.http2_record_request(
                 conversation,
                 stream_id,
-                u32::try_from(context.frame.number).unwrap_or(u32::MAX),
-                u32::try_from(context.frame.file_number).unwrap_or(u32::MAX),
-                context.frame.timestamp,
+                start.frame,
+                start.file,
+                start.time,
                 uri,
             );
         }

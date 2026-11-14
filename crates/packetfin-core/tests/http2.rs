@@ -1100,3 +1100,157 @@ fn decrypted_http2_plaintext_is_framed_in_both_directions() {
         Some("GET")
     );
 }
+
+#[test]
+fn a_frame_between_header_fragments_interrupts_the_block() {
+    let client = ([192, 0, 2, 1], 40_000);
+    let server = ([192, 0, 2, 2], 80);
+    let mut session = DecodeSession::new(DecodeOptions::default());
+    let mut first = PREFACE.to_vec();
+    first.extend_from_slice(&h2_frame(4, 0, 0, &[]));
+    first.extend_from_slice(&h2_frame(1, 0, 1, &[0x82, 0x86]));
+    let _ = session.decode_at(&frame_between(1, 1, client, server, &first), 1);
+
+    // RFC 9113 section 6.10: PING is not a header-block frame, so it breaks
+    // the open block and the CONTINUATION that follows has nothing to join.
+    let mut second = h2_frame(6, 0, 0, &[0; 8]);
+    second.extend_from_slice(&h2_frame(9, 0x04, 1, &[0x84]));
+    let sequence = 1 + u32::try_from(first.len()).unwrap_or(0);
+    let packet = session.decode_at(&frame_between(2, sequence, client, server, &second), 2);
+
+    let mut nodes = Vec::new();
+    http2_nodes(&packet.tree.frame, &mut nodes);
+    let interrupting = nodes
+        .iter()
+        .find(|node| {
+            stream_container(node).is_some_and(|stream| {
+                stream.experts.iter().any(|expert| {
+                    expert.group == Group::Protocol
+                        && expert.message == "HTTP/2 frame interrupts an open header block"
+                })
+            })
+        })
+        .copied()
+        .unwrap_or_else(|| unreachable!("the PING frame reports the interruption"));
+    let stream = stream_container(interrupting)
+        .unwrap_or_else(|| unreachable!("the interrupting frame has a stream container"));
+    assert!(
+        stream
+            .showname
+            .as_deref()
+            .is_some_and(|name| name.starts_with("Stream: PING")),
+        "the interruption is reported on the interrupting frame"
+    );
+    assert_eq!(
+        nodes.iter().map(|node| header_count(node)).sum::<usize>(),
+        0,
+        "the interrupted block never decodes"
+    );
+}
+
+#[test]
+fn a_headers_priority_block_shorter_than_five_octets_is_malformed() {
+    let mut bytes = PREFACE.to_vec();
+    bytes.extend_from_slice(&h2_frame(1, 0x24, 1, &[]));
+    let packet = decode_frame(&frame(1, 1, &bytes));
+    assert!(packet.malformed, "a truncated priority field is an error");
+    let mut nodes = Vec::new();
+    http2_nodes(&packet.tree.frame, &mut nodes);
+    let node = nodes
+        .last()
+        .copied()
+        .unwrap_or_else(|| unreachable!("HEADERS node"));
+    let stream = stream_container(node)
+        .unwrap_or_else(|| unreachable!("the HEADERS frame has a stream container"));
+    assert!(stream.experts.iter().any(|expert| {
+        expert.group == Group::Malformed && expert.message.contains("FRAME_SIZE_ERROR")
+    }));
+    assert!(
+        !has_child(node, "http2.headers"),
+        "no header block fragment is submitted"
+    );
+    assert_eq!(header_count(node), 0);
+
+    // The fields are still decoded when the priority block is complete.
+    let mut valid = PREFACE.to_vec();
+    valid.extend_from_slice(&h2_frame(1, 0x24, 1, &[0, 0, 0, 1, 15, 0x82]));
+    let packet = decode_frame(&frame(1, 1, &valid));
+    assert!(!packet.malformed);
+    let mut nodes = Vec::new();
+    http2_nodes(&packet.tree.frame, &mut nodes);
+    let node = nodes
+        .last()
+        .copied()
+        .unwrap_or_else(|| unreachable!("HEADERS node"));
+    assert!(has_child(node, "http2.exclusive"));
+    assert!(has_child(node, "http2.stream_dependency"));
+    assert_eq!(header_count(node), 1, "the header block still decodes");
+}
+
+#[test]
+fn a_fragmented_request_links_the_response_to_the_opening_headers() {
+    let client = ([192, 0, 2, 1], 40_000);
+    let server = ([192, 0, 2, 2], 80);
+    let mut session = DecodeSession::new(DecodeOptions::default());
+    let mut first = PREFACE.to_vec();
+    first.extend_from_slice(&h2_frame(4, 0, 0, &[]));
+    first.extend_from_slice(&h2_frame(1, 0, 1, &[0x82, 0x86]));
+    let _ = session.decode_at(&frame_between(1, 1, client, server, &first), 1);
+
+    // RFC 7541 section 2.2 makes the block one unit: the request belongs to
+    // the HEADERS frame even though END_HEADERS arrived on the CONTINUATION.
+    let continuation = h2_frame(9, 0x04, 1, &[0x84]);
+    let sequence = 1 + u32::try_from(first.len()).unwrap_or(0);
+    let _ = session.decode_at(
+        &frame_between(2, sequence, client, server, &continuation),
+        2,
+    );
+
+    let response = h2_frame(1, 0x04, 1, &[0x88]);
+    let packet = session.decode_at(&frame_between(3, 1, server, client, &response), 3);
+    let stream = stream_with(&packet, "http2.request_in")
+        .unwrap_or_else(|| unreachable!("the response links to the request"));
+    assert_eq!(
+        child_value(stream, "http2.request_in").as_deref(),
+        Some("1"),
+        "the request belongs to the frame that opened the block"
+    );
+}
+
+#[test]
+fn an_acknowledged_table_reduction_requires_a_size_update() {
+    let client = ([192, 0, 2, 1], 40_000);
+    let server = ([192, 0, 2, 2], 80);
+    let mut session = DecodeSession::new(DecodeOptions::default());
+    let mut first = PREFACE.to_vec();
+    first.extend_from_slice(&h2_frame(4, 0, 0, &[]));
+    let _ = session.decode_at(&frame_between(1, 1, client, server, &first), 1);
+
+    // The server lowers SETTINGS_HEADER_TABLE_SIZE to zero.
+    let settings = h2_frame(4, 0, 0, &[0, 1, 0, 0, 0, 0]);
+    let packet = session.decode_at(&frame_between(2, 1, server, client, &settings), 2);
+    assert!(!packet.malformed, "a SETTINGS frame decodes normally");
+
+    // The client acknowledges the reduction, so its next block must begin
+    // with a dynamic table size update (RFC 9113 section 4.3.1).
+    let ack = h2_frame(4, 0x01, 0, &[]);
+    let sequence = 1 + u32::try_from(first.len()).unwrap_or(0);
+    let _ = session.decode_at(&frame_between(3, sequence, client, server, &ack), 3);
+
+    let headers = h2_frame(1, 0x05, 1, &[0x82, 0x86, 0x84]);
+    let sequence = sequence.saturating_add(u32::try_from(ack.len()).unwrap_or(0));
+    let packet = session.decode_at(&frame_between(4, sequence, client, server, &headers), 4);
+    assert!(packet.malformed, "the missing update rejects the block");
+    let mut nodes = Vec::new();
+    http2_nodes(&packet.tree.frame, &mut nodes);
+    let node = nodes
+        .last()
+        .copied()
+        .unwrap_or_else(|| unreachable!("HEADERS node"));
+    assert_eq!(header_count(node), 0, "no field is decoded");
+    let stream = stream_container(node)
+        .unwrap_or_else(|| unreachable!("the HEADERS frame has a stream container"));
+    assert!(stream.experts.iter().any(|expert| {
+        expert.group == Group::Malformed && expert.message.contains("required table size update")
+    }));
+}

@@ -261,7 +261,11 @@ fn a_continuation_on_another_stream_is_reported() {
         .copied()
         .unwrap_or_else(|| unreachable!("CONTINUATION node"));
     assert!(continuation.has_expert(Group::Protocol));
-    assert_eq!(header_count(continuation), 1);
+    assert_eq!(
+        header_count(continuation),
+        0,
+        "a fragment with no open block is not decoded"
+    );
 }
 
 #[test]
@@ -297,23 +301,179 @@ fn a_frame_with_a_mandatory_length_violation_is_malformed() {
 
 #[test]
 fn headers_on_stream_zero_gets_a_protocol_expert() {
-    for (kind, fragment) in [(1_u8, &[0x82][..]), (9_u8, &[0x82][..])] {
-        let mut bytes = PREFACE.to_vec();
-        bytes.extend_from_slice(&h2_frame(kind, 0x04, 0, fragment));
-        let packet = decode_frame(&frame(1, 1, &bytes));
-        assert!(
-            !packet.malformed,
-            "the frame keeps decoding, as the expected output does"
+    let mut bytes = PREFACE.to_vec();
+    bytes.extend_from_slice(&h2_frame(1, 0x04, 0, &[0x82]));
+    let packet = decode_frame(&frame(1, 1, &bytes));
+    assert!(
+        !packet.malformed,
+        "the frame keeps decoding, as the expected output does"
+    );
+    let mut nodes = Vec::new();
+    http2_nodes(&packet.tree.frame, &mut nodes);
+    let node = nodes
+        .last()
+        .copied()
+        .unwrap_or_else(|| unreachable!("frame node"));
+    assert_eq!(header_count(node), 1, "the header block still decodes");
+    assert_eq!(experts(node), 1, "one standards expert is reported");
+    assert!(node.has_expert(Group::Protocol));
+}
+
+#[test]
+fn a_continuation_on_stream_zero_keeps_the_orphan_diagnostic() {
+    let mut bytes = PREFACE.to_vec();
+    bytes.extend_from_slice(&h2_frame(9, 0x04, 0, &[0x82]));
+    let packet = decode_frame(&frame(1, 1, &bytes));
+    assert!(!packet.malformed, "a header-block violation is a warning");
+    let mut nodes = Vec::new();
+    http2_nodes(&packet.tree.frame, &mut nodes);
+    let node = nodes
+        .last()
+        .copied()
+        .unwrap_or_else(|| unreachable!("frame node"));
+    assert_eq!(
+        header_count(node),
+        0,
+        "a fragment with no open block is not decoded"
+    );
+    assert_eq!(
+        experts(node),
+        2,
+        "stream zero and the missing block each report once"
+    );
+    assert!(node.has_expert(Group::Protocol));
+}
+
+#[test]
+fn an_orphan_continuation_does_not_reach_the_table() {
+    let mut session = DecodeSession::new(DecodeOptions::default());
+    let mut first = PREFACE.to_vec();
+    first.extend_from_slice(&h2_frame(4, 0, 0, &[]));
+    first.extend_from_slice(&h2_frame(9, 0x04, 1, &[0x82]));
+    let packet = session.decode_at(&frame(1, 1, &first), 1);
+    let mut nodes = Vec::new();
+    http2_nodes(&packet.tree.frame, &mut nodes);
+    let continuation = nodes
+        .iter()
+        .find(|node| has_child(node, "http2.continuation.header"))
+        .copied()
+        .unwrap_or_else(|| unreachable!("CONTINUATION node"));
+    assert_eq!(
+        header_count(continuation),
+        0,
+        "the orphan fragment is not decoded"
+    );
+    assert!(continuation.has_expert(Group::Protocol));
+    // The missing block's mutations are unknown, so a later dynamic index
+    // reports the desynchronized table instead of resolving an entry.
+    let indexed = h2_frame(1, 0x04, 3, &[0xbe]);
+    let sequence = 1_u32.saturating_add(u32::try_from(first.len()).unwrap_or(0));
+    let packet = session.decode_at(&frame(2, sequence, &indexed), 2);
+    let mut later = Vec::new();
+    http2_nodes(&packet.tree.frame, &mut later);
+    let node = later
+        .last()
+        .copied()
+        .unwrap_or_else(|| unreachable!("frame node"));
+    assert_eq!(header_count(node), 0, "the dynamic index does not resolve");
+    assert!(node.has_expert(Group::Undecoded));
+}
+
+#[test]
+fn observe_only_frames_do_not_create_request_response_links() {
+    // A request decoded only to advance reassembly must not answer a later
+    // displayed response.
+    let mut session = DecodeSession::with_pass(
+        DecodeOptions::default(),
+        packetfin_core::DEFAULT_STATE_BUDGET,
+        packetfin_core::PassMode::First,
+    );
+    let mut first = PREFACE.to_vec();
+    first.extend_from_slice(&h2_frame(4, 0, 0, &[]));
+    first.extend_from_slice(&h2_frame(1, 0x04, 1, &[0x82, 0x86, 0x84]));
+    let _ = session.decode_observation(&frame(1, 1, &first), 1);
+    let response = h2_frame(1, 0x04, 1, &[0x88]);
+    let sequence = 1_u32.saturating_add(u32::try_from(first.len()).unwrap_or(0));
+    let packet = session.decode_at(&frame(2, sequence, &response), 2);
+    assert!(
+        stream_with(&packet, "http2.request_in").is_none(),
+        "an observed request leaves the response unlinked"
+    );
+    assert!(
+        session
+            .annotations()
+            .get(1)
+            .is_none_or(|annotation| annotation.response_in == 0),
+        "the observed request records no response"
+    );
+
+    // A response decoded only to advance reassembly must not link back to a
+    // displayed request either.
+    let mut session = DecodeSession::with_pass(
+        DecodeOptions::default(),
+        packetfin_core::DEFAULT_STATE_BUDGET,
+        packetfin_core::PassMode::First,
+    );
+    let mut first = PREFACE.to_vec();
+    first.extend_from_slice(&h2_frame(4, 0, 0, &[]));
+    first.extend_from_slice(&h2_frame(1, 0x04, 1, &[0x82, 0x86, 0x84]));
+    let _ = session.decode_at(&frame(1, 1, &first), 1);
+    let response = h2_frame(1, 0x04, 1, &[0x88]);
+    let sequence = 1_u32.saturating_add(u32::try_from(first.len()).unwrap_or(0));
+    let observed = session.decode_observation(&frame(2, sequence, &response), 2);
+    assert!(
+        stream_with(&observed, "http2.request_in").is_none(),
+        "the observed response reports no request link"
+    );
+    assert!(
+        session
+            .annotations()
+            .get(1)
+            .is_none_or(|annotation| annotation.response_in == 0),
+        "the displayed request records no response"
+    );
+    assert!(
+        session
+            .annotations()
+            .get(2)
+            .is_none_or(|annotation| annotation.request_in == 0),
+        "the observed response records no request"
+    );
+
+    // Both PUSH_PROMISE completion paths: END_HEADERS on the PUSH_PROMISE
+    // itself and END_HEADERS on a CONTINUATION.
+    for fragmented in [false, true] {
+        let mut session = DecodeSession::with_pass(
+            DecodeOptions::default(),
+            packetfin_core::DEFAULT_STATE_BUDGET,
+            packetfin_core::PassMode::First,
         );
-        let mut nodes = Vec::new();
-        http2_nodes(&packet.tree.frame, &mut nodes);
-        let node = nodes
-            .last()
-            .copied()
-            .unwrap_or_else(|| unreachable!("frame node"));
-        assert_eq!(header_count(node), 1, "the header block still decodes");
-        assert_eq!(experts(node), 1, "one standards expert is reported");
-        assert!(node.has_expert(Group::Protocol));
+        let mut preface = PREFACE.to_vec();
+        preface.extend_from_slice(&h2_frame(4, 0, 0, &[]));
+        let mut sequence = 1_u32;
+        let _ = session.decode_observation(&frame(1, sequence, &preface), 1);
+        sequence = sequence.saturating_add(u32::try_from(preface.len()).unwrap_or(0));
+        let mut promise = 2_u32.to_be_bytes().to_vec();
+        if fragmented {
+            promise.extend_from_slice(&[0x82]);
+        } else {
+            promise.extend_from_slice(&[0x82, 0x86, 0x84]);
+        }
+        let flags = if fragmented { 0 } else { 0x04 };
+        let push = h2_frame(5, flags, 1, &promise);
+        let _ = session.decode_observation(&frame(2, sequence, &push), 2);
+        sequence = sequence.saturating_add(u32::try_from(push.len()).unwrap_or(0));
+        if fragmented {
+            let continuation = h2_frame(9, 0x04, 1, &[0x86, 0x84]);
+            let _ = session.decode_observation(&frame(3, sequence, &continuation), 3);
+            sequence = sequence.saturating_add(u32::try_from(continuation.len()).unwrap_or(0));
+        }
+        let response = h2_frame(1, 0x04, 2, &[0x88]);
+        let packet = session.decode_at(&frame(4, sequence, &response), 4);
+        assert!(
+            stream_with(&packet, "http2.request_in").is_none(),
+            "an observed PUSH_PROMISE ({fragmented}) records no promise"
+        );
     }
 }
 

@@ -46,6 +46,14 @@ pub(crate) const MAX_MAX_FRAME_SIZE: u32 = 0x00ff_ffff;
 /// millions of containers; the bound matches the stream and fragment caps.
 const MAX_FRAME_RECORDS: usize = 256;
 
+/// Frames one payload may add to the tree.
+///
+/// The stream framer emits one frame per PDU and bounds its per-insert
+/// actions to the same value, but a forced, decrypted or quoted payload can
+/// reach this loop whole. One node per frame would then grow without bound,
+/// so the loop stops at the bound and reports the frames it did not decode.
+pub(crate) const MAX_FRAMES_PER_PAYLOAD: usize = 384;
+
 /// DATA frame type.
 const DATA: u8 = 0;
 /// HEADERS frame type.
@@ -174,6 +182,7 @@ pub(crate) fn decode(context: &mut DecodeContext<'_>, parent: &mut Node, data: &
     let mut offset = 0_usize;
     let mut info = String::new();
     let mut decoded = false;
+    let mut frames = 0_usize;
     if let Some(rest) = data.strip_prefix(PREFACE) {
         add_magic(parent, base);
         if let Some(key) = key {
@@ -185,6 +194,24 @@ pub(crate) fn decode(context: &mut DecodeContext<'_>, parent: &mut Node, data: &
         let _ = rest;
     }
     while offset < data.len() {
+        if frames >= MAX_FRAMES_PER_PAYLOAD {
+            // Every frame is a node, so a payload handed over whole must not
+            // turn an uncapped frame list into unbounded tree growth. The
+            // skipped frames are not decoded, so their HPACK mutations are
+            // unknown (RFC 7541 section 2.2).
+            parent.add_expert(ExpertInfo {
+                severity: Severity::Warning,
+                group: Group::Undecoded,
+                message: format!(
+                    "HTTP/2 payload exceeds {MAX_FRAMES_PER_PAYLOAD} frames; \
+                     the remaining frames were not decoded"
+                ),
+            });
+            if let Some(key) = key {
+                context.state.http2_mark_table_lost(key);
+            }
+            break;
+        }
         let remaining = data.get(offset..).unwrap_or_default();
         let Some(frame) = Frame::parse(remaining) else {
             // A frame header cut short: keep the frames already decoded and
@@ -195,6 +222,7 @@ pub(crate) fn decode(context: &mut DecodeContext<'_>, parent: &mut Node, data: &
         let complete = frame.payload.len() == usize::try_from(frame.length).unwrap_or(usize::MAX);
         let payload = frame.payload;
         let summary = add_frame(context, parent, &frame, frame_base, key);
+        frames = frames.saturating_add(1);
         if !summary.is_empty() {
             if !info.is_empty() {
                 info.push_str(", ");
@@ -232,6 +260,19 @@ fn field_malformed(context: &mut DecodeContext<'_>, field: &mut Field, message: 
     field.add_expert(ExpertInfo {
         severity: Severity::Error,
         group: Group::Malformed,
+        message: message.to_string(),
+    });
+}
+
+/// Report a header-block sequencing error where the fragment was found.
+///
+/// RFC 9113 section 6.10 makes a header block uninterruptible: a frame that
+/// breaks the sequence is a connection error, and the fragment it carried is
+/// not decoded into the directional table.
+fn block_protocol_expert(stream: &mut Field, message: &'static str) {
+    stream.add_expert(ExpertInfo {
+        severity: Severity::Warning,
+        group: Group::Protocol,
         message: message.to_string(),
     });
 }
@@ -795,11 +836,10 @@ fn decode_headers(
             );
         }
         if result.unexpected {
-            stream.add_expert(ExpertInfo {
-                severity: Severity::Warning,
-                group: Group::Protocol,
-                message: "CONTINUATION for a different stream".to_string(),
-            });
+            block_protocol_expert(
+                stream,
+                "HTTP/2 header block is interrupted by another frame",
+            );
         }
         if let Some(block) = result.block {
             add_header_block(context, stream, &block, key, frame.stream_id, false, suffix);
@@ -889,6 +929,12 @@ fn decode_push_promise(
                 "HTTP/2 header block exceeds the 1 MiB bound",
             );
         }
+        if result.unexpected {
+            block_protocol_expert(
+                stream,
+                "HTTP/2 header block is interrupted by another frame",
+            );
+        }
         if let Some(block) = result.block {
             let start = result.start;
             let push = start.is_some_and(|start| start.push);
@@ -900,6 +946,7 @@ fn decode_push_promise(
             if let (Some(start), Some(request)) = (start, request)
                 && start.push
                 && start.promised != 0
+                && !context.observe_only
             {
                 context.state.http2_record_request(
                     key.conversation,
@@ -961,11 +1008,7 @@ fn decode_continuation(
             );
         }
         if result.unexpected {
-            stream.add_expert(ExpertInfo {
-                severity: Severity::Warning,
-                group: Group::Protocol,
-                message: "CONTINUATION without an open header block".to_string(),
-            });
+            block_protocol_expert(stream, "CONTINUATION without an open header block");
         }
         if let Some(block) = result.block {
             let start = result.start;
@@ -978,6 +1021,7 @@ fn decode_continuation(
                 add_stream_uri(context, stream, frame.stream_id, Some(key), false);
                 if let (Some(start), Some(request)) = (start, request)
                     && start.promised != 0
+                    && !context.observe_only
                 {
                     context.state.http2_record_request(
                         key.conversation,
@@ -1832,44 +1876,49 @@ fn add_header_block(
     }
     let conversation = key.conversation;
     if let Some(status) = summary.status {
-        let info = context.state.http2_record_response(
-            conversation,
-            stream_id,
-            u32::try_from(context.frame.number).unwrap_or(u32::MAX),
-        );
-        if let Some(info) = info {
-            let delay = match (info.time, context.frame.timestamp) {
-                (Some(request), Some(response)) => {
-                    Some(crate::state::elapsed_nanos(request, response))
+        // A frame decoded only to advance reassembly must not create
+        // request/response links: the output pass reports those solely for
+        // displayed frames.
+        if !context.observe_only {
+            let info = context.state.http2_record_response(
+                conversation,
+                stream_id,
+                u32::try_from(context.frame.number).unwrap_or(u32::MAX),
+            );
+            if let Some(info) = info {
+                let delay = match (info.time, context.frame.timestamp) {
+                    (Some(request), Some(response)) => {
+                        Some(crate::state::elapsed_nanos(request, response))
+                    }
+                    _ => None,
+                };
+                if context.pass == crate::state::PassMode::First {
+                    let annotations = context.state.annotations_mut();
+                    if let Some(delay) = delay {
+                        annotations.link_response(
+                            context.frame.file_number,
+                            u64::from(info.file),
+                            delay,
+                        );
+                    }
+                    annotations.link_response_in(u64::from(info.file), context.frame.file_number);
                 }
-                _ => None,
-            };
-            if context.pass == crate::state::PassMode::First {
-                let annotations = context.state.annotations_mut();
-                if let Some(delay) = delay {
-                    annotations.link_response(
-                        context.frame.file_number,
-                        u64::from(info.file),
-                        delay,
-                    );
-                }
-                annotations.link_response_in(u64::from(info.file), context.frame.file_number);
-            }
-            if context.pass != crate::state::PassMode::Second {
-                let index = uri_index(stream);
-                stream.insert_field(
-                    index,
-                    &fields::HTTP2_REQUEST_IN,
-                    Range::new(0, 0),
-                    Value::Uint32(info.frame),
-                );
-                if let Some(delay) = delay {
+                if context.pass != crate::state::PassMode::Second {
+                    let index = uri_index(stream);
                     stream.insert_field(
                         index,
-                        &fields::HTTP2_TIME,
+                        &fields::HTTP2_REQUEST_IN,
                         Range::new(0, 0),
-                        Value::RelativeTime(delay),
+                        Value::Uint32(info.frame),
                     );
+                    if let Some(delay) = delay {
+                        stream.insert_field(
+                            index,
+                            &fields::HTTP2_TIME,
+                            Range::new(0, 0),
+                            Value::RelativeTime(delay),
+                        );
+                    }
                 }
             }
         }
@@ -1877,7 +1926,7 @@ fn add_header_block(
         suffix.text = format!(", {status} {reason}");
     } else if let (Some(method), Some(path)) = (&summary.method, &summary.path) {
         suffix.text = format!(", {method} {path}");
-        if !push {
+        if !push && !context.observe_only {
             let uri = summary.uri.clone();
             context.state.http2_record_request(
                 conversation,
@@ -1949,6 +1998,11 @@ fn add_stream_uri(
     key: Option<Http2Key>,
     push: bool,
 ) {
+    if context.observe_only {
+        // The URI is a cross-frame reference to a request recorded by another
+        // frame, so a state-only decode must not add it.
+        return;
+    }
     let Some(key) = key else {
         return;
     };
@@ -2331,6 +2385,133 @@ mod tests {
             sequences.1 = next;
         }
         packet
+    }
+
+    /// Decode one payload handed over whole and keep the resulting state.
+    ///
+    /// The stream framer normally cuts an HTTP/2 payload into one frame per
+    /// call; a forced, decrypted or quoted path can hand over the whole
+    /// payload, which is what this helper exercises.
+    fn decode_payload(data: &[u8]) -> (Node, crate::state::SessionState) {
+        let mut state = crate::state::SessionState::new(crate::state::DEFAULT_STATE_BUDGET);
+        let options = crate::decode::DecodeOptions::default();
+        let mut names = crate::names::NameResolver::new(options.preferences.nameres, Vec::new());
+        let mut columns = crate::decode::Columns::default();
+        let mut stack = Vec::new();
+        let mut malformed = false;
+        let mut network = Some(crate::decode::NetworkContext::Ipv4 {
+            source: [192, 0, 2, 1],
+            destination: [192, 0, 2, 2],
+            protocol: 6,
+            fragmented: false,
+        });
+        let mut transport = Some(crate::decode::TransportContext {
+            source_port: 40_000,
+            destination_port: 80,
+            protocol: 6,
+        });
+        let mut forced_data = false;
+        let mut observer = crate::state::NoopObserver;
+        let mut data_sources = Vec::new();
+        let mut data_source_kinds = Vec::new();
+        let mut parent = Node::new(&fields::HTTP2_PROTOCOL, Range::new(0, data.len()));
+        {
+            let mut context = DecodeContext {
+                frame: crate::state::FrameInfo {
+                    number: 1,
+                    file_number: 1,
+                    timestamp: None,
+                    time_relative: None,
+                    time_delta: None,
+                },
+                state: &mut state,
+                names: &mut names,
+                columns: &mut columns,
+                protocol_stack: &mut stack,
+                malformed: &mut malformed,
+                options: &options,
+                network: &mut network,
+                transport: &mut transport,
+                forced_data: &mut forced_data,
+                depth: 0,
+                tls_plaintext: false,
+                tls_record_source: None,
+                pdu_bytes: None,
+                observe_only: false,
+                pass: crate::state::PassMode::One,
+                udp_ports: None,
+                quoted: false,
+                transport_ports: Some((40_000, 80)),
+                tcp_stream: None,
+                tcp_sequence: None,
+                reported_length: data.len(),
+                frame_reported_length: data.len(),
+                objects: None,
+                observer: &mut observer,
+                http_last_uri: None,
+                http_pdu_offset: 0,
+                http_continuation: false,
+                http_fin: false,
+                data_sources: &mut data_sources,
+                data_source_kinds: &mut data_source_kinds,
+            };
+            decode(&mut context, &mut parent, data, 0);
+        }
+        (parent, state)
+    }
+
+    #[test]
+    fn a_payload_above_the_frame_bound_stops_and_reports_once() {
+        let mut data = PREFACE.to_vec();
+        for _ in 0..MAX_FRAMES_PER_PAYLOAD.saturating_add(16) {
+            data.extend_from_slice(&frame_pdu(0x20, 0, 0, &[]));
+        }
+        let (parent, mut state) = decode_payload(&data);
+        assert_eq!(
+            parent.children.len(),
+            MAX_FRAMES_PER_PAYLOAD.saturating_add(1),
+            "the preface node and the capped frames are all that is added"
+        );
+        assert_eq!(parent.experts.len(), 1, "one expert reports the cap");
+        let expert = parent
+            .experts
+            .first()
+            .unwrap_or_else(|| unreachable!("the cap expert"));
+        assert_eq!(expert.group, Group::Undecoded);
+        assert!(
+            expert.message.contains(&MAX_FRAMES_PER_PAYLOAD.to_string()),
+            "the message names the limit: {}",
+            expert.message
+        );
+        assert!(
+            parent.children.iter().all(|child| child.experts.is_empty()),
+            "the frames themselves are decoded without an expert"
+        );
+        // The skipped frames may have carried table mutations, so the
+        // direction's next dynamic reference cannot resolve.
+        let (conversation, _) =
+            crate::state::ConversationKey::ipv4([192, 0, 2, 1], 40_000, [192, 0, 2, 2], 80);
+        let key = Http2Key {
+            conversation,
+            direction: 0,
+        };
+        let indexed = state.http2_fragment(
+            key,
+            1,
+            BlockFragment::Headers,
+            BlockOrigin {
+                frame: 2,
+                file: 2,
+                time: None,
+            },
+            &[0xbe],
+            true,
+        );
+        assert_eq!(
+            indexed.block.map(|block| block.stop),
+            Some(hpack::Stop::Desynchronized),
+            "the skipped frames mark the table lost"
+        );
     }
 
     #[test]

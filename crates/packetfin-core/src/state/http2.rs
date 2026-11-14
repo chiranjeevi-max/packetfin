@@ -286,6 +286,12 @@ pub(crate) struct Http2Direction {
     /// Whether the newest SETTINGS frame was dropped instead of queued.
     last_settings_discarded: bool,
     pending: Option<PendingBlock>,
+    /// Stream whose header block exceeded [`MAX_BLOCK_BYTES`], if any.
+    ///
+    /// The block's fragments stay suppressed until its END_HEADERS arrives;
+    /// decoding any of them would fabricate table mutations or clear a lost
+    /// table. Mutually exclusive with [`Self::pending`].
+    discarding: Option<u32>,
     windows: Windows,
 }
 
@@ -299,6 +305,7 @@ impl Default for Http2Direction {
             discarded_settings: 0,
             last_settings_discarded: false,
             pending: None,
+            discarding: None,
             windows: Windows::default(),
         }
     }
@@ -607,11 +614,15 @@ impl SessionState {
     /// Buffer one header-block fragment and decode the block at END_HEADERS.
     ///
     /// A block that never reaches END_HEADERS is dropped with the direction's
-    /// state. A CONTINUATION on a stream with no open block is decoded on its
-    /// own, which is what the expected output does and what keeps a stray
-    /// fragment visible. A CONTINUATION inherits the open block's kind and
-    /// promised stream identifier, so a fragmented PUSH_PROMISE stays a
-    /// PUSH_PROMISE through its last frame (RFC 9113 section 6.10).
+    /// state. A CONTINUATION on a stream with no open block (or whose open
+    /// block belongs to another stream) is a connection error: the fragment
+    /// keeps its raw fields but is not decoded, because decoding it would
+    /// invent table mutations the peer never applied. A block that exceeded
+    /// [`MAX_BLOCK_BYTES`] sets [`Http2Direction::discarding`], and its
+    /// fragments stay suppressed until its own END_HEADERS arrives. A
+    /// CONTINUATION inherits the open block's kind and promised stream
+    /// identifier, so a fragmented PUSH_PROMISE stays a PUSH_PROMISE through
+    /// its last frame (RFC 9113 section 6.10).
     pub(crate) fn http2_fragment(
         &mut self,
         key: Http2Key,
@@ -627,24 +638,48 @@ impl SessionState {
             .unwrap_or_default();
         let mut unexpected = false;
         let mut overflow = false;
+        // A block already exceeded the bound, so none of its fragments may
+        // reach the decoder. Only its own END_HEADERS continuation closes the
+        // discarded block; any other frame is a connection error and must
+        // leave the marker, and the lost table, in place (RFC 7541 2.2).
+        if let Some(discarding) = direction.discarding {
+            match fragment_kind {
+                BlockFragment::Continuation if stream_id == discarding => {
+                    if end_headers {
+                        direction.discarding = None;
+                    }
+                }
+                _ => unexpected = true,
+            }
+            self.http2.put_with(&mut self.budget, key, direction);
+            return FragmentResult {
+                block: None,
+                unexpected,
+                overflow,
+                start: None,
+            };
+        }
         match fragment_kind {
             // RFC 9113 section 6.10 requires CONTINUATION on the same stream;
-            // an interleaved block is a connection error. The reference keeps
-            // decoding, so the abandoned block is dropped and the fragment is
-            // treated as a block of its own.
+            // a fragment without a matching open block is a connection error.
+            // Without a start and a table context the fragment cannot be
+            // decoded, and marking the table lost records that the missing
+            // block's mutations are unknown (RFC 7541 section 2.2).
             BlockFragment::Continuation => {
-                let same_stream = direction
+                let open = direction
                     .pending
                     .as_ref()
                     .is_some_and(|pending| pending.stream_id == stream_id);
-                if direction.pending.is_some() && !same_stream {
+                if !open {
                     direction.pending = None;
-                    // The abandoned block's table mutations never reached
-                    // the decoder, so the replacement block must not resolve
-                    // a dynamic index against the stale table (RFC 7541
-                    // section 2.2 makes header blocks stateful).
                     direction.table.mark_lost();
-                    unexpected = true;
+                    self.http2.put_with(&mut self.budget, key, direction);
+                    return FragmentResult {
+                        block: None,
+                        unexpected: true,
+                        overflow: false,
+                        start: None,
+                    };
                 }
             }
             // A new block cannot start before the open one ends.
@@ -687,35 +722,53 @@ impl SessionState {
         let mut block = None;
         let mut start = None;
         if end_headers {
+            // Check the bound before extending the buffer, so a fragment that
+            // would overflow the block never allocates the oversized copy.
             let bytes = match direction.pending.take() {
-                Some(pending) => {
-                    let mut bytes = pending.bytes;
-                    bytes.extend_from_slice(fragment);
-                    bytes
-                }
-                None => fragment.to_vec(),
+                Some(pending) => match pending.bytes.len().checked_add(fragment.len()) {
+                    Some(total) if total <= MAX_BLOCK_BYTES => {
+                        let mut bytes = pending.bytes;
+                        bytes.extend_from_slice(fragment);
+                        Some(bytes)
+                    }
+                    _ => None,
+                },
+                None => (fragment.len() <= MAX_BLOCK_BYTES).then(|| fragment.to_vec()),
             };
-            if bytes.len() > MAX_BLOCK_BYTES {
-                overflow = true;
-            } else {
-                block = Some(crate::decode::http2::hpack::decode_block(
-                    &bytes,
-                    &mut direction.table,
-                    direction.peer_table_limit,
-                ));
-                start = Some(started);
+            match bytes {
+                Some(bytes) => {
+                    block = Some(crate::decode::http2::hpack::decode_block(
+                        &bytes,
+                        &mut direction.table,
+                        direction.peer_table_limit,
+                    ));
+                    start = Some(started);
+                }
+                None => overflow = true,
             }
         } else {
-            let pending = direction.pending.get_or_insert_with(|| PendingBlock {
-                stream_id,
-                start: started,
-                bytes: Vec::new(),
-            });
-            if pending.bytes.len().saturating_add(fragment.len()) > MAX_BLOCK_BYTES {
+            let exceeds = fragment.len() > MAX_BLOCK_BYTES
+                || direction.pending.as_ref().is_some_and(|pending| {
+                    pending
+                        .bytes
+                        .len()
+                        .checked_add(fragment.len())
+                        .is_none_or(|total| total > MAX_BLOCK_BYTES)
+                });
+            if exceeds {
+                // The rest of the block is discarded with the same stream's
+                // END_HEADERS; its mutations never reach the decoder.
                 direction.pending = None;
+                direction.discarding = Some(stream_id);
                 overflow = true;
-            } else {
+            } else if let Some(pending) = direction.pending.as_mut() {
                 pending.bytes.extend_from_slice(fragment);
+            } else {
+                direction.pending = Some(PendingBlock {
+                    stream_id,
+                    start: started,
+                    bytes: fragment.to_vec(),
+                });
             }
         }
         if overflow {
@@ -1383,6 +1436,141 @@ mod tests {
             Some(Stop::Desynchronized),
             "the replacement must not resolve a stale entry"
         );
+    }
+
+    #[test]
+    fn an_orphan_continuation_is_not_decoded_into_the_table() {
+        let mut state = SessionState::new(64 * 1024 * 1024);
+        let (client, _) = keys();
+        // [0x82] is a static-indexed :method GET, so decoding it alone would
+        // fabricate a header field for a block that never started.
+        let orphan = state.http2_fragment(
+            client,
+            1,
+            BlockFragment::Continuation,
+            origin(1),
+            &[0x82],
+            true,
+        );
+        assert!(orphan.unexpected, "the fragment has no open block");
+        assert!(orphan.block.is_none(), "the fragment is not decoded");
+        // A block open on another stream is equally unusable: the fragment
+        // belongs to a block that never reached this decoder.
+        let open =
+            state.http2_fragment(client, 1, BlockFragment::Headers, origin(2), &[0x82], false);
+        assert!(!open.unexpected);
+        let wrong_stream = state.http2_fragment(
+            client,
+            3,
+            BlockFragment::Continuation,
+            origin(3),
+            &[0x86],
+            true,
+        );
+        assert!(wrong_stream.unexpected);
+        assert!(wrong_stream.block.is_none());
+        // The missing blocks' mutations are unknown, so a later dynamic index
+        // reports the lost table instead of resolving a stale entry.
+        let indexed =
+            state.http2_fragment(client, 5, BlockFragment::Headers, origin(4), &[0xbe], true);
+        assert_eq!(
+            indexed.block.map(|block| block.stop),
+            Some(Stop::Desynchronized)
+        );
+    }
+
+    #[test]
+    fn a_discarded_block_waits_for_its_own_end_headers() {
+        let mut state = SessionState::new(64 * 1024 * 1024);
+        let (client, _) = keys();
+        // The block starts mid-literal and is filled past the 1 MiB bound one
+        // frame-sized fragment at a time.
+        let mut fragment = vec![0x40, 0x01, b'a', 0x7f];
+        fragment.resize(64 * 1024, 0x41);
+        let first = state.http2_fragment(
+            client,
+            1,
+            BlockFragment::Headers,
+            origin(1),
+            &fragment,
+            false,
+        );
+        assert!(first.block.is_none());
+        let mut overflowed = false;
+        for index in 0..(MAX_BLOCK_BYTES / fragment.len()).saturating_add(1) {
+            let frame = u32::try_from(index).unwrap_or(0).saturating_add(2);
+            let result = state.http2_fragment(
+                client,
+                1,
+                BlockFragment::Continuation,
+                origin(frame),
+                &fragment,
+                false,
+            );
+            if result.overflow {
+                overflowed = true;
+                assert!(!result.unexpected, "the block's own fragment continues it");
+                break;
+            }
+        }
+        assert!(overflowed, "the block exceeds the bound");
+        // A size update to zero followed by an insertion would clear the lost
+        // table and fabricate an entry if it reached the decoder.
+        let suppressed = state.http2_fragment(
+            client,
+            1,
+            BlockFragment::Continuation,
+            origin(30),
+            &[0x20, 0x40, 0x01, b'b', 0x01, b'2'],
+            false,
+        );
+        assert!(!suppressed.unexpected);
+        assert!(suppressed.block.is_none());
+        // A wrong-stream END_HEADERS is a connection error; it must not
+        // release the marker or decode its fragment.
+        let wrong_stream = state.http2_fragment(
+            client,
+            3,
+            BlockFragment::Continuation,
+            origin(31),
+            &[0x82],
+            true,
+        );
+        assert!(wrong_stream.unexpected);
+        assert!(wrong_stream.block.is_none());
+        // An interleaved HEADERS stays suppressed too.
+        let interleaved =
+            state.http2_fragment(client, 5, BlockFragment::Headers, origin(32), &[0x82], true);
+        assert!(interleaved.unexpected);
+        assert!(interleaved.block.is_none());
+        // The marker survived the wrong-stream END_HEADERS and the interleaved
+        // HEADERS: another frame is still rejected rather than decoded.
+        let repeated =
+            state.http2_fragment(client, 5, BlockFragment::Headers, origin(33), &[0x82], true);
+        assert!(repeated.unexpected);
+        assert!(repeated.block.is_none());
+        // Only the discarded block's own END_HEADERS releases the marker.
+        let closing = state.http2_fragment(
+            client,
+            1,
+            BlockFragment::Continuation,
+            origin(34),
+            &[],
+            true,
+        );
+        assert!(!closing.unexpected);
+        assert!(closing.block.is_none());
+        // A dynamic index still reports the table lost: neither the size
+        // update nor the insertion above reached it.
+        let indexed =
+            state.http2_fragment(client, 7, BlockFragment::Headers, origin(35), &[0xbe], true);
+        assert_eq!(
+            indexed.block.map(|block| block.stop),
+            Some(Stop::Desynchronized)
+        );
+        let next =
+            state.http2_fragment(client, 9, BlockFragment::Headers, origin(36), &[0x82], true);
+        assert_eq!(next.block.map(|block| block.stop), Some(Stop::Complete));
     }
 
     #[test]

@@ -35,6 +35,19 @@ use crate::state::{ConversationKey, SessionState};
 /// request/response linkage for a stream that has been idle the longest.
 pub(crate) const MAX_STREAMS: usize = 256;
 
+/// Evicted stream identifiers whose unfinished bodies stay marked lost.
+///
+/// One marker is recorded per eviction of a stream with an incomplete body in
+/// at least one direction, so a later DATA frame for that identifier cannot
+/// present a suffix as the whole body. The cap bounds the queue; past it
+/// [`Http2Streams::lost_overflow`] makes every new stream's bodies dropped
+/// instead, which is conservative but never silently forgets a marker.
+const MAX_LOST_STREAMS: usize = 64;
+
+/// Both body directions of one stream, as [`Http2Stream::unfinished_mask`]
+/// spells them.
+const BODY_DIRECTIONS_MASK: u8 = 0b11;
+
 /// DATA bytes reassembled for one stream body.
 ///
 /// The reference keeps a whole body to print it on the completing frame; the
@@ -401,6 +414,20 @@ impl Body {
         *self = Self::default();
     }
 
+    /// Fail this direction's body without retaining any of it.
+    ///
+    /// Used when an earlier part of the body is unreachable: the fragments
+    /// that would arrive later are a suffix, so the completing frame must
+    /// report the loss instead of assembling a truncated-looking body.
+    fn mark_lost(&mut self) {
+        self.dropped = true;
+        self.truncated = false;
+        self.total = 0;
+        self.fragment_count = 0;
+        self.bytes.clear();
+        self.fragments.clear();
+    }
+
     fn state_bytes(&self) -> usize {
         self.bytes.capacity().saturating_add(
             self.fragments
@@ -426,6 +453,37 @@ pub(crate) struct Http2Stream {
 }
 
 impl Http2Stream {
+    /// Directions whose body was unfinished when this stream was evicted.
+    ///
+    /// A body with no octets and no fragments carries nothing a later frame
+    /// could mistake for a whole body, so it needs no marker. A completed
+    /// body already reports its stream as finished.
+    fn unfinished_mask(&self) -> u8 {
+        let mut mask = 0_u8;
+        for (index, body) in self.bodies.iter().enumerate() {
+            if body.complete || (body.total == 0 && body.fragments.is_empty()) {
+                continue;
+            }
+            let Some(bit) = 1_u8.checked_shl(u32::try_from(index).unwrap_or(u32::MAX)) else {
+                continue;
+            };
+            mask |= bit;
+        }
+        mask
+    }
+
+    /// Fail the directions whose earlier body octets are unreachable.
+    fn mark_lost_bodies(&mut self, mask: u8) {
+        for (index, body) in self.bodies.iter_mut().enumerate() {
+            let lost = 1_u8
+                .checked_shl(u32::try_from(index).unwrap_or(u32::MAX))
+                .is_some_and(|bit| mask & bit != 0);
+            if lost {
+                body.mark_lost();
+            }
+        }
+    }
+
     fn state_bytes(&self) -> usize {
         self.request_uri
             .as_ref()
@@ -439,6 +497,18 @@ impl Http2Stream {
 pub(crate) struct Http2Streams {
     streams: Vec<Http2Stream>,
     clock: u64,
+    /// Stream identifiers evicted with an unfinished body, and the mask of
+    /// directions that were unfinished. A later DATA frame for one of these
+    /// identifiers must not present a suffix as the whole body.
+    lost_streams: VecDeque<(u32, u8)>,
+    /// More streams were lost than [`MAX_LOST_STREAMS`] can name.
+    ///
+    /// Forgetting the oldest marker would let its stream complete from a
+    /// suffix, so the whole conversation turns conservative instead: every
+    /// newly created stream starts with both bodies dropped. Only a reset of
+    /// this value (the conversation's state is released) clears it. The flag
+    /// is stored inline, so it adds no allocation to charge.
+    lost_overflow: bool,
 }
 
 impl StateValue for Http2Streams {
@@ -452,6 +522,12 @@ impl StateValue for Http2Streams {
                     .map(Http2Stream::state_bytes)
                     .sum::<usize>(),
             )
+            .saturating_add(
+                self.lost_streams
+                    .capacity()
+                    .saturating_mul(size_of::<(u32, u8)>()),
+            )
+            .saturating_add(size_of::<bool>())
     }
 }
 
@@ -482,7 +558,8 @@ impl Http2Streams {
                 .min_by_key(|(_, stream)| stream.touch)
                 .map(|(index, _)| index)
         {
-            self.streams.swap_remove(index);
+            let lost = self.streams.swap_remove(index);
+            self.record_lost(lost.id, lost.unfinished_mask());
             evicted = true;
         }
         let position = self
@@ -496,12 +573,62 @@ impl Http2Streams {
             }
             return (None, evicted);
         }
+        // A recreated stream inherits the loss its evicted predecessor left
+        // behind; without the marker its next DATA frame would present a
+        // suffix as a whole body.
+        let lost = if self.lost_overflow {
+            BODY_DIRECTIONS_MASK
+        } else {
+            self.take_lost(stream_id)
+        };
         self.streams.push(Http2Stream {
             id: stream_id,
             touch: clock,
             ..Http2Stream::default()
         });
+        if let Some(stream) = self.streams.last_mut() {
+            stream.mark_lost_bodies(lost);
+        }
         (self.streams.last_mut(), evicted)
+    }
+
+    /// Remember that an evicted stream's body octets are unreachable.
+    fn record_lost(&mut self, stream_id: u32, mask: u8) {
+        if mask == 0 || self.lost_overflow {
+            return;
+        }
+        if let Some((_, existing)) = self
+            .lost_streams
+            .iter_mut()
+            .find(|(id, _)| *id == stream_id)
+        {
+            *existing |= mask;
+            return;
+        }
+        if self.lost_streams.len() >= MAX_LOST_STREAMS {
+            // Naming another stream would mean forgetting an older marker,
+            // and that stream could then complete from a suffix. Fail every
+            // new stream instead.
+            self.lost_streams.clear();
+            self.lost_streams.shrink_to_fit();
+            self.lost_overflow = true;
+            return;
+        }
+        self.lost_streams.push_back((stream_id, mask));
+    }
+
+    /// Remove and return the lost mask recorded for `stream_id`.
+    fn take_lost(&mut self, stream_id: u32) -> u8 {
+        let Some(position) = self
+            .lost_streams
+            .iter()
+            .position(|(id, _)| *id == stream_id)
+        else {
+            return 0;
+        };
+        self.lost_streams
+            .remove(position)
+            .map_or(0, |(_, mask)| mask)
     }
 }
 
@@ -823,6 +950,29 @@ impl SessionState {
         self.http2.put_with(&mut self.budget, key, direction);
     }
 
+    /// Abandon a direction's open header block after its frames were lost.
+    ///
+    /// A skipped or unreadable frame inside a block means the block's table
+    /// mutations never reached this decoder, so the buffered block is dropped
+    /// and the table marked lost (RFC 7541 section 2.2). Returns whether a
+    /// block was open; a direction with neither an open block nor a
+    /// discarding marker is returned unchanged.
+    pub(crate) fn http2_interrupt_pending(&mut self, key: Http2Key) -> bool {
+        let mut direction = self
+            .http2
+            .take_with(&mut self.budget, &key)
+            .unwrap_or_default();
+        if direction.pending.is_none() && direction.discarding.is_none() {
+            self.http2.put_with(&mut self.budget, key, direction);
+            return false;
+        }
+        direction.pending = None;
+        direction.discarding = None;
+        direction.table.mark_lost();
+        self.http2.put_with(&mut self.budget, key, direction);
+        true
+    }
+
     /// Fail every body in one direction after frames were skipped.
     ///
     /// RFC 9113 section 6.1 makes DATA byte order part of the stream body;
@@ -845,12 +995,7 @@ impl SessionState {
             let Some(body) = stream.bodies.get_mut(usize::from(key.direction & 1)) else {
                 continue;
             };
-            body.dropped = true;
-            body.truncated = false;
-            body.total = 0;
-            body.fragment_count = 0;
-            body.bytes.clear();
-            body.fragments.clear();
+            body.mark_lost();
         }
         self.http2_streams
             .put_with(&mut self.budget, key.conversation, streams);
@@ -891,9 +1036,17 @@ impl SessionState {
             .take_with(&mut self.budget, &key)
             .unwrap_or_default();
         if let Some(value) = acknowledged.header_table_size {
-            direction.peer_table_limit = usize::try_from(value)
+            let limit = usize::try_from(value)
                 .unwrap_or(MAX_TABLE_SIZE)
                 .min(MAX_TABLE_SIZE);
+            if limit < direction.peer_table_limit {
+                // RFC 9113 section 4.3.1: the encoder has already evicted to
+                // the smaller limit, so its next header block must begin with
+                // a dynamic table size update before any field may resolve a
+                // dynamic index.
+                direction.table.require_size_update();
+            }
+            direction.peer_table_limit = limit;
         }
         if let Some(value) = acknowledged.max_frame_size
             && (DEFAULT_MAX_FRAME_SIZE..=MAX_MAX_FRAME_SIZE).contains(&value)
@@ -1703,6 +1856,124 @@ mod tests {
     }
 
     #[test]
+    fn a_reduced_header_table_size_requires_a_size_update() {
+        let mut state = SessionState::new(64 * 1024 * 1024);
+        let (client, server) = keys();
+        // One dynamic entry at index 62, so an indexed field would resolve.
+        let inserted = state.http2_fragment(
+            client,
+            1,
+            BlockFragment::Headers,
+            origin(1),
+            &[0x40, 0x01, b'a', 0x01, b'1'],
+            true,
+        );
+        assert_eq!(
+            inserted.block.as_ref().map(|block| block.stop),
+            Some(Stop::Complete)
+        );
+        // The server lowers the limit and the client acknowledges it.
+        state.http2_settings_frame(server);
+        state.http2_settings(server, 1, 0);
+        state.http2_settings_ack(client);
+        // RFC 9113 section 4.3.1: the block must begin with the size update,
+        // so the indexed field is rejected without being decoded.
+        let indexed =
+            state.http2_fragment(client, 3, BlockFragment::Headers, origin(2), &[0xbe], true);
+        let block = indexed
+            .block
+            .as_ref()
+            .unwrap_or_else(|| unreachable!("END_HEADERS decoded the block"));
+        assert_eq!(block.stop, Stop::SizeUpdateRequired);
+        assert!(block.items.is_empty());
+        assert_eq!(block.header_count, 0);
+        // The update to zero satisfies the requirement; the static field
+        // after it decodes.
+        let update = state.http2_fragment(
+            client,
+            5,
+            BlockFragment::Headers,
+            origin(3),
+            &[0x20, 0x82],
+            true,
+        );
+        let block = update
+            .block
+            .as_ref()
+            .unwrap_or_else(|| unreachable!("END_HEADERS decoded the block"));
+        assert_eq!(block.stop, Stop::Complete);
+        assert_eq!(block.header_count, 2);
+    }
+
+    #[test]
+    fn an_equal_or_increased_header_table_size_needs_no_update() {
+        let mut state = SessionState::new(64 * 1024 * 1024);
+        let (client, server) = keys();
+        // Equal limit: nothing was evicted, so a plain block decodes.
+        state.http2_settings_frame(server);
+        state.http2_settings(server, 1, 4096);
+        state.http2_settings_ack(client);
+        let equal =
+            state.http2_fragment(client, 1, BlockFragment::Headers, origin(1), &[0x82], true);
+        assert_eq!(
+            equal.block.map(|block| block.stop),
+            Some(Stop::Complete),
+            "an unchanged limit requires no update"
+        );
+        // Increase: the higher limit becomes usable, but no entry was evicted
+        // on either side, so a plain block still decodes.
+        state.http2_settings_frame(server);
+        state.http2_settings(server, 1, 8192);
+        state.http2_settings_ack(client);
+        let increased =
+            state.http2_fragment(client, 3, BlockFragment::Headers, origin(2), &[0x82], true);
+        assert_eq!(
+            increased.block.map(|block| block.stop),
+            Some(Stop::Complete)
+        );
+        // The raise itself is announced by an update at a block start.
+        let update = state.http2_fragment(
+            client,
+            5,
+            BlockFragment::Headers,
+            origin(3),
+            &[0x3f, 0xe1, 0x3f, 0x82],
+            true,
+        );
+        assert_eq!(update.block.map(|block| block.stop), Some(Stop::Complete));
+    }
+
+    #[test]
+    fn a_normal_block_still_resolves_a_dynamic_index() {
+        let mut state = SessionState::new(64 * 1024 * 1024);
+        let (client, _) = keys();
+        let inserted = state.http2_fragment(
+            client,
+            1,
+            BlockFragment::Headers,
+            origin(1),
+            &[0x40, 0x01, b'a', 0x01, b'1'],
+            true,
+        );
+        assert_eq!(
+            inserted.block.as_ref().map(|block| block.stop),
+            Some(Stop::Complete)
+        );
+        let indexed =
+            state.http2_fragment(client, 3, BlockFragment::Headers, origin(2), &[0xbe], true);
+        let block = indexed
+            .block
+            .as_ref()
+            .unwrap_or_else(|| unreachable!("END_HEADERS decoded the block"));
+        assert_eq!(block.stop, Stop::Complete);
+        let header = block
+            .headers()
+            .next()
+            .unwrap_or_else(|| unreachable!("one header"));
+        assert_eq!((header.name.as_str(), header.value.as_str()), ("a", "1"));
+    }
+
+    #[test]
     fn abandoned_bodies_do_not_resume_after_skipped_frames() {
         let mut state = SessionState::new(64 * 1024 * 1024);
         let (client, _) = keys();
@@ -1791,5 +2062,136 @@ mod tests {
             DEFAULT_MAX_FRAME_SIZE,
             "the overflow value is never applied"
         );
+    }
+
+    #[test]
+    fn an_evicted_unfinished_body_cannot_complete_from_a_suffix() {
+        let mut state = SessionState::new(64 * 1024 * 1024);
+        let (client, _) = keys();
+        let start = state.http2_data(client, data_input(b"A", 1, false, 1));
+        assert_eq!(start.total, 1);
+        assert!(!start.dropped);
+        // One stream per slot fills the table; the last creation evicts
+        // stream 1, the least recently used.
+        for index in 0..MAX_STREAMS {
+            let stream_id = u32::try_from(index).unwrap_or(0).saturating_add(2);
+            let frame = u64::try_from(index).unwrap_or(0).saturating_add(2);
+            let _ = state.http2_data(
+                client,
+                Http2Data {
+                    stream_id,
+                    data: b"x",
+                    flow_length: 1,
+                    end_stream: false,
+                    frame,
+                    file: frame,
+                },
+            );
+        }
+        // Stream 1 returns with only the tail of its body.
+        let suffix = state.http2_data(
+            client,
+            Http2Data {
+                stream_id: 1,
+                data: b"B",
+                flow_length: 1,
+                end_stream: true,
+                frame: 1000,
+                file: 1000,
+            },
+        );
+        assert!(suffix.evicted, "the recreated stream evicts another one");
+        assert!(suffix.dropped, "the missing prefix fails the body");
+        assert_eq!(suffix.total, 0);
+        assert_eq!(suffix.fragment_count, 0);
+        assert!(suffix.data.is_none());
+    }
+
+    #[test]
+    fn a_full_lost_marker_queue_fails_new_streams_conservatively() {
+        let mut state = SessionState::new(64 * 1024 * 1024);
+        let (client, _) = keys();
+        // Fill the table, then evict more unfinished streams than the marker
+        // queue can name.
+        let creations = MAX_STREAMS
+            .saturating_add(MAX_LOST_STREAMS)
+            .saturating_add(1);
+        for index in 0..creations {
+            let stream_id = u32::try_from(index).unwrap_or(0).saturating_add(1);
+            let frame = u64::try_from(index).unwrap_or(0).saturating_add(1);
+            let _ = state.http2_data(
+                client,
+                Http2Data {
+                    stream_id,
+                    data: b"x",
+                    flow_length: 1,
+                    end_stream: false,
+                    frame,
+                    file: frame,
+                },
+            );
+        }
+        // The queue overflowed, so even a stream that was never evicted
+        // starts failed rather than risk completing from a suffix.
+        let fresh = state.http2_data(
+            client,
+            Http2Data {
+                stream_id: 1_000_000,
+                data: b"z",
+                flow_length: 1,
+                end_stream: true,
+                frame: 10_000,
+                file: 10_000,
+            },
+        );
+        assert!(fresh.dropped);
+        assert_eq!(fresh.total, 0);
+        assert!(fresh.data.is_none());
+    }
+
+    #[test]
+    fn interrupting_an_open_block_marks_the_table_lost() {
+        let mut state = SessionState::new(64 * 1024 * 1024);
+        let (client, _) = keys();
+        // Nothing is open: the direction is left unchanged.
+        assert!(!state.http2_interrupt_pending(client));
+        // A block whose END_HEADERS never arrived buffered a table insert.
+        let open = state.http2_fragment(
+            client,
+            1,
+            BlockFragment::Headers,
+            origin(1),
+            &[0x40, 0x01, b'a', 0x01, b'1'],
+            false,
+        );
+        assert!(open.block.is_none());
+        assert!(state.http2_interrupt_pending(client));
+        assert!(
+            !state.http2_interrupt_pending(client),
+            "the interrupt is one-shot"
+        );
+        // The buffered insert never reached the table, so a dynamic index
+        // reports the loss instead of resolving a stale entry.
+        let indexed =
+            state.http2_fragment(client, 3, BlockFragment::Headers, origin(2), &[0xbe], true);
+        assert_eq!(
+            indexed.block.map(|block| block.stop),
+            Some(Stop::Desynchronized)
+        );
+        // A block that overflowed is no longer waiting for its END_HEADERS.
+        let oversized = vec![0_u8; MAX_BLOCK_BYTES.saturating_add(1)];
+        let overflow = state.http2_fragment(
+            client,
+            5,
+            BlockFragment::Headers,
+            origin(3),
+            &oversized,
+            false,
+        );
+        assert!(overflow.overflow);
+        assert!(state.http2_interrupt_pending(client));
+        let continuation =
+            state.http2_fragment(client, 5, BlockFragment::Continuation, origin(4), &[], true);
+        assert!(continuation.unexpected, "the discarding marker was cleared");
     }
 }

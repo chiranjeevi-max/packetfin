@@ -81,6 +81,13 @@ pub(crate) struct DynamicTable {
     capacity: usize,
     /// A dropped block left this table out of step with the peer's encoder.
     lost: bool,
+    /// The peer reduced the table limit and still owes a size update.
+    ///
+    /// RFC 9113 section 4.3.1: after a SETTINGS_HEADER_TABLE_SIZE reduction
+    /// is acknowledged, the encoder must begin its next header block with a
+    /// dynamic table size update no larger than the new limit, because it
+    /// evicted entries the decoder has not seen evicted yet.
+    limit_reduced: bool,
 }
 
 impl Default for DynamicTable {
@@ -97,6 +104,7 @@ impl DynamicTable {
             size: 0,
             capacity: DEFAULT_TABLE_SIZE,
             lost: false,
+            limit_reduced: false,
         }
     }
 
@@ -122,6 +130,27 @@ impl DynamicTable {
     /// Whether an earlier dropped block left this table unsynchronized.
     pub(crate) fn is_lost(&self) -> bool {
         self.lost
+    }
+
+    /// Require the next header block to start with a dynamic table size
+    /// update.
+    ///
+    /// RFC 9113 section 4.3.1: once the peer's SETTINGS_HEADER_TABLE_SIZE
+    /// reduction is acknowledged, its encoder has already evicted entries to
+    /// the smaller limit, so a block that resolves a dynamic index before
+    /// announcing the new size would use entries the peer no longer holds.
+    pub(crate) fn require_size_update(&mut self) {
+        self.limit_reduced = true;
+    }
+
+    /// Whether the next header block must begin with a size update.
+    pub(crate) fn size_update_required(&self) -> bool {
+        self.limit_reduced
+    }
+
+    /// Accept the size update that satisfies [`Self::require_size_update`].
+    fn clear_size_update_required(&mut self) {
+        self.limit_reduced = false;
     }
 
     /// Insert one entry, evicting from the oldest end until it fits.
@@ -257,6 +286,9 @@ pub(crate) enum Stop {
     LinesExceeded,
     /// A table size update appeared after a header field (RFC 7541 4.2).
     SizeUpdateAfterHeader,
+    /// The peer reduced the dynamic table limit, and this block did not begin
+    /// with the required size update (RFC 9113 section 4.3.1).
+    SizeUpdateRequired,
     /// A representation was invalid: an index, integer or Huffman code.
     Invalid,
     /// An earlier block lost table mutations; a dynamic reference cannot be
@@ -297,12 +329,19 @@ impl Block {
 /// table is updated as representations complete, so a later block that
 /// references an entry inserted here decodes correctly. A list bound stops
 /// adding items to [`Block::items`] but the loop still applies every later
-/// table insertion and size update.
+/// table insertion and size update. When the table requires a size update
+/// (RFC 9113 section 4.3.1), a block that does not begin with one stops with
+/// [`Stop::SizeUpdateRequired`] before any representation is decoded.
 pub(crate) fn decode_block(data: &[u8], table: &mut DynamicTable, table_limit: usize) -> Block {
     let block = decode_block_inner(data, table, table_limit);
-    if matches!(block.stop, Stop::Invalid | Stop::SizeUpdateAfterHeader) {
+    if matches!(
+        block.stop,
+        Stop::Invalid | Stop::SizeUpdateAfterHeader | Stop::SizeUpdateRequired
+    ) {
         // The block stopped before applying every mutation the peer applied,
-        // so later blocks cannot trust a dynamic index.
+        // so later blocks cannot trust a dynamic index. A block rejected for
+        // a missing size update is equally unusable: the peer evicted to its
+        // new limit, and this decoder has not seen the update that says so.
         table.mark_lost();
     }
     block
@@ -326,6 +365,16 @@ fn decode_block_inner(data: &[u8], table: &mut DynamicTable, table_limit: usize)
         let Some(&first) = data.get(position) else {
             break;
         };
+        // RFC 7541 section 6.3 encodes a dynamic table size update with the
+        // 001xxxxx pattern; no other representation uses those high bits.
+        let is_size_update = first & 0xe0 == 0x20;
+        if table.size_update_required() && !is_size_update {
+            // RFC 9113 section 4.3.1: the acknowledged reduction requires the
+            // first representation of the next block to be a size update, and
+            // no field may be decoded against entries the peer has evicted.
+            block.stop = Stop::SizeUpdateRequired;
+            return block;
+        }
         if first & 0x80 != 0 {
             let Some((index, next)) = decode_integer(data, position, 7) else {
                 block.stop = Stop::Invalid;
@@ -377,6 +426,11 @@ fn decode_block_inner(data: &[u8], table: &mut DynamicTable, table_limit: usize)
                 return block;
             }
             table.set_capacity(usize::try_from(size).unwrap_or(MAX_TABLE_SIZE));
+            // The block began with a size update within the acknowledged
+            // limit, which is exactly what RFC 9113 section 4.3.1 requires.
+            // Later updates in the same block are allowed too (RFC 7541 4.2),
+            // and each is checked against `table_limit` above.
+            table.clear_size_update_required();
             if emitting {
                 block.items.push(Item::TableSizeUpdate(
                     u32::try_from(size).unwrap_or(u32::MAX),
@@ -794,6 +848,57 @@ mod tests {
             .map(|header| (header.name.as_str(), header.value.as_str()))
             .collect();
         assert_eq!(headers, vec![("x", "new")]);
+    }
+
+    #[test]
+    fn a_reduced_limit_requires_a_size_update_before_any_field() {
+        let mut table = DynamicTable::new();
+        let inserted = decode_block(
+            &[0x40, 0x01, b'x', 0x03, b'o', b'l', b'd'],
+            &mut table,
+            DEFAULT_TABLE_SIZE,
+        );
+        assert_eq!(inserted.stop, Stop::Complete);
+        // The peer reduced SETTINGS_HEADER_TABLE_SIZE and acknowledged it.
+        table.require_size_update();
+        assert!(table.size_update_required());
+
+        // Indexed entry 62 is one the peer has already evicted.
+        let rejected = decode_block(&[0xbe], &mut table, DEFAULT_TABLE_SIZE);
+        assert_eq!(rejected.stop, Stop::SizeUpdateRequired);
+        assert!(rejected.items.is_empty(), "no representation is decoded");
+        assert!(
+            table.is_lost(),
+            "a block without the required update leaves the table's state unknown"
+        );
+        assert!(table.size_update_required(), "the update is still owed");
+
+        // A block that begins with the update to zero satisfies the
+        // requirement and empties both tables (RFC 7541 section 4.3).
+        let reset = decode_block(&[0x20, 0x82], &mut table, DEFAULT_TABLE_SIZE);
+        assert_eq!(reset.stop, Stop::Complete);
+        assert!(!table.size_update_required());
+        assert!(!table.is_lost());
+        assert_eq!(table.len(), 0);
+        assert_eq!(reset.items.len(), 2, "the update and the static field");
+
+        // Without a reduction the same indexed field decodes normally.
+        let mut normal = DynamicTable::new();
+        let inserted = decode_block(
+            &[0x40, 0x01, b'x', 0x03, b'n', b'e', b'w'],
+            &mut normal,
+            DEFAULT_TABLE_SIZE,
+        );
+        assert_eq!(inserted.stop, Stop::Complete);
+        let indexed = decode_block(&[0xbe], &mut normal, DEFAULT_TABLE_SIZE);
+        assert_eq!(indexed.stop, Stop::Complete);
+        assert_eq!(
+            indexed
+                .headers()
+                .map(|header| (header.name.as_str(), header.value.as_str()))
+                .collect::<Vec<_>>(),
+            vec![("x", "new")]
+        );
     }
 
     #[test]

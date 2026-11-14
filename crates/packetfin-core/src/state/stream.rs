@@ -248,12 +248,141 @@ pub(crate) struct TlsPlaintext {
     next_sequence: [u32; 2],
     /// The direction's plaintext has been recognised as HTTP/1.x.
     http: [bool; 2],
+    /// Plaintext retained until the direction's protocol is identified.
+    ///
+    /// A decrypted stream with no ALPN selection has no protocol until the
+    /// HTTP/2 connection preface (RFC 9113 section 3.5) or an HTTP/1.x start
+    /// line (RFC 9112 section 3) appears. Until then its bytes wait here,
+    /// bounded by [`MAX_UNDECIDED_PLAINTEXT_BYTES`], so a server's
+    /// application data arriving before the client preface does not select
+    /// HTTP/1.x by guess.
+    undecided: [Vec<u8>; 2],
+    /// Frame that supplied the first retained byte of each direction.
+    ///
+    /// A protocol decision may arrive in a later frame than the bytes it
+    /// frames, so the retained bytes keep their own arrival frame instead of
+    /// taking the frame that supplied the evidence.
+    undecided_frame: [Option<u64>; 2],
 }
 
 impl StateValue for TlsPlaintext {
     fn state_bytes(&self) -> usize {
-        self.streams.heap_bytes()
+        let undecided = self.undecided.iter().map(Vec::capacity).sum::<usize>();
+        self.streams.heap_bytes().saturating_add(undecided)
     }
+}
+
+impl TlsPlaintext {
+    /// Insert one direction's plaintext at its next offset.
+    fn insert_direction(
+        &mut self,
+        direction: usize,
+        frame: u64,
+        bytes: &[u8],
+        fin: bool,
+        report: &mut ReassemblyReport,
+    ) {
+        let sequence = self
+            .next_sequence
+            .get(direction)
+            .copied()
+            .unwrap_or_default();
+        let inserted = self
+            .streams
+            .direction_mut(direction)
+            .insert_with_fin(sequence, bytes, frame, true, fin);
+        self.streams
+            .observe_http_actions(direction, &inserted.actions);
+        report.actions.extend(inserted.actions);
+        report.error |= inserted.error;
+        if report.error_frame.is_none() {
+            report.error_frame = inserted.error_frame;
+        }
+        if report.oversized.is_none() {
+            report.oversized = inserted.oversized;
+        }
+        report.limit_reached |= inserted.limit_reached;
+        if report.malformed.is_none() {
+            report.malformed = inserted.malformed;
+        }
+        if let Some(slot) = self.next_sequence.get_mut(direction) {
+            *slot = sequence.wrapping_add(u32::try_from(bytes.len()).unwrap_or(u32::MAX));
+        }
+    }
+
+    /// Emit a direction's retained plaintext once its protocol is selected.
+    ///
+    /// The bytes keep the frame that supplied them; a later record that only
+    /// completes the evidence must not take their attribution.
+    fn flush_retained(
+        &mut self,
+        direction: usize,
+        fallback_frame: u64,
+        report: &mut ReassemblyReport,
+    ) {
+        let retained_frame = self
+            .undecided_frame
+            .get_mut(direction)
+            .and_then(Option::take)
+            .unwrap_or(fallback_frame);
+        let retained = self
+            .undecided
+            .get_mut(direction)
+            .map(std::mem::take)
+            .unwrap_or_default();
+        if !retained.is_empty() {
+            self.insert_direction(direction, retained_frame, &retained, false, report);
+        }
+    }
+
+    /// Select a direction's protocol and emit its retained plaintext first.
+    fn decide(
+        &mut self,
+        direction: usize,
+        ulp: Ulp,
+        frame: u64,
+        bytes: &[u8],
+        fin: bool,
+        report: &mut ReassemblyReport,
+    ) {
+        self.streams.direction_mut(direction).set_ulp(ulp);
+        self.flush_retained(direction, frame, report);
+        self.insert_direction(direction, frame, bytes, fin, report);
+    }
+}
+
+/// The protocol the leading undecided bytes identify, if any.
+///
+/// RFC 9113 section 3.5 identifies HTTP/2 by its connection preface, and
+/// RFC 9112 section 3 identifies an HTTP/1.x message by its start line.
+fn plaintext_evidence(retained: &[u8], bytes: &[u8]) -> Option<Ulp> {
+    let mut probe = [0_u8; PLAINTEXT_EVIDENCE_BYTES];
+    let mut length = 0_usize;
+    for source in [retained, bytes] {
+        let room = PLAINTEXT_EVIDENCE_BYTES.saturating_sub(length);
+        let take = source.len().min(room);
+        if let (Some(target), Some(source)) = (
+            probe.get_mut(length..length.saturating_add(take)),
+            source.get(..take),
+        ) {
+            target.copy_from_slice(source);
+        }
+        length = length.saturating_add(take);
+        if length >= PLAINTEXT_EVIDENCE_BYTES {
+            break;
+        }
+    }
+    let probe = probe.get(..length).unwrap_or_default();
+    if crate::decode::http2::looks_like_http2_prefix(probe) {
+        return Some(Ulp::Http2);
+    }
+    if crate::decode::looks_like_http_stream_prefix(probe) {
+        return Some(Ulp::Http);
+    }
+    if crate::decode::http2::looks_like_frame_header(probe) {
+        return Some(Ulp::Http2);
+    }
+    None
 }
 
 /// The request a response matched, as the decoder needs it.
@@ -388,48 +517,68 @@ impl SessionState {
             .take_with(&mut self.budget, &key)
             .unwrap_or_default();
         let direction = direction.min(1);
-        {
+        let mut report = ReassemblyReport::default();
+        if plaintext.streams.direction(direction).ulp().is_none() {
             // An ALPN `h2` selection fixes HTTP/2 for both directions: the
             // client opens with the connection preface, but the server's
             // first record is a SETTINGS frame with no marker of its own.
-            // Without a decrypted selection, the preface or an already
-            // recognised peer direction supplies the same fact; `set_ulp`
-            // keeps the direction's first value.
-            let peer_http2 = plaintext.streams.direction(direction ^ 1).ulp() == Some(Ulp::Http2);
-            let stream = plaintext.streams.direction_mut(direction);
-            let ulp = match alpn {
-                PlaintextAlpn::Http2 => Ulp::Http2,
-                PlaintextAlpn::Other => Ulp::Http,
-                PlaintextAlpn::Unknown
-                    if peer_http2 || crate::decode::http2::looks_like_http2_prefix(bytes) =>
-                {
-                    Ulp::Http2
-                }
-                PlaintextAlpn::Unknown => Ulp::Http,
+            // Without a decrypted selection (RFC 7301 section 3.2), only the
+            // connection preface (RFC 9113 section 3.5), an already HTTP/2
+            // peer, or an HTTP/1.x start line (RFC 9112 section 3) identifies
+            // the protocol; anything else stays undecided rather than guess.
+            let peer = direction ^ 1;
+            let peer_http2 = plaintext.streams.direction(peer).ulp() == Some(Ulp::Http2);
+            let retained = plaintext
+                .undecided
+                .get(direction)
+                .map(Vec::as_slice)
+                .unwrap_or_default();
+            let selected = match alpn {
+                PlaintextAlpn::Http2 => Some(Ulp::Http2),
+                PlaintextAlpn::Other => Some(Ulp::Http),
+                PlaintextAlpn::Unknown if peer_http2 => Some(Ulp::Http2),
+                PlaintextAlpn::Unknown => plaintext_evidence(retained, bytes),
             };
-            stream.set_ulp(ulp);
+            let over_bound =
+                retained.len().saturating_add(bytes.len()) > MAX_UNDECIDED_PLAINTEXT_BYTES;
+            let selected = match selected {
+                Some(selected) => Some(selected),
+                // A stream that ends now has no later record to identify it,
+                // and one past the bound cannot wait longer, so the retained
+                // bytes are emitted as HTTP/1.x. This is the documented
+                // fallback; the buffer never grows past the cap.
+                None if fin || over_bound => Some(Ulp::Http),
+                None => None,
+            };
+            let Some(selected) = selected else {
+                if let Some(retained) = plaintext.undecided.get_mut(direction) {
+                    retained.extend_from_slice(bytes);
+                }
+                if let Some(slot) = plaintext.undecided_frame.get_mut(direction) {
+                    slot.get_or_insert(frame);
+                }
+                self.tls_plaintext
+                    .put_with(&mut self.budget, key, plaintext);
+                return (ReassemblyReport::default(), false);
+            };
+            if selected == Ulp::Http2 {
+                // HTTP/2 is connection-wide (RFC 9113 section 3.4): the peer
+                // direction frames HTTP/2 from its own bytes. Its retained
+                // bytes stay put and are emitted on the peer's next record,
+                // decoded with the peer's own state.
+                plaintext.streams.direction_mut(peer).set_ulp(Ulp::Http2);
+            }
+            plaintext.decide(direction, selected, frame, bytes, fin, &mut report);
+        } else {
+            plaintext.flush_retained(direction, frame, &mut report);
+            plaintext.insert_direction(direction, frame, bytes, fin, &mut report);
         }
-        let sequence = plaintext
-            .next_sequence
-            .get(direction)
-            .copied()
-            .unwrap_or_default();
-        let report = plaintext
-            .streams
-            .direction_mut(direction)
-            .insert_with_fin(sequence, bytes, frame, true, fin);
-        plaintext
-            .streams
-            .observe_http_actions(direction, &report.actions);
         let buffered = plaintext.streams.direction(direction).buffered_prefix();
         let prefix = if buffered.is_empty() { bytes } else { buffered };
         let http = plaintext.http.get(direction).copied().unwrap_or(false)
             || crate::decode::looks_like_http_stream_prefix(prefix);
         if let Some(slot) = plaintext.http.get_mut(direction) {
             *slot = http;
-        }
-        if let Some(slot) = plaintext.next_sequence.get_mut(direction) {
-            *slot = sequence.wrapping_add(u32::try_from(bytes.len()).unwrap_or(u32::MAX));
         }
         self.tls_plaintext
             .put_with(&mut self.budget, key, plaintext);
@@ -451,25 +600,12 @@ impl SessionState {
             return ReassemblyReport::default();
         };
         let direction = direction.min(1);
-        plaintext
-            .streams
-            .direction_mut(direction)
-            .set_ulp(Ulp::Http);
-        let sequence = plaintext
-            .next_sequence
-            .get(direction)
-            .copied()
-            .unwrap_or_default();
-        let report = plaintext.streams.direction_mut(direction).insert_with_fin(
-            sequence,
-            &[],
-            frame,
-            true,
-            true,
-        );
-        plaintext
-            .streams
-            .observe_http_actions(direction, &report.actions);
+        let mut report = ReassemblyReport::default();
+        // A stream that ends here has no later record to identify it, so
+        // retained undecided bytes are emitted as HTTP/1.x and the pending
+        // close-delimited message completes at the FIN; `set_ulp` keeps a
+        // protocol the direction already selected.
+        plaintext.decide(direction, Ulp::Http, frame, &[], true, &mut report);
         self.tls_plaintext
             .put_with(&mut self.budget, key, plaintext);
         report
@@ -766,6 +902,9 @@ pub(crate) enum Ulp {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum PlaintextAlpn {
     /// No selection was decrypted; infer it from the preface or the peer.
+    ///
+    /// Until one of them identifies the protocol, the direction's plaintext
+    /// is retained instead of guessed.
     Unknown,
     /// The server selected HTTP/2.
     Http2,
@@ -895,6 +1034,21 @@ pub(crate) const MAX_HTTP_MESSAGE_BYTES: usize =
 /// field width is the memory bound; SETTINGS_MAX_FRAME_SIZE is the protocol
 /// limit the decoder checks.
 pub(crate) const MAX_HTTP2_FRAME_BYTES: usize = crate::decode::http2::MAX_FRAME_BYTES;
+
+/// The most plaintext one direction retains before its protocol is known.
+///
+/// Identification needs only the leading octets: the HTTP/2 connection
+/// preface (RFC 9113 section 3.5) or an HTTP/1.x start line (RFC 9112
+/// section 3). The cap keeps a decrypted flow that presents neither from
+/// growing the state ledger without bound; passing it falls back to HTTP/1.x.
+const MAX_UNDECIDED_PLAINTEXT_BYTES: usize = 64 * 1024;
+
+/// The leading octets examined for protocol evidence.
+///
+/// A request method is at most seven characters before its space, a status
+/// line starts with `HTTP/1.`, and the connection preface is 24 octets, so
+/// the evidence lies in the first 64 bytes.
+const PLAINTEXT_EVIDENCE_BYTES: usize = 64;
 
 /// The most contributing segments one non-HTTP PDU records.
 ///
@@ -1079,6 +1233,10 @@ enum FrameLength {
     NeedMore,
     /// The PDU ends at this many bytes from the window start.
     Complete(usize),
+    /// The PDU ends at this many bytes, but its framing leaves the
+    /// connection unusable: emit this message, then stop the direction so no
+    /// later byte is framed as another message.
+    Unusable(usize),
     /// The bytes are a continuation, ending at this many bytes.
     Continuation(usize),
     /// The declared length is invalid for the protocol.
@@ -1680,7 +1838,7 @@ impl StreamBuffer {
                 self.refused = true;
                 return;
             }
-            let (length, continuation) = match self.frame_length(ulp, state.fin_end) {
+            let (length, continuation, unusable) = match self.frame_length(ulp, state.fin_end) {
                 FrameLength::NeedMore => {
                     self.add_partial(
                         ulp,
@@ -1741,8 +1899,9 @@ impl StreamBuffer {
                     self.refused = true;
                     return;
                 }
-                FrameLength::Complete(length) => (length, false),
-                FrameLength::Continuation(length) => (length, true),
+                FrameLength::Complete(length) => (length, false, false),
+                FrameLength::Unusable(length) => (length, false, true),
+                FrameLength::Continuation(length) => (length, true, false),
             };
             if length == 0 || self.covered_prefix() < length {
                 self.add_partial(
@@ -1841,6 +2000,15 @@ impl StreamBuffer {
             state.contiguous_before = state.contiguous_before.saturating_sub(length);
             if let Some(end) = state.fin_end.as_mut() {
                 *end = end.saturating_sub(length);
+            }
+            if unusable {
+                // RFC 9112 section 6.3 case 6: an invalid Content-Length leaves
+                // the message framing unusable, so the connection carries no
+                // further message. The emitted PDU is kept; the bytes after it
+                // are dropped along with the direction.
+                self.clear();
+                self.refused = true;
+                return;
             }
             if let Some(next) = self.start {
                 let difference = next.wrapping_sub(segment_sequence) as i32;
@@ -2372,10 +2540,13 @@ impl StreamBuffer {
                 FrameLength::Complete(end.min(covered))
             }
             BodyPlan::InvalidLength => {
-                // A request is never close-delimited (RFC 9112 section 6.3
-                // note); the captured remainder is the message, so the next
-                // segment cannot reopen as another one.
-                FrameLength::Complete(covered)
+                // RFC 9112 section 6.3 case 6: an invalid Content-Length makes
+                // the message framing unusable, and the connection cannot be
+                // reused for another message. A request is never
+                // close-delimited, so the captured remainder is the message;
+                // emit it and then stop the direction instead of framing
+                // later bytes as a new message.
+                FrameLength::Unusable(covered)
             }
             BodyPlan::CloseDelimited => {
                 // A response with no length is delimitable only by the
@@ -2834,6 +3005,169 @@ mod tests {
         assert_eq!(completed, vec![request.to_vec()]);
     }
 
+    /// Read a conversation's plaintext framing state, emptying the store.
+    fn plaintext_state(session: &mut SessionState, key: ConversationKey) -> TlsPlaintext {
+        session
+            .tls_plaintext
+            .take_with(&mut session.budget, &TlsPlaintextKey { conversation: key })
+            .unwrap_or_default()
+    }
+
+    fn restore_plaintext(session: &mut SessionState, key: ConversationKey, state: TlsPlaintext) {
+        session.tls_plaintext.put_with(
+            &mut session.budget,
+            TlsPlaintextKey { conversation: key },
+            state,
+        );
+    }
+
+    /// An HTTP/2 SETTINGS frame carrying one setting (RFC 9113 section 6.5).
+    fn settings_frame() -> Vec<u8> {
+        vec![0, 0, 6, 4, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 100]
+    }
+
+    #[test]
+    fn tls_plaintext_defers_server_bytes_until_the_client_preface() {
+        // A server's first record can arrive before the client preface
+        // (RFC 9113 sections 3.4 and 3.5), and a key log without the ALPN
+        // selection cannot identify it. Guessing HTTP/1.x would misframe the
+        // bytes, so the direction waits. The preface then fixes HTTP/2 for
+        // both directions, but the server bytes are emitted on the server's
+        // own next record, decoded with the server direction and its frame.
+        let mut session = SessionState::new(DEFAULT_STATE_BUDGET);
+        let (key, _) = ConversationKey::ipv4([192, 0, 2, 1], 40_000, [192, 0, 2, 2], 443);
+        let settings = settings_frame();
+        let (first_half, second_half) = settings.split_at(5);
+        let (deferred, deferred_http) =
+            session.insert_tls_plaintext(key, 0, 1, first_half, false, PlaintextAlpn::Unknown);
+        assert!(
+            deferred.actions.is_empty(),
+            "undecided bytes emit nothing: {:?}",
+            deferred.actions
+        );
+        assert!(!deferred_http);
+        let preface: &[u8] = b"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n";
+        let (evidence, evidence_http) =
+            session.insert_tls_plaintext(key, 1, 2, preface, false, PlaintextAlpn::Unknown);
+        assert!(!evidence_http);
+        assert_eq!(
+            evidence.actions.len(),
+            1,
+            "the client direction emits only its preface: {:?}",
+            evidence.actions
+        );
+        assert!(matches!(
+            evidence.actions.first(),
+            Some(PduAction::Standalone { ulp: Ulp::Http2, data, .. })
+                if data.as_ref() == preface
+        ));
+        let state = plaintext_state(&mut session, key);
+        assert_eq!(state.streams.direction(0).ulp(), Some(Ulp::Http2));
+        assert_eq!(state.streams.direction(1).ulp(), Some(Ulp::Http2));
+        restore_plaintext(&mut session, key, state);
+        let (completed, _) =
+            session.insert_tls_plaintext(key, 0, 3, second_half, false, PlaintextAlpn::Unknown);
+        let Some(PduAction::Reassembled { pdu, .. }) = completed.actions.first() else {
+            unreachable!(
+                "the SETTINGS frame completes on the server record: {:?}",
+                completed.actions
+            );
+        };
+        assert_eq!(pdu.data.as_ref(), settings.as_slice());
+        assert_eq!(
+            pdu.segments
+                .iter()
+                .map(|segment| segment.frame)
+                .collect::<Vec<_>>(),
+            [1, 3],
+            "retained bytes keep their arrival frame"
+        );
+    }
+
+    #[test]
+    fn tls_plaintext_identifies_a_server_settings_frame() {
+        // RFC 9113 section 6.5: a SETTINGS frame header identifies HTTP/2 on
+        // its own, so a server-first record need not wait for the client
+        // preface that the key log could not decrypt.
+        let mut session = SessionState::new(DEFAULT_STATE_BUDGET);
+        let (key, _) = ConversationKey::ipv4([192, 0, 2, 1], 40_000, [192, 0, 2, 2], 443);
+        let settings = settings_frame();
+        let (report, http) =
+            session.insert_tls_plaintext(key, 0, 1, &settings, false, PlaintextAlpn::Unknown);
+        assert!(!http);
+        assert_eq!(report.actions.len(), 1, "{:?}", report.actions);
+        assert!(
+            matches!(
+                report.actions.first(),
+                Some(PduAction::Standalone { ulp: Ulp::Http2, data, .. })
+                    if data.as_ref() == settings.as_slice()
+            ),
+            "{:?}",
+            report.actions
+        );
+        let state = plaintext_state(&mut session, key);
+        assert_eq!(state.streams.direction(0).ulp(), Some(Ulp::Http2));
+        assert!(
+            state.undecided.first().is_none_or(Vec::is_empty),
+            "the frame header selects the protocol without retention"
+        );
+    }
+
+    #[test]
+    fn tls_plaintext_selects_http_from_a_request_start_line() {
+        let mut session = SessionState::new(DEFAULT_STATE_BUDGET);
+        let (key, _) = ConversationKey::ipv4([192, 0, 2, 1], 40_000, [192, 0, 2, 2], 443);
+        let request: &[u8] = b"GET /probe HTTP/1.1\r\nHost: tls.test\r\n\r\n";
+        let (report, http) =
+            session.insert_tls_plaintext(key, 0, 1, request, false, PlaintextAlpn::Unknown);
+        assert!(http);
+        assert!(
+            matches!(
+                report.actions.first(),
+                Some(PduAction::Standalone { ulp: Ulp::Http, data, .. })
+                    if data.as_ref() == request
+            ),
+            "{:?}",
+            report.actions
+        );
+        assert_eq!(
+            plaintext_state(&mut session, key)
+                .streams
+                .direction(0)
+                .ulp(),
+            Some(Ulp::Http)
+        );
+    }
+
+    #[test]
+    fn tls_plaintext_retains_undecided_bytes_within_the_bound() {
+        let mut session = SessionState::new(DEFAULT_STATE_BUDGET);
+        let (key, _) = ConversationKey::ipv4([192, 0, 2, 1], 40_000, [192, 0, 2, 2], 443);
+        let chunk = vec![0_u8; MAX_UNDECIDED_PLAINTEXT_BYTES / 2 + 1];
+        let (first, http) =
+            session.insert_tls_plaintext(key, 0, 1, &chunk, false, PlaintextAlpn::Unknown);
+        assert!(!http);
+        assert!(first.actions.is_empty());
+        let state = plaintext_state(&mut session, key);
+        assert_eq!(state.streams.direction(0).ulp(), None);
+        assert_eq!(
+            state.undecided.first().map(Vec::len),
+            Some(chunk.len()),
+            "undecided bytes are retained, not emitted"
+        );
+        restore_plaintext(&mut session, key, state);
+        let (_, http) =
+            session.insert_tls_plaintext(key, 0, 2, &chunk, false, PlaintextAlpn::Unknown);
+        assert!(!http);
+        let state = plaintext_state(&mut session, key);
+        assert_eq!(
+            state.streams.direction(0).ulp(),
+            Some(Ulp::Http),
+            "past the bound the documented fallback selects HTTP/1.x"
+        );
+        assert!(state.undecided.first().is_none_or(Vec::is_empty));
+    }
+
     fn dns_pdu(message_len: u16) -> Vec<u8> {
         let mut pdu = message_len.to_be_bytes().to_vec();
         pdu.resize(2 + usize::from(message_len), 0x41);
@@ -3244,6 +3578,38 @@ mod tests {
             unreachable!("the standalone action was asserted to be present");
         };
         assert_eq!(data.as_ref(), message);
+        assert!(!buffer.has_pending());
+    }
+
+    #[test]
+    fn a_request_with_an_unusable_content_length_refuses_later_messages() {
+        // RFC 9112 section 6.3 case 6: an invalid Content-Length makes the
+        // message framing unusable, so the connection carries no further
+        // message. The request itself is still emitted in full, and the
+        // request-like bytes of a later segment are not framed as another.
+        let mut buffer = StreamBuffer::default();
+        buffer.set_ulp(Ulp::Http);
+        let message: &[u8] =
+            b"POST /x HTTP/1.1\r\nContent-Length: 3\r\nContent-Length: 5\r\n\r\nhello!";
+        let report = buffer.insert(1000, message, 1, false);
+        assert!(
+            matches!(
+                report.actions.first(),
+                Some(PduAction::Standalone { data, .. }) if data.as_ref() == message
+            ),
+            "{:?}",
+            report.actions
+        );
+        assert!(buffer.refused);
+        let sequence = 1000_u32.saturating_add(u32::try_from(message.len()).unwrap_or(0));
+        let second: &[u8] = b"GET /next HTTP/1.1\r\nHost: split.test\r\n\r\n";
+        let report = buffer.insert(sequence, second, 2, false);
+        assert!(
+            report.actions.is_empty(),
+            "the unusable direction frames no further message: {:?}",
+            report.actions
+        );
+        assert!(buffer.refused);
         assert!(!buffer.has_pending());
     }
 

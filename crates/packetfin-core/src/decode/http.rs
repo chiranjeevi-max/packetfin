@@ -89,7 +89,9 @@ pub(crate) fn looks_like_http_prefix(data: &[u8]) -> bool {
 /// arrives: the first record of a split request carries the method and a
 /// space, and a response carries the version. The record gets its
 /// application protocol label at that point, so this check accepts that
-/// permissive prefix.
+/// permissive prefix. A complete line is also parsed with the shared token
+/// grammar, which recognises extension methods (RFC 9110 section 9.1) that
+/// the fast list below does not name.
 pub(crate) fn looks_like_http_stream_prefix(data: &[u8]) -> bool {
     if data.starts_with(b"HTTP/1.") {
         return true;
@@ -101,7 +103,11 @@ pub(crate) fn looks_like_http_stream_prefix(data: &[u8]) -> bool {
         return false;
     };
     let method = data.get(..space).unwrap_or_default();
-    space > 0 && METHODS.contains(&method)
+    if space > 0 && METHODS.contains(&method) {
+        return true;
+    }
+    let line = next_line(data, 0).map_or(data, |(line, _)| line);
+    parse_start_line(line).is_some()
 }
 
 /// The start line of an incomplete HTTP message, which sets the Info column
@@ -1542,6 +1548,19 @@ mod tests {
         assert!(!looks_like_http(b"HTTP/1.2 200 OK\r\n\r\n"));
         assert!(!looks_like_http(b"GET / HTTP/2.0\r\n\r\n"));
         assert!(!looks_like_http(b"NOT A REQUEST\r\n\r\n"));
+    }
+
+    #[test]
+    fn extension_methods_identify_a_stream_start_line() {
+        assert!(looks_like_http_stream_prefix(
+            b"PROPFIND /dav/notes HTTP/1.1\r\nHost: x\r\n\r\n"
+        ));
+        assert!(looks_like_http_stream_prefix(b"PROPFIND /dav HTTP/1.1"));
+        assert!(looks_like_http_stream_prefix(b"GET / HTTP/1.1\r\n"));
+        assert!(!looks_like_http_stream_prefix(b"PROPFIND /dav"));
+        assert!(!looks_like_http_stream_prefix(
+            b"NOT A REQUEST HTTP/1.1\r\n"
+        ));
     }
 
     #[test]

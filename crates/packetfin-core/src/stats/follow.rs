@@ -1019,7 +1019,11 @@ fn split_http_segments(message: &[u8], direction: u8, answers: &mut [Answer; 2])
             records.push(body.get(..take).unwrap_or_default().to_vec());
         }
         offset = offset.saturating_add(header_length).saturating_add(take);
-        if take == 0 && plan != BodyPlan::Empty {
+        // A zero-length body ends at its header section, so the following
+        // bytes are another message; the header already advanced the offset.
+        // Every other zero-take plan cannot make progress, so the loop ends
+        // rather than rescanning the same bytes.
+        if take == 0 && !matches!(plan, BodyPlan::Empty | BodyPlan::Fixed(0)) {
             break;
         }
     }
@@ -1142,13 +1146,26 @@ fn split_http_records(message: &[u8], direction: u8, answers: &mut [Answer; 2]) 
 /// response prints a single data block. An empty chunked body still queues
 /// an empty record. An incomplete size line ends the record where it starts;
 /// an incomplete trailer section consumes the bytes the segment carries, so
-/// the record after it does not reprint trailer text as a message.
+/// the record after it does not reprint trailer text as a message. A malformed
+/// chunk boundary keeps the data read so far and consumes the supplied
+/// remainder, because RFC 9112 section 7.1 gives nothing after it a frame.
 fn dechunk(body: &[u8]) -> (Vec<u8>, usize) {
     let mut data = Vec::new();
     let mut scanner = ChunkScanner::new(0);
     loop {
         match scanner.step(body, body.len()) {
-            ChunkStep::Data { bytes, .. } => data.extend_from_slice(bytes),
+            ChunkStep::Data {
+                bytes, boundary_ok, ..
+            } => {
+                data.extend_from_slice(bytes);
+                if !boundary_ok {
+                    // RFC 9112 section 7.1 requires CRLF after the chunk data.
+                    // Nothing after a malformed boundary can be framed, so the
+                    // bytes read so far stay and the supplied remainder is
+                    // consumed, matching the reassembled parser.
+                    return (data, body.len());
+                }
+            }
             ChunkStep::Last | ChunkStep::Trailer { .. } => {}
             ChunkStep::TrailerEnd { end, .. } => return (data, end),
             ChunkStep::Incomplete {
@@ -1278,6 +1295,35 @@ DDDD"
             !output.contains("4\njunk"),
             "the declared length must not split a HEAD answer: {output}"
         );
+    }
+
+    #[test]
+    fn a_zero_length_body_keeps_the_next_message_in_the_segment() {
+        // RFC 9112 section 6.3 case 6: Content-Length: 0 ends the message at
+        // its header section. The header advances the offset by itself, so a
+        // pipelined request in the same segment is still a second record.
+        let segment = b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\nGET /next HTTP/1.1\r\n\r\n";
+        let mut answers = [Answer::default(); 2];
+        let records = split_http_segments(segment, 0, &mut answers);
+        assert_eq!(
+            records,
+            vec![
+                b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n".to_vec(),
+                b"GET /next HTTP/1.1\r\n\r\n".to_vec(),
+            ]
+        );
+    }
+
+    #[test]
+    fn a_malformed_chunk_boundary_ends_the_dechunk() {
+        // RFC 9112 section 7.1 requires CRLF after the chunk data. Nothing
+        // after a malformed boundary can be framed, so only the first chunk's
+        // data is kept and every supplied byte is consumed, as the
+        // reassembled parser does.
+        let body = b"1\r\naXX1\r\nb\r\n0\r\n\r\n";
+        let (data, consumed) = dechunk(body);
+        assert_eq!(data, b"a");
+        assert_eq!(consumed, body.len());
     }
 
     #[test]

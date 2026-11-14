@@ -172,7 +172,7 @@ Dynamic Host Configuration Protocol (Discover)
     Option: (255) End
         Option End: 255
 
-Frame 8: Packet, 300 bytes on wire (2400 bits), 300 bytes captured (2400 bits)
+Frame 8: Packet, 298 bytes on wire (2384 bits), 298 bytes captured (2384 bits)
 Ethernet II, Src: 02:00:00:00:00:01, Dst: 02:00:00:00:00:02
 Internet Protocol Version 4, Src: 192.0.2.1, Dst: 198.51.100.2
 User Datagram Protocol, Src Port: 68, Dst Port: 67
@@ -199,7 +199,7 @@ Dynamic Host Configuration Protocol (Discover)
         Length: 1
         DHCP: Discover (1)
     Option: (82) Agent Information Option
-        Length: 12
+        Length: 10
         Option 82 Suboption: (1) Agent Circuit ID
             Length: 0
             Agent Circuit ID: <MISSING>
@@ -212,8 +212,6 @@ Dynamic Host Configuration Protocol (Discover)
         Option 82 Suboption: (8) Authentication
             Length: 0
             Authentication: <MISSING>
-        Option 82 Suboption: (9) Vendor-Specific Information
-            Length: 0
         Option 82 Suboption: (12) Relay Agent Identifier
             Length: 0
             Relay Agent Identifier: <MISSING>

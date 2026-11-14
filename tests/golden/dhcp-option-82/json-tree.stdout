@@ -365,8 +365,8 @@
           },
           "dhcp.option.type": "82",
           "dhcp.option.type_tree": {
-            "dhcp.option.length": "12",
-            "dhcp.option.value": "01:00:03:00:07:00:08:00:09:00:0c:00",
+            "dhcp.option.length": "10",
+            "dhcp.option.value": "01:00:03:00:07:00:08:00:0c:00",
             "dhcp.option.agent_information_option.suboption": "1",
             "dhcp.option.agent_information_option.suboption_tree": {
               "dhcp.option.suboption_length": "0",
@@ -390,11 +390,6 @@
               "dhcp.option.suboption_length": "0",
               "dhcp.option.agent_information_option.value": "",
               "dhcp.option.agent_information_option.authentication": ""
-            },
-            "dhcp.option.agent_information_option.suboption": "9",
-            "dhcp.option.agent_information_option.suboption_tree": {
-              "dhcp.option.suboption_length": "0",
-              "dhcp.option.agent_information_option.value": ""
             },
             "dhcp.option.agent_information_option.suboption": "12",
             "dhcp.option.agent_information_option.suboption_tree": {

@@ -304,13 +304,13 @@
 
 
 <packet>
-  <proto name="geninfo" pos="0" showname="General information" size="300">
-    <field name="num" pos="0" show="8" showname="Number" value="8" size="300"/>
-    <field name="len" pos="0" show="300" showname="Frame Length" value="12c" size="300"/>
-    <field name="caplen" pos="0" show="300" showname="Captured Length" value="12c" size="300"/>
-    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:20.123463000 UTC" showname="Captured Time" value="1700000000.123463000" size="300"/>
+  <proto name="geninfo" pos="0" showname="General information" size="298">
+    <field name="num" pos="0" show="8" showname="Number" value="8" size="298"/>
+    <field name="len" pos="0" show="298" showname="Frame Length" value="12a" size="298"/>
+    <field name="caplen" pos="0" show="298" showname="Captured Length" value="12a" size="298"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:20.123463000 UTC" showname="Captured Time" value="1700000000.123463000" size="298"/>
   </proto>
-  <proto name="frame" showname="Frame 8: Packet, 300 bytes on wire (2400 bits), 300 bytes captured (2400 bits)" size="300" pos="0">
+  <proto name="frame" showname="Frame 8: Packet, 298 bytes on wire (2384 bits), 298 bytes captured (2384 bits)" size="298" pos="0">
     <field name="filtered" value="frame" />
   </proto>
   <proto name="eth" showname="Ethernet II, Src: 02:00:00:00:00:01, Dst: 02:00:00:00:00:02" size="14" pos="0">
@@ -322,7 +322,7 @@
   <proto name="udp" showname="User Datagram Protocol, Src Port: 68, Dst Port: 67" size="8" pos="34">
     <field name="filtered" value="udp" />
   </proto>
-  <proto name="dhcp" showname="Dynamic Host Configuration Protocol (Discover)" size="258" pos="42">
+  <proto name="dhcp" showname="Dynamic Host Configuration Protocol (Discover)" size="256" pos="42">
     <field name="dhcp.type" showname="Message type: Boot Request (1)" size="1" pos="42" show="1" value="01"/>
     <field name="dhcp.hw.type" showname="Hardware type: Ethernet (0x01)" size="1" pos="43" show="0x01" value="01"/>
     <field name="dhcp.hw.len" showname="Hardware address length: 6" size="1" pos="44" show="6" value="06"/>
@@ -347,9 +347,9 @@
       <field name="dhcp.option.value" showname="Value: 01" hide="yes" size="1" pos="284" show="01" value="01"/>
       <field name="dhcp.option.dhcp" showname="DHCP: Discover (1)" size="1" pos="284" show="1" value="01"/>
     </field>
-    <field name="dhcp.option.type" showname="Option: (82) Agent Information Option" size="14" pos="285" show="82" value="520c010003000700080009000c00">
-      <field name="dhcp.option.length" showname="Length: 12" size="1" pos="286" show="12" value="0c"/>
-      <field name="dhcp.option.value" showname="Value: 010003000700080009000c00" hide="yes" size="12" pos="287" show="01:00:03:00:07:00:08:00:09:00:0c:00" value="010003000700080009000c00"/>
+    <field name="dhcp.option.type" showname="Option: (82) Agent Information Option" size="12" pos="285" show="82" value="520a01000300070008000c00">
+      <field name="dhcp.option.length" showname="Length: 10" size="1" pos="286" show="10" value="0a"/>
+      <field name="dhcp.option.value" showname="Value: 01000300070008000c00" hide="yes" size="10" pos="287" show="01:00:03:00:07:00:08:00:0c:00" value="01000300070008000c00"/>
       <field name="dhcp.option.agent_information_option.suboption" showname="Option 82 Suboption: (1) Agent Circuit ID" size="2" pos="287" show="1" value="0100">
         <field name="dhcp.option.suboption_length" showname="Length: 0" size="1" pos="288" show="0" value="00"/>
         <field name="dhcp.option.agent_information_option.value" showname="Value: &lt;MISSING&gt;" hide="yes" size="0" pos="289" show=""/>
@@ -370,18 +370,14 @@
         <field name="dhcp.option.agent_information_option.value" showname="Value: &lt;MISSING&gt;" hide="yes" size="0" pos="295" show=""/>
         <field name="dhcp.option.agent_information_option.authentication" showname="Authentication: &lt;MISSING&gt;" size="0" pos="295" show=""/>
       </field>
-      <field name="dhcp.option.agent_information_option.suboption" showname="Option 82 Suboption: (9) Vendor-Specific Information" size="2" pos="295" show="9" value="0900">
+      <field name="dhcp.option.agent_information_option.suboption" showname="Option 82 Suboption: (12) Relay Agent Identifier" size="2" pos="295" show="12" value="0c00">
         <field name="dhcp.option.suboption_length" showname="Length: 0" size="1" pos="296" show="0" value="00"/>
         <field name="dhcp.option.agent_information_option.value" showname="Value: &lt;MISSING&gt;" hide="yes" size="0" pos="297" show=""/>
-      </field>
-      <field name="dhcp.option.agent_information_option.suboption" showname="Option 82 Suboption: (12) Relay Agent Identifier" size="2" pos="297" show="12" value="0c00">
-        <field name="dhcp.option.suboption_length" showname="Length: 0" size="1" pos="298" show="0" value="00"/>
-        <field name="dhcp.option.agent_information_option.value" showname="Value: &lt;MISSING&gt;" hide="yes" size="0" pos="299" show=""/>
-        <field name="dhcp.option.agent_information_option.relay_agent_id" showname="Relay Agent Identifier: &lt;MISSING&gt;" size="0" pos="299" show=""/>
+        <field name="dhcp.option.agent_information_option.relay_agent_id" showname="Relay Agent Identifier: &lt;MISSING&gt;" size="0" pos="297" show=""/>
       </field>
     </field>
-    <field name="dhcp.option.type" showname="Option: (255) End" size="1" pos="299" show="0" value="ff">
-      <field name="dhcp.option.end" showname="Option End: 255" size="1" pos="299" show="255" value="ff"/>
+    <field name="dhcp.option.type" showname="Option: (255) End" size="1" pos="297" show="0" value="ff">
+      <field name="dhcp.option.end" showname="Option End: 255" size="1" pos="297" show="255" value="ff"/>
     </field>
   </proto>
 </packet>

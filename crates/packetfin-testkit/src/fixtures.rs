@@ -28639,12 +28639,15 @@ fn build_dhcp_option_82() -> Result<Vec<u8>, String> {
     let short_access = dhcp_option(13, &[]);
     let long_access = dhcp_option(13, &[0x01, 0x02, 0x03, 0x04, 0x05]);
 
+    // RFC 4243 section 4 requires at least one vendor block, so a
+    // zero-length suboption 9 is malformed rather than an empty typed value;
+    // its diagnostic is covered by a unit test, outside the reference-shaped
+    // expected output.
     let mut zero_values = Vec::new();
     zero_values.extend_from_slice(&dhcp_option(1, &[]));
     zero_values.extend_from_slice(&dhcp_option(3, &[]));
     zero_values.extend_from_slice(&dhcp_option(7, &[]));
     zero_values.extend_from_slice(&dhcp_option(8, &[]));
-    zero_values.extend_from_slice(&dhcp_option(9, &[]));
     zero_values.extend_from_slice(&dhcp_option(12, &[]));
 
     let agents = [

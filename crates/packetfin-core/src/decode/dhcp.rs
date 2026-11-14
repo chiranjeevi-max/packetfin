@@ -1560,15 +1560,23 @@ fn add_suboption_bytes(
 /// Decode the RFC 4243 vendor-specific information blocks.
 ///
 /// A block is a four-octet enterprise number, a one-octet data length and
-/// that many data octets. Enterprise 4491 normally carries the CableLabs
-/// tag/length/value chain; Packetfin keeps that data opaque, which is a
-/// recorded deviation. Every other enterprise shows the block data through
-/// the generic suboption-value field, matching the expected output.
+/// that many data octets. RFC 4243 §4 defines the option value as one or more
+/// such blocks, so a zero-length value has no framing to read and takes the
+/// same truncated-block path as a block cut short. Enterprise 4491 normally
+/// carries the CableLabs tag/length/value chain; Packetfin keeps that data
+/// opaque, which is a recorded deviation. Every other enterprise shows the
+/// block data through the generic suboption-value field, matching the
+/// expected output.
 fn decode_vendor_specific(
     field: &mut dyn FieldParent,
     value: &[u8],
     base: usize,
 ) -> Option<&'static str> {
+    if value.is_empty() {
+        // No enterprise number or length octet exists to start the first
+        // block that RFC 4243 §4 requires.
+        return Some("DHCP Option 82 vendor block is truncated");
+    }
     let mut position = 0;
     while position < value.len() {
         let Some(enterprise_bytes) = value.get(position..position + 4) else {
@@ -1920,4 +1928,33 @@ pub fn option_name(code: u8) -> Option<&'static str> {
         224..=231 => "Private",
         _ => return None,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn dhcp_vendor_specific_empty_value_reports_a_truncated_block() {
+        // RFC 4243 §4 defines the option value as one or more enterprise
+        // blocks; a zero-length value has neither an enterprise number nor
+        // a length octet, so no framing can be read.
+        let mut node = Node::new(&fields::DHCP_PROTOCOL, Range::new(0, 0));
+        assert_eq!(
+            decode_vendor_specific(&mut node, &[], 0),
+            Some("DHCP Option 82 vendor block is truncated")
+        );
+        assert!(node.fields.is_empty());
+    }
+
+    #[test]
+    fn dhcp_vendor_specific_keeps_decoding_complete_blocks() {
+        let mut node = Node::new(&fields::DHCP_PROTOCOL, Range::new(0, 0));
+        let mut value = Vec::new();
+        value.extend_from_slice(&32473_u32.to_be_bytes());
+        value.extend_from_slice(&[2, 0xaa, 0xbb]);
+        assert_eq!(decode_vendor_specific(&mut node, &value, 0), None);
+        // The enterprise number and the block data are the two fields.
+        assert_eq!(node.fields.len(), 2);
+    }
 }

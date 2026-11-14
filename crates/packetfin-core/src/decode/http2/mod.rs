@@ -18,7 +18,9 @@ mod hpack_tables;
 
 use crate::decode::DecodeContext;
 use crate::fields::{self, FieldDef};
-use crate::state::{BlockFragment, BlockOrigin, BodyFragmentView, DataOutcome, Http2Key};
+use crate::state::{
+    BlockFragment, BlockOrigin, BodyFragmentView, DataOutcome, Http2Data, Http2Key,
+};
 use crate::tree::{
     Bytes, ExpertInfo, Field, Group, Node, Range, RawField, RawSource, Severity, Value,
 };
@@ -33,10 +35,16 @@ const FRAME_HEADER_BYTES: usize = 9;
 const MAX_FRAME_PAYLOAD: usize = 0x00ff_ffff;
 
 /// The default SETTINGS_MAX_FRAME_SIZE (RFC 9113 section 6.5.2).
-const DEFAULT_MAX_FRAME_SIZE: u32 = 16_384;
+pub(crate) const DEFAULT_MAX_FRAME_SIZE: u32 = 16_384;
 
 /// The largest SETTINGS_MAX_FRAME_SIZE a peer may announce (RFC 9113 6.5.2).
-const MAX_MAX_FRAME_SIZE: u32 = 0x00ff_ffff;
+pub(crate) const MAX_MAX_FRAME_SIZE: u32 = 0x00ff_ffff;
+
+/// SETTINGS records or ORIGIN entries one frame adds to the tree at most.
+///
+/// A frame payload can reach 16 MiB, so an uncapped list would create
+/// millions of containers; the bound matches the stream and fragment caps.
+const MAX_FRAME_RECORDS: usize = 256;
 
 /// DATA frame type.
 const DATA: u8 = 0;
@@ -88,6 +96,39 @@ pub(crate) fn looks_like_http2_prefix(data: &[u8]) -> bool {
         return true;
     }
     data.len() >= 4 && data.len() < PREFACE.len() && PREFACE.starts_with(data)
+}
+
+/// Whether `data` begins with a plausible HTTP/2 frame header.
+///
+/// A server's first decrypted record is a SETTINGS frame with no preface of
+/// its own (RFC 9113 section 3.4), so a key log without the ALPN selection
+/// otherwise leaves the direction unidentified. The check is conservative:
+/// the nine header octets must be present, the type must be one this module
+/// knows, connection frames must name stream 0 and stream frames must name
+/// another (section 6), and a SETTINGS payload must be whole six-octet
+/// settings (section 6.5).
+pub(crate) fn looks_like_frame_header(data: &[u8]) -> bool {
+    if data.len() < FRAME_HEADER_BYTES {
+        return false;
+    }
+    let Some(frame) = Frame::parse(data) else {
+        return false;
+    };
+    if frame.length > u32::try_from(MAX_FRAME_PAYLOAD).unwrap_or(u32::MAX) {
+        return false;
+    }
+    if frame_type_name(frame.kind).is_none() {
+        return false;
+    }
+    let connection_frame = matches!(frame.kind, SETTINGS | PING | GOAWAY);
+    let stream_frame = matches!(
+        frame.kind,
+        DATA | HEADERS | PRIORITY | RST_STREAM | PUSH_PROMISE | CONTINUATION
+    );
+    if (connection_frame && frame.stream_id != 0) || (stream_frame && frame.stream_id == 0) {
+        return false;
+    }
+    frame.kind != SETTINGS || frame.length % 6 == 0
 }
 
 /// Whether `data` is a prefix of the connection preface.
@@ -415,7 +456,31 @@ fn add_frame(
         let stream = node.add_container(&fields::HTTP2_STREAM, range, None);
         add_header_fields(&mut *stream, frame, base);
         let mut blocked = false;
-        if let Some(violation) = frame_violation(frame) {
+        // RFC 9113 section 4.2: a frame whose declared length exceeds the
+        // SETTINGS_MAX_FRAME_SIZE the peer advertised for this direction is a
+        // FRAME_SIZE_ERROR connection error (section 6.5.2). A frame without
+        // conversation state still meets the protocol default.
+        let limit = match key {
+            Some(key) => context.state.http2_peer_max_frame_size(key),
+            None => DEFAULT_MAX_FRAME_SIZE,
+        };
+        if frame.length > limit {
+            field_malformed(
+                context,
+                &mut *stream,
+                "HTTP/2 frame exceeds SETTINGS_MAX_FRAME_SIZE; FRAME_SIZE_ERROR",
+            );
+            if matches!(frame.kind, HEADERS | PUSH_PROMISE | CONTINUATION)
+                && let Some(key) = key
+            {
+                // The skipped payload may have carried HPACK table mutations,
+                // so later dynamic references cannot be resolved (RFC 7541
+                // section 2.2).
+                context.state.http2_mark_table_lost(key);
+            }
+            blocked = true;
+        }
+        if !blocked && let Some(violation) = frame_violation(frame) {
             match violation {
                 FrameViolation::Fatal(message) => {
                     field_malformed(context, &mut *stream, message);
@@ -675,11 +740,14 @@ fn decode_headers(
     {
         let outcome = context.state.http2_data(
             key,
-            frame.stream_id,
-            &[],
-            true,
-            context.frame.number,
-            context.frame.file_number,
+            Http2Data {
+                stream_id: frame.stream_id,
+                data: &[],
+                flow_length: 0,
+                end_stream: true,
+                frame: context.frame.number,
+                file: context.frame.file_number,
+            },
         );
         report_body_truncation(stream, &outcome);
         if let Some(body) = outcome.data
@@ -940,17 +1008,24 @@ fn decode_data(
     let (data, padding) = split_payload(frame.payload, offset, pad);
     let data_base = payload_base.saturating_add(offset);
     let end_stream = frame.flags & FLAG_END_STREAM != 0;
+    // RFC 9113 section 6.1: the entire DATA frame payload is charged to flow
+    // control, including the Pad Length and Padding fields, while the body
+    // keeps only the unpadded octets.
+    let flow_length = usize::try_from(frame.length).unwrap_or(usize::MAX);
     let mut assembled: Option<Vec<u8>> = None;
     let mut dropped = false;
     let mut windows = None;
     if let Some(key) = key {
         let outcome = context.state.http2_data(
             key,
-            frame.stream_id,
-            data,
-            end_stream,
-            context.frame.number,
-            context.frame.file_number,
+            Http2Data {
+                stream_id: frame.stream_id,
+                data,
+                flow_length,
+                end_stream,
+                frame: context.frame.number,
+                file: context.frame.file_number,
+            },
         );
         windows = Some((
             outcome.connection_before,
@@ -1228,11 +1303,44 @@ fn decode_settings(
     key: Option<Http2Key>,
 ) {
     let payload_base = base.saturating_add(FRAME_HEADER_BYTES);
+    if let Some(key) = key {
+        // RFC 9113 section 6.5: a SETTINGS ACK acknowledges the oldest frame
+        // the opposite direction sent; every other SETTINGS frame is queued
+        // until that ACK arrives (section 6.5.3).
+        if frame.flags & FLAG_ACK != 0 {
+            context.state.http2_settings_ack(key);
+        } else {
+            context.state.http2_settings_frame(key);
+        }
+    }
     let mut offset = 0_usize;
+    let mut records = 0_usize;
+    let mut capped = false;
     while let (Some(id), Some(value)) = (
         read_u16(frame.payload, offset),
         read_u32(frame.payload, offset.saturating_add(2)),
     ) {
+        if records >= MAX_FRAME_RECORDS {
+            if !capped {
+                capped = true;
+                stream.add_expert(ExpertInfo {
+                    severity: Severity::Warning,
+                    group: Group::Undecoded,
+                    message: format!(
+                        "HTTP/2 SETTINGS frame carries more than {MAX_FRAME_RECORDS} \
+                         settings; the rest are not shown"
+                    ),
+                });
+            }
+            // The values still change how later frames behave, so they are
+            // applied even when their fields are not added to the tree.
+            if let Some(key) = key {
+                context.state.http2_settings(key, id, value);
+            }
+            offset = offset.saturating_add(6);
+            records = records.saturating_add(1);
+            continue;
+        }
         let range = Range::new(payload_base.saturating_add(offset), 6);
         let name = settings_name(id);
         let mut label = String::new();
@@ -1300,6 +1408,7 @@ fn decode_settings(
             context.state.http2_settings(key, id, value);
         }
         offset = offset.saturating_add(6);
+        records = records.saturating_add(1);
     }
     if !frame.payload.len().is_multiple_of(6) {
         field_malformed(
@@ -1496,7 +1605,19 @@ fn decode_altsvc(stream: &mut Field, frame: &Frame<'_>, base: usize) {
 fn decode_origin(stream: &mut Field, frame: &Frame<'_>, base: usize) {
     let payload_base = base.saturating_add(FRAME_HEADER_BYTES);
     let mut offset = 0_usize;
+    let mut records = 0_usize;
     while let Some(length) = read_u16(frame.payload, offset) {
+        if records >= MAX_FRAME_RECORDS {
+            stream.add_expert(ExpertInfo {
+                severity: Severity::Warning,
+                group: Group::Undecoded,
+                message: format!(
+                    "HTTP/2 ORIGIN frame carries more than {MAX_FRAME_RECORDS} \
+                     origins; the rest are not shown"
+                ),
+            });
+            break;
+        }
         let length_usize = usize::from(length);
         let range = Range::new(payload_base.saturating_add(offset), 2);
         let container =
@@ -1521,6 +1642,7 @@ fn decode_origin(stream: &mut Field, frame: &Frame<'_>, base: usize) {
             Value::String(String::from_utf8_lossy(origin).into_owned()),
         );
         offset = offset.saturating_add(2).saturating_add(length_usize);
+        records = records.saturating_add(1);
     }
 }
 
@@ -2117,6 +2239,190 @@ mod tests {
         assert_eq!(
             synthesize_uri(&summary, &block).as_deref(),
             Some("http://www.example.com/")
+        );
+    }
+
+    /// One frame's wire bytes, header and payload.
+    fn frame_pdu(kind: u8, flags: u8, stream: u32, payload: &[u8]) -> Vec<u8> {
+        let length = u32::try_from(payload.len()).unwrap_or(0);
+        let mut out = Vec::with_capacity(FRAME_HEADER_BYTES.saturating_add(payload.len()));
+        out.extend_from_slice(length.to_be_bytes().get(1..).unwrap_or_default());
+        out.push(kind);
+        out.push(flags);
+        out.extend_from_slice(&stream.to_be_bytes());
+        out.extend_from_slice(payload);
+        out
+    }
+
+    /// One Ethernet/IPv4/TCP segment between the test endpoints.
+    fn segment(
+        number: u64,
+        sequence: u32,
+        from_client: bool,
+        payload: &[u8],
+    ) -> crate::capture::Frame {
+        let (source, source_port, destination, destination_port) = if from_client {
+            ([192, 0, 2, 1], 40_000_u16, [192, 0, 2, 2], 80_u16)
+        } else {
+            ([192, 0, 2, 2], 80_u16, [192, 0, 2, 1], 40_000_u16)
+        };
+        let mut tcp = Vec::with_capacity(20_usize.saturating_add(payload.len()));
+        tcp.extend_from_slice(&source_port.to_be_bytes());
+        tcp.extend_from_slice(&destination_port.to_be_bytes());
+        tcp.extend_from_slice(&sequence.to_be_bytes());
+        tcp.extend_from_slice(&1_u32.to_be_bytes());
+        tcp.extend_from_slice(&[0x50, 0x18]);
+        tcp.extend_from_slice(&65535_u16.to_be_bytes());
+        tcp.extend_from_slice(&[0, 0, 0, 0]);
+        tcp.extend_from_slice(payload);
+        let total = u16::try_from(20_usize.saturating_add(tcp.len())).unwrap_or(u16::MAX);
+        let mut datagram = vec![0x45, 0];
+        datagram.extend_from_slice(&total.to_be_bytes());
+        datagram.extend_from_slice(&0_u16.to_be_bytes());
+        datagram.extend_from_slice(&0x4000_u16.to_be_bytes());
+        datagram.push(64);
+        datagram.push(6);
+        datagram.extend_from_slice(&[0, 0]);
+        datagram.extend_from_slice(&source);
+        datagram.extend_from_slice(&destination);
+        datagram.extend_from_slice(&tcp);
+        let mut captured = Vec::with_capacity(14_usize.saturating_add(datagram.len()));
+        captured.extend_from_slice(&[2, 0, 0, 0, 0, 2]);
+        captured.extend_from_slice(&[2, 0, 0, 0, 0, 1]);
+        captured.extend_from_slice(&0x0800_u16.to_be_bytes());
+        captured.extend_from_slice(&datagram);
+        crate::capture::Frame {
+            number,
+            timestamp: None,
+            timestamp_precision: 6,
+            captured,
+            original_len: u32::try_from(14_usize.saturating_add(datagram.len()))
+                .unwrap_or(u32::MAX),
+            link_type: 1,
+            interface_id: 0,
+            global_interface: 0,
+            timestamp_units: None,
+            source_offset: 0,
+            interface_name: None,
+            section_number: None,
+            comments: Vec::new(),
+            options: crate::capture::PacketOptions::default(),
+        }
+    }
+
+    /// Decode one segment and advance its direction's TCP sequence.
+    fn decode_segment(
+        session: &mut crate::state::DecodeSession,
+        number: u64,
+        from_client: bool,
+        payload: &[u8],
+        sequences: &mut (u32, u32),
+    ) -> crate::Packet {
+        let sequence = if from_client {
+            sequences.0
+        } else {
+            sequences.1
+        };
+        let packet = session.decode_at(&segment(number, sequence, from_client, payload), number);
+        let next = sequence.saturating_add(u32::try_from(payload.len()).unwrap_or(u32::MAX));
+        if from_client {
+            sequences.0 = next;
+        } else {
+            sequences.1 = next;
+        }
+        packet
+    }
+
+    #[test]
+    fn a_frame_above_the_acknowledged_max_frame_size_is_malformed() {
+        let mut session = crate::state::DecodeSession::new(crate::decode::DecodeOptions::default());
+        let mut sequences = (1_u32, 1_u32);
+        let mut first = PREFACE.to_vec();
+        first.extend_from_slice(&frame_pdu(SETTINGS, 0, 0, &[]));
+        let _ = decode_segment(&mut session, 1, true, &first, &mut sequences);
+        // The server raises the limit for the frames the client sends.
+        let raise = frame_pdu(SETTINGS, 0, 0, &[0, 5, 0, 0, 0x80, 0]);
+        let _ = decode_segment(&mut session, 2, false, &raise, &mut sequences);
+        let ack = frame_pdu(SETTINGS, FLAG_ACK, 0, &[]);
+        let _ = decode_segment(&mut session, 3, true, &ack, &mut sequences);
+        // The server lowers the limit again. A 20000-octet frame already in
+        // flight stays valid until the client acknowledges the lowering
+        // (RFC 9113 section 6.5.3).
+        let lower = frame_pdu(SETTINGS, 0, 0, &[0, 5, 0, 0, 0x40, 0]);
+        let _ = decode_segment(&mut session, 4, false, &lower, &mut sequences);
+        let oversized_payload = [0x41_u8; 20_000];
+        let oversized = frame_pdu(0x20, 0, 1, &oversized_payload);
+        let in_flight = decode_segment(&mut session, 5, true, &oversized, &mut sequences);
+        assert!(!in_flight.malformed, "the lower limit waits for its ACK");
+        let ack = frame_pdu(SETTINGS, FLAG_ACK, 0, &[]);
+        let _ = decode_segment(&mut session, 6, true, &ack, &mut sequences);
+        let rejected = decode_segment(&mut session, 7, true, &oversized, &mut sequences);
+        assert!(rejected.malformed, "the acknowledged limit now applies");
+        assert!(
+            rejected
+                .tree
+                .fields()
+                .flat_map(|field| field.experts.iter())
+                .any(|expert| expert.message.contains("FRAME_SIZE_ERROR")),
+            "one expert names FRAME_SIZE_ERROR"
+        );
+    }
+
+    #[test]
+    fn a_skipped_oversized_header_frame_marks_the_table_lost() {
+        let mut session = crate::state::DecodeSession::new(crate::decode::DecodeOptions::default());
+        let mut sequences = (1_u32, 1_u32);
+        let mut first = PREFACE.to_vec();
+        first.extend_from_slice(&frame_pdu(SETTINGS, 0, 0, &[]));
+        let _ = decode_segment(&mut session, 1, true, &first, &mut sequences);
+        // A completed block inserts one entry at dynamic index 62.
+        let inserted = frame_pdu(
+            HEADERS,
+            FLAG_END_HEADERS,
+            1,
+            &[0x40, 0x01, b'a', 0x01, b'1'],
+        );
+        let packet = decode_segment(&mut session, 2, true, &inserted, &mut sequences);
+        assert_eq!(
+            packet
+                .tree
+                .fields()
+                .filter(|field| field.def.abbrev == "http2.header")
+                .count(),
+            1
+        );
+        // An oversized block that would insert a second entry is skipped
+        // whole because its declared length exceeds SETTINGS_MAX_FRAME_SIZE.
+        let mut skipped_payload = vec![0x40, 0x01, b'b', 0x01, b'2'];
+        skipped_payload.resize(20_000, 0x41);
+        let skipped = frame_pdu(HEADERS, FLAG_END_HEADERS, 3, &skipped_payload);
+        let packet = decode_segment(&mut session, 3, true, &skipped, &mut sequences);
+        assert!(packet.malformed);
+        // Index 62 would resolve the first entry if the skip had not marked
+        // the table lost; the block reports the desynchronized table instead.
+        let indexed = frame_pdu(HEADERS, FLAG_END_HEADERS, 5, &[0xbe]);
+        let packet = decode_segment(&mut session, 4, true, &indexed, &mut sequences);
+        assert!(
+            !packet.malformed,
+            "a lost table is a warning, not malformed"
+        );
+        assert_eq!(
+            packet
+                .tree
+                .fields()
+                .filter(|field| field.def.abbrev == "http2.header")
+                .count(),
+            0,
+            "the stale entry must not resolve"
+        );
+        assert!(
+            packet
+                .tree
+                .fields()
+                .flat_map(|field| field.experts.iter())
+                .any(|expert| expert.group == Group::Undecoded
+                    && expert.message.contains("dynamic table lost")),
+            "the block reports the lost table"
         );
     }
 }

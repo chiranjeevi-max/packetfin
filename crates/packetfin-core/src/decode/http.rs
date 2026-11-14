@@ -345,6 +345,13 @@ fn parse_message(data: &[u8], base: usize, options: &MessageOptions<'_>) -> Opti
 
     let mut headers: Vec<HeaderLine<'_>> = Vec::new();
     let mut budget = HeaderBudget::default();
+    // `MAX_HEADER_BYTES` covers the start line, every field line and the
+    // empty line that ends the section, so charge the start line before the
+    // loop: an oversized target would otherwise create unbounded URI fields
+    // while the header section itself stays empty.
+    if !budget.take(start_end, false) {
+        return None;
+    }
     let mut offset = start_end;
     loop {
         let (line, consumed) = next_line(data, offset)?;
@@ -1563,7 +1570,7 @@ fn media_suffix_for(content_type: &str) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::http_syntax::MAX_HEADER_LINES;
+    use crate::http_syntax::{MAX_HEADER_BYTES, MAX_HEADER_LINES};
 
     fn parse_response(message: &[u8], fin: bool) -> Option<HttpMessage> {
         parse_message(
@@ -1644,6 +1651,29 @@ mod tests {
             )
             .is_none()
         );
+    }
+
+    #[test]
+    fn a_start_line_beyond_the_header_budget_is_refused() {
+        let mut message = b"GET /".to_vec();
+        message.extend(std::iter::repeat_n(b'a', MAX_HEADER_BYTES));
+        message.extend_from_slice(b" HTTP/1.1\r\n\r\n");
+        assert!(
+            parse_message(
+                &message,
+                0,
+                &MessageOptions {
+                    tls_plaintext: false,
+                    response_to_head: false,
+                    response_to_connect: false,
+                    export: false,
+                    fin: false,
+                    source: None,
+                },
+            )
+            .is_none()
+        );
+        assert!(parse_response(b"GET / HTTP/1.1\r\n\r\n", false).is_some());
     }
 
     #[test]

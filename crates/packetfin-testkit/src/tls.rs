@@ -658,9 +658,13 @@ impl Tls12Writer {
         // the previous record's last ciphertext block (RFC 2246 6.2.3.2).
         let explicit_iv = self.version != TLS10_VERSION;
         let mut iv = if explicit_iv {
+            // RFC 4346 section 6.2.3.2 asks for an unpredictable IV per
+            // record; a fixture needs a repeatable one, so byte `n` is the
+            // low byte of `sequence + n`. Masking keeps every sequence value
+            // representable, so a long direction never saturates a byte.
             let mut iv = [0_u8; 16];
             for (index, byte) in iv.iter_mut().enumerate() {
-                *byte = u8::try_from((sequence as usize).wrapping_add(index)).expect("iv");
+                *byte = (sequence.wrapping_add(index as u64) & 0xff) as u8;
             }
             iv
         } else if from_client {
@@ -964,5 +968,35 @@ impl Tls13Writer {
             .try_into()
             .expect("iv");
         keys.sequence = 0;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// RFC 4346 section 6.2.3.2 prefixes every CBC record with a fresh
+    /// explicit IV. A fixture direction past 241 records must keep producing
+    /// records, and each one must still carry a distinct IV.
+    #[test]
+    fn tls11_explicit_ivs_cover_a_long_direction() {
+        let mut writer = Tls12Writer::legacy(0x002f, TLS11_VERSION, false);
+        let mut previous_iv: Option<[u8; 16]> = None;
+        for _ in 0..242 {
+            let record = writer.record(true, APPLICATION_DATA, b"payload");
+            assert!(!record.is_empty(), "record {previous_iv:?} missing");
+            let iv: [u8; 16] = record
+                .get(5..21)
+                .and_then(|bytes| bytes.try_into().ok())
+                .expect("explicit IV");
+            if let Some(previous) = previous_iv {
+                assert_ne!(previous, iv, "consecutive records repeat an explicit IV");
+            }
+            previous_iv = Some(iv);
+        }
+        // The 242nd record is sequence 241: its last IV byte folds 256.
+        let last = previous_iv.expect("242nd record IV");
+        assert_eq!(last[0], 241);
+        assert_eq!(last[15], 0);
     }
 }

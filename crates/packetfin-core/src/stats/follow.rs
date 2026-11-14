@@ -9,9 +9,10 @@
 //! until the gap fills or the peer acknowledges it, and inserts a
 //! `[N bytes missing in capture file]` record (including its trailing NUL)
 //! when an ACK proves the bytes were captured elsewhere. HTTP follows the
-//! message chunks its dissector produces and TLS follows decrypted
-//! application data, which Packetfin cannot decrypt yet, so a TLS follow
-//! prints an empty table.
+//! message chunks its dissector produces; with desegmentation disabled it
+//! rejoins a start line split across segments from a bounded probe. TLS
+//! follows decrypted application data, which Packetfin cannot decrypt yet,
+//! so a TLS follow prints an empty table.
 //!
 //! Every list is bounded: one follow specification retains at most
 //! [`SPEC_LIMIT`] bytes of chunk data and all of them together at most the
@@ -41,6 +42,12 @@ const RECORD_OVERHEAD: usize = std::mem::size_of::<Record>() + 32;
 
 /// Per-fragment bookkeeping for out-of-order TCP data.
 const FRAGMENT_OVERHEAD: usize = std::mem::size_of::<Fragment>() + 32;
+
+/// Bytes of a split HTTP start line the no-desegmentation probe may retain.
+const HTTP_PREFIX_LIMIT: usize = 8 * 1024;
+
+/// Segments of a split HTTP start line the probe may retain.
+const HTTP_PREFIX_PARTS: usize = 16;
 
 /// Separator rule printed above and below a follow stream.
 const SEPARATOR: &str = "===================================================================\n";
@@ -332,6 +339,14 @@ pub(crate) struct State {
     limit: usize,
     http_desegment: bool,
     http_started: bool,
+    /// Leading segments of an HTTP stream whose first start line is split
+    /// across segments, in arrival order. Only the no-desegmentation path
+    /// uses the probe, because reassembly hands the tap a whole message.
+    http_prefix: Vec<Vec<u8>>,
+    /// Bytes held by `http_prefix`, segment bytes only.
+    http_prefix_bytes: usize,
+    /// The connection and direction whose start line the probe continues.
+    http_probe: Option<StreamKey>,
     /// The peer request each direction last carried, for the HEAD and CONNECT
     /// framing rules (RFC 9112 section 6.3 cases 1 and 2).
     answers: [Answer; 2],
@@ -356,6 +371,9 @@ impl State {
             limit: limit.min(SPEC_LIMIT),
             http_desegment: true,
             http_started: false,
+            http_prefix: Vec::new(),
+            http_prefix_bytes: 0,
+            http_probe: None,
             answers: [Answer::default(); 2],
             truncated: false,
         }
@@ -386,24 +404,7 @@ impl State {
         payload: &[u8],
     ) {
         if self.spec.proto == FollowProto::Http && !self.http_desegment {
-            if !self.selects(key) {
-                return;
-            }
-            if payload.is_empty() {
-                return;
-            }
-            if !self.http_started {
-                if !starts_with_http_start_line(payload) {
-                    return;
-                }
-                self.http_started = true;
-            }
-            self.establish(key);
-            let direction = self.direction_of(key);
-            let records = split_http_segments(payload, direction, &mut self.answers);
-            for data in records {
-                self.push(direction, data);
-            }
+            self.http_segment(key, payload);
             return;
         }
         if self.spec.proto != FollowProto::Tcp || !self.selects(key) {
@@ -416,6 +417,113 @@ impl State {
         // captured elsewhere even when this segment carries no data.
         while self.fill_from_ack(peer, acknowledgement, true) {}
         self.tcp_segment(is_server, sequence, payload);
+    }
+
+    /// Apply one un-reassembled HTTP segment.
+    ///
+    /// The follow begins at the first complete start line. A start line split
+    /// across segments leaves the earlier segments unparsable one at a time,
+    /// so the probe retains them and replays them once the concatenation
+    /// carries a start line. The probe belongs to the connection and
+    /// direction that opened it: bytes from another key cannot continue that
+    /// line, so they are ignored until the probe completes or its bounds
+    /// clear it.
+    fn http_segment(&mut self, key: StreamKey, payload: &[u8]) {
+        if !self.selects(key) || payload.is_empty() {
+            return;
+        }
+        if !self.http_started {
+            if self.http_probe.is_some_and(|probe| probe != key) {
+                return;
+            }
+            if self.http_prefix.is_empty() {
+                if !starts_with_http_start_line(payload) {
+                    self.retain_http_prefix(key, payload);
+                    return;
+                }
+                self.start_http(key, None, payload);
+                return;
+            }
+            let mut combined =
+                Vec::with_capacity(self.http_prefix_bytes.saturating_add(payload.len()));
+            for part in &self.http_prefix {
+                combined.extend_from_slice(part);
+            }
+            combined.extend_from_slice(payload);
+            if !starts_with_http_start_line(&combined) {
+                self.retain_http_prefix(key, payload);
+                return;
+            }
+            self.start_http(key, Some(combined), payload);
+            return;
+        }
+        self.establish(key);
+        let direction = self.direction_of(key);
+        let records = split_http_segments(payload, direction, &mut self.answers);
+        for data in records {
+            self.push(direction, data);
+        }
+    }
+
+    /// Begin the HTTP follow and replay the start-line probe.
+    ///
+    /// `combined` holds the retained segments joined with `payload`; it is
+    /// `None` when the segment carries the start line by itself. No retained
+    /// segment parses as a start line alone, so the joined request line
+    /// records the method (and with it the HEAD and CONNECT rules of RFC 9112
+    /// section 6.3) before the segments are replayed in arrival order.
+    fn start_http(&mut self, key: StreamKey, combined: Option<Vec<u8>>, payload: &[u8]) {
+        self.http_started = true;
+        self.establish(key);
+        let direction = self.direction_of(key);
+        if let Some(combined) = &combined {
+            note_http_message(combined, direction, &mut self.answers);
+        }
+        let prefix = self.take_http_prefix();
+        for part in &prefix {
+            for data in split_http_segments(part, direction, &mut self.answers) {
+                self.push(direction, data);
+            }
+        }
+        let records = split_http_segments(payload, direction, &mut self.answers);
+        for data in records {
+            self.push(direction, data);
+        }
+    }
+
+    /// Retain one segment of a split HTTP start line.
+    ///
+    /// The probe keeps at most [`HTTP_PREFIX_LIMIT`] bytes in at most
+    /// [`HTTP_PREFIX_PARTS`] segments, charged against the specification cap
+    /// as a record is. A segment that would cross a bound releases what the
+    /// probe kept and leaves the stream not started, so a first line that
+    /// never completes cannot grow the table.
+    fn retain_http_prefix(&mut self, key: StreamKey, payload: &[u8]) {
+        let charge = payload.len().saturating_add(RECORD_OVERHEAD);
+        let parts = self.http_prefix.len();
+        if payload.len() > HTTP_PREFIX_LIMIT.saturating_sub(self.http_prefix_bytes)
+            || parts >= HTTP_PREFIX_PARTS
+            || self.retained.saturating_add(charge) > self.limit
+        {
+            self.take_http_prefix();
+            return;
+        }
+        self.http_prefix_bytes = self.http_prefix_bytes.saturating_add(payload.len());
+        self.retained = self.retained.saturating_add(charge);
+        self.http_prefix.push(payload.to_vec());
+        self.http_probe = Some(key);
+    }
+
+    /// Release the retained start-line segments in arrival order.
+    fn take_http_prefix(&mut self) -> Vec<Vec<u8>> {
+        let prefix = std::mem::take(&mut self.http_prefix);
+        let charge = self
+            .http_prefix_bytes
+            .saturating_add(prefix.len().saturating_mul(RECORD_OVERHEAD));
+        self.retained = self.retained.saturating_sub(charge);
+        self.http_prefix_bytes = 0;
+        self.http_probe = None;
+        prefix
     }
 
     /// Apply one segment to a direction's TCP stream.
@@ -528,44 +636,12 @@ impl State {
     /// Whether this specification follows `key`.
     fn selects(&self, key: StreamKey) -> bool {
         match &self.spec.selector {
-            // Before the first segment the index is the only identity. After
-            // it, the endpoints identify the connection: `-M` restarts the
-            // index at zero for a new capture pass, and the followed
-            // connection keeps flowing under its new index.
-            FollowSelector::Stream(index) => match self.endpoints {
-                Some((source, source_port, destination, destination_port)) => {
-                    (endpoint_matches(
-                        key.source,
-                        key.source_port,
-                        FollowEndpoint {
-                            address: source,
-                            port: source_port,
-                        },
-                    ) && endpoint_matches(
-                        key.destination,
-                        key.destination_port,
-                        FollowEndpoint {
-                            address: destination,
-                            port: destination_port,
-                        },
-                    )) || (endpoint_matches(
-                        key.source,
-                        key.source_port,
-                        FollowEndpoint {
-                            address: destination,
-                            port: destination_port,
-                        },
-                    ) && endpoint_matches(
-                        key.destination,
-                        key.destination_port,
-                        FollowEndpoint {
-                            address: source,
-                            port: source_port,
-                        },
-                    ))
-                }
-                None => key.index == *index,
-            },
+            // A stream index names one connection per capture pass, because
+            // each pass numbers its streams from zero. Endpoints are not an
+            // identity: a restarted pass reuses index N for its own stream,
+            // so the index alone selects the followed conversation the same
+            // way the stream field does.
+            FollowSelector::Stream(index) => key.index == *index,
             FollowSelector::Address { first, second } => {
                 endpoint_matches(key.source, key.source_port, *first)
                     && endpoint_matches(key.destination, key.destination_port, *second)
@@ -1066,7 +1142,7 @@ fn dechunk(body: &[u8]) -> (Vec<u8>, usize) {
             } => {
                 return (data, if trailers { body.len() } else { restart });
             }
-            ChunkStep::Invalid { at } => return (data, at),
+            ChunkStep::Invalid { at, .. } => return (data, at),
         }
     }
 }
@@ -1106,17 +1182,15 @@ mod tests {
     }
 
     #[test]
-    fn a_followed_index_keeps_its_endpoints_across_a_session_reset() {
+    fn a_stream_index_selects_only_its_own_connection() {
         let mut state = follow("follow,tcp,ascii,0");
         state.tcp_event(key(0, 1, 2), 0, 1, 1, b"first");
-        // A second connection takes index 0 again; it is not the followed one.
-        state.tcp_event(key(0, 3, 4), 0, 1, 1, b"other");
-        // The followed connection reappears under a new index after a reset.
-        state.tcp_event(reverse_key(7, 2, 1), 1, 1, 6, b"second");
+        // Another connection with the same endpoints but a different index is
+        // not the followed stream.
+        state.tcp_event(key(1, 1, 2), 0, 1, 1, b"other");
         let mut output = String::new();
         state.finish(&mut output).unwrap_or(());
         assert!(output.contains("first"), "{output}");
-        assert!(output.contains("second"), "{output}");
         assert!(!output.contains("other"), "{output}");
     }
 
@@ -1190,6 +1264,79 @@ DDDD"
             !output.contains("4\njunk"),
             "the declared length must not split a HEAD answer: {output}"
         );
+    }
+
+    #[test]
+    fn a_split_start_line_replays_both_segments() {
+        // The first segment stops before its LF, so neither segment carries a
+        // start line by itself. The probe retains the first and replays both
+        // once the second completes the line.
+        let mut state = follow("follow,http,ascii,0");
+        state.set_http_desegment(false);
+        state.tcp_event(key(0, 1, 2), 0, 1, 1, b"GET /split");
+        state.tcp_event(key(0, 1, 2), 0, 11, 1, b" HTTP/1.1\r\nHost: h\r\n\r\n");
+        let mut output = String::new();
+        state.finish(&mut output).unwrap_or(());
+        assert!(output.contains("10\nGET /split\n"), "{output}");
+        assert!(
+            output.contains("22\n HTTP/1.1\r\nHost: h\r\n\r\n\n"),
+            "the second segment must follow the retained one: {output}"
+        );
+    }
+
+    #[test]
+    fn a_split_head_request_answers_bodyless() {
+        // The split request line only parses once joined, so the probe records
+        // its method before replaying the segments. RFC 9112 section 6.3 case
+        // 1 then ends the answer at its header section.
+        let mut state = follow("follow,http,ascii,0");
+        state.set_http_desegment(false);
+        state.tcp_event(key(0, 1, 2), 0, 1, 1, b"HEAD /split");
+        state.tcp_event(key(0, 1, 2), 0, 11, 1, b" HTTP/1.1\r\nHost: h\r\n\r\n");
+        state.tcp_event(
+            reverse_key(0, 2, 1),
+            1,
+            1,
+            1,
+            b"HTTP/1.1 200 OK\r\nContent-Length: 4\r\n\r\njunkMORE",
+        );
+        let mut output = String::new();
+        state.finish(&mut output).unwrap_or(());
+        assert!(
+            output.contains("\t8\njunkMORE\n"),
+            "the answer to HEAD must carry no body: {output}"
+        );
+        assert!(
+            !output.contains("4\njunk"),
+            "the declared length must not split a HEAD answer: {output}"
+        );
+    }
+
+    #[test]
+    fn an_incomplete_start_line_stops_at_the_probe_caps() {
+        let mut state = follow("follow,http,ascii,0");
+        state.set_http_desegment(false);
+        for _ in 0..HTTP_PREFIX_PARTS {
+            state.tcp_event(key(0, 1, 2), 0, 1, 1, b"x");
+        }
+        assert_eq!(state.http_prefix.len(), HTTP_PREFIX_PARTS);
+        assert!(state.retained() > HTTP_PREFIX_PARTS);
+        // One more segment cannot join the part list, so the probe releases
+        // everything it kept and the stream stays not started.
+        state.tcp_event(key(0, 1, 2), 0, 1, 1, b"y");
+        assert!(state.http_prefix.is_empty());
+        assert!(state.http_probe.is_none());
+        assert!(!state.http_started);
+        assert_eq!(state.retained(), 0);
+        // A segment that cannot fit the byte bound clears the probe the same
+        // way.
+        let large = vec![b'x'; HTTP_PREFIX_LIMIT.saturating_add(1)];
+        state.tcp_event(key(0, 1, 2), 0, 1, 1, &large);
+        assert!(state.http_prefix.is_empty());
+        assert!(!state.http_started);
+        let mut output = String::new();
+        state.finish(&mut output).unwrap_or(());
+        assert!(!output.contains("xx"), "{output}");
     }
 
     #[test]

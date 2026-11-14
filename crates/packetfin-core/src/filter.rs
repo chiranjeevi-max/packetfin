@@ -1285,8 +1285,8 @@ fn rounded_quotient(numerator: i128, denominator: i128) -> Option<i128> {
     if remainder == 0 {
         return Some(quotient);
     }
-    let doubled = u128::from(remainder.unsigned_abs()).checked_mul(2)?;
-    if doubled < u128::from(denominator.unsigned_abs()) {
+    let doubled = remainder.unsigned_abs().checked_mul(2)?;
+    if doubled < denominator.unsigned_abs() {
         return Some(quotient);
     }
     let step: i128 = if (remainder > 0) == (denominator > 0) {

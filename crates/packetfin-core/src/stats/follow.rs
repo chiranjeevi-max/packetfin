@@ -437,11 +437,19 @@ impl State {
                 return;
             }
             if self.http_prefix.is_empty() {
-                if !starts_with_http_start_line(payload) {
-                    self.retain_http_prefix(key, payload);
+                if starts_with_http_start_line(payload) {
+                    self.start_http(key, None, payload);
                     return;
                 }
-                self.start_http(key, None, payload);
+                if next_line(payload, 0).is_some() {
+                    // The first line is complete but cannot start an HTTP
+                    // message (for example a capture starting mid-body). Do
+                    // not retain it: a later valid message must be free to
+                    // begin the follow.
+                    self.take_http_prefix();
+                    return;
+                }
+                self.retain_http_prefix(key, payload);
                 return;
             }
             let mut combined =
@@ -451,6 +459,12 @@ impl State {
             }
             combined.extend_from_slice(payload);
             if !starts_with_http_start_line(&combined) {
+                if next_line(&combined, 0).is_some() {
+                    // The joined first line is complete but invalid; release
+                    // the probe so a later message can start the follow.
+                    self.take_http_prefix();
+                    return;
+                }
                 self.retain_http_prefix(key, payload);
                 return;
             }
@@ -1309,6 +1323,28 @@ DDDD"
         assert!(
             !output.contains("4\njunk"),
             "the declared length must not split a HEAD answer: {output}"
+        );
+    }
+
+    #[test]
+    fn an_invalid_complete_first_line_does_not_block_the_follow() {
+        // A capture can start mid-body: `tail\r\n` is a complete line but
+        // no HTTP start line. It must not be retained as a probe, or every
+        // later valid message would be prefixed by it and ignored.
+        let mut state = follow("follow,http,ascii,0");
+        state.set_http_desegment(false);
+        state.tcp_event(key(0, 1, 2), 0, 1, 1, b"tail\r\n");
+        assert!(
+            state.http_prefix.is_empty(),
+            "an invalid line is not a probe"
+        );
+        assert!(state.http_probe.is_none());
+        state.tcp_event(reverse_key(0, 2, 1), 1, 1, 1, b"HTTP/1.1 200 OK\r\n\r\n");
+        let mut output = String::new();
+        state.finish(&mut output).unwrap_or(());
+        assert!(
+            output.contains("HTTP/1.1 200 OK"),
+            "the later message must start the follow: {output}"
         );
     }
 

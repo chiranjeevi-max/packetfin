@@ -1192,12 +1192,9 @@ const NANOS_PER_SECOND: i128 = 1_000_000_000;
 fn relative_constant_nanos(operand: &Operand) -> Result<Option<i128>, FilterError> {
     match &operand.kind {
         OperandKind::TokenLiteral(TokenLiteral::Word(text)) => {
-            if let Some(seconds) = parse_integer(text) {
-                return seconds
-                    .checked_mul(NANOS_PER_SECOND)
-                    .map(Some)
-                    .ok_or_else(|| relative_constant_range(operand));
-            }
+            // Match the direct relative literal grammar exactly: decimal
+            // seconds, not the integer parser's base prefixes (`010` is ten
+            // seconds beside a relative field, not eight).
             Ok(parse_relative_seconds(text))
         }
         OperandKind::Literal { literal, ty } => match (literal, *ty) {
@@ -5041,6 +5038,12 @@ mod tests {
         // so a whole-second comparison literal applies directly.
         assert!(matches(
             "frame.time_relative + frame.time_epoch > 1700000001"
+        ));
+
+        // A leading zero is decimal beside a relative field, exactly like
+        // the direct literal parser, so folding cannot change its meaning.
+        assert!(matches(
+            "frame.time_relative + 010 * 1 == frame.time_relative + 10"
         ));
         assert!(matches("frame.time_relative - frame.time_epoch < 0"));
         assert!(!matches(

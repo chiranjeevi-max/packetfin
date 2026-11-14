@@ -310,7 +310,10 @@ impl Http2Direction {
     /// A frame beyond the cap is counted instead of queueing, so the ACK it
     /// later receives consumes no queued value and the queue never grows.
     fn push_pending_settings(&mut self) -> bool {
-        if self.pending_settings.len() >= MAX_OUTSTANDING_SETTINGS {
+        // A frame sent after any discarded frame must also be discarded until
+        // the count drains: otherwise it enters a slot freed by an earlier
+        // ACK and the next ACK would pair with the wrong frame.
+        if self.discarded_settings > 0 || self.pending_settings.len() >= MAX_OUTSTANDING_SETTINGS {
             self.discarded_settings = self.discarded_settings.saturating_add(1);
             false
         } else {
@@ -1460,6 +1463,33 @@ mod tests {
             true,
         );
         assert_eq!(after.block.map(|block| block.stop), Some(Stop::Complete));
+    }
+
+    #[test]
+    fn settings_sent_while_discarding_do_not_shift_acks() {
+        let mut state = SessionState::new(64 * 1024 * 1024);
+        let (client, server) = keys();
+        for _ in 0..MAX_OUTSTANDING_SETTINGS {
+            state.http2_settings_frame(server);
+        }
+        // Frame nine is discarded. Frame ten arrives after ACK one frees a
+        // queue slot; it must stay discarded too, or ACK nine would apply it.
+        state.http2_settings_frame(server);
+        state.http2_settings(server, 5, 32_768);
+        state.http2_settings_ack(client);
+        state.http2_settings_frame(server);
+        state.http2_settings(server, 5, 49_152);
+        for _ in 0..MAX_OUTSTANDING_SETTINGS - 1 {
+            state.http2_settings_ack(client);
+        }
+        // ACKs nine and ten consume the two discarded frames.
+        state.http2_settings_ack(client);
+        state.http2_settings_ack(client);
+        assert_eq!(
+            state.http2_peer_max_frame_size(client),
+            DEFAULT_MAX_FRAME_SIZE,
+            "neither discarded frame may be applied"
+        );
     }
 
     #[test]

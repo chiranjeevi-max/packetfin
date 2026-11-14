@@ -4,7 +4,9 @@
 //! The `http-framing-rfc` fixture has no golden case: its messages are exactly
 //! the shapes whose expected output disagrees with the standard, so the
 //! assertions below state the RFC rules (RFC 9112 sections 6.1, 6.3 and 7.1,
-//! RFC 9110 section 9.3.6) instead of storing expected output.
+//! RFC 9110 section 9.3.6) instead of storing expected output. Its last
+//! connection checks Packetfin's own header-retention cap, which keeps a
+//! refused message's framed length.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -504,6 +506,18 @@ fn a_connect_tunnel_carries_no_later_message() -> Result<(), String> {
             assert_eq!(column(tunnel, 1)?, "", "{options:?} frame {frame}");
             assert_eq!(column(tunnel, 2)?, "", "{options:?} frame {frame}");
         }
+    }
+    Ok(())
+}
+
+#[test]
+fn a_message_over_the_header_cap_keeps_the_next_one_aligned() -> Result<(), String> {
+    // The first request in frame 53 has one field more than the decoder
+    // retains, so it stays undecoded, but it still owns its framed length:
+    // the request pipelined after it decodes, with or without reassembly.
+    for options in [&[][..], &["-o", "tcp.desegment_tcp_streams:FALSE"]] {
+        let rows = field_rows_where(options, &["frame.number", "http.request.uri"])?;
+        assert_eq!(column(row(&rows, "53")?, 1)?, "/second", "{options:?}");
     }
     Ok(())
 }

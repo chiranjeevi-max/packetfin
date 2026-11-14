@@ -1337,7 +1337,8 @@ fn decode_agent_information(
         let Some(&suboption) = body.get(position) else {
             break;
         };
-        let Some(length_byte) = body.get(position + 1).copied() else {
+        let suboption_offset = offset.saturating_add(position);
+        let Some(length_byte) = position.checked_add(1).and_then(|at| body.get(at)).copied() else {
             let marker = node.add_field(
                 &fields::DHCP_MISSING_SUBOPT_LENGTH,
                 Range::new(option_offset, 0),
@@ -1353,23 +1354,25 @@ fn decode_agent_information(
             return None;
         };
         let length = usize::from(length_byte);
-        let value_start = position + 2;
-        let value = body.get(value_start..value_start + length);
+        // The length octet was read, so the value starts inside `usize`.
+        let value_start = position.saturating_add(2);
+        let value_end = value_start.checked_add(length);
+        let value = value_end.and_then(|end| body.get(value_start..end));
         let field = node.add_container(
             &fields::DHCP_OPTION_AGENT_INFORMATION_OPTION_SUBOPTION,
-            Range::new(offset + position, 2 + length),
+            Range::new(suboption_offset, length.saturating_add(2)),
             Some(suboption_label(suboption, value)),
         );
         field.value = Value::Uint8(suboption);
         field.add_field(
             &fields::DHCP_OPTION_SUBOPTION_LENGTH,
-            Range::new(offset + position + 1, 1),
+            Range::new(suboption_offset.saturating_add(1), 1),
             Value::Uint8(length_byte),
         );
         let Some(value) = value else {
             let marker = field.add_field(
                 &fields::DHCP_MISSING_SUBOPT_VALUE,
-                Range::new(offset + position, 0),
+                Range::new(suboption_offset, 0),
                 Value::None,
             );
             marker.add_expert(ExpertInfo {
@@ -1381,7 +1384,7 @@ fn decode_agent_information(
             });
             return None;
         };
-        let value_range = Range::new(offset + value_start, value.len());
+        let value_range = Range::new(offset.saturating_add(value_start), value.len());
         let hidden = if value.is_empty() {
             field.add_field(
                 &fields::DHCP_OPTION_AGENT_INFORMATION_OPTION_VALUE,
@@ -1429,7 +1432,7 @@ fn decode_agent_information(
                         Value::Uint32(read_u32_be(value, 0).unwrap_or(0)),
                     );
                 } else {
-                    bad_length(field, offset + position, "length isn't 4");
+                    bad_length(field, suboption_offset, "length isn't 4");
                 }
             }
             5 => {
@@ -1440,7 +1443,7 @@ fn decode_agent_information(
                         Value::Ipv4(read_ipv4(value, 0)),
                     );
                 } else {
-                    bad_length(field, offset + position, "length isn't 4");
+                    bad_length(field, suboption_offset, "length isn't 4");
                 }
             }
             6 => {
@@ -1475,7 +1478,7 @@ fn decode_agent_information(
                         Value::Uint8(value.first().copied().unwrap_or(0)),
                     );
                 } else {
-                    bad_length(field, offset + position, "length isn't 1");
+                    bad_length(field, suboption_offset, "length isn't 1");
                 }
             }
             11 => {
@@ -1486,7 +1489,7 @@ fn decode_agent_information(
                         Value::Ipv4(read_ipv4(value, 0)),
                     );
                 } else {
-                    bad_length(field, offset + position, "length isn't 4");
+                    bad_length(field, suboption_offset, "length isn't 4");
                 }
             }
             12 => add_suboption_bytes(
@@ -1510,7 +1513,7 @@ fn decode_agent_information(
                         Value::Uint8(value.get(1).copied().unwrap_or(0)),
                     );
                 } else {
-                    bad_length(field, offset + position, "length isn't 2");
+                    bad_length(field, suboption_offset, "length isn't 2");
                     if value.is_empty() {
                         return Some("DHCP Option 82 access technology type is empty");
                     }
@@ -1518,7 +1521,7 @@ fn decode_agent_information(
             }
             _ => {}
         }
-        position = value_start + length;
+        position = value_end.unwrap_or(body.len());
     }
     None
 }
@@ -1580,33 +1583,39 @@ fn decode_vendor_specific(
         // block that RFC 4243 §4 requires.
         return Some("DHCP Option 82 vendor block is truncated");
     }
-    let mut position = 0;
+    let mut position = 0_usize;
     while position < value.len() {
-        let Some(enterprise_bytes) = value.get(position..position + 4) else {
+        let Some(length_at) = position.checked_add(4) else {
+            return Some("DHCP Option 82 vendor block is truncated");
+        };
+        let Some(enterprise_bytes) = value.get(position..length_at) else {
             return Some("DHCP Option 82 vendor block is truncated");
         };
         let enterprise = read_u32_be(enterprise_bytes, 0).unwrap_or(0);
         let enterprise_field = field.add_field(
             &fields::DHCP_OPTION_AGENT_INFORMATION_OPTION_VI_ENTERPRISE,
-            Range::new(base + position, 4),
+            Range::new(base.saturating_add(position), 4),
             Value::Uint32(enterprise),
         );
-        let Some(&data_length) = value.get(position + 4) else {
+        let Some(&data_length) = value.get(length_at) else {
             return Some("DHCP Option 82 vendor block is truncated");
         };
         // The block data length nests under the enterprise number, as do the
         // CableLabs records this build leaves opaque.
         enterprise_field.add_field(
             &fields::DHCP_OPTION_AGENT_INFORMATION_OPTION_VI_DATA_LENGTH,
-            Range::new(base + position + 4, 1),
+            Range::new(base.saturating_add(length_at), 1),
             Value::Uint8(data_length),
         );
-        let data_start = position + 5;
-        let length = usize::from(data_length);
-        let Some(data) = value.get(data_start..data_start + length) else {
+        // The length octet was read, so the data starts inside `usize`.
+        let data_start = length_at.saturating_add(1);
+        let Some(data_end) = data_start.checked_add(usize::from(data_length)) else {
             return Some("DHCP Option 82 vendor block is truncated");
         };
-        let data_range = Range::new(base + data_start, data.len());
+        let Some(data) = value.get(data_start..data_end) else {
+            return Some("DHCP Option 82 vendor block is truncated");
+        };
+        let data_range = Range::new(base.saturating_add(data_start), data.len());
         if data.is_empty() {
             field.add_field(
                 &fields::DHCP_OPTION_AGENT_INFORMATION_OPTION_VALUE,
@@ -1620,7 +1629,7 @@ fn decode_vendor_specific(
                 Value::bytes(data.to_vec()),
             );
         }
-        position = data_start + length;
+        position = data_end;
     }
     None
 }

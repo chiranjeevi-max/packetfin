@@ -732,9 +732,15 @@ fn a_tiny_fragment_flood_keeps_the_body_and_bounds_the_views() {
     let views = stream
         .children
         .iter()
-        .filter(|child| child.def.abbrev == "http2.body.fragment")
-        .count();
-    assert!(views <= 256, "fragment views are bounded, got {views}");
+        .find(|child| child.def.abbrev == "http2.body.fragments")
+        .map_or(0, |container| {
+            container
+                .children
+                .iter()
+                .filter(|child| child.def.abbrev == "http2.body.fragment")
+                .count()
+        });
+    assert_eq!(views, 256, "the 300 fragment views are capped at 256");
     let body = stream
         .children
         .iter()
@@ -851,6 +857,203 @@ fn tls_frame(number: u64, sequence: u32, from_client: bool, payload: &[u8]) -> F
     }
 }
 
+/// Decode TLS records in order, each as its own frame of one connection.
+fn decode_tls_records(keylog: &str, records: &[(bool, Vec<u8>)]) -> Vec<packetfin_core::Packet> {
+    let mut session = DecodeSession::new(DecodeOptions::default());
+    session.set_keylog(KeyLog::read(keylog.as_bytes()));
+    let mut client_sequence = 1_u32;
+    let mut server_sequence = 1_u32;
+    let mut frames = Vec::new();
+    for (index, (from_client, record)) in records.iter().enumerate() {
+        let number = u64::try_from(index).unwrap_or(0) + 1;
+        let sequence = if *from_client {
+            client_sequence
+        } else {
+            server_sequence
+        };
+        let packet = session.decode_at(&tls_frame(number, sequence, *from_client, record), number);
+        frames.push(packet);
+        let next = sequence.saturating_add(u32::try_from(record.len()).unwrap_or(u32::MAX));
+        if *from_client {
+            client_sequence = next;
+        } else {
+            server_sequence = next;
+        }
+    }
+    frames
+}
+
+/// One TLS 1.3 connection whose client sends an HTTP/2 preface as 0-RTT
+/// data, then `client` and `server` as 1-RTT data, with the server's
+/// EncryptedExtensions body `encrypted_extensions`. The early HEADERS block
+/// inserts `x: y` as dynamic table entry 62, and a 0-RTT PING follows the
+/// EncryptedExtensions.
+fn early_data_exchange(
+    encrypted_extensions: &[u8],
+    client: &[u8],
+    server: &[u8],
+) -> Vec<packetfin_core::Packet> {
+    use packetfin_testkit::tls;
+
+    let mut writer = tls::Tls13Writer::new(0x1302);
+    writer.with_early();
+    let client_hello = tls::client_hello(
+        tls::TLS12_VERSION,
+        writer.client_random(),
+        &[],
+        &[0x1302, 0x1301],
+        &[
+            (16, vec![0, 3, 2, b'h', b'2']),
+            (42, Vec::new()),
+            (43, vec![4, 0x03, 0x04, 0x03, 0x03]),
+        ],
+    );
+    let server_hello = tls::server_hello(
+        tls::TLS12_VERSION,
+        writer.server_random(),
+        &[],
+        0x1302,
+        &[(43, vec![0x03, 0x04])],
+    );
+    let mut early = PREFACE.to_vec();
+    early.extend_from_slice(&h2_frame(4, 0, 0, &[]));
+    early.extend_from_slice(&h2_frame(
+        1,
+        0x05,
+        1,
+        &[0x82, 0x86, 0x84, 0x40, 0x01, b'x', 0x01, b'y'],
+    ));
+    let records = vec![
+        (
+            true,
+            tls::plain_record(tls::HANDSHAKE, 0x0301, &client_hello),
+        ),
+        (
+            true,
+            writer.record(true, tls::Epoch::Early, tls::APPLICATION_DATA, &early),
+        ),
+        (
+            false,
+            tls::plain_record(tls::HANDSHAKE, 0x0303, &server_hello),
+        ),
+        (
+            false,
+            writer.record(
+                false,
+                tls::Epoch::Handshake,
+                tls::HANDSHAKE,
+                &tls::handshake(8, encrypted_extensions),
+            ),
+        ),
+        // The client is still sending early data while the server's flight
+        // is in transit, so one more 0-RTT record follows EncryptedExtensions.
+        (
+            true,
+            writer.record(
+                true,
+                tls::Epoch::Early,
+                tls::APPLICATION_DATA,
+                &h2_frame(6, 0, 0, &[0; 8]),
+            ),
+        ),
+        (
+            false,
+            writer.record(
+                false,
+                tls::Epoch::Handshake,
+                tls::HANDSHAKE,
+                &tls::handshake(20, &[0xaa; 48]),
+            ),
+        ),
+        (
+            true,
+            writer.record(
+                true,
+                tls::Epoch::Handshake,
+                tls::HANDSHAKE,
+                &tls::handshake(20, &[0xbb; 48]),
+            ),
+        ),
+        (
+            true,
+            writer.record(true, tls::Epoch::Application, tls::APPLICATION_DATA, client),
+        ),
+        (
+            false,
+            writer.record(
+                false,
+                tls::Epoch::Application,
+                tls::APPLICATION_DATA,
+                server,
+            ),
+        ),
+    ];
+    decode_tls_records(&writer.keylog(), &records)
+}
+
+#[test]
+fn rejected_early_data_leaves_the_negotiated_protocol_unpinned() {
+    // The 0-RTT records open HTTP/2, but the server returns no "early_data"
+    // extension and selects http/1.1. RFC 8446 section 4.2.10 lets the ALPN
+    // selection change after a rejection, and the server never saw the early
+    // records, so the 1-RTT records are HTTP/1.1.
+    let mut encrypted_extensions = vec![0, 15, 0, 16, 0, 11, 0, 9, 8];
+    encrypted_extensions.extend_from_slice(b"http/1.1");
+    let frames = early_data_exchange(
+        &encrypted_extensions,
+        b"GET /again HTTP/1.1\r\nHost: h\r\n\r\n",
+        b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n",
+    );
+    let early = frames
+        .get(1)
+        .unwrap_or_else(|| unreachable!("the early record"));
+    assert!(
+        stream_with(early, "http2.header").is_some(),
+        "the early records themselves still decode as HTTP/2"
+    );
+    let request = frames
+        .get(7)
+        .unwrap_or_else(|| unreachable!("the 1-RTT request"));
+    assert_eq!(
+        tree_field(request, "http.request.uri").as_deref(),
+        Some("/again")
+    );
+    let response = frames
+        .get(8)
+        .unwrap_or_else(|| unreachable!("the 1-RTT response"));
+    assert_eq!(
+        tree_field(response, "http.response.code").as_deref(),
+        Some("200")
+    );
+}
+
+#[test]
+fn accepted_early_data_carries_its_http2_connection_on() {
+    // The server returns "early_data", so the 1-RTT records continue the
+    // connection the 0-RTT records opened, header compression included: the
+    // 1-RTT block's index 62 is the entry the early block inserted.
+    let encrypted_extensions = [0, 4, 0, 42, 0, 0];
+    let frames = early_data_exchange(
+        &encrypted_extensions,
+        &h2_frame(1, 0x05, 3, &[0x82, 0x86, 0x84, 0xbe]),
+        &h2_frame(4, 0, 0, &[]),
+    );
+    let request = frames
+        .get(7)
+        .unwrap_or_else(|| unreachable!("the 1-RTT request"));
+    let stream = stream_with(request, "http2.header")
+        .unwrap_or_else(|| unreachable!("the 1-RTT HEADERS decode as HTTP/2"));
+    let headers = stream
+        .children
+        .iter()
+        .filter(|child| child.def.abbrev == "http2.header")
+        .count();
+    assert_eq!(
+        headers, 4,
+        "the dynamic entry from the early block resolves"
+    );
+}
+
 #[test]
 fn application_only_keylog_infers_http2_for_the_server_direction() {
     use packetfin_testkit::tls;
@@ -919,27 +1122,7 @@ fn application_only_keylog_infers_http2_for_the_server_direction() {
         .collect::<Vec<_>>()
         .join("\n")
         + "\n";
-    let mut session = DecodeSession::new(DecodeOptions::default());
-    session.set_keylog(KeyLog::read(keylog.as_bytes()));
-    let mut client_sequence = 1_u32;
-    let mut server_sequence = 1_u32;
-    let mut frames = Vec::new();
-    for (index, (from_client, record)) in records.iter().enumerate() {
-        let number = u64::try_from(index).unwrap_or(0) + 1;
-        let sequence = if *from_client {
-            client_sequence
-        } else {
-            server_sequence
-        };
-        let packet = session.decode_at(&tls_frame(number, sequence, *from_client, record), number);
-        frames.push(packet);
-        let next = sequence.saturating_add(u32::try_from(record.len()).unwrap_or(u32::MAX));
-        if *from_client {
-            client_sequence = next;
-        } else {
-            server_sequence = next;
-        }
-    }
+    let frames = decode_tls_records(&keylog, &records);
     let server_app = frames
         .get(3)
         .unwrap_or_else(|| unreachable!("server app data"));
@@ -982,27 +1165,7 @@ fn a_server_that_selects_http11_keeps_http11_plaintext() {
         b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nhi",
         b"",
     );
-    let mut session = DecodeSession::new(DecodeOptions::default());
-    session.set_keylog(KeyLog::read(keylog.as_bytes()));
-    let mut client_sequence = 1_u32;
-    let mut server_sequence = 1_u32;
-    let mut frames = Vec::new();
-    for (index, (from_client, record)) in records.iter().enumerate() {
-        let number = u64::try_from(index).unwrap_or(0) + 1;
-        let sequence = if *from_client {
-            client_sequence
-        } else {
-            server_sequence
-        };
-        let packet = session.decode_at(&tls_frame(number, sequence, *from_client, record), number);
-        frames.push(packet);
-        let next = sequence.saturating_add(u32::try_from(record.len()).unwrap_or(u32::MAX));
-        if *from_client {
-            client_sequence = next;
-        } else {
-            server_sequence = next;
-        }
-    }
+    let frames = decode_tls_records(&keylog, &records);
     let client = frames
         .get(6)
         .unwrap_or_else(|| unreachable!("client app data"));
@@ -1054,27 +1217,7 @@ fn child_value(field: &packetfin_core::tree::Field, abbrev: &str) -> Option<Stri
 #[test]
 fn decrypted_http2_plaintext_is_framed_in_both_directions() {
     let (keylog, records) = tls12_h2_records();
-    let mut session = DecodeSession::new(DecodeOptions::default());
-    session.set_keylog(KeyLog::read(keylog.as_bytes()));
-    let mut client_sequence = 1_u32;
-    let mut server_sequence = 1_u32;
-    let mut frames = Vec::new();
-    for (index, (from_client, record)) in records.iter().enumerate() {
-        let number = u64::try_from(index).unwrap_or(0) + 1;
-        let sequence = if *from_client {
-            client_sequence
-        } else {
-            server_sequence
-        };
-        let packet = session.decode_at(&tls_frame(number, sequence, *from_client, record), number);
-        frames.push(packet);
-        let next = sequence.saturating_add(u32::try_from(record.len()).unwrap_or(u32::MAX));
-        if *from_client {
-            client_sequence = next;
-        } else {
-            server_sequence = next;
-        }
-    }
+    let frames = decode_tls_records(&keylog, &records);
     let server_app = frames
         .get(7)
         .unwrap_or_else(|| unreachable!("server app data"));

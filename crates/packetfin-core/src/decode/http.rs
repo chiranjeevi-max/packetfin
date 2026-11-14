@@ -185,7 +185,7 @@ pub(crate) fn decode(context: &mut DecodeContext<'_>, parent: &mut Node, data: &
         let response_to_connect = pending_method
             .as_deref()
             .is_some_and(|method| method.eq_ignore_ascii_case("CONNECT"));
-        let Some(mut message) = parse_message(
+        let mut message = match parse_message(
             data.get(offset..).unwrap_or(&[]),
             message_base,
             &MessageOptions {
@@ -196,8 +196,15 @@ pub(crate) fn decode(context: &mut DecodeContext<'_>, parent: &mut Node, data: &
                 fin: context.http_fin,
                 source: context.pdu_bytes.as_ref().map(|bytes| (bytes, offset)),
             },
-        ) else {
-            break;
+        ) {
+            Some(Parsed::Message(message)) => *message,
+            Some(Parsed::Refused { consumed }) if consumed > 0 => {
+                // The refused message stays undecoded, but the next message
+                // starts after its framed length (see `HeaderBudget`).
+                offset = offset.saturating_add(consumed);
+                continue;
+            }
+            Some(Parsed::Refused { .. }) | None => break,
         };
         if !decoded {
             context.depth = context.depth.saturating_add(1);
@@ -337,8 +344,18 @@ struct MessageOptions<'a> {
     source: Option<PduSource<'a>>,
 }
 
+/// What one parse found at the start of the data.
+enum Parsed {
+    /// A message that fits the segment and the header budget.
+    Message(Box<HttpMessage>),
+    /// A complete message over the [`HeaderBudget`]: it is left undecoded,
+    /// but it owns its `consumed` framed octets, so the next message stays
+    /// aligned with the wire as the reassembler frames it.
+    Refused { consumed: usize },
+}
+
 /// Parse one message, or return `None` when it does not fit the segment.
-fn parse_message(data: &[u8], base: usize, options: &MessageOptions<'_>) -> Option<HttpMessage> {
+fn parse_message(data: &[u8], base: usize, options: &MessageOptions<'_>) -> Option<Parsed> {
     let tls_plaintext = options.tls_plaintext;
     let response_to_head = options.response_to_head;
     let response_to_connect = options.response_to_connect;
@@ -354,30 +371,42 @@ fn parse_message(data: &[u8], base: usize, options: &MessageOptions<'_>) -> Opti
     // `MAX_HEADER_BYTES` covers the start line, every field line and the
     // empty line that ends the section, so charge the start line before the
     // loop: an oversized target would otherwise create unbounded URI fields
-    // while the header section itself stays empty.
-    if !budget.take(start_end, false) {
-        return None;
-    }
+    // while the header section itself stays empty. Past either cap no line
+    // is retained, but the scan still finds the end of the section so the
+    // refused message keeps its framed length.
+    let mut refused = !budget.take(start_end, false);
     let mut offset = start_end;
     loop {
         let (line, consumed) = next_line(data, offset)?;
         let line_offset = offset;
         let field = !line.is_empty();
-        if !budget.take(consumed, field) {
-            return None;
-        }
+        refused = refused || !budget.take(consumed, field);
         offset = offset.saturating_add(consumed);
         if !field {
             break;
         }
-        headers.push(parse_header_line(line, line_offset));
+        if !refused {
+            headers.push(parse_header_line(line, line_offset));
+        }
     }
 
     let method = match &start_line {
         StartLine::Request { method, .. } => Some(*method),
         StartLine::Response { .. } => None,
     };
-    let framing = Framing::of(start, headers.iter().copied());
+    if refused && source.is_some() {
+        // A reassembled PDU is the one message the stream layer framed, so
+        // its body need not be rebuilt only to be discarded.
+        return Some(Parsed::Refused {
+            consumed: data.len(),
+        });
+    }
+    let framing = if refused {
+        // The retained lines stopped at the cap; framing needs every field.
+        Framing::of_block(data.get(..offset)?)
+    } else {
+        Framing::of(start, headers.iter().copied())
+    };
     let answer = Answer {
         head: response_to_head,
         connect: response_to_connect,
@@ -496,6 +525,9 @@ fn parse_message(data: &[u8], base: usize, options: &MessageOptions<'_>) -> Opti
             });
             consumed = data.len();
         }
+    }
+    if refused {
+        return Some(Parsed::Refused { consumed });
     }
 
     let mut node = Node::new(&fields::HTTP_PROTOCOL, Range::new(base, consumed));
@@ -758,7 +790,7 @@ fn parse_message(data: &[u8], base: usize, options: &MessageOptions<'_>) -> Opti
                 Value::Boolean(true),
             );
         }
-        return Some(message);
+        return Some(Parsed::Message(Box::new(message)));
     }
 
     let terminator = node.add_field(
@@ -796,7 +828,7 @@ fn parse_message(data: &[u8], base: usize, options: &MessageOptions<'_>) -> Opti
     if let Some(suffix) = media_suffix {
         info.push_str(&suffix);
     }
-    Some(HttpMessage {
+    Some(Parsed::Message(Box::new(HttpMessage {
         node,
         info,
         consumed,
@@ -805,7 +837,7 @@ fn parse_message(data: &[u8], base: usize, options: &MessageOptions<'_>) -> Opti
         content_type,
         content_encoding,
         body,
-    })
+    })))
 }
 
 /// Add the named header field and the hidden raw-line field.
@@ -1578,7 +1610,7 @@ mod tests {
     use super::*;
     use crate::http_syntax::{MAX_HEADER_BYTES, MAX_HEADER_LINES};
 
-    fn parse_response(message: &[u8], fin: bool) -> Option<HttpMessage> {
+    fn parse(message: &[u8], fin: bool) -> Option<Parsed> {
         parse_message(
             message,
             0,
@@ -1591,6 +1623,21 @@ mod tests {
                 source: None,
             },
         )
+    }
+
+    fn parse_response(message: &[u8], fin: bool) -> Option<HttpMessage> {
+        match parse(message, fin)? {
+            Parsed::Message(message) => Some(*message),
+            Parsed::Refused { .. } => None,
+        }
+    }
+
+    /// The framed length of a message the header budget refused.
+    fn refused_length(message: &[u8]) -> Option<usize> {
+        match parse(message, false)? {
+            Parsed::Refused { consumed } => Some(consumed),
+            Parsed::Message(_) => None,
+        }
     }
 
     #[test]
@@ -1636,27 +1683,30 @@ mod tests {
     }
 
     #[test]
-    fn the_header_count_is_bounded() {
-        let mut message = b"GET / HTTP/1.1\r\n".to_vec();
-        for index in 0..(MAX_HEADER_LINES + 1) {
-            message.extend_from_slice(format!("X-{index}: v\r\n").as_bytes());
+    fn a_message_past_the_header_count_keeps_its_framed_length() {
+        // The cap stops retention, not framing: a framing field after the
+        // last retained line still delimits the body, so the request that
+        // follows starts right after it.
+        let crowded = |framing: &[u8]| {
+            let mut message = b"POST / HTTP/1.1\r\n".to_vec();
+            for index in 0..MAX_HEADER_LINES {
+                message.extend_from_slice(format!("X-{index}: v\r\n").as_bytes());
+            }
+            message.extend_from_slice(framing);
+            message
+        };
+        for framing in [
+            &b"Content-Length: 3\r\n\r\nabc"[..],
+            b"Transfer-Encoding: chunked\r\n\r\n3\r\nabc\r\n0\r\n\r\n",
+        ] {
+            let mut message = crowded(framing);
+            let framed = message.len();
+            message.extend_from_slice(b"GET /next HTTP/1.1\r\n\r\n");
+            assert_eq!(refused_length(&message), Some(framed));
         }
-        message.extend_from_slice(b"\r\n");
-        assert!(
-            parse_message(
-                &message,
-                0,
-                &MessageOptions {
-                    tls_plaintext: false,
-                    response_to_head: false,
-                    response_to_connect: false,
-                    export: false,
-                    fin: false,
-                    source: None,
-                },
-            )
-            .is_none()
-        );
+        // A body the segment does not hold has no framed end yet, exactly as
+        // for a message within the budget.
+        assert!(parse(&crowded(b"Content-Length: 9\r\n\r\nabc"), false).is_none());
     }
 
     #[test]
@@ -1664,21 +1714,7 @@ mod tests {
         let mut message = b"GET /".to_vec();
         message.extend(std::iter::repeat_n(b'a', MAX_HEADER_BYTES));
         message.extend_from_slice(b" HTTP/1.1\r\n\r\n");
-        assert!(
-            parse_message(
-                &message,
-                0,
-                &MessageOptions {
-                    tls_plaintext: false,
-                    response_to_head: false,
-                    response_to_connect: false,
-                    export: false,
-                    fin: false,
-                    source: None,
-                },
-            )
-            .is_none()
-        );
+        assert_eq!(refused_length(&message), Some(message.len()));
         assert!(parse_response(b"GET / HTTP/1.1\r\n\r\n", false).is_some());
     }
 
@@ -1687,19 +1723,7 @@ mod tests {
         let mut message = b"GET / HTTP/1.1\r\nX-Big: ".to_vec();
         message.extend(std::iter::repeat_n(b'a', 9000));
         message.extend_from_slice(b"\r\n\r\n");
-        let parsed = parse_message(
-            &message,
-            0,
-            &MessageOptions {
-                tls_plaintext: false,
-                response_to_head: false,
-                response_to_connect: false,
-                export: false,
-                fin: false,
-                source: None,
-            },
-        );
-        assert!(parsed.is_some());
+        assert!(parse_response(&message, false).is_some());
     }
 
     #[test]

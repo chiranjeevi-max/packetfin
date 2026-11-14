@@ -64,6 +64,7 @@ const EXTENSION_ALPN: u16 = 16;
 const EXTENSION_SUPPORTED_VERSIONS: u16 = 43;
 const EXTENSION_KEY_SHARE: u16 = 51;
 const EXTENSION_SESSION_TICKET: u16 = 35;
+const EXTENSION_EARLY_DATA: u16 = 42;
 const EXTENSION_ENCRYPT_THEN_MAC: u16 = 22;
 
 const VERSION_TLS_1_2: u16 = 0x0303;
@@ -92,6 +93,9 @@ enum HandshakeEvent {
     },
     EncryptedExtensions {
         alpn: Option<String>,
+        /// The extensions were read and hold no "early_data": the server
+        /// skipped the client's 0-RTT records (RFC 8446 section 4.2.10).
+        early_data_rejected: bool,
     },
     NewSessionTicket {
         ticket: Vec<u8>,
@@ -1006,10 +1010,25 @@ fn process_event(
                 context.state.cache_tls_secret(&id, &master);
             }
         }
-        HandshakeEvent::EncryptedExtensions { alpn } => {
-            if let Some(flow) = flow.as_mut() {
-                flow.set_selected_alpn(alpn.as_deref());
+        HandshakeEvent::EncryptedExtensions {
+            alpn,
+            early_data_rejected,
+        } => {
+            let Some(flow) = flow.as_mut() else {
+                return;
+            };
+            // Without early keys no 0-RTT record was decrypted, so a
+            // rejection has nothing to undo.
+            if early_data_rejected && flow.has_early_keys() {
+                flow.reject_early_data();
+                if let Some((conversation, _)) = context
+                    .transport_ports
+                    .and_then(|(source, destination)| context.conversation_key(source, destination))
+                {
+                    context.state.discard_early_application(conversation);
+                }
             }
+            flow.set_selected_alpn(alpn.as_deref());
         }
         HandshakeEvent::NewSessionTicket { ticket } => {
             let Some(flow) = flow.as_ref() else {
@@ -1460,9 +1479,15 @@ fn decode_handshake(
                 }
             }
             HANDSHAKE_ENCRYPTED_EXTENSIONS => {
-                let alpn = parse_encrypted_extensions(handshake, message_body, message_body_base);
+                let extensions =
+                    parse_encrypted_extensions(handshake, message_body, message_body_base);
                 infos.push(message_name.to_string());
-                events.push(HandshakeEvent::EncryptedExtensions { alpn });
+                events.push(HandshakeEvent::EncryptedExtensions {
+                    early_data_rejected: extensions
+                        .as_ref()
+                        .is_some_and(|info| !info.extensions.contains(&EXTENSION_EARLY_DATA)),
+                    alpn: extensions.and_then(|info| info.alpn),
+                });
             }
             HANDSHAKE_NEW_SESSION_TICKET => {
                 if let Some(ticket) = parse_new_session_ticket(
@@ -1889,11 +1914,16 @@ fn server_hello_supported_version(body: &[u8]) -> Option<u16> {
     None
 }
 
-/// Parse a TLS 1.3 EncryptedExtensions and return its ALPN selection.
+/// Parse a TLS 1.3 EncryptedExtensions and return the extensions it holds.
 ///
 /// The body is a two-octet extension-vector length followed by the same
-/// extension encoding a hello carries (RFC 8446 section 4.3.1).
-fn parse_encrypted_extensions(field: &mut Field, body: &[u8], base: usize) -> Option<String> {
+/// extension encoding a hello carries (RFC 8446 section 4.3.1). `None` means
+/// the vector could not be read, so nothing is known about its contents.
+fn parse_encrypted_extensions(
+    field: &mut Field,
+    body: &[u8],
+    base: usize,
+) -> Option<ClientHelloInfo> {
     let length = read_u16_be(body, 0)?;
     field.add_field(
         &fields::TLS_HANDSHAKE_EXTENSIONS_LENGTH,
@@ -1922,7 +1952,7 @@ fn parse_encrypted_extensions(field: &mut Field, body: &[u8], base: usize) -> Op
         encrypt_then_mac: false,
     };
     parse_extensions(field, data, base.saturating_add(start), false, &mut info);
-    info.alpn
+    Some(info)
 }
 
 /// Parse a ServerHello and add `tls.handshake.*` fields.
@@ -3027,10 +3057,16 @@ mod tests {
         let body = [
             0x00, 0x09, 0x00, 0x10, 0x00, 0x05, 0x00, 0x03, 0x02, b'h', b'2',
         ];
+        let extensions = parse_encrypted_extensions(field, &body, 0);
         assert_eq!(
-            parse_encrypted_extensions(field, &body, 0).as_deref(),
+            extensions.as_ref().and_then(|info| info.alpn.as_deref()),
             Some("h2")
         );
+        // No early_data extension: a server that leaves it out rejected any
+        // 0-RTT data (RFC 8446 section 4.2.10).
+        assert!(extensions.is_some_and(|info| !info.extensions.contains(&EXTENSION_EARLY_DATA)));
+        // An empty body has no extension vector to read.
+        assert!(parse_encrypted_extensions(field, &[], 0).is_none());
     }
 
     #[test]

@@ -187,8 +187,7 @@ impl DynamicTable {
         self.entries.len()
     }
 
-    /// The current maximum size in octets.
-    #[cfg(test)]
+    /// The current maximum size in octets, as the encoder last declared it.
     pub(crate) fn capacity(&self) -> usize {
         self.capacity
     }

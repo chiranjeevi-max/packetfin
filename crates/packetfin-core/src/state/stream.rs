@@ -677,6 +677,36 @@ impl SessionState {
         (report, http)
     }
 
+    /// Forget the application state that rejected 0-RTT data built.
+    ///
+    /// RFC 8446 section 4.2.10: a server that returns no "early_data"
+    /// extension skips the client's early records, and its ALPN selection may
+    /// differ from the one they assumed. The application stream starts again
+    /// with the 1-RTT records, so the plaintext framing, the HTTP/2 connection
+    /// state and an HTTP/1.x request still waiting for its answer are
+    /// dropped. A CONNECT tunnel the connection carries beneath TLS stays.
+    pub(crate) fn discard_early_application(&mut self, conversation: ConversationKey) {
+        let _ = self
+            .tls_plaintext
+            .take_with(&mut self.budget, &TlsPlaintextKey { conversation });
+        for direction in 0..2 {
+            let key = crate::state::Http2Key {
+                conversation,
+                direction,
+            };
+            let _ = self.http2.take_with(&mut self.budget, &key);
+        }
+        let _ = self
+            .http2_streams
+            .take_with(&mut self.budget, &conversation);
+        if let Some(mut http) = self.http.take_with(&mut self.budget, &conversation)
+            && http.tunnel
+        {
+            http.tail = None;
+            self.http.put_with(&mut self.budget, conversation, http);
+        }
+    }
+
     /// Complete a close-delimited PDU at TCP FIN or TLS close_notify.
     pub(crate) fn finish_tls_plaintext(
         &mut self,
@@ -3100,6 +3130,29 @@ impl ConversationStreams {
 mod tests {
     use super::*;
     use crate::state::DEFAULT_STATE_BUDGET;
+
+    #[test]
+    fn rejected_early_data_drops_its_request_but_keeps_the_tunnel() {
+        let mut session = SessionState::new(DEFAULT_STATE_BUDGET);
+        let (key, _) = ConversationKey::ipv4([192, 0, 2, 1], 40_000, [192, 0, 2, 2], 8080);
+        let frame = |number| HttpFrame {
+            display: number,
+            file: number,
+        };
+        // A plain request on its own connection is forgotten entirely.
+        session.http_request(key, frame(1), None, Some("GET"), Some("/early"), None);
+        session.discard_early_application(key);
+        assert_eq!(session.http_pending_method(key), None);
+
+        // Beneath TLS inside a CONNECT tunnel, the 0-RTT request goes but the
+        // tunnel the plaintext exchange opened stays.
+        session.http_request(key, frame(2), None, Some("CONNECT"), Some("h:443"), None);
+        let _ = session.http_response(key, 3, 200);
+        session.http_request(key, frame(4), None, Some("GET"), Some("/early"), None);
+        session.discard_early_application(key);
+        assert_eq!(session.http_pending_method(key), None);
+        assert!(session.http_tunnel(key));
+    }
 
     #[test]
     fn tls_version_round_trips_through_the_store() {

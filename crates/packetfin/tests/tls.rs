@@ -1166,15 +1166,18 @@ fn tls10_bad_mac_and_wrong_sequence_stop_the_direction() {
 
 #[test]
 fn tls10_bad_padding_and_version_mismatch_stay_opaque() {
-    // The expected output decrypts both records; RFC 2246 sections 6.2.1 and
-    // 6.2.3.2 reject them, so this capture has no stored expected output.
+    // The expected output decrypts every response; RFC 2246 sections 6.2.1
+    // and 6.2.3.2 reject them, so this capture has no stored expected output.
+    // `/version-only` is answered by a record that authenticates under its
+    // TLS 1.2 header, so only the version check keeps it opaque.
     let stdout = decrypted_fields(
         "tls10-strict.pcap",
         "tls10-strict-keys.log",
         &["frame.number", "http.request.uri", "http.response.code"],
     );
     assert!(stdout.contains("/bad-padding"), "{stdout}");
-    assert!(stdout.contains("/version"), "{stdout}");
+    assert!(stdout.contains("/version\t"), "{stdout}");
+    assert!(stdout.contains("/version-only"), "{stdout}");
     assert!(
         !stdout.contains("200"),
         "invalid padding and a mismatched record version stay opaque: {stdout}"
@@ -1274,9 +1277,9 @@ fn a_session_reset_keeps_the_key_log_and_key_export() {
     let capture = fixture("tls10-strict.pcap");
     let keylog = fixture("tls10-strict-keys.log");
     let exported = directory.join("exported.log");
-    // The capture holds two handshakes; the second one starts after the
-    // reset, so it can only be decrypted and exported if the key log and the
-    // export flag survive the reset.
+    // The capture holds three handshakes; the later two start after the
+    // reset, so they can only be decrypted and exported if the key log and
+    // the export flag survive the reset.
     let args: Vec<OsString> = [
         "-n",
         "-r",
@@ -1305,7 +1308,7 @@ fn a_session_reset_keeps_the_key_log_and_key_export() {
         keys.lines()
             .filter(|line| line.starts_with("CLIENT_RANDOM "))
             .count(),
-        2,
+        3,
         "exported keys: {keys}"
     );
     let _ = fs::remove_dir_all(&directory);

@@ -33954,7 +33954,7 @@ fn build_tls10_malformed_keys() -> Result<Vec<u8>, String> {
 }
 
 /// The two independently keyed writers of the strict TLS 1.0 fixture.
-fn tls10_strict_writers() -> [tls::Tls12Writer; 2] {
+fn tls10_strict_writers() -> [tls::Tls12Writer; 3] {
     [
         tls::Tls12Writer::resumed(
             tls::TLS10_VERSION,
@@ -33972,19 +33972,27 @@ fn tls10_strict_writers() -> [tls::Tls12Writer; 2] {
             [0x25_u8; 32],
             [0x36_u8; 48],
         ),
+        tls::Tls12Writer::resumed(
+            tls::TLS10_VERSION,
+            0xc014,
+            false,
+            [0x15_u8; 32],
+            [0x26_u8; 32],
+            [0x37_u8; 48],
+        ),
     ]
 }
 
-/// Two record-protection failures the expected output does not reject.
+/// Record-protection failures the expected output does not reject.
 ///
 /// It strips CBC padding without validating it and ignores a record version
-/// that differs from the negotiated one, so it decodes both responses.
+/// that differs from the negotiated one, so it decodes every response.
 /// Packetfin follows RFC 2246 sections 6.2.1 and 6.2.3.2 and keeps them
 /// opaque, which is why this capture has no stored expected output:
 /// `tests/tls.rs` asserts the fail-closed result instead.
 fn build_tls10_strict() -> Result<Vec<u8>, String> {
     let mut frames = Vec::new();
-    let [mut bad_padding, mut version_mismatch] = tls10_strict_writers();
+    let [mut bad_padding, mut version_mismatch, mut version_only] = tls10_strict_writers();
 
     let mut exchanges = tls_legacy_handshake(&mut bad_padding, &[0x87_u8; 32]);
     exchanges.push((
@@ -34027,12 +34035,35 @@ fn build_tls10_strict() -> Result<Vec<u8>, String> {
             b"HTTP/1.1 200 OK\r\nContent-Length: 3\r\n\r\nver",
         ),
     ));
-    // Relabel the response record's version octets as TLS 1.2: the MAC still
-    // covers 0x0301, so only the version check can reject it.
+    // Relabel the response record's version octets as TLS 1.2 after
+    // protection. The MAC covers the version in the header (RFC 2246
+    // section 6.2.3.1), so this record fails authentication as well.
     if let Some(record) = exchanges.get_mut(7).map(|(_, record)| record) {
         record.splice(1..3, tls::TLS12_VERSION.to_be_bytes());
     }
     frames.extend(tls_frames_from(443, 40_003, &exchanges)?);
+
+    // A response whose header and MAC agree on TLS 1.2 inside a TLS 1.0
+    // session: it authenticates, so only the version check rejects it.
+    let mut exchanges = tls_legacy_handshake(&mut version_only, &[0x89_u8; 32]);
+    exchanges.push((
+        true,
+        version_only.record(
+            true,
+            tls::APPLICATION_DATA,
+            b"GET /version-only HTTP/1.1\r\nHost: tls.test\r\n\r\n",
+        ),
+    ));
+    exchanges.push((
+        false,
+        version_only.record_with_version(
+            false,
+            tls::APPLICATION_DATA,
+            b"HTTP/1.1 200 OK\r\nContent-Length: 3\r\n\r\nv12",
+            tls::TLS12_VERSION,
+        ),
+    ));
+    frames.extend(tls_frames_from(443, 40_004, &exchanges)?);
 
     link_pcap(u32::from(LINKTYPE_ETHERNET), &frames)
 }
@@ -37176,6 +37207,21 @@ fn build_http_framing_rfc() -> Result<Vec<u8>, String> {
         connection.server(b"HTTP/1.1 200 Connection established\r\n\r\n")?;
         connection.server(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n")?;
         connection.client(b"GET /inside HTTP/1.1\r\nHost: h\r\n\r\n")?;
+        connection.server_fin(b"")?;
+    }
+
+    // A request with 257 fields, one past the 256 lines the decoder retains,
+    // pipelined with a second request in one segment. The first is left
+    // undecoded but keeps its framed length, so the second still decodes at
+    // its own start.
+    {
+        let mut crowded = b"GET /crowded HTTP/1.1\r\nHost: h\r\n".to_vec();
+        for index in 0..256 {
+            crowded.extend_from_slice(format!("X-{index}: v\r\n").as_bytes());
+        }
+        crowded.extend_from_slice(b"\r\nGET /second HTTP/1.1\r\nHost: h\r\n\r\n");
+        let mut connection = ObjectConnection::new(&mut frames, 40_617);
+        connection.client(&crowded)?;
         connection.server_fin(b"")?;
     }
 

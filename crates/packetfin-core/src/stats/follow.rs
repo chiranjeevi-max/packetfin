@@ -979,13 +979,21 @@ fn starts_with_http_start_line(bytes: &[u8]) -> bool {
 ///
 /// `continued` marks a segment whose first line ends a start line that began
 /// in an earlier segment. The caller recorded that message from the joined
-/// line, so its tail is not read as a start line of its own.
+/// line, so its tail is not read as a start line of its own. A segment that
+/// continues a CONNECT answer's header section goes to
+/// [`finish_connect_answer`] instead.
 fn split_http_segments(
     message: &[u8],
     direction: u8,
     exchange: &mut Exchange,
     continued: bool,
 ) -> Vec<Vec<u8>> {
+    if !continued
+        && let Some(pending) = exchange.tunnel_pending
+        && pending.direction == direction
+    {
+        return finish_connect_answer(message, pending, exchange);
+    }
     let mut records = Vec::new();
     let mut offset = 0_usize;
     while offset < message.len() {
@@ -1064,13 +1072,83 @@ struct Exchange {
     /// A 2xx answer to CONNECT turned the connection into a tunnel, so no
     /// later segment carries an HTTP message.
     tunnel: bool,
+    /// A 2xx answer to CONNECT whose header section has not ended yet.
+    tunnel_pending: Option<PendingTunnel>,
+}
+
+/// The rest of a CONNECT answer's header section, still to arrive.
+#[derive(Clone, Copy, Debug)]
+struct PendingTunnel {
+    /// The direction that sends the answer.
+    direction: u8,
+    /// The answer's last three octets so far: they may begin the CRLF CRLF
+    /// that the next segment completes.
+    tail: [u8; 3],
+}
+
+/// Queue the next segment of a CONNECT answer whose header section began in
+/// an earlier one.
+///
+/// RFC 9112 section 6.3 case 2 starts the tunnel after the answer's header
+/// section, so the segment that ends the section is still the answer's. The
+/// bytes after the section stay with it too, as they do when the whole answer
+/// arrives in one segment.
+fn finish_connect_answer(
+    message: &[u8],
+    pending: PendingTunnel,
+    exchange: &mut Exchange,
+) -> Vec<Vec<u8>> {
+    let mut joined = pending.tail.to_vec();
+    joined.extend_from_slice(message);
+    let Some(end) = answer_section_end(&joined) else {
+        exchange.tunnel_pending = Some(PendingTunnel {
+            tail: last_three(&joined).unwrap_or(pending.tail),
+            ..pending
+        });
+        return vec![message.to_vec()];
+    };
+    exchange.tunnel_pending = None;
+    exchange.tunnel = true;
+    // The terminator needs at least one octet of this segment, so the end
+    // lies inside it.
+    let (header, rest) = message
+        .split_at_checked(end.saturating_sub(pending.tail.len()))
+        .unwrap_or((message, &[]));
+    let mut records = vec![header.to_vec()];
+    if !rest.is_empty() {
+        records.push(rest.to_vec());
+    }
+    records
+}
+
+/// The last three octets of `bytes`, when it has that many.
+fn last_three(bytes: &[u8]) -> Option<[u8; 3]> {
+    bytes.get(bytes.len().checked_sub(3)?..)?.try_into().ok()
+}
+
+/// The offset just past the empty line that ends a CONNECT answer's header
+/// section.
+///
+/// The decoder accepts a bare LF as a line terminator (RFC 9112 section 2.2),
+/// so the tunnel starts after `\n\n` as well as after `\r\n\r\n`; otherwise an
+/// answer the decoder took would never open the tunnel here.
+fn answer_section_end(bytes: &[u8]) -> Option<usize> {
+    bytes.windows(2).enumerate().find_map(|(index, pair)| {
+        let terminator = match pair {
+            [b'\n', b'\n'] => 2,
+            [b'\n', b'\r'] if bytes.get(index.saturating_add(2)) == Some(&b'\n') => 3,
+            _ => return None,
+        };
+        index.checked_add(terminator)
+    })
 }
 
 /// Record the request method a later response answers.
 ///
 /// A request replaces the answer its own direction carries; a final response
 /// consumes the other direction's, because it answered that request (a 1xx
-/// answer leaves it pending). A 2xx answer to CONNECT also opens the tunnel.
+/// answer leaves it pending). A 2xx answer to CONNECT also opens the tunnel,
+/// once its header section ends.
 fn note_http_message(header: &[u8], direction: u8, exchange: &mut Exchange) {
     let Some((line, _)) = next_line(header, 0) else {
         return;
@@ -1089,7 +1167,15 @@ fn note_http_message(header: &[u8], direction: u8, exchange: &mut Exchange) {
             if code >= 200
                 && let Some(answer) = exchange.answers.get_mut(index ^ 1)
             {
-                exchange.tunnel |= answer.connect && (200..300).contains(&code);
+                if answer.connect && (200..300).contains(&code) {
+                    // RFC 9112 section 6.3 case 2: the tunnel starts after
+                    // the header section, which may end in a later segment.
+                    if answer_section_end(header).is_some() {
+                        exchange.tunnel = true;
+                    } else if let Some(tail) = last_three(header) {
+                        exchange.tunnel_pending = Some(PendingTunnel { direction, tail });
+                    }
+                }
                 *answer = Answer::default();
             }
         }
@@ -1439,6 +1525,68 @@ DDDD"
                 "the answer to HEAD must carry no body: {output}"
             );
         }
+    }
+
+    /// Follow a CONNECT exchange without desegmentation: the request, then
+    /// the answer and whatever follows it, in the segments the server sent.
+    fn follow_connect_answer(answer: &[&[u8]]) -> String {
+        let mut state = follow("follow,http,ascii,0");
+        state.set_http_desegment(false);
+        let request = b"CONNECT example.com:443 HTTP/1.1\r\nHost: example.com:443\r\n\r\n";
+        state.tcp_event(key(0, 1, 2), 0, 1, 1, request);
+        let acknowledged = 1_u32.wrapping_add(u32::try_from(request.len()).unwrap_or(u32::MAX));
+        let mut sequence = 1_u32;
+        for segment in answer {
+            state.tcp_event(reverse_key(0, 2, 1), 1, sequence, acknowledged, segment);
+            let length = u32::try_from(segment.len()).unwrap_or(u32::MAX);
+            sequence = sequence.wrapping_add(length);
+        }
+        let mut output = String::new();
+        state.finish(&mut output).unwrap_or(());
+        output
+    }
+
+    #[test]
+    fn a_connect_answer_opens_the_tunnel_after_its_header_section() {
+        // RFC 9112 section 6.3 case 2: the tunnel begins after the answer's
+        // header section, so the segment that ends a section begun earlier
+        // still belongs to the answer, wherever the CRLF CRLF is cut.
+        let start: &[u8] = b"HTTP/1.1 200 Connection established\r\nProxy-Agent:";
+        let tunnel: &[u8] = b"GET /inside HTTP/1.1\r\n\r\n";
+        let cases: [(&[&[u8]], &str); 4] = [
+            (&[start, b" p\r\n\r\n", tunnel], "\t6\n p\r\n\r\n\n"),
+            (
+                &[
+                    b"HTTP/1.1 200 Connection established\r\nProxy-Agent: p\r\n\r",
+                    b"\n",
+                    tunnel,
+                ],
+                "\t1\n\n\n",
+            ),
+            // A middle segment that still does not end the section.
+            (
+                &[start, b" p\r\nVia: v\r\n", b"\r\n", tunnel],
+                "\t2\n\r\n\n",
+            ),
+            // The decoder accepts bare LF line ends (RFC 9112 section 2.2).
+            (&[b"HTTP/1.1 200 OK\nVia: v\n", b"\n", tunnel], "\t1\n\n\n"),
+        ];
+        for (answer, rest) in cases {
+            let output = follow_connect_answer(answer);
+            assert!(output.contains(rest), "the answer ends here: {output}");
+            assert!(!output.contains("inside"), "tunnel bytes: {output}");
+        }
+
+        // Bytes after the section in its own segment stay with the answer,
+        // as they do when the whole answer arrives at once.
+        let output = follow_connect_answer(&[
+            start,
+            b" p\r\n\r\nGET /inside HTTP/1.1\r\n\r\n",
+            b"GET /later HTTP/1.1\r\n\r\n",
+        ]);
+        assert!(output.contains("\t6\n p\r\n\r\n\n"), "{output}");
+        assert!(output.contains("/inside"), "{output}");
+        assert!(!output.contains("/later"), "tunnel bytes: {output}");
     }
 
     #[test]

@@ -779,6 +779,25 @@ impl TlsFlow {
         }
     }
 
+    /// Whether 0-RTT keys were installed for the current session.
+    pub(crate) fn has_early_keys(&self) -> bool {
+        self.last_session()
+            .is_some_and(|session| session.early_installed)
+    }
+
+    /// End the client's 0-RTT phase after the server declined early data.
+    ///
+    /// RFC 8446 section 4.2.10: the server skips the early records still in
+    /// flight, and the client's next record it reads is protected with the
+    /// handshake keys, so later early records stay opaque here as well.
+    pub(crate) fn reject_early_data(&mut self) {
+        if let Some(session) = self.last_session_mut()
+            && session.client_phase == Phase::Early
+        {
+            session.client_phase = Phase::Handshake;
+        }
+    }
+
     /// Whether any session has decryption keys.
     pub(crate) fn has_keys(&self) -> bool {
         self.sessions.iter().any(|session| {

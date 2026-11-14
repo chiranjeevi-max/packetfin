@@ -1039,11 +1039,12 @@ impl SessionState {
             let limit = usize::try_from(value)
                 .unwrap_or(MAX_TABLE_SIZE)
                 .min(MAX_TABLE_SIZE);
-            if limit < direction.peer_table_limit {
-                // RFC 9113 section 4.3.1: the encoder has already evicted to
-                // the smaller limit, so its next header block must begin with
-                // a dynamic table size update before any field may resolve a
-                // dynamic index.
+            if limit < direction.table.capacity() {
+                // RFC 9113 section 4.3.1: only a maximum below the table's
+                // current size makes the encoder evict, and then its next
+                // header block must begin with a dynamic table size update
+                // before any field may resolve a dynamic index. A table the
+                // encoder already shrank below the new maximum owes nothing.
                 direction.table.require_size_update();
             }
             direction.peer_table_limit = limit;
@@ -1903,6 +1904,32 @@ mod tests {
             .unwrap_or_else(|| unreachable!("END_HEADERS decoded the block"));
         assert_eq!(block.stop, Stop::Complete);
         assert_eq!(block.header_count, 2);
+    }
+
+    #[test]
+    fn a_reduced_limit_above_the_chosen_capacity_needs_no_update() {
+        let mut state = SessionState::new(64 * 1024 * 1024);
+        let (client, server) = keys();
+        // The encoder already shrank its table to 1024 octets (RFC 7541
+        // section 6.3 update, then the static `:method: GET`).
+        let shrunk = state.http2_fragment(
+            client,
+            1,
+            BlockFragment::Headers,
+            origin(1),
+            &[0x3f, 0xe1, 0x07, 0x82],
+            true,
+        );
+        assert_eq!(shrunk.block.map(|block| block.stop), Some(Stop::Complete));
+        // RFC 9113 section 4.3.1: lowering the maximum from 4096 to 2048 stays
+        // above the table's current size, so nothing is evicted and the next
+        // block owes no size update.
+        state.http2_settings_frame(server);
+        state.http2_settings(server, 1, 2048);
+        state.http2_settings_ack(client);
+        let plain =
+            state.http2_fragment(client, 3, BlockFragment::Headers, origin(2), &[0x82], true);
+        assert_eq!(plain.block.map(|block| block.stop), Some(Stop::Complete));
     }
 
     #[test]

@@ -527,7 +527,21 @@ impl Tls12Writer {
 
     /// Protect one record.
     pub fn record(&mut self, from_client: bool, content_type: u8, plaintext: &[u8]) -> Vec<u8> {
-        self.protect(from_client, content_type, plaintext, None)
+        self.protect(from_client, content_type, plaintext, None, self.version)
+    }
+
+    /// Protect one record whose header and MAC both carry `version`, as a
+    /// peer that ignores the negotiated version would send it. The record
+    /// layout (TLS 1.0 IV chaining or an explicit IV) still follows the
+    /// negotiated version, so only a version check can reject the record.
+    pub fn record_with_version(
+        &mut self,
+        from_client: bool,
+        content_type: u8,
+        plaintext: &[u8],
+        version: u16,
+    ) -> Vec<u8> {
+        self.protect(from_client, content_type, plaintext, None, version)
     }
 
     /// Protect one CBC record with caller-supplied padding octets.
@@ -543,7 +557,13 @@ impl Tls12Writer {
         plaintext: &[u8],
         padding: &[u8],
     ) -> Vec<u8> {
-        self.protect(from_client, content_type, plaintext, Some(padding))
+        self.protect(
+            from_client,
+            content_type,
+            plaintext,
+            Some(padding),
+            self.version,
+        )
     }
 
     fn protect(
@@ -552,6 +572,7 @@ impl Tls12Writer {
         content_type: u8,
         plaintext: &[u8],
         padding: Option<&[u8]>,
+        version: u16,
     ) -> Vec<u8> {
         let sequence = if from_client {
             self.client_sequence
@@ -559,12 +580,19 @@ impl Tls12Writer {
             self.server_sequence
         };
         let mut header = vec![content_type];
-        header.extend_from_slice(&self.version.to_be_bytes());
+        header.extend_from_slice(&version.to_be_bytes());
         let fragment = if self.suite.is_cbc() {
-            self.cbc_record(from_client, sequence, content_type, plaintext, padding)
+            self.cbc_record(
+                from_client,
+                sequence,
+                content_type,
+                plaintext,
+                padding,
+                version,
+            )
         } else {
             assert!(padding.is_none(), "AEAD records carry no CBC padding");
-            self.aead_record(from_client, sequence, content_type, plaintext)
+            self.aead_record(from_client, sequence, content_type, plaintext, version)
         };
         header.extend_from_slice(&u16::try_from(fragment.len()).expect("record").to_be_bytes());
         header.extend_from_slice(&fragment);
@@ -582,6 +610,7 @@ impl Tls12Writer {
         sequence: u64,
         content_type: u8,
         plaintext: &[u8],
+        version: u16,
     ) -> Vec<u8> {
         let (key, iv) = if from_client {
             (self.client_key.as_slice(), self.client_iv)
@@ -591,7 +620,7 @@ impl Tls12Writer {
         let mut aad = Vec::with_capacity(13);
         aad.extend_from_slice(&sequence.to_be_bytes());
         aad.push(content_type);
-        aad.extend_from_slice(&self.version.to_be_bytes());
+        aad.extend_from_slice(&version.to_be_bytes());
         aad.extend_from_slice(
             &u16::try_from(plaintext.len())
                 .expect("plaintext")
@@ -648,6 +677,7 @@ impl Tls12Writer {
         content_type: u8,
         plaintext: &[u8],
         padding: Option<&[u8]>,
+        version: u16,
     ) -> Vec<u8> {
         let (key, mac) = if from_client {
             (self.client_key.as_slice(), self.client_mac.as_slice())
@@ -677,7 +707,7 @@ impl Tls12Writer {
             let mut aad = Vec::with_capacity(13);
             aad.extend_from_slice(&sequence.to_be_bytes());
             aad.push(content_type);
-            aad.extend_from_slice(&self.version.to_be_bytes());
+            aad.extend_from_slice(&version.to_be_bytes());
             aad.extend_from_slice(
                 &u16::try_from(plaintext.len())
                     .expect("plaintext")
@@ -723,7 +753,7 @@ impl Tls12Writer {
             let mut aad = Vec::with_capacity(13);
             aad.extend_from_slice(&sequence.to_be_bytes());
             aad.push(content_type);
-            aad.extend_from_slice(&self.version.to_be_bytes());
+            aad.extend_from_slice(&version.to_be_bytes());
             aad.extend_from_slice(
                 &u16::try_from(fragment.len())
                     .expect("fragment")

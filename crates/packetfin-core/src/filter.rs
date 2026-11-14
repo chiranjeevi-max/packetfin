@@ -1009,10 +1009,11 @@ fn resolve_operand(operand: &mut Operand, expected: Option<Type>) -> Result<Type
                     "argument cannot be negated".to_string(),
                 ));
             }
-            // A negated time keeps its kind: a relative value still counts
-            // nanoseconds, which mixed time arithmetic scales to seconds.
+            // Negation keeps a time or a double as it is: a relative value
+            // still counts nanoseconds, which mixed time arithmetic scales to
+            // seconds, and a double has no integer form to widen to.
             Ok(match ty {
-                Type::Time | Type::Relative => ty,
+                Type::Time | Type::Relative | Type::Double => ty,
                 _ => Type::Int(64),
             })
         }
@@ -1108,6 +1109,21 @@ fn resolve_binary(
                     ),
                 ));
             }
+        }
+        // A double scales a time but is not a duration itself, so it cannot
+        // be added to or subtracted from one. A double on the left makes the
+        // target a double, so here it can only be the right operand.
+        if right_type == Type::Double && matches!(operator, ArithOp::Add | ArithOp::Subtract) {
+            return Err(FilterError::at_span(
+                right.start,
+                right.end,
+                format!(
+                    "{} cannot be used with {} on {}",
+                    right_type.name(),
+                    arith_symbol(operator),
+                    target.name()
+                ),
+            ));
         }
         if mixed_absolute {
             if matches!(operator, ArithOp::Multiply | ArithOp::Divide) {
@@ -1612,6 +1628,7 @@ fn evaluate_operand<'a>(operand: &'a Operand, tree: &'a Tree) -> Sequence<'a> {
                 .iter()
                 .filter_map(|value| match value {
                     RuntimeValue::Int(value) => value.checked_neg().map(RuntimeValue::Int),
+                    RuntimeValue::Double(value) => Some(RuntimeValue::Double(-value)),
                     RuntimeValue::Time { seconds, nanos } => {
                         let total = i128::from(*seconds)
                             .checked_mul(1_000_000_000)?
@@ -1622,7 +1639,7 @@ fn evaluate_operand<'a>(operand: &'a Operand, tree: &'a Tree) -> Sequence<'a> {
                 })
                 .collect();
             let ty = match inner.ty {
-                Type::Time | Type::Relative => inner.ty,
+                Type::Time | Type::Relative | Type::Double => inner.ty,
                 ty if ty.is_numeric() => Type::Int(64),
                 ty => ty,
             };
@@ -1764,6 +1781,16 @@ fn apply_arithmetic(
         };
         return value.is_finite().then_some(RuntimeValue::Double(value));
     }
+    if let (Type::Time | Type::Relative, RuntimeValue::Double(factor)) = (ty, right) {
+        // A double factor scales the stored nanoseconds; the result keeps
+        // the time's own unit (the resolver admits only `*` and `/` here).
+        let nanos = scaled_nanos(time_nanos(left)?, operator, *factor)?;
+        return if ty == Type::Time {
+            time_value(nanos)
+        } else {
+            Some(RuntimeValue::Int(nanos))
+        };
+    }
     if ty == Type::Time {
         let left = time_nanos(left)?;
         return match operator {
@@ -1794,6 +1821,22 @@ fn time_nanos(value: &RuntimeValue<'_>) -> Option<i128> {
         RuntimeValue::Int(value) => Some(*value),
         _ => None,
     }
+}
+
+/// A nanosecond count multiplied or divided by a double factor.
+///
+/// Returns `None` for any other operator, a zero divisor, or a result that is
+/// not finite or does not fit the nanosecond range, so an extreme factor
+/// produces no value instead of a saturated one. The product is computed in
+/// `f64`, so an epoch time loses its last few hundred nanoseconds; the factor
+/// itself is a double, so no exact integer form exists to keep.
+fn scaled_nanos(nanos: i128, operator: ArithOp, factor: f64) -> Option<i128> {
+    let value = match operator {
+        ArithOp::Multiply => nanos as f64 * factor,
+        ArithOp::Divide if factor != 0.0 => nanos as f64 / factor,
+        _ => return None,
+    };
+    (value.is_finite() && value.abs() < i128::MAX as f64).then_some(value as i128)
 }
 
 fn double_value(value: &RuntimeValue<'_>) -> Option<f64> {
@@ -5133,6 +5176,65 @@ mod tests {
         // 5/256-unit field plus a fraction and a product stay scalar.
         assert!(matches("stp.msg_age + 1.5 == 6.5"));
         assert!(matches("stp.msg_age * 2 == 10"));
+    }
+
+    #[test]
+    fn a_double_negates_and_scales_but_is_not_added_after_a_time() {
+        use crate::capture::Timestamp;
+        use crate::tree::Range;
+
+        let mut frame = Node::new(&fields::FRAME_PROTOCOL, Range::new(0, 0));
+        frame.add_field(
+            &fields::FRAME_TIME_RELATIVE,
+            Range::new(0, 0),
+            Value::RelativeTime(1_500_000_000),
+        );
+        frame.add_field(
+            &fields::FRAME_TIME_EPOCH,
+            Range::new(0, 0),
+            Value::AbsoluteTime(Timestamp {
+                seconds: 1_700_000_000,
+                nanos: 0,
+            }),
+        );
+        let mut stp = Node::new(&fields::STP_PROTOCOL, Range::new(34, 4));
+        stp.add_field(
+            &fields::STP_MSG_AGE,
+            Range::new(38, 2),
+            Value::Uint16(0x0500),
+        );
+        frame.add_child(stp);
+        let tree = Tree::new(frame);
+        let matches =
+            |expression: &str| Filter::parse(expression).is_ok_and(|filter| filter.matches(&tree));
+
+        // A negated double stays a double: 5 becomes -5, not nothing.
+        assert!(matches("-stp.msg_age == -5"));
+        assert!(matches("-stp.msg_age < 0"));
+        assert!(matches("-stp.msg_age == -stp.msg_age"));
+
+        // A double scales a time and the result keeps its unit: 1.5 s times
+        // 5 is 7.5 s, and the absolute time shrinks below itself.
+        assert!(matches("frame.time_relative * stp.msg_age == 7.5"));
+        assert!(matches("frame.time_relative / stp.msg_age == 0.3"));
+        assert!(matches("frame.time_epoch / stp.msg_age < frame.time_epoch"));
+
+        // A double is not a duration, so adding it to or subtracting it from
+        // a time is a type error rather than a filter that matches nothing.
+        for expression in [
+            "frame.time_relative + stp.msg_age > 0",
+            "frame.time_relative - stp.msg_age < 0",
+            "frame.time_epoch + stp.msg_age > 0",
+        ] {
+            let Err(error) = Filter::parse(expression) else {
+                unreachable!("{expression} must be rejected")
+            };
+            assert!(
+                error.message().contains("double cannot be used with"),
+                "{expression}: {}",
+                error.message()
+            );
+        }
     }
 
     #[test]

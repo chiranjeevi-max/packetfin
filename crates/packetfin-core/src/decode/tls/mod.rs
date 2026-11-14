@@ -790,7 +790,14 @@ fn decode_plaintext_actions(
             PduAction::Reassembled { pdu, .. } => (pdu.ulp, pdu.data),
             _ => continue,
         };
-        if !matches!(ulp, crate::state::Ulp::Http | crate::state::Ulp::Http2) {
+        // A disabled protocol leaves the plaintext undecoded; the TLS records
+        // that carried it keep their own fields.
+        let protocol = match ulp {
+            crate::state::Ulp::Http => fields::Protocol::Http,
+            crate::state::Ulp::Http2 => fields::Protocol::Http2,
+            _ => continue,
+        };
+        if !context.options.policy.enabled(protocol) {
             continue;
         }
         let before = parent.children.len();

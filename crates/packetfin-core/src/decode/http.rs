@@ -142,9 +142,13 @@ pub(crate) fn decode(context: &mut DecodeContext<'_>, parent: &mut Node, data: &
         .and_then(|(source, destination)| context.conversation_key(source, destination))
         .map(|(key, _)| key);
     // After a 2xx answer to CONNECT the connection is a tunnel (RFC 9112
-    // section 6.3), so its bytes are not messages even when a segment
-    // reaches the decoder on its own, with desegmentation off.
-    if !context.quoted && conversation.is_some_and(|key| context.state.http_tunnel(key)) {
+    // section 6.3), so its raw bytes are not messages even when a segment
+    // reaches the decoder on its own, with desegmentation off. Plaintext
+    // decrypted from TLS records inside the tunnel carries messages again.
+    if !context.quoted
+        && !context.tls_plaintext
+        && conversation.is_some_and(|key| context.state.http_tunnel(key))
+    {
         return;
     }
     let mut offset = 0_usize;
@@ -198,9 +202,15 @@ pub(crate) fn decode(context: &mut DecodeContext<'_>, parent: &mut Node, data: &
             },
         ) {
             Some(Parsed::Message(message)) => *message,
-            Some(Parsed::Refused { consumed }) if consumed > 0 => {
+            Some(Parsed::Refused { consumed, line }) if consumed > 0 => {
                 // The refused message stays undecoded, but the next message
-                // starts after its framed length (see `HeaderBudget`).
+                // starts after its framed length (see `HeaderBudget`), and
+                // its exchange stays in step.
+                if let Some(key) = conversation
+                    && !context.quoted
+                {
+                    record_refused(context, key, line);
+                }
                 offset = offset.saturating_add(consumed);
                 continue;
             }
@@ -351,7 +361,27 @@ enum Parsed {
     /// A complete message over the [`HeaderBudget`]: it is left undecoded,
     /// but it owns its `consumed` framed octets, so the next message stays
     /// aligned with the wire as the reassembler frames it.
-    Refused { consumed: usize },
+    Refused { consumed: usize, line: RefusedLine },
+}
+
+/// What a refused message still decides about its exchange.
+enum RefusedLine {
+    /// A request's method: HEAD and CONNECT frame the answer (RFC 9112
+    /// section 6.3 cases 1 and 2).
+    Request(String),
+    /// A response's status, which consumes the request it answers.
+    Response(u16),
+}
+
+impl RefusedLine {
+    fn of(start_line: &StartLine<'_>) -> Self {
+        match start_line {
+            StartLine::Request { method, .. } => Self::Request((*method).to_string()),
+            StartLine::Response { code, .. } => {
+                Self::Response(u16::try_from(*code).unwrap_or(u16::MAX))
+            }
+        }
+    }
 }
 
 /// Parse one message, or return `None` when it does not fit the segment.
@@ -399,6 +429,7 @@ fn parse_message(data: &[u8], base: usize, options: &MessageOptions<'_>) -> Opti
         // its body need not be rebuilt only to be discarded.
         return Some(Parsed::Refused {
             consumed: data.len(),
+            line: RefusedLine::of(&start_line),
         });
     }
     let framing = if refused {
@@ -527,7 +558,10 @@ fn parse_message(data: &[u8], base: usize, options: &MessageOptions<'_>) -> Opti
         }
     }
     if refused {
-        return Some(Parsed::Refused { consumed });
+        return Some(Parsed::Refused {
+            consumed,
+            line: RefusedLine::of(&start_line),
+        });
     }
 
     let mut node = Node::new(&fields::HTTP_PROTOCOL, Range::new(base, consumed));
@@ -1243,6 +1277,34 @@ fn add_body_fields(message: &mut HttpMessage) {
     file_data.showname = Some(format!("File Data: {length} bytes"));
 }
 
+/// Keep the exchange in step across a message the header budget refused.
+///
+/// Its fields are not decoded, but a refused HEAD or CONNECT still frames its
+/// answer, and a refused answer consumes the request it answers (RFC 9112
+/// section 6.3). The target is not kept: it may be what overran the budget.
+fn record_refused(
+    context: &mut DecodeContext<'_>,
+    key: crate::state::ConversationKey,
+    line: RefusedLine,
+) {
+    match line {
+        RefusedLine::Request(method) => context.state.http_request(
+            key,
+            crate::state::HttpFrame {
+                display: context.frame.number,
+                file: context.frame.file_number,
+            },
+            context.frame.timestamp,
+            Some(&method),
+            None,
+            None,
+        ),
+        RefusedLine::Response(code) => {
+            let _ = context.state.http_response(key, context.frame.number, code);
+        }
+    }
+}
+
 /// Record the message in the conversation state and add the link fields.
 ///
 /// Returns the request a response matched so object export can name the body
@@ -1635,7 +1697,7 @@ mod tests {
     /// The framed length of a message the header budget refused.
     fn refused_length(message: &[u8]) -> Option<usize> {
         match parse(message, false)? {
-            Parsed::Refused { consumed } => Some(consumed),
+            Parsed::Refused { consumed, .. } => Some(consumed),
             Parsed::Message(_) => None,
         }
     }

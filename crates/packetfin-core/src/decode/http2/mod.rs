@@ -84,7 +84,7 @@ const PRIORITY_UPDATE: u8 = 16;
 /// END_STREAM flag (RFC 9113 section 6.1).
 const FLAG_END_STREAM: u8 = 0x01;
 /// END_HEADERS flag (RFC 9113 section 6.2).
-pub(crate) const FLAG_END_HEADERS: u8 = 0x04;
+const FLAG_END_HEADERS: u8 = 0x04;
 /// PADDED flag (RFC 9113 section 6.1).
 const FLAG_PADDED: u8 = 0x08;
 /// PRIORITY flag on a HEADERS frame (RFC 9113 section 6.2).
@@ -227,7 +227,7 @@ pub(crate) fn decode(context: &mut DecodeContext<'_>, parent: &mut Node, data: &
         let frame_base = base.saturating_add(offset);
         let complete = frame.payload.len() == usize::try_from(frame.length).unwrap_or(usize::MAX);
         let payload = frame.payload;
-        let summary = add_frame(context, parent, &frame, frame_base, key);
+        let summary = add_frame(context, parent, &frame, frame_base, key, complete);
         frames = frames.saturating_add(1);
         if !summary.is_empty() {
             if !info.is_empty() {
@@ -485,12 +485,17 @@ fn frame_violation(frame: &Frame<'_>) -> Option<FrameViolation> {
 }
 
 /// Add one frame node, returning its summary-column text.
+///
+/// An incomplete frame keeps its fields but changes no connection state:
+/// the missing octets could have carried anything, so its header block
+/// fragment or DATA octets only mark that state unknown.
 fn add_frame(
     context: &mut DecodeContext<'_>,
     parent: &mut Node,
     frame: &Frame<'_>,
     base: usize,
     key: Option<Http2Key>,
+    complete: bool,
 ) -> String {
     let type_name = frame_type_name(frame.kind);
     let length = usize::try_from(frame.length).unwrap_or(usize::MAX);
@@ -553,6 +558,13 @@ fn add_frame(
                 }
             }
         }
+        if !blocked
+            && !complete
+            && let Some(key) = key
+        {
+            forget_payload_state(context, key, frame);
+        }
+        let key = if complete { key } else { None };
         if !blocked {
             match frame.kind {
                 HEADERS => decode_headers(context, &mut *stream, frame, base, key, &mut suffix),
@@ -564,7 +576,7 @@ fn add_frame(
                 }
                 DATA => decode_data(context, &mut *stream, frame, base, key, &mut suffix),
                 PRIORITY => decode_priority(&mut *stream, frame, base),
-                RST_STREAM => decode_rst_stream(&mut *stream, frame, base),
+                RST_STREAM => decode_rst_stream(context, &mut *stream, frame, base, key),
                 SETTINGS => decode_settings(context, &mut *stream, frame, base, key),
                 PING => decode_ping(&mut *stream, frame, base),
                 GOAWAY => decode_goaway(&mut *stream, frame, base),
@@ -839,8 +851,11 @@ fn decode_headers(
     let payload_base = base.saturating_add(FRAME_HEADER_BYTES);
     // END_STREAM on a HEADERS frame ends the stream's body as well, which is
     // how trailers complete a message (RFC 9113 section 8.1). The expected
-    // output prints the reassembled body there before the frame's fields.
+    // output prints the reassembled body there before the frame's fields. A
+    // frame whose priority or padding does not fit is malformed and ends
+    // nothing; the checks below report it.
     if frame.flags & FLAG_END_STREAM != 0
+        && headers_payload_fits(frame)
         && let Some(key) = key
     {
         let outcome = context.state.http2_data(
@@ -858,6 +873,7 @@ fn decode_headers(
         if let Some(body) = outcome.data
             && !outcome.fragments.is_empty()
         {
+            link_body_fragments(context, frame.stream_id, &outcome.fragments);
             if outcome.fragments.len() > 1 {
                 add_body_fragments(stream, &outcome.fragments, body.len(), &body);
             }
@@ -890,7 +906,10 @@ fn decode_headers(
         );
         offset = priority_end;
     }
-    let (fragment, padding) = split_payload(frame.payload, offset, pad);
+    let Some((fragment, padding)) = split_payload(frame, offset, pad) else {
+        padding_error(context, stream, key, frame);
+        return;
+    };
     let fragment_base = payload_base.saturating_add(offset);
     add_fragment(stream, &fields::HTTP2_HEADERS, fragment, fragment_base);
     let end_headers = frame.flags & FLAG_END_HEADERS != 0;
@@ -979,7 +998,10 @@ fn decode_push_promise(
         field_malformed(context, stream, "HTTP/2 PUSH_PROMISE is truncated");
     }
     let promised = word.map(|word| word & 0x7fff_ffff).unwrap_or(0);
-    let (fragment, padding) = split_payload(frame.payload, offset, pad);
+    let Some((fragment, padding)) = split_payload(frame, offset, pad) else {
+        padding_error(context, stream, key, frame);
+        return;
+    };
     let fragment_base = payload_base.saturating_add(offset);
     add_fragment(
         stream,
@@ -1055,8 +1077,10 @@ fn decode_continuation(
     suffix: &mut Suffix,
 ) {
     let payload_base = base.saturating_add(FRAME_HEADER_BYTES);
+    // CONTINUATION defines no padding (RFC 9113 section 6.10), so the
+    // split cannot fail.
     let pad = pad_length(frame, stream, payload_base, &mut 0_usize);
-    let (fragment, _padding) = split_payload(frame.payload, 0, pad);
+    let (fragment, _padding) = split_payload(frame, 0, pad).unwrap_or_default();
     add_fragment(
         stream,
         &fields::HTTP2_CONTINUATION_HEADER,
@@ -1121,7 +1145,10 @@ fn decode_data(
     let payload_base = base.saturating_add(FRAME_HEADER_BYTES);
     let mut offset = 0_usize;
     let pad = pad_length(frame, stream, payload_base, &mut offset);
-    let (data, padding) = split_payload(frame.payload, offset, pad);
+    let Some((data, padding)) = split_payload(frame, offset, pad) else {
+        padding_error(context, stream, key, frame);
+        return;
+    };
     let data_base = payload_base.saturating_add(offset);
     let end_stream = frame.flags & FLAG_END_STREAM != 0;
     // RFC 9113 section 6.1: the entire DATA frame payload is charged to flow
@@ -1174,17 +1201,8 @@ fn decode_data(
             }
             assembled = Some(body);
         }
-        if end_stream
-            && context.pass == crate::state::PassMode::First
-            && outcome.fragments.len() > 1
-        {
-            let completing = context.frame.file_number;
-            let annotations = context.state.annotations_mut();
-            for fragment in &outcome.fragments {
-                if fragment.file != completing {
-                    annotations.link_http2_body_reassembled(fragment.file, completing);
-                }
-            }
+        if end_stream && outcome.fragments.len() > 1 {
+            link_body_fragments(context, frame.stream_id, &outcome.fragments);
         }
     }
     let (value, range) = match &assembled {
@@ -1213,6 +1231,28 @@ fn decode_data(
     }
     if !end_stream && !dropped {
         suffix.text = " (partial entity body)".to_string();
+    }
+}
+
+/// Link each body fragment another frame carried to the completing frame.
+///
+/// The recording pass stores the link so the output pass can print it on the
+/// earlier DATA frames, whichever frame ends the body: the last DATA frame or
+/// trailers (RFC 9113 section 8.1).
+fn link_body_fragments(
+    context: &mut DecodeContext<'_>,
+    stream_id: u32,
+    fragments: &[BodyFragmentView],
+) {
+    if context.pass != crate::state::PassMode::First {
+        return;
+    }
+    let completing = context.frame.file_number;
+    let annotations = context.state.annotations_mut();
+    for fragment in fragments {
+        if fragment.file != completing {
+            annotations.link_http2_body_reassembled(fragment.file, stream_id, completing);
+        }
     }
 }
 
@@ -1389,19 +1429,33 @@ fn add_priority(stream: &mut Field, payload: Option<&[u8]>, base: usize) {
             Range::new(base.saturating_add(4), 1),
             Value::Uint8(weight),
         );
-        stream.add_field(
-            &fields::HTTP2_HEADERS_WEIGHT_REAL,
-            Range::new(0, 0),
-            Value::Uint8(weight.saturating_add(1)),
-        );
+        // RFC 9113 section 5.3.2: the real weight is the wire value plus one,
+        // so 0xff means 256. The registry keeps the field 8 bits wide; only
+        // that one value is carried wider.
+        let real = match weight.checked_add(1) {
+            Some(real) => Value::Uint8(real),
+            None => Value::Uint16(256),
+        };
+        stream.add_field(&fields::HTTP2_HEADERS_WEIGHT_REAL, Range::new(0, 0), real);
     }
 }
 
-/// Decode an RST_STREAM payload.
-fn decode_rst_stream(stream: &mut Field, frame: &Frame<'_>, base: usize) {
+/// Decode an RST_STREAM payload and release the stream's bodies.
+fn decode_rst_stream(
+    context: &mut DecodeContext<'_>,
+    stream: &mut Field,
+    frame: &Frame<'_>,
+    base: usize,
+    key: Option<Http2Key>,
+) {
     let Some(error) = read_u32(frame.payload, 0) else {
         return;
     };
+    if let Some(key) = key {
+        context
+            .state
+            .http2_reset_stream(key.conversation, frame.stream_id);
+    }
     let field = stream.add_field(
         &fields::HTTP2_RST_STREAM_ERROR,
         Range::new(base.saturating_add(FRAME_HEADER_BYTES), 4),
@@ -1832,16 +1886,78 @@ fn pad_length(
 }
 
 /// Split the declared pad bytes off the end of a frame payload.
-fn split_payload(payload: &[u8], offset: usize, pad: usize) -> (&[u8], Option<&[u8]>) {
-    let Some(body) = payload.get(offset..) else {
-        return (&[], None);
+///
+/// The split point follows the declared length, so a payload the capture
+/// cut short keeps each captured octet on its own side. RFC 9113 sections
+/// 6.1 and 6.2 make padding that does not fit after the fields before it a
+/// PROTOCOL_ERROR, which returns `None`: the payload then has no data or
+/// header block fragment at all.
+fn split_payload<'a>(
+    frame: &Frame<'a>,
+    offset: usize,
+    pad: usize,
+) -> Option<(&'a [u8], Option<&'a [u8]>)> {
+    let declared = usize::try_from(frame.length).unwrap_or(usize::MAX);
+    let data_length = declared.saturating_sub(offset).checked_sub(pad)?;
+    let body = frame.payload.get(offset..).unwrap_or_default();
+    let (data, padding) = body.split_at(data_length.min(body.len()));
+    Some((data, (!padding.is_empty()).then_some(padding)))
+}
+
+/// Whether a HEADERS payload holds its Pad Length, Priority and padding
+/// (RFC 9113 section 6.2), checked without adding fields.
+fn headers_payload_fits(frame: &Frame<'_>) -> bool {
+    let padded = frame.flags & FLAG_PADDED != 0;
+    let pad = if padded {
+        match frame.payload.first() {
+            Some(&pad) => usize::from(pad),
+            None => return false,
+        }
+    } else {
+        0
     };
-    if pad == 0 || pad > body.len() {
-        return (body, None);
+    let mut offset = usize::from(padded);
+    if frame.flags & FLAG_PRIORITY != 0 {
+        offset = offset.saturating_add(5);
+        if frame.payload.len() < offset {
+            return false;
+        }
     }
-    let split = body.len().saturating_sub(pad);
-    let (data, padding) = body.split_at(split);
-    (data, Some(padding))
+    split_payload(frame, offset, pad).is_some()
+}
+
+/// Report padding that does not fit its frame and stop the payload there.
+fn padding_error(
+    context: &mut DecodeContext<'_>,
+    stream: &mut Field,
+    key: Option<Http2Key>,
+    frame: &Frame<'_>,
+) {
+    field_malformed(
+        context,
+        stream,
+        "HTTP/2 padding exceeds the frame payload; PROTOCOL_ERROR",
+    );
+    if let Some(key) = key {
+        forget_payload_state(context, key, frame);
+    }
+}
+
+/// Forget the state an undecoded frame payload would have changed.
+///
+/// A header block fragment that never reaches the decoder leaves the
+/// direction's dynamic table unknown (RFC 7541 section 2.2), and DATA octets
+/// that are never appended leave a hole in that stream's body (RFC 9113
+/// section 6.1), so later blocks report the lost table and the stream's later
+/// fragments are not presented as a whole body. Other streams keep theirs.
+fn forget_payload_state(context: &mut DecodeContext<'_>, key: Http2Key, frame: &Frame<'_>) {
+    match frame.kind {
+        HEADERS | PUSH_PROMISE | CONTINUATION => context.state.http2_mark_table_lost(key),
+        DATA => context
+            .state
+            .http2_abandon_stream_body(key, frame.stream_id),
+        _ => {}
+    }
 }
 
 /// Add the header block fragment bytes field.
@@ -1985,15 +2101,14 @@ fn add_header_block(
                     _ => None,
                 };
                 if context.pass == crate::state::PassMode::First {
-                    let annotations = context.state.annotations_mut();
-                    if let Some(delay) = delay {
-                        annotations.link_response(
-                            context.frame.file_number,
-                            u64::from(info.file),
-                            delay,
-                        );
-                    }
-                    annotations.link_response_in(u64::from(info.file), context.frame.file_number);
+                    // The request and its response share the stream, so both
+                    // links are kept under this stream identifier.
+                    context.state.annotations_mut().link_http2_response(
+                        u64::from(info.file),
+                        context.frame.file_number,
+                        stream_id,
+                        delay,
+                    );
                 }
                 if context.pass != crate::state::PassMode::Second {
                     let index = uri_index(stream);
@@ -2016,8 +2131,14 @@ fn add_header_block(
         }
         let reason = status_reason(status);
         suffix.text = format!(", {status} {reason}");
-    } else if let (Some(method), Some(path)) = (&summary.method, &summary.path) {
-        suffix.text = format!(", {method} {path}");
+    } else if let Some(method) = &summary.method
+        && (summary.path.is_some() || method == "CONNECT")
+    {
+        // RFC 9113 section 8.5: CONNECT carries no :path, so its summary
+        // names no target, but it is still a request on this stream.
+        if let Some(path) = &summary.path {
+            suffix.text = format!(", {method} {path}");
+        }
         if !push && !context.observe_only {
             let uri = summary.uri.clone();
             // RFC 9113 section 6.10 makes the block one unit: a request split
@@ -2068,7 +2189,18 @@ fn uri_index(stream: &Field) -> usize {
 
 /// Build the request URI from the pseudo-header values.
 fn synthesize_uri(summary: &HeaderSummary, block: &hpack::Block) -> Option<String> {
-    let path = summary.path.as_deref()?;
+    let authority = block
+        .headers()
+        .find(|header| header.name == ":authority")
+        .map(|header| header.value.trim())
+        .filter(|authority| !authority.is_empty());
+    let Some(path) = summary.path.as_deref() else {
+        // RFC 9113 section 8.5: CONNECT omits :scheme and :path and names
+        // only the target authority, which is then the whole request URI.
+        return authority
+            .filter(|_| summary.method.as_deref() == Some("CONNECT"))
+            .map(str::to_string);
+    };
     let scheme = block
         .headers()
         .find(|header| header.name == ":scheme")
@@ -2077,12 +2209,7 @@ fn synthesize_uri(summary: &HeaderSummary, block: &hpack::Block) -> Option<Strin
     if path.starts_with("http://") || path.starts_with("https://") {
         return Some(path.to_string());
     }
-    let authority = block
-        .headers()
-        .find(|header| header.name == ":authority")
-        .map(|header| header.value.trim())
-        .filter(|authority| !authority.is_empty())?;
-    Some(format!("{scheme}://{authority}{path}"))
+    Some(format!("{scheme}://{}{path}", authority?))
 }
 
 /// Add the request URI known for a stream, if any.
@@ -2357,13 +2484,165 @@ mod tests {
 
     #[test]
     fn padding_is_split_from_the_payload() {
-        let payload = [0x02, 0x01, 0x02, 0x03, 0x00, 0x00];
-        let (data, padding) = split_payload(&payload, 1, 2);
+        let bytes = frame_pdu(DATA, FLAG_PADDED, 1, &[0x02, 0x01, 0x02, 0x03, 0x00, 0x00]);
+        let frame = Frame::parse(&bytes).unwrap_or_else(|| unreachable!("complete DATA"));
+        let (data, padding) =
+            split_payload(&frame, 1, 2).unwrap_or_else(|| unreachable!("the padding fits"));
         assert_eq!(data, &[0x01, 0x02, 0x03]);
         assert_eq!(padding, Some(&[0x00, 0x00][..]));
-        let (data, padding) = split_payload(&payload, 1, 9);
-        assert_eq!(data, &[0x01, 0x02, 0x03, 0x00, 0x00]);
-        assert!(padding.is_none());
+        // RFC 9113 section 6.1: padding longer than what follows the Pad
+        // Length octet is a PROTOCOL_ERROR, not data.
+        assert!(split_payload(&frame, 1, 6).is_none());
+    }
+
+    #[test]
+    fn padding_longer_than_the_payload_stops_the_frame() {
+        let mut data = PREFACE.to_vec();
+        data.extend_from_slice(&frame_pdu(SETTINGS, 0, 0, &[]));
+        // DATA declares two padding octets but only one octet follows.
+        data.extend_from_slice(&frame_pdu(DATA, FLAG_PADDED, 1, &[2, 0x61]));
+        // HEADERS declares nine padding octets after a two-octet block.
+        data.extend_from_slice(&frame_pdu(
+            HEADERS,
+            FLAG_PADDED | FLAG_END_HEADERS,
+            3,
+            &[9, 0x82, 0x84],
+        ));
+        let (parent, _) = decode_payload(&data);
+        let tree = crate::tree::Tree::new(parent);
+        assert!(
+            tree.field_values("http2.data.data").is_empty(),
+            "the misdeclared padding carries no body octets"
+        );
+        assert!(
+            tree.field_values("http2.header").is_empty(),
+            "the header block is not decompressed"
+        );
+        let errors = tree
+            .fields()
+            .flat_map(|field| field.experts.iter())
+            .filter(|expert| {
+                expert.group == Group::Malformed && expert.message.contains("PROTOCOL_ERROR")
+            })
+            .count();
+        assert_eq!(errors, 2, "each frame reports its padding once");
+    }
+
+    #[test]
+    fn the_largest_wire_weight_is_a_real_weight_of_256() {
+        let mut data = PREFACE.to_vec();
+        data.extend_from_slice(&frame_pdu(PRIORITY, 0, 1, &[0, 0, 0, 0, 0xff]));
+        let (parent, _) = decode_payload(&data);
+        let tree = crate::tree::Tree::new(parent);
+        // RFC 9113 section 5.3.2: the weight is the wire value plus one.
+        assert_eq!(
+            tree.field_values("http2.headers.weight_real"),
+            vec![&Value::Uint16(256)]
+        );
+        let mut data = PREFACE.to_vec();
+        data.extend_from_slice(&frame_pdu(PRIORITY, 0, 1, &[0, 0, 0, 0, 0x0f]));
+        let (parent, _) = decode_payload(&data);
+        assert_eq!(
+            crate::tree::Tree::new(parent).field_values("http2.headers.weight_real"),
+            vec![&Value::Uint8(16)],
+            "smaller weights keep their 8-bit value"
+        );
+    }
+
+    #[test]
+    fn rst_stream_releases_the_retained_bodies() {
+        let mut data = PREFACE.to_vec();
+        data.extend_from_slice(&frame_pdu(SETTINGS, 0, 0, &[]));
+        data.extend_from_slice(&frame_pdu(DATA, 0, 1, &[0x41; 4096]));
+        let (_, kept) = decode_payload(&data);
+        // RFC 9113 section 6.4: RST_STREAM ends both directions of the
+        // stream, so its partial body can never complete.
+        data.extend_from_slice(&frame_pdu(RST_STREAM, 0, 1, &8_u32.to_be_bytes()));
+        let (_, reset) = decode_payload(&data);
+        assert!(
+            reset.used().saturating_add(4096) <= kept.used(),
+            "the cancelled body is released: {} vs {}",
+            reset.used(),
+            kept.used()
+        );
+    }
+
+    #[test]
+    fn a_reused_tuple_starts_a_fresh_http2_connection() {
+        let mut session = crate::state::DecodeSession::new(crate::decode::DecodeOptions::default());
+        let mut sequences = (1_u32, 1_u32);
+        let mut first = PREFACE.to_vec();
+        first.extend_from_slice(&frame_pdu(SETTINGS, 0, 0, &[]));
+        // A literal with incremental indexing puts `a: 1` at dynamic index 62.
+        first.extend_from_slice(&frame_pdu(
+            HEADERS,
+            FLAG_END_HEADERS,
+            1,
+            &[0x40, 0x01, b'a', 0x01, b'1'],
+        ));
+        let _ = decode_segment(&mut session, 1, true, &first, &mut sequences);
+        // A SYN with a new initial sequence number opens a new connection on
+        // the same tuple; its HPACK context starts empty (RFC 7541 2.3.2).
+        let mut syn = segment(2, 50_000, true, &[]);
+        if let Some(flags) = syn.captured.get_mut(47) {
+            *flags = 0x02;
+        }
+        let _ = session.decode_at(&syn, 2);
+        sequences.0 = 50_001;
+        let mut second = PREFACE.to_vec();
+        second.extend_from_slice(&frame_pdu(SETTINGS, 0, 0, &[]));
+        second.extend_from_slice(&frame_pdu(HEADERS, FLAG_END_HEADERS, 1, &[0xbe]));
+        let packet = decode_segment(&mut session, 3, true, &second, &mut sequences);
+        assert!(
+            packet.tree.field_values("http2.header").is_empty(),
+            "index 62 must not resolve the old connection's entry"
+        );
+    }
+
+    #[test]
+    fn a_reused_tuple_ends_the_old_connections_http_tunnel() {
+        // The CONNECT tunnel belongs to the old connection; after a SYN with
+        // a new initial sequence number reopens the tuple, plain HTTP/1.1
+        // decodes again, also without desegmentation.
+        let mut options = crate::decode::DecodeOptions::default();
+        options.preferences.tcp_desegment_tcp_streams = false;
+        let mut session = crate::state::DecodeSession::new(options);
+        let mut sequences = (1_u32, 1_u32);
+        let _ = decode_segment(
+            &mut session,
+            1,
+            true,
+            b"CONNECT example.com:443 HTTP/1.1\r\nHost: h\r\n\r\n",
+            &mut sequences,
+        );
+        let _ = decode_segment(
+            &mut session,
+            2,
+            false,
+            b"HTTP/1.1 200 Connection established\r\n\r\n",
+            &mut sequences,
+        );
+        let mut syn = segment(3, 50_000, true, &[]);
+        if let Some(flags) = syn.captured.get_mut(47) {
+            *flags = 0x02;
+        }
+        let _ = session.decode_at(&syn, 3);
+        sequences.0 = 50_001;
+        let packet = decode_segment(
+            &mut session,
+            4,
+            true,
+            b"GET /fresh HTTP/1.1\r\nHost: h\r\n\r\n",
+            &mut sequences,
+        );
+        assert!(
+            packet
+                .tree
+                .field_values("http.request.uri")
+                .iter()
+                .any(|value| matches!(value, crate::tree::Value::String(uri) if uri == "/fresh")),
+            "the reopened tuple is not a tunnel"
+        );
     }
 
     #[test]

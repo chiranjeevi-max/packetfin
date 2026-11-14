@@ -37225,6 +37225,21 @@ fn build_http_framing_rfc() -> Result<Vec<u8>, String> {
         connection.server_fin(b"")?;
     }
 
+    // A HEAD request over the same cap: its fields stay undecoded, but its
+    // method still frames the answer, which carries no body despite its
+    // Content-Length (RFC 9112 section 6.3 case 1).
+    {
+        let mut crowded = b"HEAD /crowded HTTP/1.1\r\nHost: h\r\n".to_vec();
+        for index in 0..256 {
+            crowded.extend_from_slice(format!("X-{index}: v\r\n").as_bytes());
+        }
+        crowded.extend_from_slice(b"\r\n");
+        let mut connection = ObjectConnection::new(&mut frames, 40_618);
+        connection.client(&crowded)?;
+        connection.server(b"HTTP/1.1 200 OK\r\nContent-Length: 10\r\n\r\n")?;
+        connection.server_fin(b"")?;
+    }
+
     link_pcap(u32::from(LINKTYPE_ETHERNET), &frames)
 }
 

@@ -39,8 +39,8 @@ use crate::names::NameResolver;
 use std::net::IpAddr;
 
 pub use annotations::{
-    AnnotationStore, DEFAULT_ANNOTATION_BUDGET, FrameAnnotation, RenumberMap, apply_annotations,
-    apply_dns_annotations, expert_label_only, expert_offending,
+    AnnotationStore, DEFAULT_ANNOTATION_BUDGET, FrameAnnotation, Http2Links, RenumberMap,
+    apply_annotations, apply_dns_annotations, expert_label_only, expert_offending,
 };
 pub(crate) use annotations::{add_request_link, add_retransmission, add_time};
 use budget::Budget;

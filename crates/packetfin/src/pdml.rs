@@ -2339,7 +2339,7 @@ fn is_dns_name(abbrev: &str) -> bool {
     )
 }
 
-fn field_children(abbrev: &str) -> &'static [&'static str] {
+pub(crate) fn field_children(abbrev: &str) -> &'static [&'static str] {
     match abbrev {
         "ip.dsfield" => &["ip.dsfield.dscp", "ip.dsfield.ecn"],
         "ip.flags" => &["ip.flags.rb", "ip.flags.df", "ip.flags.mf"],
@@ -2461,6 +2461,12 @@ fn position_aware_group(abbrev: &str) -> bool {
             | "lacp.actor.state"
             | "lacp.partner.state"
     )
+}
+
+/// Whether `child` is one of the bits nested under the flags field `parent`.
+pub(crate) fn grouped_under(parent: &Field, child: &Field) -> bool {
+    field_children(parent.def.abbrev).contains(&child.def.abbrev)
+        && (!position_aware_group(parent.def.abbrev) || group_contains(parent, child))
 }
 
 fn group_contains(parent: &Field, child: &Field) -> bool {

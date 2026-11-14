@@ -206,6 +206,10 @@ pub(crate) fn decode(context: &mut DecodeContext<'_>, parent: &mut Node, data: &
     } else {
         detected_ulp
     };
+    // A disabled protocol never decodes: neither the preface nor a known
+    // connection selects HTTP/2 then, in the stream framer or directly.
+    let detected_ulp = detected_ulp
+        .filter(|ulp| *ulp != Ulp::Http2 || context.options.policy.enabled(Protocol::Http2));
     // Turning desegmentation off leaves each segment a PDU on its own: no
     // buffering and no segment data, but a complete fixed header still
     // yields `tcp.pdu.size`.
@@ -731,23 +735,31 @@ pub(crate) fn decode(context: &mut DecodeContext<'_>, parent: &mut Node, data: &
         {
             context.columns.info = Some(info);
         }
+        // Desegmentation off leaves each segment a PDU on its own, a quoted
+        // header never seeds stream state, and a forced decode-as bypasses
+        // the stream buffer; all three decode the bytes directly. The port
+        // table has no HTTP/2 entry, so the HTTP/2 selection above (the
+        // preface, or a connection already known as HTTP/2; RFC 9113
+        // section 3.4) decodes the segment here, exactly as it would select
+        // the stream framer.
+        if forced_tcp || context.quoted || !context.options.preferences.tcp_desegment_tcp_streams {
+            if !forced_tcp && detected_ulp == Some(Ulp::Http2) {
+                crate::decode::http2::decode(context, &mut node, payload, base + header_length);
+            } else {
+                crate::decode::dispatch_tcp_payload(
+                    context,
+                    &mut node,
+                    (source_port, destination_port),
+                    Some(assignment),
+                    Some(sequence),
+                    payload,
+                    base + header_length,
+                );
+            }
+        }
         context.transport_ports = saved_ports;
         context.tcp_stream = saved_stream;
         context.tcp_sequence = saved_sequence;
-        // Desegmentation off leaves each segment a PDU on its own, a quoted
-        // header never seeds stream state, and a forced decode-as bypasses
-        // the stream buffer; all three decode the bytes directly.
-        if forced_tcp || context.quoted || !context.options.preferences.tcp_desegment_tcp_streams {
-            crate::decode::dispatch_tcp_payload(
-                context,
-                &mut node,
-                (source_port, destination_port),
-                Some(assignment),
-                Some(sequence),
-                payload,
-                base + header_length,
-            );
-        }
         if detected_ulp == Some(Ulp::Http)
             && (context.quoted || !context.options.preferences.tcp_desegment_tcp_streams)
         {

@@ -33,8 +33,8 @@ use packetfin_core::decode::DecodeOptions;
 use packetfin_core::stats::{StatsOptions, StatsSet};
 use packetfin_core::{
     AnnotationStore, CaptureError, CaptureEvent, CaptureReader, DecodeSession, ExportedKey,
-    FieldDef, FieldSelection, Filter, FilterError, Frame, FrameAnnotation, KeyLog, Packet,
-    PassMode, ProtocolSelection, RenumberMap, apply_annotations,
+    FieldDef, FieldSelection, Filter, FilterError, Frame, KeyLog, Packet, PassMode,
+    ProtocolSelection, RenumberMap, apply_annotations,
 };
 
 use cli::{
@@ -914,7 +914,6 @@ fn second_pass<S: PacketSink>(
         // `frame.number` and a `-Y frame.number==N` expression both see the
         // output position. First-pass annotations use the same map.
         frame.number = output_number;
-        let annotation = session.annotation(file_number).copied();
         if let Err(error) = output_frame(
             &frame,
             &mut session,
@@ -924,9 +923,7 @@ fn second_pass<S: PacketSink>(
             &mut sink,
             &mut writer,
             file_number,
-            annotation
-                .as_ref()
-                .map(|annotation| (annotation, &renumber)),
+            Some(&renumber),
         ) {
             return match error {
                 FrameError::Writer(status) => {
@@ -1001,11 +998,11 @@ fn output_frame<S: PacketSink>(
     sink: &mut S,
     writer: &mut impl Write,
     file_number: u64,
-    annotation: Option<(&FrameAnnotation, &RenumberMap)>,
+    renumber: Option<&RenumberMap>,
 ) -> Result<FrameOutcome, FrameError> {
     let mut packet = session.decode_observed_at(frame, file_number, statistics.stream_observer());
-    if let Some((annotation, renumber)) = annotation {
-        apply_annotations(&mut packet, annotation, renumber);
+    if let Some(renumber) = renumber {
+        apply_annotations(&mut packet, session.annotations(), file_number, renumber);
     }
     statistics.observe(frame, &packet);
     let matched = options

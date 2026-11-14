@@ -233,15 +233,15 @@ fn two_pass_records_the_request_response_links() {
     let _ = session.decode_at(&frame(2, sequence, &second), 2);
     let request = session
         .annotations()
-        .get(1)
+        .http2_links(1, 1)
         .unwrap_or_else(|| unreachable!("request annotation"));
     assert_eq!(request.response_in, 2);
     let response = session
         .annotations()
-        .get(2)
+        .http2_links(2, 1)
         .unwrap_or_else(|| unreachable!("response annotation"));
     assert_eq!(response.request_in, 1);
-    assert!(response.time_present());
+    assert!(response.time_ns.is_some());
 }
 
 #[test]
@@ -859,7 +859,16 @@ fn tls_frame(number: u64, sequence: u32, from_client: bool, payload: &[u8]) -> F
 
 /// Decode TLS records in order, each as its own frame of one connection.
 fn decode_tls_records(keylog: &str, records: &[(bool, Vec<u8>)]) -> Vec<packetfin_core::Packet> {
-    let mut session = DecodeSession::new(DecodeOptions::default());
+    decode_tls_records_with(DecodeOptions::default(), keylog, records)
+}
+
+/// Decode TLS records like `decode_tls_records`, with explicit options.
+fn decode_tls_records_with(
+    options: DecodeOptions,
+    keylog: &str,
+    records: &[(bool, Vec<u8>)],
+) -> Vec<packetfin_core::Packet> {
+    let mut session = DecodeSession::new(options);
     session.set_keylog(KeyLog::read(keylog.as_bytes()));
     let mut client_sequence = 1_u32;
     let mut server_sequence = 1_u32;
@@ -1552,6 +1561,12 @@ fn a_continuation_never_takes_the_link_of_a_block_opened_beside_it() {
 /// Run both passes over `frames` and list, per frame, the stream identifier
 /// and the `http2.response_in` value of every HTTP/2 frame that links forward.
 fn response_links(frames: &[Frame]) -> Vec<Vec<(u32, u32)>> {
+    stream_links(frames, "http2.response_in")
+}
+
+/// Run both passes over `frames` and list, per frame, the stream identifier
+/// and the `abbrev` link of every HTTP/2 frame that carries one.
+fn stream_links(frames: &[Frame], abbrev: &str) -> Vec<Vec<(u32, u32)>> {
     let mut recording = DecodeSession::with_pass(
         DecodeOptions::default(),
         packetfin_core::DEFAULT_STATE_BUDGET,
@@ -1575,21 +1590,525 @@ fn response_links(frames: &[Frame]) -> Vec<Vec<(u32, u32)>> {
         .zip(frames)
         .map(|(file, frame)| {
             let mut packet = output.decode_at(frame, file);
-            if let Some(annotation) = annotations.get(file) {
-                packetfin_core::apply_annotations(&mut packet, annotation, &renumber);
-            }
+            packetfin_core::apply_annotations(&mut packet, &annotations, file, &renumber);
             let mut nodes = Vec::new();
             http2_nodes(&packet.tree.frame, &mut nodes);
             nodes
                 .iter()
                 .filter_map(|node| stream_container(node))
                 .filter_map(|stream| {
-                    Some((
-                        number(stream, "http2.streamid")?,
-                        number(stream, "http2.response_in")?,
-                    ))
+                    Some((number(stream, "http2.streamid")?, number(stream, abbrev)?))
                 })
                 .collect()
         })
         .collect()
+}
+
+/// Decode `payloads` as consecutive client segments to port 80.
+fn client_segments(options: DecodeOptions, payloads: &[&[u8]]) -> Vec<packetfin_core::Packet> {
+    let mut session = DecodeSession::new(options);
+    let mut sequence = 1_u32;
+    (1..)
+        .zip(payloads)
+        .map(|(number, payload)| {
+            let packet = session.decode_at(&frame(number, sequence, payload), number);
+            sequence = sequence.wrapping_add(u32::try_from(payload.len()).unwrap_or(0));
+            packet
+        })
+        .collect()
+}
+
+/// Default options with TCP desegmentation turned off.
+fn undesegmented() -> DecodeOptions {
+    let mut options = DecodeOptions::default();
+    options.preferences.tcp_desegment_tcp_streams = false;
+    options
+}
+
+#[test]
+fn an_undesegmented_preface_segment_decodes_as_http2() {
+    let mut payload = PREFACE.to_vec();
+    payload.extend_from_slice(&h2_frame(4, 0, 0, &[]));
+    payload.extend_from_slice(&h2_frame(1, 0x05, 1, &[0x82, 0x86, 0x84]));
+    let packets = client_segments(undesegmented(), &[&payload]);
+    let packet = packets
+        .first()
+        .unwrap_or_else(|| unreachable!("one packet"));
+    assert_eq!(
+        tree_field(packet, "http2.headers.method").as_deref(),
+        Some("GET")
+    );
+}
+
+#[test]
+fn an_undesegmented_segment_of_a_known_http2_connection_decodes() {
+    // The second segment has no preface of its own; the connection is
+    // already HTTP/2 (RFC 9113 section 3.4).
+    let mut first = PREFACE.to_vec();
+    first.extend_from_slice(&h2_frame(4, 0, 0, &[]));
+    let second = h2_frame(1, 0x05, 1, &[0x82, 0x86, 0x84]);
+    let packets = client_segments(undesegmented(), &[&first, &second]);
+    let packet = packets
+        .get(1)
+        .unwrap_or_else(|| unreachable!("two packets"));
+    assert_eq!(
+        tree_field(packet, "http2.headers.method").as_deref(),
+        Some("GET")
+    );
+}
+
+/// A cleartext preface, SETTINGS and HEADERS segment decoded with HTTP/2
+/// disabled; the result must hold no HTTP/2 node.
+fn http2_nodes_when_disabled(mut options: DecodeOptions) -> usize {
+    options.policy.disable(packetfin_core::Protocol::Http2);
+    options.policy.finalize();
+    let mut payload = PREFACE.to_vec();
+    payload.extend_from_slice(&h2_frame(4, 0, 0, &[]));
+    payload.extend_from_slice(&h2_frame(1, 0x05, 1, &[0x82, 0x86, 0x84]));
+    let packets = client_segments(options, &[&payload]);
+    let mut nodes = Vec::new();
+    for packet in &packets {
+        http2_nodes(&packet.tree.frame, &mut nodes);
+    }
+    nodes.len()
+}
+
+#[test]
+fn a_disabled_http2_preface_is_not_decoded_from_the_stream() {
+    assert_eq!(http2_nodes_when_disabled(DecodeOptions::default()), 0);
+}
+
+#[test]
+fn a_disabled_http2_preface_is_not_decoded_without_desegmentation() {
+    assert_eq!(http2_nodes_when_disabled(undesegmented()), 0);
+}
+
+#[test]
+fn disabled_http2_keeps_the_decrypted_tls_records_only() {
+    let mut options = DecodeOptions::default();
+    options.policy.disable(packetfin_core::Protocol::Http2);
+    options.policy.finalize();
+    let (keylog, records) = tls12_h2_records();
+    let frames = decode_tls_records_with(options, &keylog, &records);
+    let server_app = frames
+        .get(7)
+        .unwrap_or_else(|| unreachable!("server app data"));
+    let mut nodes = Vec::new();
+    http2_nodes(&server_app.tree.frame, &mut nodes);
+    assert!(nodes.is_empty(), "no HTTP/2 node when HTTP/2 is disabled");
+    assert_eq!(server_app.columns.protocol.as_deref(), Some("TLSv1.2"));
+}
+
+#[test]
+fn disabled_http_keeps_the_decrypted_tls_records_only() {
+    let mut options = DecodeOptions::default();
+    options.policy.disable(packetfin_core::Protocol::Http);
+    options.policy.finalize();
+    let alpn = [&[0, 9, 8][..], b"http/1.1"].concat();
+    let (keylog, records) = tls12_alpn_records(
+        alpn.clone(),
+        alpn,
+        b"GET /hidden HTTP/1.1\r\nHost: x\r\n\r\n",
+        b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n",
+        b"",
+    );
+    let frames = decode_tls_records_with(options, &keylog, &records);
+    assert!(
+        frames
+            .iter()
+            .all(|packet| tree_field(packet, "http.request.uri").is_none()),
+        "no HTTP field when HTTP is disabled"
+    );
+}
+
+#[test]
+fn the_largest_real_weight_compares_above_the_wire_range() {
+    // RFC 9113 section 5.3.2: wire weight 255 is a real weight of 256. The
+    // field keeps its 8-bit registry type, so 256 is still out of range as
+    // a literal while the value itself compares above 255.
+    let mut payload = PREFACE.to_vec();
+    payload.extend_from_slice(&h2_frame(2, 0, 1, &[0, 0, 0, 0, 0xff]));
+    let packet = DecodeSession::new(DecodeOptions::default()).decode_at(&frame(1, 1, &payload), 1);
+    let above = packetfin_core::Filter::parse("http2.headers.weight_real > 255")
+        .unwrap_or_else(|_| unreachable!("255 fits the 8-bit field"));
+    assert!(above.matches(&packet.tree));
+    assert!(packetfin_core::Filter::parse("http2.headers.weight_real == 256").is_err());
+}
+
+#[test]
+fn a_truncated_frame_changes_no_connection_state() {
+    // Without desegmentation a forced port hands each segment over whole,
+    // so a frame can end past the capture. Its header fields stay, but the
+    // missing octets leave its effect unknown, so nothing is applied.
+    let mut options = DecodeOptions::default();
+    options.preferences.tcp_desegment_tcp_streams = false;
+    parse_decode_as("tcp.port==8080,http2", &mut options.decode_as)
+        .unwrap_or_else(|_| unreachable!("a valid decode-as entry"));
+    let mut session = DecodeSession::new(options);
+    let client = ([192, 0, 2, 1], 40_000);
+    let server = ([192, 0, 2, 2], 8080);
+    let mut sequences = (1_u32, 1_u32);
+    let mut number = 0_u64;
+    let mut send = |session: &mut DecodeSession, from_client: bool, payload: &[u8]| {
+        number = number.saturating_add(1);
+        let (source, destination, sequence) = if from_client {
+            (client, server, &mut sequences.0)
+        } else {
+            (server, client, &mut sequences.1)
+        };
+        let packet = session.decode_at(
+            &frame_between(number, *sequence, source, destination, payload),
+            number,
+        );
+        *sequence = sequence.saturating_add(u32::try_from(payload.len()).unwrap_or(0));
+        packet
+    };
+    // A SETTINGS frame declares two entries; only INITIAL_WINDOW_SIZE = 1000
+    // was captured.
+    let mut opening = PREFACE.to_vec();
+    opening.extend_from_slice(&h2_frame(4, 0, 0, &[]));
+    let mut settings = h2_frame(4, 0, 0, &[0, 4, 0, 0, 0x03, 0xe8, 0, 1, 0, 0, 0, 0]);
+    settings.truncate(settings.len() - 6);
+    opening.extend_from_slice(&settings);
+    let cut = send(&mut session, true, &opening);
+    assert!(cut.malformed, "the cut frame is reported");
+    let mut reply = h2_frame(4, 0, 0, &[]);
+    reply.extend_from_slice(&h2_frame(0, 0, 1, b"x"));
+    let reply = send(&mut session, false, &reply);
+    assert_eq!(
+        tree_field(&reply, "http2.calculated.stream.window_size.before").as_deref(),
+        Some("65535"),
+        "the cut SETTINGS frame did not change the stream window"
+    );
+    // A body starts, then a DATA frame declares ten octets and three were
+    // captured, so the body has a hole of unknown size.
+    let _ = send(&mut session, true, &h2_frame(0, 0, 1, b"ab"));
+    let mut data = h2_frame(0, 0, 1, b"cdefghijkl");
+    data.truncate(data.len() - 7);
+    let _ = send(&mut session, true, &data);
+    let end = send(&mut session, true, &h2_frame(0, 0x01, 1, b"z"));
+    assert_eq!(
+        tree_field(&end, "http2.calculated.connection.window_size.before").as_deref(),
+        Some("65533"),
+        "only the complete DATA frame was charged"
+    );
+    assert_eq!(
+        data_values(&end),
+        vec!["7a"],
+        "a body with a hole is not presented as contiguous"
+    );
+    // A complete block puts `a: 1` at dynamic index 62; a cut block that
+    // might have inserted another entry makes the index unresolvable.
+    let _ = send(
+        &mut session,
+        true,
+        &h2_frame(1, 0x04, 3, &[0x40, 0x01, b'a', 0x01, b'1']),
+    );
+    let mut headers = h2_frame(1, 0x04, 5, &[0x40, 0x01, b'b', 0x01, b'2', 0, 0, 0, 0, 0]);
+    headers.truncate(headers.len() - 5);
+    let _ = send(&mut session, true, &headers);
+    let indexed = send(&mut session, true, &h2_frame(1, 0x04, 7, &[0xbe]));
+    assert!(
+        indexed.tree.field_values("http2.header").is_empty(),
+        "the cut block's table mutation is unknown"
+    );
+}
+
+#[test]
+fn trailers_link_the_body_fragments_they_complete() {
+    // RFC 9113 section 8.1: HEADERS with END_STREAM after DATA carries the
+    // trailers and ends the body, so the DATA frames link to it.
+    let client = ([192, 0, 2, 1], 40_000);
+    let server = ([192, 0, 2, 2], 80);
+    let mut request = PREFACE.to_vec();
+    request.extend_from_slice(&h2_frame(4, 0, 0, &[]));
+    request.extend_from_slice(&h2_frame(1, 0x05, 1, &[0x82, 0x86, 0x84]));
+    for count in [1_u8, 2] {
+        let mut segments = vec![h2_frame(1, 0x04, 1, &[0x88])];
+        for index in 0..count {
+            segments.push(h2_frame(0, 0, 1, &[b'A' + index; 3]));
+        }
+        segments.push(h2_frame(1, 0x05, 1, &[0x00, 0x01, b'x', 0x01, b'1']));
+        let mut frames = vec![frame_between(1, 1, client, server, &request)];
+        let mut sequence = 1_u32;
+        for segment in &segments {
+            let number = u64::try_from(frames.len()).unwrap_or(0) + 1;
+            frames.push(frame_between(number, sequence, server, client, segment));
+            sequence += u32::try_from(segment.len()).unwrap_or(0);
+        }
+        let trailers = u32::try_from(frames.len()).unwrap_or(0);
+        let mut expected = vec![vec![], vec![]];
+        expected.extend((0..count).map(|_| vec![(1, trailers)]));
+        expected.push(vec![]);
+        assert_eq!(
+            stream_links(&frames, "http2.body.reassembled.in"),
+            expected,
+            "{count} DATA frame(s) before the trailers"
+        );
+    }
+}
+
+#[test]
+fn a_connect_request_is_linked_by_its_authority() {
+    // RFC 9113 section 8.5: CONNECT carries only :method and :authority, so
+    // the request is identified by its authority.
+    let client = ([192, 0, 2, 1], 40_000);
+    let server = ([192, 0, 2, 2], 80);
+    let mut request = PREFACE.to_vec();
+    request.extend_from_slice(&h2_frame(4, 0, 0, &[]));
+    let mut block = vec![0x02, 7];
+    block.extend_from_slice(b"CONNECT");
+    block.extend_from_slice(&[0x01, 15]);
+    block.extend_from_slice(b"example.com:443");
+    request.extend_from_slice(&h2_frame(1, 0x04, 1, &block));
+    let mut session = DecodeSession::new(DecodeOptions::default());
+    let asked = session.decode_at(&frame_between(1, 1, client, server, &request), 1);
+    let answered = session.decode_at(
+        &frame_between(2, 1, server, client, &h2_frame(1, 0x04, 1, &[0x88])),
+        2,
+    );
+    assert_eq!(
+        tree_field(&asked, "http2.request.full_uri").as_deref(),
+        Some("example.com:443")
+    );
+    assert_eq!(
+        tree_field(&answered, "http2.request_in").as_deref(),
+        Some("1")
+    );
+    assert_eq!(
+        tree_field(&answered, "http2.request.full_uri").as_deref(),
+        Some("example.com:443")
+    );
+}
+
+#[test]
+fn requests_in_one_frame_link_to_their_own_responses() {
+    // RFC 9113 section 5: one segment can carry frames of several streams,
+    // and each request links to its own stream's response.
+    let client = ([192, 0, 2, 1], 40_000);
+    let server = ([192, 0, 2, 2], 80);
+    let get = [0x82, 0x86, 0x84];
+    let mut requests = PREFACE.to_vec();
+    requests.extend_from_slice(&h2_frame(4, 0, 0, &[]));
+    requests.extend_from_slice(&h2_frame(1, 0x05, 1, &get));
+    requests.extend_from_slice(&h2_frame(1, 0x05, 3, &get));
+    let first = h2_frame(1, 0x05, 1, &[0x88]);
+    let frames = [
+        frame_between(1, 1, client, server, &requests),
+        frame_between(2, 1, server, client, &first),
+        frame_between(
+            3,
+            1 + u32::try_from(first.len()).unwrap_or(0),
+            server,
+            client,
+            &h2_frame(1, 0x05, 3, &[0x88]),
+        ),
+    ];
+    assert_eq!(
+        response_links(&frames),
+        [vec![(1, 2), (3, 3)], vec![], vec![]]
+    );
+}
+
+#[test]
+fn a_block_left_open_beside_a_complete_request_still_links() {
+    // Stream 1's request is complete in the first segment; stream 3's block
+    // opens there and ends in the second. Both requests belong to the first
+    // segment (RFC 9113 section 6.10), each with its own response.
+    let client = ([192, 0, 2, 1], 40_000);
+    let server = ([192, 0, 2, 2], 80);
+    let mut requests = PREFACE.to_vec();
+    requests.extend_from_slice(&h2_frame(4, 0, 0, &[]));
+    requests.extend_from_slice(&h2_frame(1, 0x05, 1, &[0x82, 0x86, 0x84]));
+    requests.extend_from_slice(&h2_frame(1, 0x01, 3, &[0x82, 0x86]));
+    let first = h2_frame(1, 0x05, 1, &[0x88]);
+    let frames = [
+        frame_between(1, 1, client, server, &requests),
+        frame_between(
+            2,
+            1 + u32::try_from(requests.len()).unwrap_or(0),
+            client,
+            server,
+            &h2_frame(9, 0x04, 3, &[0x84]),
+        ),
+        frame_between(3, 1, server, client, &first),
+        frame_between(
+            4,
+            1 + u32::try_from(first.len()).unwrap_or(0),
+            server,
+            client,
+            &h2_frame(1, 0x05, 3, &[0x88]),
+        ),
+    ];
+    assert_eq!(
+        response_links(&frames),
+        [vec![(1, 3), (3, 4)], vec![], vec![], vec![]]
+    );
+}
+
+#[test]
+fn every_header_block_a_request_frame_opens_on_the_stream_links() {
+    // The request, a DATA frame and trailers whose block stays open all
+    // travel in one segment. Both header blocks belong to the stream's
+    // request side, so both link to its response; the DATA frame and the
+    // CONTINUATION that ends the trailers do not.
+    let client = ([192, 0, 2, 1], 40_000);
+    let server = ([192, 0, 2, 2], 80);
+    let mut request = PREFACE.to_vec();
+    request.extend_from_slice(&h2_frame(4, 0, 0, &[]));
+    request.extend_from_slice(&h2_frame(1, 0x04, 1, &[0x82, 0x86, 0x84]));
+    request.extend_from_slice(&h2_frame(0, 0, 1, b"AAA"));
+    request.extend_from_slice(&h2_frame(1, 0x01, 1, &[0x00, 0x03, b'x']));
+    let frames = [
+        frame_between(1, 1, client, server, &request),
+        frame_between(
+            2,
+            1 + u32::try_from(request.len()).unwrap_or(0),
+            client,
+            server,
+            &h2_frame(9, 0x04, 1, &[b'-', b't', 0x01, b'1']),
+        ),
+        frame_between(3, 1, server, client, &h2_frame(1, 0x05, 1, &[0x88])),
+    ];
+    assert_eq!(
+        response_links(&frames),
+        [vec![(1, 3), (1, 3)], vec![], vec![]]
+    );
+}
+
+#[test]
+fn responses_in_one_frame_link_to_their_own_requests() {
+    let client = ([192, 0, 2, 1], 40_000);
+    let server = ([192, 0, 2, 2], 80);
+    let get = [0x82, 0x86, 0x84];
+    let mut first = PREFACE.to_vec();
+    first.extend_from_slice(&h2_frame(4, 0, 0, &[]));
+    first.extend_from_slice(&h2_frame(1, 0x05, 1, &get));
+    let mut responses = h2_frame(1, 0x05, 1, &[0x88]);
+    responses.extend_from_slice(&h2_frame(1, 0x05, 3, &[0x88]));
+    let frames = [
+        frame_between(1, 1, client, server, &first),
+        frame_between(
+            2,
+            1 + u32::try_from(first.len()).unwrap_or(0),
+            client,
+            server,
+            &h2_frame(1, 0x05, 3, &get),
+        ),
+        frame_between(3, 1, server, client, &responses),
+    ];
+    assert_eq!(
+        stream_links(&frames, "http2.request_in"),
+        [vec![], vec![], vec![(1, 1), (3, 2)]]
+    );
+}
+
+#[test]
+fn bodies_in_one_frame_link_to_their_own_completions() {
+    let client = ([192, 0, 2, 1], 40_000);
+    let server = ([192, 0, 2, 2], 80);
+    let get = [0x82, 0x86, 0x84];
+    let mut requests = PREFACE.to_vec();
+    requests.extend_from_slice(&h2_frame(4, 0, 0, &[]));
+    requests.extend_from_slice(&h2_frame(1, 0x05, 1, &get));
+    requests.extend_from_slice(&h2_frame(1, 0x05, 3, &get));
+    let mut heads = h2_frame(1, 0x04, 1, &[0x88]);
+    heads.extend_from_slice(&h2_frame(1, 0x04, 3, &[0x88]));
+    let mut starts = h2_frame(0, 0, 1, b"AAA");
+    starts.extend_from_slice(&h2_frame(0, 0, 3, b"BBB"));
+    let segments = [
+        heads,
+        starts,
+        h2_frame(0, 0x01, 1, b"CCC"),
+        h2_frame(0, 0x01, 3, b"DDD"),
+    ];
+    let mut frames = vec![frame_between(1, 1, client, server, &requests)];
+    let mut sequence = 1_u32;
+    for segment in &segments {
+        let number = u64::try_from(frames.len()).unwrap_or(0) + 1;
+        frames.push(frame_between(number, sequence, server, client, segment));
+        sequence += u32::try_from(segment.len()).unwrap_or(0);
+    }
+    assert_eq!(
+        stream_links(&frames, "http2.body.reassembled.in"),
+        [vec![], vec![], vec![(1, 4), (3, 5)], vec![], vec![]]
+    );
+}
+
+#[test]
+fn decrypted_http_inside_a_connect_tunnel_still_decodes() {
+    // RFC 9110 section 9.3.6: after the 2xx answer to CONNECT the raw bytes
+    // are tunnel data, not HTTP messages, but the TLS records inside the
+    // tunnel decrypt to messages of their own. Without desegmentation those
+    // records reach the decoders directly.
+    let alpn = [&[0, 9, 8][..], b"http/1.1"].concat();
+    let (keylog, records) = tls12_alpn_records(
+        alpn.clone(),
+        alpn,
+        b"GET /inner HTTP/1.1\r\nHost: x\r\n\r\n",
+        b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n",
+        b"",
+    );
+    let mut segments = vec![
+        (
+            true,
+            b"CONNECT x:443 HTTP/1.1\r\nHost: x:443\r\n\r\n".to_vec(),
+        ),
+        (
+            false,
+            b"HTTP/1.1 200 Connection established\r\n\r\n".to_vec(),
+        ),
+    ];
+    segments.extend(records);
+    let mut options = DecodeOptions::default();
+    options.preferences.tcp_desegment_tcp_streams = false;
+    let mut session = DecodeSession::new(options);
+    session.set_keylog(KeyLog::read(keylog.as_bytes()));
+    let client = ([192, 0, 2, 1], 40_000);
+    let proxy = ([192, 0, 2, 2], 8080);
+    let mut sequences = [1_u32, 1_u32];
+    let mut uris = Vec::new();
+    for (number, (from_client, payload)) in (1..).zip(&segments) {
+        let index = usize::from(!*from_client);
+        let sequence = sequences.get(index).copied().unwrap_or(1);
+        let (source, destination) = if *from_client {
+            (client, proxy)
+        } else {
+            (proxy, client)
+        };
+        let packet = session.decode_at(
+            &frame_between(number, sequence, source, destination, payload),
+            number,
+        );
+        uris.extend(tree_field(&packet, "http.request.uri"));
+        if let Some(next) = sequences.get_mut(index) {
+            *next = sequence.wrapping_add(u32::try_from(payload.len()).unwrap_or(0));
+        }
+    }
+    assert!(uris.iter().any(|uri| uri == "/inner"), "{uris:?}");
+}
+
+#[test]
+fn malformed_trailers_do_not_complete_the_body() {
+    // RFC 9113 section 6.2: padding longer than the HEADERS payload is a
+    // PROTOCOL_ERROR, so that frame's END_STREAM cannot end the body; the
+    // DATA bytes before it are never presented as a whole body.
+    let mut payload = PREFACE.to_vec();
+    payload.extend_from_slice(&h2_frame(4, 0, 0, &[]));
+    payload.extend_from_slice(&h2_frame(1, 0x04, 1, &[0x82, 0x86, 0x84]));
+    payload.extend_from_slice(&h2_frame(0, 0, 1, b"ab"));
+    // END_STREAM | END_HEADERS | PADDED, Pad Length 9 in a 2-octet payload.
+    payload.extend_from_slice(&h2_frame(1, 0x0d, 1, &[9, 0x88]));
+    let packet = decode_frame(&frame(1, 1, &payload));
+    assert!(packet.malformed, "the padding error is reported");
+    let mut nodes = Vec::new();
+    http2_nodes(&packet.tree.frame, &mut nodes);
+    let trailers = nodes
+        .last()
+        .copied()
+        .unwrap_or_else(|| unreachable!("the trailers frame has a node"));
+    assert!(
+        !has_child(trailers, "http2.data.data"),
+        "no body is assembled from a malformed END_STREAM"
+    );
 }

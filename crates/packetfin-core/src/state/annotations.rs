@@ -11,9 +11,10 @@
 //! are omitted and the session reports the truncation once; packets already
 //! annotated keep their fields.
 
+use std::collections::BTreeMap;
 use std::mem::size_of;
 
-use crate::decode::{Packet, http2};
+use crate::decode::Packet;
 use crate::fields;
 use crate::tree::{ExpertInfo, Field, Group, Node, Range, Severity, Value};
 
@@ -50,8 +51,6 @@ pub struct FrameAnnotation {
     pub tls_reassembled_in: u32,
     /// Frame that completes a TLS handshake message this frame started.
     pub tls_handshake_reassembled_in: u32,
-    /// Frame that completes the HTTP/2 body this frame contributed to.
-    pub http2_body_reassembled_in: u32,
     /// Final TLS version that labels this conversation's records.
     pub tls_version: u16,
     flags: u8,
@@ -74,10 +73,36 @@ impl FrameAnnotation {
     }
 }
 
+/// Links one HTTP/2 stream carries in one capture frame.
+///
+/// One capture frame can carry frames of several streams (RFC 9113 section
+/// 5), each with its own request, response and body, so these links are kept
+/// per frame and stream instead of once per frame.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Http2Links {
+    /// Frame whose request this stream's response answers.
+    pub request_in: u32,
+    /// Frame that answers this stream's request.
+    pub response_in: u32,
+    /// Request-to-response delay in nanoseconds, when it was measured.
+    pub time_ns: Option<i64>,
+    /// Frame that completes the body this stream's DATA contributed to.
+    pub body_reassembled_in: u32,
+}
+
+/// Bytes one HTTP/2 link entry is charged against the annotation budget.
+///
+/// A B-tree node holds up to eleven entries and stays at least about half
+/// full, so two entry slots bound a link's share of its node and a third
+/// covers the node bookkeeping.
+const HTTP2_LINK_CHARGE: usize = 3 * size_of::<((u32, u32), Http2Links)>();
+
 /// File-frame-indexed annotations under one byte budget.
 #[derive(Debug)]
 pub struct AnnotationStore {
     frames: Vec<FrameAnnotation>,
+    /// HTTP/2 links by capture frame and stream identifier.
+    http2: BTreeMap<(u32, u32), Http2Links>,
     limit: usize,
     truncated: bool,
 }
@@ -90,6 +115,7 @@ impl AnnotationStore {
     pub fn with_budget(limit: usize) -> Self {
         Self {
             frames: Vec::new(),
+            http2: BTreeMap::new(),
             limit,
             truncated: false,
         }
@@ -105,6 +131,12 @@ impl AnnotationStore {
         self.frames
             .capacity()
             .saturating_mul(size_of::<FrameAnnotation>())
+            .saturating_add(self.http2_bytes())
+    }
+
+    /// Bytes charged for the HTTP/2 links.
+    fn http2_bytes(&self) -> usize {
+        self.http2.len().saturating_mul(HTTP2_LINK_CHARGE)
     }
 
     /// Number of frames with a reserved record.
@@ -214,10 +246,62 @@ impl AnnotationStore {
             .is_some_and(|record| set_link(&mut record.tls_handshake_reassembled_in, completing))
     }
 
-    /// Record that the HTTP/2 body this frame contributed to completes later.
-    pub fn link_http2_body_reassembled(&mut self, frame: u64, completing: u64) -> bool {
-        self.entry(frame)
-            .is_some_and(|record| set_link(&mut record.http2_body_reassembled_in, completing))
+    /// Record that the HTTP/2 response on `stream` in frame `response`
+    /// answers the request the same stream carried in frame `request`,
+    /// `time_ns` later when the delay was measured.
+    ///
+    /// The response keeps its request and delay; the request points at the
+    /// latest response, so a final response replaces an interim 1xx one.
+    /// Returns whether both links were reserved.
+    pub fn link_http2_response(
+        &mut self,
+        request: u64,
+        response: u64,
+        stream: u32,
+        time_ns: Option<i64>,
+    ) -> bool {
+        let request_link = self
+            .http2_entry(request, stream)
+            .is_some_and(|links| set_link(&mut links.response_in, response));
+        let response_link = self.http2_entry(response, stream).is_some_and(|links| {
+            links.time_ns = time_ns;
+            set_link(&mut links.request_in, request)
+        });
+        request_link && response_link
+    }
+
+    /// Record that the HTTP/2 body `stream` carried in `frame` completes in
+    /// `completing`.
+    pub fn link_http2_body_reassembled(
+        &mut self,
+        frame: u64,
+        stream: u32,
+        completing: u64,
+    ) -> bool {
+        self.http2_entry(frame, stream)
+            .is_some_and(|links| set_link(&mut links.body_reassembled_in, completing))
+    }
+
+    /// The HTTP/2 links one stream carries in one capture frame.
+    pub fn http2_links(&self, frame: u64, stream: u32) -> Option<&Http2Links> {
+        self.http2.get(&(u32::try_from(frame).ok()?, stream))
+    }
+
+    /// Borrow one stream's HTTP/2 links in a frame, reserving them when the
+    /// budget allows.
+    fn http2_entry(&mut self, frame: u64, stream: u32) -> Option<&mut Http2Links> {
+        let key = (u32::try_from(frame).ok()?, stream);
+        let fits = self.used().saturating_add(HTTP2_LINK_CHARGE) <= self.limit;
+        match self.http2.entry(key) {
+            std::collections::btree_map::Entry::Occupied(entry) => Some(entry.into_mut()),
+            std::collections::btree_map::Entry::Vacant(entry) if fits => {
+                Some(entry.insert(Http2Links::default()))
+            }
+            std::collections::btree_map::Entry::Vacant(_) => {
+                self.truncated = true;
+                None
+            }
+        }
     }
 
     /// Record the conversation's final TLS version label for one frame.
@@ -233,11 +317,13 @@ impl AnnotationStore {
         if needed <= self.frames.len() {
             return true;
         }
-        if self.limit < size_of::<FrameAnnotation>() {
+        // The HTTP/2 links share the budget with the per-frame records.
+        let available = self.limit.saturating_sub(self.http2_bytes());
+        if available < size_of::<FrameAnnotation>() {
             self.truncated = true;
             return false;
         }
-        let max_entries = self.limit / size_of::<FrameAnnotation>();
+        let max_entries = available / size_of::<FrameAnnotation>();
         if needed > max_entries {
             self.truncated = true;
             return false;
@@ -299,19 +385,25 @@ impl RenumberMap {
     }
 }
 
-/// Append every cross-pass link a frame carries.
+/// Append every cross-pass link the file frame `file` carries.
 ///
 /// DNS and HTTP links land at fixed positions inside their protocol nodes;
 /// reassembly links name the frame that completed the PDU.
 pub fn apply_annotations(
     packet: &mut Packet,
-    annotation: &FrameAnnotation,
+    annotations: &AnnotationStore,
+    file: u64,
     renumber: &RenumberMap,
 ) {
+    // HTTP/2 links are kept per stream, so a frame without a record of its
+    // own can still carry them.
+    apply_http2_annotations(packet, annotations, file, renumber);
+    let Some(annotation) = annotations.get(file) else {
+        return;
+    };
     apply_dns_annotations(packet, annotation, renumber);
     apply_snmp_annotations(packet, annotation, renumber);
     apply_http_annotations(packet, annotation, renumber);
-    apply_http2_annotations(packet, annotation, renumber);
     if annotation.tcp_reassembled_in != 0 {
         // A segment whose PDU ends later is presented as plain TCP when the
         // segment did not already yield an upper-layer protocol; the
@@ -466,53 +558,45 @@ fn opens_header_block(stream: &Field) -> bool {
     })
 }
 
-/// Whether a stream container leaves its header block open for a
-/// CONTINUATION frame.
-fn leaves_block_open(stream: &Field) -> bool {
+/// A 32-bit field directly inside a stream container.
+fn stream_number(stream: &Field, abbrev: &str) -> Option<u32> {
     stream
         .children
         .iter()
-        .find(|field| field.def.abbrev == "http2.flags")
-        .is_some_and(|field| {
-            matches!(field.value, Value::Uint8(bits) if bits & http2::FLAG_END_HEADERS == 0)
+        .find(|field| field.def.abbrev == abbrev)
+        .and_then(|field| match field.value {
+            Value::Uint32(number) => Some(number),
+            _ => None,
         })
 }
 
-/// Whether a stream container shows a request whose block it opened and
-/// closed.
-fn shows_own_request(stream: &Field) -> bool {
-    opens_header_block(stream) && field_in_container(stream, "http2.headers.method")
-}
-
-/// Whether any HTTP/2 frame below `node` shows a request it opened and
-/// closed.
-fn packet_shows_own_request(node: &Node) -> bool {
-    let shown_here = node.protocol.filter_name == "http2"
-        && node
-            .fields
-            .iter()
-            .any(|field| field.def.abbrev == "http2.stream" && shows_own_request(field));
-    shown_here || node.children.iter().any(packet_shows_own_request)
+/// The stream a frame's request is recorded on: the promised stream for a
+/// PUSH_PROMISE (RFC 9113 section 6.6), else the frame's own stream.
+fn request_stream(stream: &Field) -> Option<u32> {
+    stream_number(stream, "http2.push_promise.promised_stream_id")
+        .or_else(|| stream_number(stream, "http2.streamid"))
 }
 
 /// Add HTTP/2 request/response links and the body reassembly link.
 ///
 /// The links live inside the frame's `http2.stream` container, before the
 /// generated request URI and before the DATA field, which is the position the
-/// reference prints them in. A frame can carry several HTTP/2 frames, so the
-/// links attach only to a node whose header list shows the matching role.
+/// reference prints them in. A capture frame can carry frames of several
+/// streams, so each node reads the links recorded for its own stream.
 ///
-/// A request is recorded against the HEADERS or PUSH_PROMISE frame that
-/// opened its header block (RFC 9113 section 6.10), never against the
-/// CONTINUATION that ends it, although that frame shows the method. A block
-/// still open when the frame ends is the request only when no block that
-/// opened and closed in this frame shows one.
+/// A request is recorded against the capture frame whose HEADERS or
+/// PUSH_PROMISE opened its header block (RFC 9113 section 6.10), never
+/// against the CONTINUATION that ends it, although that frame shows the
+/// method. One capture frame travels in one direction, so every header
+/// block it opens on that stream (the request's and any trailers') is on the
+/// request side and takes the forward link; a CONTINUATION or DATA frame
+/// does not.
 fn apply_http2_annotations(
     packet: &mut Packet,
-    annotation: &FrameAnnotation,
+    annotations: &AnnotationStore,
+    file: u64,
     renumber: &RenumberMap,
 ) {
-    let closed_request_shown = packet_shows_own_request(&packet.tree.frame);
     for_each_protocol_mut(&mut packet.tree.frame, "http2", &mut |node| {
         let Some(stream) = node
             .fields
@@ -521,38 +605,48 @@ fn apply_http2_annotations(
         else {
             return;
         };
+        let Some(id) = stream_number(stream, "http2.streamid") else {
+            return;
+        };
+        let request_id = request_stream(stream).unwrap_or(id);
         let response = field_in_container(stream, "http2.headers.status");
-        let request = shows_own_request(stream)
-            || (!closed_request_shown && opens_header_block(stream) && leaves_block_open(stream));
+        let request = opens_header_block(stream);
+        let links = annotations
+            .http2_links(file, id)
+            .copied()
+            .unwrap_or_default();
         let uri_index = stream
             .children
             .iter()
             .position(|field| field.def.abbrev == "http2.request.full_uri")
             .unwrap_or(stream.children.len());
-        if response && annotation.request_in != 0 {
+        let response_in = annotations
+            .http2_links(file, request_id)
+            .map_or(0, |forward| forward.response_in);
+        if response && links.request_in != 0 {
             stream.insert_field(
                 uri_index,
                 &fields::HTTP2_REQUEST_IN,
                 Range::new(0, 0),
-                Value::Uint32(renumber.output(annotation.request_in)),
+                Value::Uint32(renumber.output(links.request_in)),
             );
-            if annotation.time_present() {
+            if let Some(time_ns) = links.time_ns {
                 stream.insert_field(
                     uri_index,
                     &fields::HTTP2_TIME,
                     Range::new(0, 0),
-                    Value::RelativeTime(annotation.time_ns),
+                    Value::RelativeTime(time_ns),
                 );
             }
-        } else if request && annotation.response_in != 0 {
+        } else if request && response_in != 0 {
             stream.insert_field(
                 uri_index,
                 &fields::HTTP2_RESPONSE_IN,
                 Range::new(0, 0),
-                Value::Uint32(renumber.output(annotation.response_in)),
+                Value::Uint32(renumber.output(response_in)),
             );
         }
-        if annotation.http2_body_reassembled_in != 0
+        if links.body_reassembled_in != 0
             && let Some(data_index) = stream
                 .children
                 .iter()
@@ -562,7 +656,7 @@ fn apply_http2_annotations(
                 data_index,
                 &fields::HTTP2_BODY_REASSEMBLED_IN,
                 Range::new(0, 0),
-                Value::Uint32(renumber.output(annotation.http2_body_reassembled_in)),
+                Value::Uint32(renumber.output(links.body_reassembled_in)),
             );
         }
     });
@@ -1040,11 +1134,12 @@ mod tests {
             })
     }
 
-    /// An HTTP/2 packet whose stream carries a response status.
+    /// An HTTP/2 packet whose stream 1 carries a response status.
     fn http2_response_packet() -> Packet {
         let mut frame = Node::new(&fields::FRAME_PROTOCOL, Range::new(0, 0));
         let mut http2 = Node::new(&fields::HTTP2_PROTOCOL, Range::new(0, 0));
         let stream = http2.add_container(&fields::HTTP2_STREAM, Range::new(0, 0), None);
+        stream.add_field(&fields::HTTP2_STREAMID, Range::new(0, 0), Value::Uint32(1));
         stream.add_field(
             &fields::HTTP2_HEADERS_STATUS,
             Range::new(0, 0),
@@ -1079,10 +1174,11 @@ mod tests {
         assert!(store.link_response_in(3, 2));
         assert_eq!(store.get(2).copied().unwrap_or_default().request_in, 1);
 
-        // The output pass prints the link without a timing field.
+        // The output pass prints an HTTP/2 link without a timing field.
         let renumber = RenumberMap::new([1, 2, 3, 4]);
+        assert!(store.link_http2_response(1, 2, 1, None));
         let mut packet = http2_response_packet();
-        apply_annotations(&mut packet, &linked, &renumber);
+        apply_annotations(&mut packet, &store, 2, &renumber);
         assert_eq!(
             field_named(&packet.tree.frame, "http2.request_in").map(|field| &field.value),
             Some(&Value::Uint32(1))
@@ -1090,13 +1186,12 @@ mod tests {
         assert!(field_named(&packet.tree.frame, "http2.time").is_none());
 
         // A measured delay keeps both the link and its time.
-        assert!(store.link_response(4, 3, 1_500_000_000));
-        let timed = store.get(4).copied().unwrap_or_default();
+        assert!(store.link_http2_response(3, 4, 1, Some(1_500_000_000)));
+        let timed = store.http2_links(4, 1).copied().unwrap_or_default();
         assert_eq!(timed.request_in, 3);
-        assert!(timed.time_present());
-        assert_eq!(timed.time_ns, 1_500_000_000);
+        assert_eq!(timed.time_ns, Some(1_500_000_000));
         let mut packet = http2_response_packet();
-        apply_annotations(&mut packet, &timed, &renumber);
+        apply_annotations(&mut packet, &store, 4, &renumber);
         assert_eq!(
             field_named(&packet.tree.frame, "http2.request_in").map(|field| &field.value),
             Some(&Value::Uint32(3))
@@ -1105,6 +1200,33 @@ mod tests {
             field_named(&packet.tree.frame, "http2.time").map(|field| &field.value),
             Some(&Value::RelativeTime(1_500_000_000))
         );
+    }
+
+    #[test]
+    fn http2_links_share_the_annotation_budget() {
+        let limit = HTTP2_LINK_CHARGE.saturating_mul(3);
+        let mut store = AnnotationStore::with_budget(limit);
+        for stream in [1, 3, 5] {
+            assert!(store.link_http2_body_reassembled(1, stream, 2));
+        }
+        assert!(store.used() <= limit, "used {} limit {limit}", store.used());
+        assert!(!store.truncated());
+        // An existing link is updated in place; a new one is refused.
+        assert!(store.link_http2_body_reassembled(1, 3, 4));
+        assert!(!store.link_http2_body_reassembled(1, 7, 2));
+        assert!(store.truncated());
+        assert!(store.used() <= limit);
+        assert!(
+            store.entry(1).is_none(),
+            "the links left no room for a record"
+        );
+        assert_eq!(
+            store
+                .http2_links(1, 3)
+                .map(|links| links.body_reassembled_in),
+            Some(4)
+        );
+        assert!(store.http2_links(1, 7).is_none());
     }
 
     #[test]

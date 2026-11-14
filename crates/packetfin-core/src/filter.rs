@@ -1187,9 +1187,53 @@ fn resolve_binary(
                 ),
             ));
         }
+        // A plain number on the left of a time has no unit in common with
+        // it. Only the seconds value of mixed absolute and relative
+        // arithmetic may still gain or lose a relative time.
+        if resolved_right == Type::Relative
+            && !(matches!(operator, ArithOp::Add | ArithOp::Subtract) && carries_seconds(left))
+        {
+            return Err(FilterError::at_span(
+                right.start,
+                right.end,
+                format!(
+                    "{} cannot be combined with {}",
+                    target.name(),
+                    resolved_right.name()
+                ),
+            ));
+        }
     }
     *ty = target;
     Ok(target)
+}
+
+/// Whether `operand` is the seconds value of mixed absolute and relative
+/// time arithmetic, the only scalar that may still meet a relative time.
+fn carries_seconds(operand: &Operand) -> bool {
+    match &operand.kind {
+        OperandKind::Binary {
+            operator: ArithOp::Add | ArithOp::Subtract,
+            left,
+            right,
+            ty: Type::Double,
+        } => [left, right]
+            .into_iter()
+            .any(|side| is_time_operand(side) || carries_seconds(side)),
+        OperandKind::Negate(inner) | OperandKind::UnaryPlus(inner) => carries_seconds(inner),
+        _ => false,
+    }
+}
+
+/// Whether `operand` is a time field, possibly signed.
+fn is_time_operand(operand: &Operand) -> bool {
+    match &operand.kind {
+        OperandKind::Field { field, .. } => {
+            matches!(type_of(field.field_type), Type::Time | Type::Relative)
+        }
+        OperandKind::Negate(inner) | OperandKind::UnaryPlus(inner) => is_time_operand(inner),
+        _ => false,
+    }
 }
 
 /// Nanoseconds per second, the unit a relative field stores.
@@ -5179,7 +5223,7 @@ mod tests {
     }
 
     #[test]
-    fn a_double_negates_and_scales_but_is_not_added_after_a_time() {
+    fn a_double_negates_and_scales_a_time_but_never_combines_otherwise() {
         use crate::capture::Timestamp;
         use crate::tree::Range;
 
@@ -5235,6 +5279,30 @@ mod tests {
                 error.message()
             );
         }
+
+        // A plain number on the left of a time shares no unit with it either,
+        // whatever the operator; only a seconds value from mixed absolute and
+        // relative arithmetic may still gain or lose a relative time.
+        for expression in [
+            "-stp.msg_age * frame.time_relative == -7.5",
+            "stp.msg_age + frame.time_relative > 0",
+            "frame.len + frame.time_relative > 0",
+            "frame.len * frame.time_relative >= 0",
+        ] {
+            let Err(error) = Filter::parse(expression) else {
+                unreachable!("{expression} must be rejected")
+            };
+            assert!(
+                error
+                    .message()
+                    .contains("cannot be combined with relative time"),
+                "{expression}: {}",
+                error.message()
+            );
+        }
+        assert!(matches(
+            "frame.time_relative + frame.time_epoch - frame.time_relative == 1700000000"
+        ));
     }
 
     #[test]

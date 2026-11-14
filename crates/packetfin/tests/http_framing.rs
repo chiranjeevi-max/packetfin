@@ -523,6 +523,18 @@ fn a_message_over_the_header_cap_keeps_the_next_one_aligned() -> Result<(), Stri
 }
 
 #[test]
+fn a_refused_head_request_still_frames_its_answer() -> Result<(), String> {
+    // The HEAD request in frame 55 is over the same cap, yet its method
+    // still makes the answer in frame 56 end at its header section (RFC 9112
+    // section 6.3 case 1), so the answer decodes without its ten body bytes.
+    for options in [&[][..], &["-o", "tcp.desegment_tcp_streams:FALSE"]] {
+        let rows = field_rows_where(options, &["frame.number", "http.response.code"])?;
+        assert_eq!(column(row(&rows, "56")?, 1)?, "200", "{options:?}");
+    }
+    Ok(())
+}
+
+#[test]
 fn a_connect_tunnel_ends_the_follow() -> Result<(), String> {
     for desegment in ["TRUE", "FALSE"] {
         let preference = format!("tcp.desegment_tcp_streams:{desegment}");

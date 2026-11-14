@@ -336,7 +336,8 @@ impl State {
     ///
     /// The transaction map is statistics state, so each entry is charged to
     /// the shared ledger: at the limit the oldest transaction is dropped to
-    /// make room, and a ledger with no room at all retains nothing.
+    /// make room, and a ledger with no room at all retains nothing. Either
+    /// loss is announced once.
     pub(crate) fn note_request(
         &mut self,
         fact: &ProtocolFact<'_>,
@@ -365,18 +366,13 @@ impl State {
             pending.answered = false;
             return;
         }
-        if self.pending.len() >= MAX_PENDING
-            && let Some(oldest) = self.order.pop_front()
-            && self.pending.remove(&oldest).is_some()
-        {
-            budget.release(PENDING_CHARGE);
+        if self.pending.len() >= MAX_PENDING {
+            self.make_room(budget, notices);
         }
-        if !self.reserve_pending(budget) {
-            notices.once(
-                "dns-pending-budget",
-                "statistics budget reached; DNS transactions were not tracked",
-            );
-            return;
+        while !budget.reserve(PENDING_CHARGE) {
+            if !self.make_room(budget, notices) {
+                return;
+            }
         }
         self.pending.insert(
             key,
@@ -388,15 +384,21 @@ impl State {
         self.order.push_back(key);
     }
 
-    /// Charge one transaction, dropping the oldest until the ledger has room.
-    fn reserve_pending(&mut self, budget: &mut Budget) -> bool {
-        while !budget.reserve(PENDING_CHARGE) {
-            let Some(oldest) = self.order.pop_front() else {
-                return false;
-            };
-            if self.pending.remove(&oldest).is_some() {
-                budget.release(PENDING_CHARGE);
-            }
+    /// Drop the oldest transaction to make room for a new one.
+    ///
+    /// Either the dropped or the new transaction goes untracked, and a later
+    /// response to it counts as unsolicited, so the loss is announced once.
+    /// Returns false when nothing is left to drop.
+    fn make_room(&mut self, budget: &mut Budget, notices: &mut Notices) -> bool {
+        notices.once(
+            "dns-pending-budget",
+            "statistics budget reached; DNS transactions were not tracked",
+        );
+        let Some(oldest) = self.order.pop_front() else {
+            return false;
+        };
+        if self.pending.remove(&oldest).is_some() {
+            budget.release(PENDING_CHARGE);
         }
         true
     }
@@ -768,6 +770,7 @@ mod tests {
         let mut notices = Notices::default();
         observe_query(&mut state, &first, &mut unlimited, &mut notices);
         assert_eq!(state.pending.len(), 1);
+        assert!(notices.messages.is_empty(), "{:?}", notices.messages);
         let tree_bytes = unlimited.used.saturating_sub(PENDING_CHARGE);
         assert!(
             tree_bytes < unlimited.used,
@@ -785,5 +788,58 @@ mod tests {
             "the oldest transaction makes room for the second"
         );
         assert!(budget.used <= budget.limit);
+        assert!(
+            notices
+                .messages
+                .iter()
+                .any(|notice| notice.contains("DNS transactions")),
+            "a response to the evicted query would count as unsolicited: {:?}",
+            notices.messages
+        );
+    }
+
+    #[test]
+    fn the_transaction_cap_announces_its_eviction() {
+        let mut state = State::default();
+        let endpoint = EndpointKey {
+            version: 4,
+            bytes: [0; 16],
+            port: 0,
+        };
+        for index in 0..MAX_PENDING {
+            let key = PairKey {
+                first: EndpointKey {
+                    port: u16::try_from(index >> 16).unwrap_or(u16::MAX),
+                    ..endpoint
+                },
+                second: endpoint,
+                id: u16::try_from(index & 0xffff).unwrap_or(u16::MAX),
+            };
+            state.pending.insert(
+                key,
+                Pending {
+                    time: None,
+                    answered: false,
+                },
+            );
+            state.order.push_back(key);
+        }
+        let mut budget = Budget::new(usize::MAX);
+        let mut notices = Notices::default();
+        observe_query(
+            &mut state,
+            &dns_query_frame(0x1234),
+            &mut budget,
+            &mut notices,
+        );
+        assert_eq!(state.pending.len(), MAX_PENDING);
+        assert!(
+            notices
+                .messages
+                .iter()
+                .any(|notice| notice.contains("DNS transactions")),
+            "{:?}",
+            notices.messages
+        );
     }
 }

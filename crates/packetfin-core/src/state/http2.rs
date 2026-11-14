@@ -24,7 +24,7 @@ use std::collections::VecDeque;
 use crate::capture::Timestamp;
 use crate::decode::http2::hpack::{Block, DynamicTable, MAX_TABLE_SIZE};
 use crate::decode::http2::{DEFAULT_MAX_FRAME_SIZE, MAX_MAX_FRAME_SIZE};
-use crate::state::budget::StateValue;
+use crate::state::budget::{Budget, StateStore, StateValue};
 use crate::state::{ConversationKey, SessionState};
 
 /// Streams one conversation retains.
@@ -144,22 +144,27 @@ struct PendingBlock {
 
 /// Flow-control windows for one direction.
 ///
-/// RFC 9113 section 6.9 starts every window at 65535. The reference reports
-/// the window before and after each DATA or WINDOW_UPDATE from the value the
-/// *frame* started with, so the snapshot and the pending deltas are kept
-/// apart from the persistent values.
+/// RFC 9113 section 6.9 starts every window at 65535. The window before and
+/// after each DATA or WINDOW_UPDATE is reported from the value the capture
+/// *frame* started with, so the deltas of the current frame stay pending and
+/// the persistent values are the frame's snapshot until the next frame.
 #[derive(Debug)]
 struct Windows {
     /// Capture frame the snapshot belongs to.
     file_frame: u64,
     /// Persistent connection window.
     connection: i32,
-    /// Persistent per-stream windows.
+    /// Persistent per-stream windows, oldest stream first.
+    ///
+    /// Bounded by [`MAX_STREAMS`] like the stream table: a new stream past
+    /// the bound drops the oldest window. Client and server identifiers only
+    /// grow (RFC 9113 section 5.1.1), so that is the stream least likely to
+    /// send again; if it does, its window restarts from the initial size.
+    /// Windows of closed streams stay, because a WINDOW_UPDATE may still
+    /// arrive for a stream that has sent END_STREAM (section 6.9).
     streams: Vec<(u32, i32)>,
     /// Connection window when the current frame started.
     snapshot_connection: i32,
-    /// Per-stream windows when the current frame started.
-    snapshot_streams: Vec<(u32, i32)>,
     /// Connection bytes consumed or granted during the current frame.
     pending_connection: i32,
     /// Per-stream bytes consumed or granted during the current frame.
@@ -178,7 +183,6 @@ impl Default for Windows {
             connection: 65535,
             streams: Vec::new(),
             snapshot_connection: 65535,
-            snapshot_streams: Vec::new(),
             pending_connection: 0,
             pending_streams: Vec::new(),
             initial_stream_window: 65535,
@@ -192,43 +196,44 @@ impl Windows {
         self.streams
             .capacity()
             .saturating_mul(entry)
-            .saturating_add(self.snapshot_streams.capacity().saturating_mul(entry))
             .saturating_add(self.pending_streams.capacity().saturating_mul(entry))
     }
 
-    /// Flush the previous frame's deltas and snapshot the current values.
+    /// Flush the previous frame's deltas into the persistent values.
+    ///
+    /// The per-stream values do not change again until the next frame (a
+    /// SETTINGS change adjusts them in place), so they serve as the frame's
+    /// snapshot without a copy.
     fn begin_frame(&mut self, file_frame: u64) {
         if self.file_frame == file_frame && self.file_frame != 0 {
             return;
         }
         self.connection = self.connection.saturating_add(self.pending_connection);
         self.pending_connection = 0;
+        // The list is kept in order of last use, so the cap drops the stream
+        // idle the longest rather than a long transfer opened early.
         for (id, delta) in std::mem::take(&mut self.pending_streams) {
-            match self.streams.iter_mut().find(|(stream, _)| *stream == id) {
-                Some((_, window)) => *window = window.saturating_add(delta),
-                None => self
-                    .streams
-                    .push((id, self.initial_stream_window.saturating_add(delta))),
-            }
+            let window = match self.streams.iter().position(|(stream, _)| *stream == id) {
+                Some(index) => self.streams.remove(index).1,
+                None => {
+                    if self.streams.len() >= MAX_STREAMS {
+                        self.streams.remove(0);
+                    }
+                    self.initial_stream_window
+                }
+            };
+            self.streams.push((id, window.saturating_add(delta)));
         }
         self.snapshot_connection = self.connection;
-        self.snapshot_streams.clone_from(&self.streams);
         self.file_frame = file_frame;
     }
 
     /// The window a stream starts the current frame with.
     fn snapshot_stream(&self, stream_id: u32) -> i32 {
-        self.snapshot_streams
+        self.streams
             .iter()
             .find(|(id, _)| *id == stream_id)
-            .map(|(_, window)| *window)
-            .or_else(|| {
-                self.streams
-                    .iter()
-                    .find(|(id, _)| *id == stream_id)
-                    .map(|(_, window)| *window)
-            })
-            .unwrap_or(self.initial_stream_window)
+            .map_or(self.initial_stream_window, |(_, window)| *window)
     }
 
     /// Apply a SETTINGS_INITIAL_WINDOW_SIZE change to every open stream.
@@ -242,14 +247,21 @@ impl Windows {
         for (_, window) in &mut self.streams {
             *window = window.saturating_add(delta);
         }
-        self.snapshot_streams.clear();
     }
 
     fn add_connection(&mut self, delta: i32) {
         self.pending_connection = self.pending_connection.saturating_add(delta);
     }
 
+    /// Queue a change to one stream's window.
+    ///
+    /// A zero change (a HEADERS frame that ends the stream, an empty DATA
+    /// frame, a zero WINDOW_UPDATE) moves nothing, so it queues no entry that
+    /// could later displace an open stream's window from the bounded list.
     fn add_stream(&mut self, stream_id: u32, delta: i32) {
+        if delta == 0 {
+            return;
+        }
         match self
             .pending_streams
             .iter_mut()
@@ -424,8 +436,10 @@ impl Body {
         self.truncated = false;
         self.total = 0;
         self.fragment_count = 0;
-        self.bytes.clear();
-        self.fragments.clear();
+        // Release the allocations, not just the contents: a failed body keeps
+        // nothing charged to the state budget.
+        self.bytes = Vec::new();
+        self.fragments = Vec::new();
     }
 
     fn state_bytes(&self) -> usize {
@@ -716,6 +730,30 @@ pub(crate) struct Http2RequestInfo {
     pub(crate) time: Option<Timestamp>,
 }
 
+/// Forget every HTTP/2 entry of one TCP conversation.
+///
+/// A SYN with a new initial sequence number on a known tuple starts a new
+/// connection (RFC 9293 section 3.4.1). That connection has its own preface,
+/// HPACK contexts and streams (RFC 9113 section 3.4, RFC 7541 section 2.2),
+/// so nothing kept for the old one may decode its frames.
+pub(super) fn forget_conversation(
+    budget: &mut Budget,
+    directions: &mut StateStore<Http2Key, Http2Direction>,
+    streams: &mut StateStore<ConversationKey, Http2Streams>,
+    conversation: ConversationKey,
+) {
+    for direction in 0..=1 {
+        directions.take_for_conversation(
+            budget,
+            &Http2Key {
+                conversation,
+                direction,
+            },
+        );
+    }
+    streams.take_for_conversation(budget, &conversation);
+}
+
 impl SessionState {
     /// Whether either direction of a conversation has HTTP/2 state.
     ///
@@ -995,6 +1033,24 @@ impl SessionState {
             let Some(body) = stream.bodies.get_mut(usize::from(key.direction & 1)) else {
                 continue;
             };
+            body.mark_lost();
+        }
+        self.http2_streams
+            .put_with(&mut self.budget, key.conversation, streams);
+    }
+
+    /// Fail one stream's body in one direction after its DATA frame was cut.
+    ///
+    /// The cut octets never reach the body (RFC 9113 section 6.1), so the
+    /// rest of that body is a suffix. Other streams' bodies stay intact.
+    pub(crate) fn http2_abandon_stream_body(&mut self, key: Http2Key, stream_id: u32) {
+        let mut streams = self
+            .http2_streams
+            .take_with(&mut self.budget, &key.conversation)
+            .unwrap_or_default();
+        if let (Some(stream), _) = streams.find_or_insert(stream_id)
+            && let Some(body) = stream.bodies.get_mut(usize::from(key.direction & 1))
+        {
             body.mark_lost();
         }
         self.http2_streams
@@ -1346,6 +1402,33 @@ impl SessionState {
         info
     }
 
+    /// Release a reset stream's bodies in both directions.
+    ///
+    /// RFC 9113 section 6.4: RST_STREAM ends the stream at once, so no later
+    /// DATA can complete either body. The request linkage stays for frames
+    /// that still name the stream, and the HPACK tables are connection state
+    /// a stream reset does not touch.
+    pub(crate) fn http2_reset_stream(&mut self, conversation: ConversationKey, stream_id: u32) {
+        let Some(mut streams) = self
+            .http2_streams
+            .take_with(&mut self.budget, &conversation)
+        else {
+            return;
+        };
+        if let Some(stream) = streams.find(stream_id) {
+            for body in &mut stream.bodies {
+                // DATA the peer sent before it saw the reset can still arrive
+                // (RFC 9113 section 6.4); it would end an unfinished body as a
+                // suffix, so the body fails and its bytes are freed.
+                if body.fragment_count > 0 {
+                    body.mark_lost();
+                }
+            }
+        }
+        self.http2_streams
+            .put_with(&mut self.budget, conversation, streams);
+    }
+
     /// The request URI associated with a stream, for response frames.
     pub(crate) fn http2_stream_uri(
         &mut self,
@@ -1533,7 +1616,6 @@ mod tests {
     fn window_state_charges_each_buffer_by_its_capacity() {
         let windows = Windows {
             streams: Vec::with_capacity(8),
-            snapshot_streams: Vec::with_capacity(1),
             pending_streams: Vec::with_capacity(2),
             ..Windows::default()
         };
@@ -1543,7 +1625,6 @@ mod tests {
             windows
                 .streams
                 .capacity()
-                .saturating_add(windows.snapshot_streams.capacity())
                 .saturating_add(windows.pending_streams.capacity())
                 .saturating_mul(entry)
         );
@@ -1553,8 +1634,8 @@ mod tests {
                 .streams
                 .capacity()
                 .saturating_mul(entry)
-                .saturating_mul(3),
-            "the snapshot and pending capacities are charged separately"
+                .saturating_mul(2),
+            "the pending capacity is charged separately"
         );
     }
 
@@ -2220,5 +2301,168 @@ mod tests {
         let continuation =
             state.http2_fragment(client, 5, BlockFragment::Continuation, origin(4), &[], true);
         assert!(continuation.unexpected, "the discarding marker was cleared");
+    }
+
+    #[test]
+    fn a_zero_window_change_queues_no_stream_window() {
+        let mut state = SessionState::new(64 * 1024 * 1024);
+        let (client, server) = keys();
+        // RFC 9113 section 6.9: a zero increment moves no window, and neither
+        // does a HEADERS frame that ends its stream, which reaches the body
+        // path with no flow-controlled octets. Neither may queue a stream
+        // entry that could displace an open stream's window.
+        let (before, after) = state.http2_window_update(client, 7, 0, 1);
+        assert_eq!(before, after);
+        let _ = state.http2_data(
+            server,
+            Http2Data {
+                stream_id: 9,
+                data: b"",
+                flow_length: 0,
+                end_stream: true,
+                frame: 2,
+                file: 2,
+            },
+        );
+        // The next capture frame applies whatever was queued.
+        let _ = state.http2_window_update(client, 0, 1, 3);
+        let _ = state.http2_window_update(server, 0, 1, 3);
+        for key in [client, server] {
+            let streams = state
+                .http2
+                .peek(&key)
+                .map_or(0, |direction| direction.windows.streams.len());
+            assert_eq!(streams, 0);
+        }
+    }
+
+    #[test]
+    fn a_reset_fails_an_unfinished_body_only() {
+        let mut state = SessionState::new(64 * 1024 * 1024);
+        let (client, _) = keys();
+        let data = |stream_id, data: &'static [u8], end_stream, frame| Http2Data {
+            stream_id,
+            data,
+            flow_length: data.len(),
+            end_stream,
+            frame,
+            file: frame,
+        };
+        let _ = state.http2_data(client, data(1, b"a", false, 1));
+        state.http2_reset_stream(client.conversation, 1);
+        state.http2_reset_stream(client.conversation, 3);
+        // RFC 9113 section 6.4: DATA sent before the peer saw the reset can
+        // still arrive. Stream 1 had a body under way, so the late fragment
+        // is a suffix and the body fails; stream 3 had none, so its first
+        // DATA frame is a whole body.
+        let late = state.http2_data(client, data(1, b"c", true, 2));
+        assert!(late.dropped);
+        assert!(late.data.is_none());
+        let fresh = state.http2_data(client, data(3, b"x", true, 3));
+        assert!(!fresh.dropped);
+        assert_eq!(fresh.total, 1);
+    }
+
+    #[test]
+    fn a_cut_data_frame_fails_only_its_own_stream() {
+        let mut state = SessionState::new(64 * 1024 * 1024);
+        let (client, _) = keys();
+        let data = |stream_id, data: &'static [u8], end_stream, frame| Http2Data {
+            stream_id,
+            data,
+            flow_length: data.len(),
+            end_stream,
+            frame,
+            file: frame,
+        };
+        let _ = state.http2_data(client, data(1, b"a", false, 1));
+        let _ = state.http2_data(client, data(3, b"b", false, 1));
+        // Stream 1's next DATA frame was cut short.
+        state.http2_abandon_stream_body(client, 1);
+        let other = state.http2_data(client, data(3, b"c", true, 2));
+        assert!(!other.dropped, "stream 3 lost nothing");
+        assert_eq!(other.total, 2);
+        let cut = state.http2_data(client, data(1, b"d", true, 2));
+        assert!(cut.dropped);
+    }
+
+    #[test]
+    fn sequential_streams_keep_the_window_list_bounded() {
+        let mut state = SessionState::new(64 * 1024 * 1024);
+        let (client, _) = keys();
+        // One long connection opens stream after stream (RFC 9113 section
+        // 5.1.1 makes client identifiers odd and increasing).
+        let streams = u32::try_from(MAX_STREAMS).unwrap_or(0).saturating_mul(16);
+        for index in 0..streams {
+            let frame = u64::from(index).saturating_add(1);
+            let _ = state.http2_data(
+                client,
+                Http2Data {
+                    stream_id: index.saturating_mul(2).saturating_add(1),
+                    data: b"x",
+                    flow_length: 1,
+                    end_stream: true,
+                    frame,
+                    file: frame,
+                },
+            );
+        }
+        let retained = state
+            .http2
+            .peek(&client)
+            .map_or(0, |direction| direction.windows.streams.len());
+        assert!(
+            retained <= MAX_STREAMS,
+            "{retained} stream windows retained for {streams} streams"
+        );
+        // The newest stream still has its debited window.
+        let newest = streams
+            .saturating_sub(1)
+            .saturating_mul(2)
+            .saturating_add(1);
+        let again = state.http2_data(
+            client,
+            Http2Data {
+                stream_id: newest,
+                data: b"y",
+                flow_length: 1,
+                end_stream: true,
+                frame: u64::from(streams).saturating_add(1),
+                file: u64::from(streams).saturating_add(1),
+            },
+        );
+        assert_eq!((again.stream_before, again.stream_after), (65534, 65533));
+    }
+
+    #[test]
+    fn an_active_stream_keeps_its_window_past_the_cap() {
+        let mut state = SessionState::new(64 * 1024 * 1024);
+        let (client, _) = keys();
+        // Stream 1 carries a long transfer while twice the cap of short
+        // streams come and go; the cap drops the stream idle the longest, so
+        // stream 1 keeps every debit.
+        let others = u32::try_from(MAX_STREAMS).unwrap_or(0).saturating_mul(2);
+        let mut frame = 0_u64;
+        let mut send = |state: &mut SessionState, stream_id: u32, end_stream: bool| {
+            frame = frame.saturating_add(1);
+            state.http2_data(
+                client,
+                Http2Data {
+                    stream_id,
+                    data: b"x",
+                    flow_length: 1,
+                    end_stream,
+                    frame,
+                    file: frame,
+                },
+            )
+        };
+        for index in 0..others {
+            let _ = send(&mut state, 1, false);
+            let _ = send(&mut state, index.saturating_mul(2).saturating_add(3), true);
+        }
+        let last = send(&mut state, 1, true);
+        let debited = i32::try_from(others).unwrap_or(i32::MAX);
+        assert_eq!(last.stream_before, 65_535_i32.saturating_sub(debited));
     }
 }

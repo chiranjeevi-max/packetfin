@@ -19,6 +19,7 @@ use packetfin_core::{Display, Field, FieldDef, Frame, Node, Packet, Timestamp, V
 use crate::detail::{self, Scope, child_scope};
 use crate::json::{self, ProtocolFilter};
 use crate::mask;
+use crate::pdml;
 use crate::render_context::RenderContext;
 use crate::summary::{SummaryWriter, TimeOptions};
 
@@ -344,8 +345,14 @@ impl<'a> EkWriter<'a> {
             ..*context
         };
         let mut entries: Vec<(String, Ek)> = Vec::with_capacity(node.fields.len());
+        let hidden = self.filtered_groups(node, child_state);
         for field in node.display_fields() {
-            if field.packet_scoped() || omit_from_ek(field.def.abbrev) {
+            if field.packet_scoped()
+                || omit_from_ek(field.def.abbrev)
+                || hidden
+                    .iter()
+                    .any(|parent| pdml::grouped_under(parent, field))
+            {
                 continue;
             }
             if field.is_container() {
@@ -464,8 +471,14 @@ impl<'a> EkWriter<'a> {
         let node = context.node;
         let prefix = flatten_abbrev(node.protocol.filter_name);
         let mut entries: Vec<(String, Ek)> = Vec::with_capacity(node.fields.len());
+        let hidden = self.filtered_groups(node, context.filter);
         for field in node.display_fields() {
-            if field.packet_scoped() || omit_from_ek(field.def.abbrev) {
+            if field.packet_scoped()
+                || omit_from_ek(field.def.abbrev)
+                || hidden
+                    .iter()
+                    .any(|parent| pdml::grouped_under(parent, field))
+            {
                 continue;
             }
             if field.is_container() {
@@ -581,11 +594,15 @@ impl<'a> EkWriter<'a> {
                 )
             });
             self.append_experts(entries, &field.experts, Some(&offending), context.filter);
-            self.append_leaf_children(entries, field, prefix, context);
+            if flag != Flag::Filtered {
+                self.append_leaf_children(entries, field, prefix, context);
+            }
             return;
         }
         self.append_plain_leaf(entries, field, &flat, flag, context);
-        self.append_leaf_children(entries, field, prefix, context);
+        if flag != Flag::Filtered {
+            self.append_leaf_children(entries, field, prefix, context);
+        }
         if field.def.abbrev.ends_with(".checksum")
             && let Some(expert) = context
                 .node
@@ -928,6 +945,25 @@ impl<'a> EkWriter<'a> {
             delta,
             delta_displayed,
         })
+    }
+
+    /// Flags fields a protocol filter hides.
+    ///
+    /// The decoder stores a flags field's bits as its siblings; the other
+    /// tree outputs nest them under it, so a filtered flags field hides its
+    /// bits too, even one named on its own.
+    fn filtered_groups<'n>(&self, node: &'n Node, state: ChildState<'_>) -> Vec<&'n Field> {
+        if matches!(state, ChildState::Off) {
+            return Vec::new();
+        }
+        node.fields
+            .iter()
+            .filter(|field| {
+                !field.is_container()
+                    && !pdml::field_children(field.def.abbrev).is_empty()
+                    && self.flag(state, field.def.abbrev) == Flag::Filtered
+            })
+            .collect()
     }
 
     fn flag(&self, state: ChildState<'_>, name: &str) -> Flag {
@@ -1433,6 +1469,88 @@ mod tests {
             ),
             "{segments}"
         );
+    }
+
+    /// `-j "tcp tcp.flags.syn"`: the unnamed flags field is filtered, so
+    /// the named bit beneath it stays hidden behind the parent's marker.
+    fn render_filtered_flags(tree: packetfin_core::Tree) -> String {
+        render_ek_options(
+            tree,
+            &[],
+            false,
+            &[("tcp", false), ("tcp.flags.syn", false)],
+        )
+    }
+
+    #[test]
+    fn a_filtered_leaf_hides_its_children() {
+        let tree = crate::test_support::tcp_tree(|tcp| {
+            tcp.add_field(
+                &packetfin_core::fields::TCP_FLAGS,
+                packetfin_core::Range::new(46, 2),
+                Value::Uint16(2),
+            )
+            .add_field(
+                &packetfin_core::fields::TCP_FLAGS_SYN,
+                packetfin_core::Range::new(47, 1),
+                Value::Boolean(true),
+            );
+        });
+        let text = render_filtered_flags(tree);
+        assert!(
+            text.contains("\"tcp_tcp_flags\":{\"filtered\":\"tcp.flags\"}"),
+            "{text}"
+        );
+        assert!(!text.contains("tcp_tcp_flags_syn"), "{text}");
+    }
+
+    #[test]
+    fn a_filtered_leaf_with_experts_hides_its_children() {
+        let tree = crate::test_support::tcp_tree(|tcp| {
+            let flags = tcp.add_field(
+                &packetfin_core::fields::TCP_FLAGS,
+                packetfin_core::Range::new(46, 2),
+                Value::Uint16(2),
+            );
+            flags.add_expert(packetfin_core::tree::ExpertInfo {
+                severity: packetfin_core::Severity::Chat,
+                group: packetfin_core::Group::Sequence,
+                message: "flags".to_string(),
+            });
+            flags.add_field(
+                &packetfin_core::fields::TCP_FLAGS_SYN,
+                packetfin_core::Range::new(47, 1),
+                Value::Boolean(true),
+            );
+        });
+        let text = render_filtered_flags(tree);
+        assert!(
+            text.contains("\"tcp_tcp_flags\":{\"filtered\":\"tcp.flags\"}"),
+            "{text}"
+        );
+        assert!(!text.contains("tcp_tcp_flags_syn"), "{text}");
+    }
+
+    #[test]
+    fn a_filtered_flags_field_hides_its_sibling_bits() {
+        let tree = crate::test_support::tcp_tree(|tcp| {
+            tcp.add_field(
+                &packetfin_core::fields::TCP_FLAGS,
+                packetfin_core::Range::new(46, 2),
+                Value::Uint16(2),
+            );
+            tcp.add_field(
+                &packetfin_core::fields::TCP_FLAGS_SYN,
+                packetfin_core::Range::new(47, 1),
+                Value::Boolean(true),
+            );
+        });
+        let text = render_filtered_flags(tree);
+        assert!(
+            text.contains("\"tcp_tcp_flags\":{\"filtered\":\"tcp.flags\"}"),
+            "{text}"
+        );
+        assert!(!text.contains("tcp_tcp_flags_syn"), "{text}");
     }
 
     #[test]

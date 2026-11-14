@@ -1045,10 +1045,13 @@ const MAX_UNDECIDED_PLAINTEXT_BYTES: usize = 64 * 1024;
 
 /// The leading octets examined for protocol evidence.
 ///
-/// A request method is at most seven characters before its space, a status
-/// line starts with `HTTP/1.`, and the connection preface is 24 octets, so
-/// the evidence lies in the first 64 bytes.
-const PLAINTEXT_EVIDENCE_BYTES: usize = 64;
+/// The connection preface is 24 octets and an HTTP/2 frame header is nine, so
+/// HTTP/2 is decided from 64 bytes. A complete HTTP/1.x request line can be
+/// much longer (a long URI after an extension method), and the token grammar
+/// needs the whole line, so the probe covers a bounded 8 KiB. A start line
+/// longer than this stays undecided until the stream ends or the retained
+/// bound falls back, rather than scanning without limit.
+const PLAINTEXT_EVIDENCE_BYTES: usize = 8 * 1024;
 
 /// The most contributing segments one non-HTTP PDU records.
 ///
@@ -3136,6 +3139,29 @@ mod tests {
                 .direction(0)
                 .ulp(),
             Some(Ulp::Http)
+        );
+    }
+
+    #[test]
+    fn a_long_extension_method_request_still_identifies_http() {
+        // The token grammar needs the complete start line; a long URI pushes
+        // the version past the first 64 bytes, which must not keep the
+        // direction undecided.
+        let mut session = SessionState::new(DEFAULT_STATE_BUDGET);
+        let (key, _) = ConversationKey::ipv4([192, 0, 2, 1], 40_000, [192, 0, 2, 2], 443);
+        let mut request = b"PROPFIND /".to_vec();
+        request.extend_from_slice(&[b'a'; 200]);
+        request.extend_from_slice(b" HTTP/1.1\r\n\r\n");
+        let (report, http) =
+            session.insert_tls_plaintext(key, 0, 1, &request, false, PlaintextAlpn::Unknown);
+        assert!(http);
+        assert!(
+            matches!(
+                report.actions.first(),
+                Some(PduAction::Standalone { ulp: Ulp::Http, .. })
+            ),
+            "{:?}",
+            report.actions
         );
     }
 

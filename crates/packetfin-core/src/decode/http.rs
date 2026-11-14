@@ -20,8 +20,9 @@ use crate::decode::DecodeContext;
 use crate::export::ObjectName;
 use crate::fields;
 use crate::http_syntax::{
-    Answer, BodyPlan, ChunkScanner, ChunkStep, Framing, HeaderBudget, HeaderLine, StartLine,
-    content_length_value, continuation_at, next_line, parse_header_line, parse_start_line,
+    Answer, BodyPlan, ChunkInvalid, ChunkScanner, ChunkStep, Framing, HeaderBudget, HeaderLine,
+    StartLine, content_length_value, continuation_at, next_line, parse_header_line,
+    parse_start_line,
 };
 use crate::tree::{Bytes, ExpertInfo, Group, HexShowname, Node, Range, Severity, Value};
 
@@ -283,6 +284,8 @@ struct Body {
     trailers: Vec<(usize, usize, String)>,
     /// De-chunking stopped at the record cap, so the chunk list is a prefix.
     chunk_excess: bool,
+    /// The chunked body ended on an unusable size line and why.
+    chunk_invalid: Option<ChunkInvalid>,
 }
 
 struct Chunk {
@@ -397,6 +400,7 @@ fn parse_message(data: &[u8], base: usize, options: &MessageOptions<'_>) -> Opti
                 trailer_end: None,
                 trailers: Vec::new(),
                 chunk_excess: false,
+                chunk_invalid: None,
             });
             consumed = end;
         }
@@ -413,6 +417,7 @@ fn parse_message(data: &[u8], base: usize, options: &MessageOptions<'_>) -> Opti
                 trailer_end: None,
                 trailers: Vec::new(),
                 chunk_excess: false,
+                chunk_invalid: None,
             });
             consumed = end;
         }
@@ -437,6 +442,7 @@ fn parse_message(data: &[u8], base: usize, options: &MessageOptions<'_>) -> Opti
                 trailer_end: chunked_body.trailer_end,
                 trailers: chunked_body.trailers,
                 chunk_excess: chunked_body.excess,
+                chunk_invalid: chunked_body.invalid,
             });
             consumed = end;
         }
@@ -454,6 +460,7 @@ fn parse_message(data: &[u8], base: usize, options: &MessageOptions<'_>) -> Opti
                 trailer_end: None,
                 trailers: Vec::new(),
                 chunk_excess: false,
+                chunk_invalid: None,
             });
             consumed = data.len();
         }
@@ -472,6 +479,7 @@ fn parse_message(data: &[u8], base: usize, options: &MessageOptions<'_>) -> Opti
                 trailer_end: None,
                 trailers: Vec::new(),
                 chunk_excess: false,
+                chunk_invalid: None,
             });
             consumed = data.len();
         }
@@ -645,11 +653,12 @@ fn parse_message(data: &[u8], base: usize, options: &MessageOptions<'_>) -> Opti
             message: message.to_string(),
         });
     }
-    if framing.transfer_coding && framing.content_length.is_some() {
+    if framing.transfer_coding && (framing.content_length.is_some() || framing.invalid_length) {
         // RFC 9112 section 6.3 case 3: Transfer-Encoding overrides
         // Content-Length, and a message with both fields "ought to be handled
         // as an error". The coding still frames the message; one warning on
-        // the Content-Length field explains the combination.
+        // the Content-Length field explains the combination, including when
+        // the declared value itself is unusable.
         if let Some(field) = node
             .fields
             .iter_mut()
@@ -711,6 +720,7 @@ fn parse_message(data: &[u8], base: usize, options: &MessageOptions<'_>) -> Opti
                 trailer_end: None,
                 trailers: Vec::new(),
                 chunk_excess: false,
+                chunk_invalid: None,
             }),
         };
         if let Some(request) = &message.request {
@@ -878,6 +888,8 @@ struct ChunkedBody {
     /// The record prefix reached [`MAX_CHUNK_RECORDS`] and de-chunking
     /// stopped; the captured remainder stays with the message.
     excess: bool,
+    /// The body ended on an unusable size line, with its reason.
+    invalid: Option<ChunkInvalid>,
 }
 
 /// Parse a chunked body, or `None` when it does not fit the segment.
@@ -948,6 +960,7 @@ fn parse_chunked(
                         trailers: Vec::new(),
                         truncated: false,
                         excess: capped,
+                        invalid: None,
                     });
                 }
             }
@@ -986,6 +999,7 @@ fn parse_chunked(
                     trailers,
                     truncated: false,
                     excess: capped,
+                    invalid: None,
                 });
             }
             ChunkStep::Incomplete { restart, .. } => {
@@ -997,9 +1011,10 @@ fn parse_chunked(
                     trailers: Vec::new(),
                     truncated: true,
                     excess: capped,
+                    invalid: None,
                 });
             }
-            ChunkStep::Invalid { .. } => {
+            ChunkStep::Invalid { reason, .. } => {
                 // An unusable chunk size terminates the chunked entity: the
                 // records read so far stay, and the rest of the segment is
                 // consumed so it cannot reopen as another message.
@@ -1011,6 +1026,7 @@ fn parse_chunked(
                     trailers: Vec::new(),
                     truncated: false,
                     excess: capped,
+                    invalid: Some(reason),
                 });
             }
         }
@@ -1124,6 +1140,29 @@ fn add_chunk_fields(node: &mut Node, body: &Body, base: usize) {
             message: format!(
                 "Chunk record limit reached; the chunk list stops after {MAX_CHUNK_RECORDS} records"
             ),
+        });
+    }
+    if let Some(invalid) = body.chunk_invalid {
+        // An unusable size line stops the chunked entity at the records
+        // already decoded. A non-hexadecimal line is malformed data; a
+        // hexadecimal size too large for the size type is a resource bound,
+        // so the prefix stays decoded and the remainder is left undecoded.
+        let (severity, group, message) = match invalid {
+            ChunkInvalid::Syntax => (
+                Severity::Error,
+                Group::Malformed,
+                "Chunk size is not hexadecimal",
+            ),
+            ChunkInvalid::Overflow => (
+                Severity::Warning,
+                Group::Undecoded,
+                "Chunk size exceeds the supported maximum",
+            ),
+        };
+        container.add_expert(ExpertInfo {
+            severity,
+            group,
+            message: message.to_string(),
         });
     }
 }
@@ -1656,6 +1695,93 @@ mod tests {
         assert!(!has_zlib_wrapper(&[0x4b, 0x4c, 0x4a, 0x06]));
         assert!(!has_zlib_wrapper(&[]));
         assert!(!has_zlib_wrapper(&[0x78]));
+    }
+
+    #[test]
+    fn a_chunked_body_with_an_unusable_content_length_keeps_the_warning() {
+        // RFC 9112 section 6.3 case 3: the chunked coding still frames the
+        // body, but a message with both fields is an error even when the
+        // Content-Length value cannot be parsed.
+        let message = b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\nContent-Length: abc\r\n\r\n5\r\nHello\r\n0\r\n\r\n";
+        let parsed = parse_response(message, false).unwrap_or_else(|| unreachable!());
+        let field = parsed
+            .node
+            .fields
+            .iter()
+            .find(|field| std::ptr::eq(field.def, &fields::HTTP_CONTENT_LENGTH_HEADER))
+            .unwrap_or_else(|| unreachable!("the Content-Length header was decoded"));
+        assert_eq!(field.experts.len(), 1);
+        let expert = field
+            .experts
+            .first()
+            .unwrap_or_else(|| unreachable!("the framing warning was attached"));
+        assert_eq!(expert.severity, Severity::Warning);
+        assert_eq!(expert.group, Group::Malformed);
+        assert_eq!(
+            expert.message,
+            "The Content-Length and Transfer-Encoding header must not be set together"
+        );
+        let body = parsed
+            .body
+            .unwrap_or_else(|| unreachable!("the body was framed"));
+        assert!(body.chunked);
+        assert_eq!(body.bytes.as_slice(), b"Hello");
+        assert_eq!(parsed.consumed, message.len());
+    }
+
+    #[test]
+    fn a_non_hexadecimal_chunk_size_reports_the_decoded_prefix() {
+        let message = b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n1\r\na\r\nzz\r\nleft";
+        let parsed = parse_response(message, false).unwrap_or_else(|| unreachable!());
+        assert_eq!(parsed.consumed, message.len());
+        let body = parsed
+            .body
+            .as_ref()
+            .unwrap_or_else(|| unreachable!("the body was framed"));
+        assert!(body.chunked);
+        assert_eq!(body.bytes.as_slice(), b"a");
+        assert_eq!(body.chunks.len(), 1);
+        assert_eq!(body.chunk_invalid, Some(ChunkInvalid::Syntax));
+        let container = parsed
+            .node
+            .fields
+            .iter()
+            .find(|field| std::ptr::eq(field.def, &CHUNKED_BODY))
+            .unwrap_or_else(|| unreachable!("the chunked-body container was added"));
+        assert_eq!(container.experts.len(), 1);
+        let expert = container
+            .experts
+            .first()
+            .unwrap_or_else(|| unreachable!("the chunk-size error was attached"));
+        assert_eq!(expert.severity, Severity::Error);
+        assert_eq!(expert.group, Group::Malformed);
+        assert_eq!(expert.message, "Chunk size is not hexadecimal");
+    }
+
+    #[test]
+    fn an_overflowing_chunk_size_is_a_resource_bound() {
+        let message = b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n1\r\na\r\nfffffffffffffffff\r\nleft";
+        let parsed = parse_response(message, false).unwrap_or_else(|| unreachable!());
+        assert_eq!(parsed.consumed, message.len());
+        let body = parsed
+            .body
+            .as_ref()
+            .unwrap_or_else(|| unreachable!("the body was framed"));
+        assert_eq!(body.bytes.as_slice(), b"a");
+        assert_eq!(body.chunk_invalid, Some(ChunkInvalid::Overflow));
+        let container = parsed
+            .node
+            .fields
+            .iter()
+            .find(|field| std::ptr::eq(field.def, &CHUNKED_BODY))
+            .unwrap_or_else(|| unreachable!("the chunked-body container was added"));
+        assert_eq!(container.experts.len(), 1);
+        let expert = container
+            .experts
+            .first()
+            .unwrap_or_else(|| unreachable!("the chunk-size overflow warning was attached"));
+        assert_eq!(expert.severity, Severity::Warning);
+        assert_eq!(expert.group, Group::Undecoded);
     }
 
     #[test]

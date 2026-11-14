@@ -165,7 +165,16 @@ pub(crate) struct HeaderLine<'a> {
     /// Field name, still in wire case.
     pub(crate) name: &'a str,
     /// Field value with optional whitespace removed.
+    ///
+    /// Empty when the value is not UTF-8, because this is the display form;
+    /// [`Self::value_bytes`] keeps the wire bytes framing needs.
     pub(crate) value: &'a str,
+    /// Field value bytes with SP and HTAB removed (RFC 9110 section 5.5).
+    ///
+    /// Only ASCII optional whitespace is stripped. A byte sequence that is
+    /// not UTF-8 stays intact so framing can still read it as a lossy string,
+    /// and Unicode spaces keep a Content-Length value unusable.
+    pub(crate) value_bytes: &'a [u8],
     /// The line without its terminator.
     pub(crate) raw: &'a [u8],
     /// Offset of the line within the message, after the start line.
@@ -182,6 +191,7 @@ pub(crate) fn parse_header_line(line: &[u8], offset: usize) -> HeaderLine<'_> {
         return HeaderLine {
             name: "",
             value: "",
+            value_bytes: &[],
             raw: line,
             offset,
             colon: false,
@@ -197,11 +207,30 @@ pub(crate) fn parse_header_line(line: &[u8], offset: usize) -> HeaderLine<'_> {
     HeaderLine {
         name: std::str::from_utf8(name).unwrap_or(""),
         value: std::str::from_utf8(value).map(str::trim).unwrap_or(""),
+        value_bytes: trim_optional_whitespace(value),
         raw: line,
         offset,
         colon: true,
         valid,
     }
+}
+
+/// Trim the SP and HTAB optional whitespace around a field value.
+///
+/// RFC 9110 section 5.5 defines optional whitespace as SP and HTAB only, so
+/// the byte form must not use the Unicode trim of the display string: a
+/// no-break space stays in the value and makes a Content-Length unusable
+/// instead of silently surrounding a number.
+fn trim_optional_whitespace(value: &[u8]) -> &[u8] {
+    let is_ows = |byte: &u8| matches!(*byte, b' ' | b'\t');
+    let start = value
+        .iter()
+        .position(|byte| !is_ows(byte))
+        .unwrap_or(value.len());
+    let Some(last) = value.iter().rposition(|byte| !is_ows(byte)) else {
+        return &[];
+    };
+    value.get(start..last.saturating_add(1)).unwrap_or(&[])
 }
 
 /// The decoder's header retention budget.
@@ -283,7 +312,7 @@ impl Framing {
         let mut declared = None;
         let mut invalid_length = false;
         let mut transfer_coding = false;
-        let mut final_coding: Option<&str> = None;
+        let mut final_chunked = false;
         for header in headers {
             if !header.valid {
                 continue;
@@ -292,8 +321,10 @@ impl Framing {
                 // RFC 9112 section 6.3: repeated fields may be collapsed only
                 // when they carry the same decimal value; a disagreement or
                 // an unreadable value makes the declared length unusable and
-                // no later field recovers it.
-                match content_length_value(header.value) {
+                // no later field recovers it. The value is read from its wire
+                // bytes, so a non-UTF-8 value is unusable rather than absent.
+                let value = String::from_utf8_lossy(header.value_bytes);
+                match content_length_value(&value) {
                     Some(value) => match declared {
                         Some(previous) if previous != value => invalid_length = true,
                         Some(_) => {}
@@ -307,12 +338,16 @@ impl Framing {
                 // RFC 9112 section 6.1 requires chunked to be the final coding,
                 // and section 6.3 case 4 frames the body by it only in that
                 // position. The list is split with quoting, so a comma inside
-                // a transfer parameter's quoted string stays with its coding.
-                for coding in list_elements(header.value) {
+                // a transfer parameter's quoted string stays with its coding;
+                // the lossy string keeps those delimiters, since an invalid
+                // byte becomes a replacement character and never an ASCII
+                // comma, quote or backslash.
+                let value = String::from_utf8_lossy(header.value_bytes);
+                for coding in list_elements(&value) {
                     let name = coding.split(';').next().unwrap_or(coding).trim();
                     if !name.is_empty() {
                         transfer_coding = true;
-                        final_coding = Some(name);
+                        final_chunked = name.eq_ignore_ascii_case("chunked");
                     }
                 }
             }
@@ -323,7 +358,7 @@ impl Framing {
             content_length: if invalid_length { None } else { declared },
             invalid_length,
             transfer_coding,
-            chunked: final_coding.is_some_and(|coding| coding.eq_ignore_ascii_case("chunked")),
+            chunked: final_chunked,
         }
     }
 
@@ -427,7 +462,9 @@ pub(crate) enum BodyPlan {
 pub(crate) fn content_length_value(value: &str) -> Option<usize> {
     let mut length = None;
     for item in list_elements(value) {
-        let item = item.trim();
+        // Only SP and HTAB may surround a list element (RFC 9110 sections
+        // 5.5 and 5.6.1), so a Unicode space keeps the number unusable.
+        let item = item.trim_matches([' ', '\t']);
         if item.is_empty() {
             continue;
         }
@@ -614,6 +651,16 @@ pub(crate) struct PendingChunk {
     pub(crate) size: usize,
 }
 
+/// Why a chunk size line is unusable (RFC 9112 section 7.1).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum ChunkInvalid {
+    /// The size line is not a hexadecimal length.
+    Syntax,
+    /// The size line is hexadecimal but does not fit the size type, so the
+    /// chunk cannot be represented within any capture or export bound.
+    Overflow,
+}
+
 /// One structural element of a chunked body (RFC 9112 section 7.1).
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum ChunkStep<'a> {
@@ -659,10 +706,12 @@ pub(crate) enum ChunkStep<'a> {
         /// The stop is inside the trailer section.
         trailers: bool,
     },
-    /// A size line is not a hexadecimal length.
+    /// A size line is not a usable hexadecimal length.
     Invalid {
         /// Offset of the unusable size line.
         at: usize,
+        /// Whether the line is not hexadecimal or is too large to represent.
+        reason: ChunkInvalid,
     },
 }
 
@@ -768,10 +817,23 @@ impl ChunkScanner {
                 .next()
                 .unwrap_or_default();
             let Ok(size_text) = std::str::from_utf8(size_text) else {
-                return ChunkStep::Invalid { at: self.position };
+                return ChunkStep::Invalid {
+                    at: self.position,
+                    reason: ChunkInvalid::Syntax,
+                };
             };
-            let Ok(size) = usize::from_str_radix(size_text.trim(), 16) else {
-                return ChunkStep::Invalid { at: self.position };
+            let size_text = size_text.trim();
+            if size_text.is_empty() || !size_text.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+                return ChunkStep::Invalid {
+                    at: self.position,
+                    reason: ChunkInvalid::Syntax,
+                };
+            }
+            let Ok(size) = usize::from_str_radix(size_text, 16) else {
+                return ChunkStep::Invalid {
+                    at: self.position,
+                    reason: ChunkInvalid::Overflow,
+                };
             };
             let line = self.position;
             self.position = line_end.saturating_add(2);
@@ -891,6 +953,43 @@ mod tests {
         let block =
             b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\nTransfer-Encoding: gzip\r\n\r\n";
         assert!(!framing(block).chunked);
+    }
+
+    #[test]
+    fn a_non_utf8_transfer_parameter_keeps_the_final_chunked_coding() {
+        // A field value that is not UTF-8 has an empty display string, but
+        // framing reads the wire bytes as a lossy string, so the final
+        // chunked coding is still recognized.
+        let block = b"HTTP/1.1 200 OK\r\nTransfer-Encoding: example; p=\"\xff\", chunked\r\n\r\n";
+        let facts = framing(block);
+        assert!(facts.transfer_coding);
+        assert!(facts.chunked);
+        assert_eq!(facts.body_plan(Answer::default()), BodyPlan::Chunked);
+        // The replacement character inside the quoted string keeps the quoted
+        // comma with its coding, so the next element is still the final one.
+        let block = b"HTTP/1.1 200 OK\r\nTransfer-Encoding: example; p=\"\xff,a\", chunked\r\n\r\n";
+        assert!(framing(block).chunked);
+        // A non-UTF-8 final coding keeps its place in the list.
+        let block = b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked, example; p=\"\xff\"\r\n\r\n";
+        assert!(!framing(block).chunked);
+    }
+
+    #[test]
+    fn only_sp_and_htab_surround_a_framing_field_value() {
+        // RFC 9110 section 5.5 optional whitespace is SP and HTAB, so a
+        // no-break space around the number makes the length unusable instead
+        // of surrounding it.
+        let block = "HTTP/1.1 200 OK\r\nContent-Length: \u{a0}5\u{a0}\r\n\r\n";
+        let facts = framing(block.as_bytes());
+        assert!(facts.invalid_length);
+        assert_eq!(facts.content_length, None);
+        assert_eq!(facts.body_plan(Answer::default()), BodyPlan::InvalidLength);
+
+        let block = b"HTTP/1.1 200 OK\r\nContent-Length: \t 5 \t\r\n\r\n";
+        let facts = framing(block);
+        assert!(!facts.invalid_length);
+        assert_eq!(facts.content_length, Some(5));
+        assert_eq!(facts.body_plan(Answer::default()), BodyPlan::Fixed(5));
     }
 
     #[test]
@@ -1024,8 +1123,20 @@ mod tests {
         let line = parse_header_line(b"Content-Length: 5 ", 7);
         assert!(line.valid);
         assert_eq!(line.value, "5");
+        assert_eq!(line.value_bytes, b"5");
         assert_eq!(line.offset, 7);
         assert_eq!(line.raw, b"Content-Length: 5 ");
+        // A value that is not UTF-8 keeps its wire bytes for framing while
+        // the display string stays empty.
+        let line = parse_header_line(b"X-Raw: \xff", 0);
+        assert!(line.valid);
+        assert_eq!(line.value, "");
+        assert_eq!(line.value_bytes, b"\xff");
+        // Only SP and HTAB are optional whitespace, so a Unicode no-break
+        // space stays in the byte form even though display trims it.
+        let line = parse_header_line(b"X: \xc2\xa05\xc2\xa0 ", 0);
+        assert_eq!(line.value, "5");
+        assert_eq!(line.value_bytes, b"\xc2\xa05\xc2\xa0");
     }
 
     #[test]
@@ -1194,18 +1305,29 @@ mod tests {
 
     #[test]
     fn an_unusable_chunk_size_ends_the_entity() {
-        for body in [
-            b"zz\r\n".as_slice(),
+        for (body, reason) in [
+            (b"zz\r\n".as_slice(), ChunkInvalid::Syntax),
             // A size that does not fit in usize is unusable, not a huge chunk.
-            b"fffffffffffffffff\r\n",
+            (b"fffffffffffffffff\r\n", ChunkInvalid::Overflow),
             // So is a size line that is not text at all.
-            b"\xff\r\n",
+            (b"\xff\r\n", ChunkInvalid::Syntax),
+            // The grammar is 1*HEXDIG, so a sign or an empty line is not a
+            // size.
+            (b"+5\r\n", ChunkInvalid::Syntax),
+            (b"\r\n", ChunkInvalid::Syntax),
         ] {
             let mut scanner = ChunkScanner::new(0);
-            assert!(matches!(
-                scanner.step(body, body.len()),
-                ChunkStep::Invalid { at: 0 }
-            ));
+            let step = scanner.step(body, body.len());
+            assert!(
+                matches!(
+                    step,
+                    ChunkStep::Invalid {
+                        at: 0,
+                        reason: found
+                    } if found == reason
+                ),
+                "{body:?} must be invalid for {reason:?}: {step:?}"
+            );
         }
     }
 

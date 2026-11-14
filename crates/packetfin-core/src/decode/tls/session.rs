@@ -498,21 +498,24 @@ impl TlsFlow {
     /// Remember the application protocol offered in the ClientHello.
     ///
     /// The offer only drives the HTTP label; RFC 7301 section 3.2 makes the
-    /// server's selection the protocol decision.
+    /// server's selection the protocol decision. ALPN protocol identifiers
+    /// are case-sensitive byte strings (RFC 7301 section 3.1), so only the
+    /// registered lowercase forms match.
     pub(crate) fn set_http_alpn(&mut self, alpn: Option<&str>) {
-        self.http = alpn.is_some_and(|protocol| {
-            protocol.eq_ignore_ascii_case("h1") || protocol.eq_ignore_ascii_case("http/1.1")
-        });
+        self.http = alpn.is_some_and(|protocol| protocol == "h1" || protocol == "http/1.1");
     }
 
     /// Remember the application protocol the server selected.
     ///
     /// A TLS 1.2 ServerHello or a TLS 1.3 EncryptedExtensions carries it.
-    /// An absent extension is not a selection: the client preface can still
-    /// identify HTTP/2 when only application traffic secrets are available.
+    /// ALPN protocol identifiers are case-sensitive byte strings
+    /// (RFC 7301 section 3.1), so the registered `h2` is the only identifier
+    /// that selects HTTP/2. An absent extension is not a selection: the
+    /// client preface can still identify HTTP/2 when only application
+    /// traffic secrets are available.
     pub(crate) fn set_selected_alpn(&mut self, alpn: Option<&str>) {
         if let Some(protocol) = alpn {
-            self.selected_h2 = Some(protocol.eq_ignore_ascii_case("h2"));
+            self.selected_h2 = Some(protocol == "h2");
         }
     }
 
@@ -947,5 +950,38 @@ impl TlsSession {
 
     pub(crate) fn master_secret(&self) -> Option<&Secret> {
         self.master.as_ref()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn tls_alpn_http2_selection_is_case_sensitive() {
+        // RFC 7301 §3.1: protocol identifiers are case-sensitive byte
+        // strings, so only the registered `h2` selects HTTP/2.
+        let mut flow = TlsFlow::new(443);
+        flow.set_selected_alpn(Some("H2"));
+        assert_eq!(flow.selected_http2(), Some(false));
+        assert!(!flow.http2_alpn());
+        assert!(!flow.http_alpn());
+
+        flow.set_selected_alpn(Some("h2"));
+        assert_eq!(flow.selected_http2(), Some(true));
+        assert!(flow.http2_alpn());
+    }
+
+    #[test]
+    fn tls_alpn_http1_offer_is_case_sensitive() {
+        let mut flow = TlsFlow::new(443);
+        flow.set_http_alpn(Some("HTTP/1.1"));
+        assert!(!flow.http_alpn());
+        flow.set_http_alpn(Some("http/1.1"));
+        assert!(flow.http_alpn());
+        flow.set_http_alpn(Some("h1"));
+        assert!(flow.http_alpn());
+        flow.set_http_alpn(Some("H1"));
+        assert!(!flow.http_alpn());
     }
 }

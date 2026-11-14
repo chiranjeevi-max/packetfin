@@ -1721,22 +1721,32 @@ fn apply_arithmetic(
     right: &RuntimeValue<'_>,
     ty: Type,
 ) -> Option<RuntimeValue<'static>> {
-    if ty == Type::Double
-        && (left_type == Type::Time || right_type == Type::Time)
-        && (left_type == Type::Relative || right_type == Type::Relative)
-    {
-        // A relative time beside an absolute time: both become seconds, so
-        // the result is the numeric duration the comparison literals use.
-        let left = arithmetic_seconds(left, left_type)?;
-        let right = arithmetic_seconds(right, right_type)?;
-        let value = match operator {
-            ArithOp::Add => left + right,
-            ArithOp::Subtract => left - right,
-            ArithOp::Multiply | ArithOp::Divide | ArithOp::Modulo | ArithOp::BitwiseAnd => {
-                return None;
-            }
-        };
-        return value.is_finite().then_some(RuntimeValue::Double(value));
+    let time_beside_numeric = matches!(left_type, Type::Time | Type::Relative)
+        || matches!(right_type, Type::Time | Type::Relative);
+    if ty == Type::Double && time_beside_numeric {
+        // A time beside a numeric value is a duration in seconds, so both
+        // operands convert alike. A chain such as
+        // `frame.time_relative + frame.time_epoch - frame.time_relative`
+        // carries a seconds intermediate, while a relative operand still
+        // stores nanoseconds: converting only the direct relative operand
+        // would subtract its raw nanoseconds from a seconds value.
+        if matches!(operator, ArithOp::Add | ArithOp::Subtract) {
+            let left = arithmetic_seconds(left, left_type)?;
+            let right = arithmetic_seconds(right, right_type)?;
+            let value = match operator {
+                ArithOp::Add => left + right,
+                _ => left - right,
+            };
+            return value.is_finite().then_some(RuntimeValue::Double(value));
+        }
+        // A product or quotient of an absolute and a relative time has no
+        // meaning and stays rejected, as the type resolver rejects it; every
+        // other combination keeps the ordinary numeric path.
+        if (left_type == Type::Time || right_type == Type::Time)
+            && (left_type == Type::Relative || right_type == Type::Relative)
+        {
+            return None;
+        }
     }
     if ty == Type::Double {
         let left = double_value(left)?;
@@ -5059,6 +5069,62 @@ mod tests {
             "{}",
             error.message()
         );
+    }
+
+    #[test]
+    fn mixed_time_chains_stay_in_seconds() {
+        use crate::capture::Timestamp;
+        use crate::tree::Range;
+
+        let mut frame = Node::new(&fields::FRAME_PROTOCOL, Range::new(0, 0));
+        frame.add_field(
+            &fields::FRAME_TIME_RELATIVE,
+            Range::new(0, 0),
+            Value::RelativeTime(1_500_000_000),
+        );
+        frame.add_field(
+            &fields::FRAME_TIME_EPOCH,
+            Range::new(0, 0),
+            Value::AbsoluteTime(Timestamp {
+                seconds: 1_700_000_000,
+                nanos: 0,
+            }),
+        );
+        let mut stp = Node::new(&fields::STP_PROTOCOL, Range::new(34, 4));
+        stp.add_field(
+            &fields::STP_MSG_AGE,
+            Range::new(38, 2),
+            Value::Uint16(0x0500),
+        );
+        frame.add_child(stp);
+        let tree = Tree::new(frame);
+        let matches =
+            |expression: &str| Filter::parse(expression).is_ok_and(|filter| filter.matches(&tree));
+
+        // The addition yields 1700000001.5 s as a Double. The outer
+        // subtraction must convert the relative operand's stored
+        // nanoseconds to seconds as well, so the chain cancels exactly
+        // instead of taking the nanoseconds for a scalar.
+        assert!(matches(
+            "frame.time_relative + frame.time_epoch - frame.time_relative == 1700000000"
+        ));
+        assert!(matches(
+            "frame.time_relative + frame.time_epoch - 0.5 - frame.time_relative == 1699999999.5"
+        ));
+
+        // A relative operand can also follow a seconds value in the middle
+        // of a chain: 1.5 - 1700000000 + 1.5 is -1699999997 s.
+        assert!(matches(
+            "frame.time_relative - frame.time_epoch + frame.time_relative + 1699999997 == 0"
+        ));
+        assert!(matches(
+            "frame.time_relative - frame.time_epoch + frame.time_relative < 0"
+        ));
+
+        // Ordinary Double arithmetic keeps its raw numeric values: a
+        // 5/256-unit field plus a fraction and a product stay scalar.
+        assert!(matches("stp.msg_age + 1.5 == 6.5"));
+        assert!(matches("stp.msg_age * 2 == 10"));
     }
 
     #[test]

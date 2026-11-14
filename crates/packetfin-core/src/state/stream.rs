@@ -236,6 +236,15 @@ pub(crate) struct TlsPlaintextKey {
     conversation: ConversationKey,
 }
 
+/// One frame's run of retained undecided plaintext.
+#[derive(Clone, Copy, Debug)]
+struct PlaintextPart {
+    /// Frame that supplied the bytes up to [`Self::end`].
+    frame: u64,
+    /// Exclusive end offset within the direction's retained buffer.
+    end: usize,
+}
+
 /// Decrypted application-data streams awaiting or forming an HTTP message.
 ///
 /// Record boundaries are invisible to HTTP/1.x (RFC 9112 section 3), so the
@@ -257,18 +266,30 @@ pub(crate) struct TlsPlaintext {
     /// application data arriving before the client preface does not select
     /// HTTP/1.x by guess.
     undecided: [Vec<u8>; 2],
-    /// Frame that supplied the first retained byte of each direction.
+    /// Frame that supplied each run of retained bytes, oldest first.
     ///
     /// A protocol decision may arrive in a later frame than the bytes it
-    /// frames, so the retained bytes keep their own arrival frame instead of
-    /// taking the frame that supplied the evidence.
-    undecided_frame: [Option<u64>; 2],
+    /// frames, so every retained run keeps its own arrival frame instead of
+    /// taking the frame that supplied the evidence. Adjacent runs from one
+    /// frame share a part, and the parts cover the direction's retained
+    /// buffer exactly.
+    parts: [Vec<PlaintextPart>; 2],
 }
 
 impl StateValue for TlsPlaintext {
     fn state_bytes(&self) -> usize {
-        let undecided = self.undecided.iter().map(Vec::capacity).sum::<usize>();
-        self.streams.heap_bytes().saturating_add(undecided)
+        let retained = self
+            .undecided
+            .iter()
+            .try_fold(0_usize, |total, buffer| {
+                total.checked_add(buffer.capacity())
+            })
+            .zip(self.parts.iter().try_fold(0_usize, |total, parts| {
+                total.checked_add(parts.capacity().checked_mul(size_of::<PlaintextPart>())?)
+            }))
+            .map(|(undecided, parts)| undecided.saturating_add(parts))
+            .unwrap_or(usize::MAX);
+        self.streams.heap_bytes().saturating_add(retained)
     }
 }
 
@@ -310,28 +331,82 @@ impl TlsPlaintext {
         }
     }
 
+    /// Whether retaining `bytes` from `frame` would pass a retention cap.
+    ///
+    /// The byte cap bounds the window and the part cap bounds the
+    /// attribution list. A contribution that continues the newest run shares
+    /// its part, so only a new frame can reach the part cap.
+    fn undecided_over_cap(&self, direction: usize, frame: u64, bytes: &[u8]) -> bool {
+        let retained = self
+            .undecided
+            .get(direction)
+            .map(Vec::as_slice)
+            .unwrap_or_default();
+        let over_bytes = retained
+            .len()
+            .checked_add(bytes.len())
+            .is_none_or(|end| end > MAX_UNDECIDED_PLAINTEXT_BYTES);
+        let parts = self
+            .parts
+            .get(direction)
+            .map(Vec::as_slice)
+            .unwrap_or_default();
+        let needs_part = !bytes.is_empty() && parts.last().is_none_or(|part| part.frame != frame);
+        over_bytes || (needs_part && parts.len() >= MAX_UNDECIDED_PARTS)
+    }
+
+    /// Append one direction's plaintext while its protocol is unknown.
+    ///
+    /// Adjacent contributions from the same frame extend one part, so a
+    /// stream split at record boundaries keeps a small attribution list.
+    fn retain_undecided(&mut self, direction: usize, frame: u64, bytes: &[u8]) {
+        if bytes.is_empty() {
+            return;
+        }
+        let (Some(retained), Some(parts)) = (
+            self.undecided.get_mut(direction),
+            self.parts.get_mut(direction),
+        ) else {
+            return;
+        };
+        let Some(end) = retained.len().checked_add(bytes.len()) else {
+            return;
+        };
+        retained.extend_from_slice(bytes);
+        match parts.last_mut() {
+            Some(last) if last.frame == frame => last.end = end,
+            _ => parts.push(PlaintextPart { frame, end }),
+        }
+    }
+
     /// Emit a direction's retained plaintext once its protocol is selected.
     ///
-    /// The bytes keep the frame that supplied them; a later record that only
-    /// completes the evidence must not take their attribution.
-    fn flush_retained(
-        &mut self,
-        direction: usize,
-        fallback_frame: u64,
-        report: &mut ReassemblyReport,
-    ) {
-        let retained_frame = self
-            .undecided_frame
-            .get_mut(direction)
-            .and_then(Option::take)
-            .unwrap_or(fallback_frame);
+    /// Every run keeps the frame that supplied it, and a later record that
+    /// only completes the evidence must not take that attribution. The FIN
+    /// belongs only to the record that ends the stream, so no retained run
+    /// carries it.
+    fn flush_retained(&mut self, direction: usize, report: &mut ReassemblyReport) {
         let retained = self
             .undecided
             .get_mut(direction)
             .map(std::mem::take)
             .unwrap_or_default();
-        if !retained.is_empty() {
-            self.insert_direction(direction, retained_frame, &retained, false, report);
+        let parts = self
+            .parts
+            .get_mut(direction)
+            .map(std::mem::take)
+            .unwrap_or_default();
+        let mut start = 0_usize;
+        for part in parts {
+            let end = part.end.min(retained.len());
+            if end <= start {
+                continue;
+            }
+            let Some(range) = retained.get(start..end) else {
+                continue;
+            };
+            self.insert_direction(direction, part.frame, range, false, report);
+            start = end;
         }
     }
 
@@ -346,7 +421,7 @@ impl TlsPlaintext {
         report: &mut ReassemblyReport,
     ) {
         self.streams.direction_mut(direction).set_ulp(ulp);
-        self.flush_retained(direction, frame, report);
+        self.flush_retained(direction, report);
         self.insert_direction(direction, frame, bytes, fin, report);
     }
 }
@@ -539,24 +614,20 @@ impl SessionState {
                 PlaintextAlpn::Unknown if peer_http2 => Some(Ulp::Http2),
                 PlaintextAlpn::Unknown => plaintext_evidence(retained, bytes),
             };
-            let over_bound =
-                retained.len().saturating_add(bytes.len()) > MAX_UNDECIDED_PLAINTEXT_BYTES;
+            let over_cap = plaintext.undecided_over_cap(direction, frame, bytes);
             let selected = match selected {
                 Some(selected) => Some(selected),
                 // A stream that ends now has no later record to identify it,
-                // and one past the bound cannot wait longer, so the retained
-                // bytes are emitted as HTTP/1.x. This is the documented
-                // fallback; the buffer never grows past the cap.
-                None if fin || over_bound => Some(Ulp::Http),
+                // and one past either retention cap cannot wait longer, so the
+                // retained bytes are emitted as HTTP/1.x. This is the
+                // documented fallback; the buffer never grows past its caps.
+                // The check runs before the current bytes are retained, so the
+                // fallback replays them after the bytes already kept.
+                None if fin || over_cap => Some(Ulp::Http),
                 None => None,
             };
             let Some(selected) = selected else {
-                if let Some(retained) = plaintext.undecided.get_mut(direction) {
-                    retained.extend_from_slice(bytes);
-                }
-                if let Some(slot) = plaintext.undecided_frame.get_mut(direction) {
-                    slot.get_or_insert(frame);
-                }
+                plaintext.retain_undecided(direction, frame, bytes);
                 self.tls_plaintext
                     .put_with(&mut self.budget, key, plaintext);
                 return (ReassemblyReport::default(), false);
@@ -570,7 +641,7 @@ impl SessionState {
             }
             plaintext.decide(direction, selected, frame, bytes, fin, &mut report);
         } else {
-            plaintext.flush_retained(direction, frame, &mut report);
+            plaintext.flush_retained(direction, &mut report);
             plaintext.insert_direction(direction, frame, bytes, fin, &mut report);
         }
         let buffered = plaintext.streams.direction(direction).buffered_prefix();
@@ -1042,6 +1113,15 @@ pub(crate) const MAX_HTTP2_FRAME_BYTES: usize = crate::decode::http2::MAX_FRAME_
 /// section 3). The cap keeps a decrypted flow that presents neither from
 /// growing the state ledger without bound; passing it falls back to HTTP/1.x.
 const MAX_UNDECIDED_PLAINTEXT_BYTES: usize = 64 * 1024;
+
+/// The most retained plaintext runs one direction keeps while undecided.
+///
+/// Each run records the frame that supplied it, so a flood of one-byte
+/// records would otherwise grow the attribution list without bound. Adjacent
+/// contributions from one frame coalesce, so a message split at record
+/// boundaries costs a handful of runs; passing the cap falls back to HTTP/1.x
+/// exactly like the byte cap.
+const MAX_UNDECIDED_PARTS: usize = 64;
 
 /// The leading octets examined for protocol evidence.
 ///
@@ -3192,6 +3272,122 @@ mod tests {
             "past the bound the documented fallback selects HTTP/1.x"
         );
         assert!(state.undecided.first().is_none_or(Vec::is_empty));
+    }
+
+    #[test]
+    fn tls_plaintext_attributes_each_undecided_run_to_its_frame() {
+        // The first two records carry too little to identify the protocol, so
+        // each run keeps its own arrival frame. The third record completes
+        // the start line, and every run is replayed under its own frame
+        // before the current bytes, so the completed PDU names all three.
+        let mut session = SessionState::new(DEFAULT_STATE_BUDGET);
+        let (key, _) = ConversationKey::ipv4([192, 0, 2, 1], 40_000, [192, 0, 2, 2], 443);
+        for (frame, chunk) in [(1_u64, &b"G"[..]), (2, &b"E"[..])] {
+            let (report, http) =
+                session.insert_tls_plaintext(key, 0, frame, chunk, false, PlaintextAlpn::Unknown);
+            assert!(report.actions.is_empty(), "{:?}", report.actions);
+            assert!(!http);
+        }
+        let rest: &[u8] = b"T / HTTP/1.1\r\n\r\n";
+        let (report, http) =
+            session.insert_tls_plaintext(key, 0, 3, rest, false, PlaintextAlpn::Unknown);
+        assert!(http);
+        let Some(PduAction::Reassembled { pdu, .. }) = report.actions.last() else {
+            unreachable!(
+                "the request completes on the third record: {:?}",
+                report.actions
+            );
+        };
+        let request: &[u8] = b"GET / HTTP/1.1\r\n\r\n";
+        assert_eq!(pdu.data.as_ref(), request);
+        assert_eq!(
+            pdu.segments
+                .iter()
+                .map(|segment| (segment.frame, segment.length))
+                .collect::<Vec<_>>(),
+            [(1, 1), (2, 1), (3, 16)],
+            "each run keeps its own frame and length"
+        );
+        let state = plaintext_state(&mut session, key);
+        assert!(state.parts.iter().all(Vec::is_empty));
+        assert!(state.undecided.iter().all(Vec::is_empty));
+    }
+
+    #[test]
+    fn adjacent_undecided_runs_from_one_frame_share_a_part() {
+        // Two records of one frame form one run: the part's end advances
+        // instead of a second part being pushed.
+        let mut session = SessionState::new(DEFAULT_STATE_BUDGET);
+        let (key, _) = ConversationKey::ipv4([192, 0, 2, 1], 40_000, [192, 0, 2, 2], 443);
+        for _ in 0..2 {
+            let (report, http) =
+                session.insert_tls_plaintext(key, 0, 1, b"G", false, PlaintextAlpn::Unknown);
+            assert!(report.actions.is_empty(), "{:?}", report.actions);
+            assert!(!http);
+        }
+        let state = plaintext_state(&mut session, key);
+        let parts = state.parts.first().map(Vec::as_slice).unwrap_or_default();
+        assert_eq!(parts.len(), 1, "adjacent runs from one frame coalesce");
+        assert_eq!(
+            parts.first().map(|part| (part.frame, part.end)),
+            Some((1, 2))
+        );
+    }
+
+    #[test]
+    fn tls_plaintext_part_cap_falls_back_before_retaining() {
+        // One-byte records from distinct frames never identify a protocol and
+        // never coalesce, so the next run passes the part cap. The fallback
+        // replays every retained run and then the current bytes as HTTP/1.x,
+        // and the attribution list is emptied.
+        let mut session = SessionState::new(DEFAULT_STATE_BUDGET);
+        let (key, _) = ConversationKey::ipv4([192, 0, 2, 1], 40_000, [192, 0, 2, 2], 443);
+        let frames = u64::try_from(MAX_UNDECIDED_PARTS).unwrap_or(0);
+        for frame in 1..=frames {
+            let (report, http) =
+                session.insert_tls_plaintext(key, 0, frame, b"A", false, PlaintextAlpn::Unknown);
+            assert!(
+                report.actions.is_empty(),
+                "frame {frame}: {:?}",
+                report.actions
+            );
+            assert!(!http);
+        }
+        let state = plaintext_state(&mut session, key);
+        assert_eq!(state.parts.first().map(Vec::len), Some(MAX_UNDECIDED_PARTS));
+        assert_eq!(
+            state.undecided.first().map(Vec::len),
+            Some(MAX_UNDECIDED_PARTS)
+        );
+        restore_plaintext(&mut session, key, state);
+        let (report, _) = session.insert_tls_plaintext(
+            key,
+            0,
+            frames.saturating_add(1),
+            b"A",
+            false,
+            PlaintextAlpn::Unknown,
+        );
+        let emitted = report
+            .actions
+            .iter()
+            .filter_map(|action| match action {
+                PduAction::Partial { segment_data, .. } => Some(segment_data.bytes.len()),
+                _ => None,
+            })
+            .sum::<usize>();
+        assert_eq!(
+            emitted,
+            MAX_UNDECIDED_PARTS.saturating_add(1),
+            "every retained byte and the new byte reach the buffer"
+        );
+        let state = plaintext_state(&mut session, key);
+        assert_eq!(state.streams.direction(0).ulp(), Some(Ulp::Http));
+        assert!(
+            state.parts.first().is_some_and(Vec::is_empty),
+            "the fallback clears the attribution list"
+        );
+        assert!(state.undecided.first().is_some_and(Vec::is_empty));
     }
 
     fn dns_pdu(message_len: u16) -> Vec<u8> {

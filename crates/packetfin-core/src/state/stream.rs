@@ -1834,12 +1834,7 @@ impl StreamBuffer {
         let Some(header_end) = header_section_end(&data) else {
             return;
         };
-        let start_line_end = data
-            .iter()
-            .position(|byte| *byte == b'\n')
-            .map(|index| index.saturating_add(1))
-            .unwrap_or(0);
-        if header_end.saturating_sub(start_line_end) > MAX_HEADER_BYTES {
+        if header_end > MAX_HEADER_BYTES {
             // The decoder cannot accept this close-delimited message; report
             // the header cap and do not emit partial framing at FIN.
             report.oversized = Some("1 MiB header");
@@ -2479,15 +2474,11 @@ impl StreamBuffer {
             // consumes the rest of the available bytes.
             return FrameLength::Continuation(length);
         }
-        let start_line_end = self
-            .relative_first_newline()
-            .map(|index| index.saturating_add(1))
-            .unwrap_or(0);
         let Some(header_end) = self.relative_header_end().filter(|end| *end <= covered) else {
-            // The shared header cap counts the header lines after the start
-            // line, like the decoder. Waiting past it could never produce a
-            // header the decoder accepts.
-            let header_area = covered.saturating_sub(start_line_end);
+            // The shared header cap counts the start line as well as the
+            // field lines, like the decoder. Waiting past it could never
+            // produce a header the decoder accepts.
+            let header_area = covered;
             if covered >= limit {
                 // A header that never terminates cannot be resynchronised.
                 return if header_area > MAX_HEADER_BYTES {
@@ -2505,7 +2496,7 @@ impl StreamBuffer {
         };
         let plan = framing.body_plan(self.answer());
         let available = covered.saturating_sub(header_end);
-        if header_end.saturating_sub(start_line_end) > MAX_HEADER_BYTES {
+        if header_end > MAX_HEADER_BYTES {
             // The decoder will not accept this header, but its framing still
             // says where the message ends. Skip the whole message; never hand
             // partial framing to the decoder.
@@ -2605,7 +2596,11 @@ impl StreamBuffer {
                 ChunkedEnd::Invalid => match fin_end {
                     Some(end) if covered < end => FrameLength::NeedMore,
                     Some(end) => FrameLength::Complete(end.min(covered)),
-                    None => FrameLength::Complete(covered),
+                    // An invalid chunk-size line loses the body's end, so no
+                    // later message boundary can be found on this direction
+                    // (RFC 9112 section 7.1). Emit the covered prefix and
+                    // refuse the direction like an unusable Content-Length.
+                    None => FrameLength::Unusable(covered),
                 },
             },
             BodyPlan::InvalidLength if framing.response => {
@@ -4309,6 +4304,37 @@ mod tests {
             ChunkedEnd::Invalid
         ));
         assert_eq!(buffer.chunk_scans, scans, "the body was scanned again");
+    }
+
+    #[test]
+    fn an_unusable_chunk_body_refuses_later_messages() {
+        // An invalid chunk-size line loses the body's end, so the message
+        // ends at the covered prefix and no later message boundary can be
+        // found on the direction (RFC 9112 section 7.1).
+        let mut buffer = StreamBuffer::default();
+        buffer.set_ulp(Ulp::Http);
+        let message: &[u8] = b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\nzz\r\n";
+        let report = buffer.insert(1000, message, 1, false);
+        assert!(
+            matches!(
+                report.actions.first(),
+                Some(PduAction::Standalone { data, .. }) if data.as_ref() == message
+            ),
+            "{:?}",
+            report.actions
+        );
+        assert!(buffer.refused);
+        assert!(!buffer.has_pending());
+        let sequence = 1000_u32.saturating_add(u32::try_from(message.len()).unwrap_or(0));
+        let second: &[u8] = b"GET /body HTTP/1.1\r\n\r\n";
+        let report = buffer.insert(sequence, second, 2, false);
+        assert!(
+            report.actions.is_empty(),
+            "the unusable direction frames no further message: {:?}",
+            report.actions
+        );
+        assert!(buffer.refused);
+        assert!(!buffer.has_pending());
     }
 
     #[test]

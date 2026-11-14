@@ -1,6 +1,6 @@
 //! FIN completion boundary cases: gaps, tails and illegal-segment tags.
 //!
-//! The `http-objects-fin-edge` fixture is the generated reference capture for
+//! The `http-objects-fin-edge` fixture is the generated expected capture for
 //! these shapes; the export manifest pins the names and bodies.
 
 use std::fs;

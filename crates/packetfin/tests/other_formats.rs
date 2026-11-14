@@ -200,34 +200,25 @@ fn extract_object(text: &str, key: &str) -> Option<String> {
     None
 }
 
+/// The sorted layer names of one EK document.
+///
+/// A JSON object is unordered, so the layer order in the reference document
+/// is an artefact of its writer.  The set of layers, and every layer's
+/// content, is the contract; comparing the set sorted keeps every layer
+/// checked without pinning an arbitrary order.
+fn layer_keys(document: &Json) -> Vec<String> {
+    let mut keys: Vec<String> = document
+        .as_object()
+        .and_then(|body| body.iter().find(|(key, _)| key == "layers"))
+        .and_then(|(_, layers)| layers.as_object())
+        .map(|layers| layers.iter().map(|(key, _)| key.clone()).collect())
+        .unwrap_or_default();
+    keys.sort();
+    keys
+}
+
 #[test]
-fn ek_tree_cases_match_parsed_and_layer_order() {
-    let expected_layers = |fixture_name: &str, case_id: &str| -> &'static [&'static str] {
-        match (fixture_name, case_id) {
-            ("routing-ospf-v2", _) => &["frame", "eth", "ip", "ospf"],
-            ("routing-ospf-v3", "ek-tree-expert" | "ek-tree-malformed") => {
-                &["frame", "eth", "ipv6", "ospf", "_ws_malformed"]
-            }
-            ("routing-ospf-v3", _) => &["frame", "eth", "ipv6", "ospf"],
-            ("routing-bfd", _) => &["frame", "eth", "ip", "udp", "bfd"],
-            ("routing-vrrp", _) => &["frame", "eth", "ip", "vrrp"],
-            ("lldp" | "lldp-malformed", _) => &["frame", "eth", "lldp"],
-            ("udp-edge", _) => &["frame", "eth", "ip", "udp", "data"],
-            (
-                "dhcp-discover-offer"
-                | "dhcp-overload"
-                | "dhcp-malformed"
-                | "dhcp-client-id"
-                | "dhcp-hardware"
-                | "dhcp-long-option",
-                _,
-            ) => &["frame", "eth", "ip", "udp", "dhcp"],
-            ("dhcpv6-solicit-advertise" | "dhcpv6-relay" | "dhcpv6-malformed", _) => {
-                &["frame", "eth", "ip", "udp", "dhcpv6"]
-            }
-            _ => &[],
-        }
-    };
+fn ek_tree_cases_match_parsed_documents_and_layer_sets() {
     let mut compared = 0_usize;
     let mut executed: Vec<(&str, &str)> = Vec::new();
     for fixture in fixtures::all() {
@@ -274,28 +265,13 @@ fn ek_tree_cases_match_parsed_and_layer_order() {
                     "{}/{}: document {index} differs",
                     fixture.name, case.id
                 );
-                if let Some(body) = observed.as_object()
-                    && let Some((_, layers)) = body.iter().find(|(key, _)| key == "layers")
-                {
-                    let keys: Vec<&str> = layers
-                        .as_object()
-                        .unwrap_or_default()
-                        .iter()
-                        .map(|(key, _)| key.as_str())
-                        .collect();
-                    let mut expected = expected_layers(fixture.name, case.id).to_vec();
-                    // A protocol exception adds the generated malformed
-                    // layer after the decoded protocols.
-                    if keys.last() == Some(&"_ws_malformed") && !expected.contains(&"_ws_malformed")
-                    {
-                        expected.push("_ws_malformed");
-                    }
-                    assert_eq!(
-                        keys, expected,
-                        "{}/{}: EK layer order",
-                        fixture.name, case.id
-                    );
-                }
+                let observed_keys = layer_keys(&observed);
+                let stored_keys = layer_keys(&stored);
+                assert_eq!(
+                    observed_keys, stored_keys,
+                    "{}/{}: EK layer set",
+                    fixture.name, case.id
+                );
             }
             executed.push((fixture.name, case.id));
             compared += 1;
@@ -381,6 +357,11 @@ fn ek_comment_and_data_layers_match_golden_output() {
         let stored = String::from_utf8_lossy(&expected.stdout);
         let observed_document = observed.lines().nth(1).unwrap_or_default();
         let stored_document = stored.lines().nth(1).unwrap_or_default();
+        assert_eq!(
+            layer_keys(&Json::parse(observed_document)),
+            layer_keys(&Json::parse(stored_document)),
+            "{case_id}: layer set differs"
+        );
         assert_eq!(
             extract_object(observed_document, layer),
             extract_object(stored_document, layer),

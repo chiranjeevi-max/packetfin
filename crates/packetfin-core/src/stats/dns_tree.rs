@@ -43,6 +43,12 @@ pub(crate) const FIELDS: &[&str] = &[
 
 /// DNS transactions retained for service statistics.
 const MAX_PENDING: usize = 100_000;
+/// Bytes one transaction retains: the map entry and its value, the key copy
+/// in the FIFO, and allocator overhead.
+const PENDING_CHARGE: usize = std::mem::size_of::<PairKey>()
+    .saturating_mul(2)
+    .saturating_add(std::mem::size_of::<Pending>())
+    .saturating_add(16);
 /// DNS's `dns.retransmission_timer` default in nanoseconds.
 const RETRANSMISSION_WINDOW_NS: i128 = 5_000_000_000;
 
@@ -265,7 +271,7 @@ impl State {
                 self.tree.add_float(self.rrt, elapsed, time);
             }
         } else {
-            self.note_request(fact, facts);
+            self.note_request(fact, facts, budget, notices);
             let labels = field_u16(facts, fact, "dns.count.labels").unwrap_or(0);
             let index = match labels {
                 1 => 0,
@@ -327,7 +333,17 @@ impl State {
 
 impl State {
     /// Record a query so a later response can be matched to it.
-    pub(crate) fn note_request(&mut self, fact: &ProtocolFact<'_>, facts: &FrameFacts<'_>) {
+    ///
+    /// The transaction map is statistics state, so each entry is charged to
+    /// the shared ledger: at the limit the oldest transaction is dropped to
+    /// make room, and a ledger with no room at all retains nothing.
+    pub(crate) fn note_request(
+        &mut self,
+        fact: &ProtocolFact<'_>,
+        facts: &FrameFacts<'_>,
+        budget: &mut Budget,
+        notices: &mut Notices,
+    ) {
         let Some(key) = pair_key(facts, fact) else {
             return;
         };
@@ -351,8 +367,16 @@ impl State {
         }
         if self.pending.len() >= MAX_PENDING
             && let Some(oldest) = self.order.pop_front()
+            && self.pending.remove(&oldest).is_some()
         {
-            self.pending.remove(&oldest);
+            budget.release(PENDING_CHARGE);
+        }
+        if !self.reserve_pending(budget) {
+            notices.once(
+                "dns-pending-budget",
+                "statistics budget reached; DNS transactions were not tracked",
+            );
+            return;
         }
         self.pending.insert(
             key,
@@ -362,6 +386,19 @@ impl State {
             },
         );
         self.order.push_back(key);
+    }
+
+    /// Charge one transaction, dropping the oldest until the ledger has room.
+    fn reserve_pending(&mut self, budget: &mut Budget) -> bool {
+        while !budget.reserve(PENDING_CHARGE) {
+            let Some(oldest) = self.order.pop_front() else {
+                return false;
+            };
+            if self.pending.remove(&oldest).is_some() {
+                budget.release(PENDING_CHARGE);
+            }
+        }
+        true
     }
 }
 
@@ -616,5 +653,137 @@ fn opcode_name(opcode: u16) -> Cow<'static, str> {
         5 => Cow::Borrowed("Dynamic update"),
         6 => Cow::Borrowed("DNS Stateful operations (DSO)"),
         other => Cow::Owned(format!("Unknown operation ({other})")),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::capture::{Frame, PacketOptions};
+    use crate::decode::decode_frame;
+    use crate::stats::facts::Interests;
+
+    fn interests() -> Interests {
+        match crate::stats::parse_spec("dns,tree") {
+            Ok(spec) => Interests::for_specs(&[spec]),
+            Err(error) => {
+                eprintln!("invalid statistic: {error}");
+                std::process::exit(1);
+            }
+        }
+    }
+
+    fn dns_query_frame(id: u16) -> Frame {
+        let mut dns = Vec::new();
+        dns.extend_from_slice(&id.to_be_bytes());
+        dns.extend_from_slice(&[0x01, 0x00]); // standard query, recursion desired
+        dns.extend_from_slice(&1_u16.to_be_bytes()); // one question
+        dns.extend_from_slice(&[0; 6]); // no answers, authorities or additionals
+        dns.push(7);
+        dns.extend_from_slice(b"example");
+        dns.push(3);
+        dns.extend_from_slice(b"com");
+        dns.push(0);
+        dns.extend_from_slice(&1_u16.to_be_bytes()); // A
+        dns.extend_from_slice(&1_u16.to_be_bytes()); // IN
+
+        let udp_len = u16::try_from(8 + dns.len()).unwrap_or(u16::MAX);
+        let ip_len = u16::try_from(20 + usize::from(udp_len)).unwrap_or(u16::MAX);
+        let mut captured = Vec::new();
+        captured.extend_from_slice(&[0x02, 0, 0, 0, 0, 0x02]);
+        captured.extend_from_slice(&[0x02, 0, 0, 0, 0, 0x01]);
+        captured.extend_from_slice(&0x0800_u16.to_be_bytes());
+        captured.extend_from_slice(&[0x45, 0]);
+        captured.extend_from_slice(&ip_len.to_be_bytes());
+        captured.extend_from_slice(&[0, 1, 0x40, 0, 64, 17, 0, 0]);
+        captured.extend_from_slice(&[192, 0, 2, 1]);
+        captured.extend_from_slice(&[198, 51, 100, 2]);
+        captured.extend_from_slice(&1234_u16.to_be_bytes());
+        captured.extend_from_slice(&53_u16.to_be_bytes());
+        captured.extend_from_slice(&udp_len.to_be_bytes());
+        captured.extend_from_slice(&[0, 0]);
+        captured.extend_from_slice(&dns);
+        let original_len = u32::try_from(captured.len()).unwrap_or(u32::MAX);
+        Frame {
+            number: 1,
+            timestamp: Some(Timestamp {
+                seconds: 1_700_000_000,
+                nanos: 0,
+            }),
+            timestamp_precision: 6,
+            captured,
+            original_len,
+            link_type: 1,
+            interface_id: 0,
+            global_interface: 0,
+            timestamp_units: None,
+            source_offset: 0,
+            interface_name: None,
+            section_number: None,
+            comments: Vec::new(),
+            options: PacketOptions::default(),
+        }
+    }
+
+    fn observe_query(state: &mut State, frame: &Frame, budget: &mut Budget, notices: &mut Notices) {
+        let packet = decode_frame(frame);
+        let facts = FrameFacts::build(frame, &packet, &interests());
+        state.observe(
+            &facts,
+            &StatsFilter::none(),
+            &Clock::default(),
+            budget,
+            notices,
+        );
+    }
+
+    #[test]
+    fn a_zero_budget_keeps_no_transactions() {
+        let frame = dns_query_frame(0x1234);
+        let mut state = State::default();
+        let mut budget = Budget::new(0);
+        let mut notices = Notices::default();
+        observe_query(&mut state, &frame, &mut budget, &mut notices);
+        assert!(
+            state.pending.is_empty(),
+            "a zero-byte budget retained {} DNS transactions",
+            state.pending.len()
+        );
+        assert!(
+            notices
+                .messages
+                .iter()
+                .any(|notice| notice.contains("DNS transactions")),
+            "the untracked transaction is announced: {:?}",
+            notices.messages
+        );
+    }
+
+    #[test]
+    fn a_full_budget_evicts_the_oldest_transaction() {
+        let first = dns_query_frame(0x1234);
+        let second = dns_query_frame(0x5678);
+        let mut unlimited = Budget::new(usize::MAX);
+        let mut state = State::default();
+        let mut notices = Notices::default();
+        observe_query(&mut state, &first, &mut unlimited, &mut notices);
+        assert_eq!(state.pending.len(), 1);
+        let tree_bytes = unlimited.used.saturating_sub(PENDING_CHARGE);
+        assert!(
+            tree_bytes < unlimited.used,
+            "one transaction is charged to the ledger"
+        );
+
+        let mut budget = Budget::new(tree_bytes.saturating_add(PENDING_CHARGE));
+        let mut state = State::default();
+        let mut notices = Notices::default();
+        observe_query(&mut state, &first, &mut budget, &mut notices);
+        observe_query(&mut state, &second, &mut budget, &mut notices);
+        assert_eq!(
+            state.pending.len(),
+            1,
+            "the oldest transaction makes room for the second"
+        );
+        assert!(budget.used <= budget.limit);
     }
 }

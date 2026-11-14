@@ -21,6 +21,7 @@ use packetfin_core::names::service_name;
 use packetfin_core::tree::{Node, Severity, Value};
 
 use crate::color;
+use crate::detail::escape_capture_string;
 
 /// A `-t` time stamp format.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -130,12 +131,15 @@ impl SummaryWriter {
     /// The first file frame becomes the delta reference again and the first
     /// `-t d` delta of the new session is blank; the following delta is
     /// therefore measured from the first file frame. `-t dd` deltas continue
-    /// from the previous displayed frame.
+    /// from the previous displayed frame. Frame numbers restart with the
+    /// session, so an echo request from the old numbering cannot answer for
+    /// a frame in the new one.
     pub fn reset_session(&mut self) {
         if self.options.format == TimeFormat::Delta {
             self.previous_captured = self.first_timestamp;
             self.suppress_captured_delta = true;
         }
+        self.echo_requests = EchoBook::default();
     }
 
     /// Seed the time baseline from a frame that will not be displayed.
@@ -185,6 +189,12 @@ impl SummaryWriter {
         }
 
         let columns = self.columns(frame, packet);
+        // Resolved names and protocol text can carry capture bytes; escape
+        // them here so the text and tab styles never write a raw control
+        // character.  The PSML writer escapes the raw columns in XML style.
+        let source = escape_capture_string(&columns.source);
+        let destination = escape_capture_string(&columns.destination);
+        let info = escape_capture_string(&columns.info);
         self.line.clear();
         match self.style {
             SummaryStyle::Text => {
@@ -193,11 +203,11 @@ impl SummaryWriter {
                     "{:>5} {:>10} {:>12} \u{2192} {:<12} {} {} {}",
                     columns.number,
                     columns.time,
-                    columns.source,
-                    columns.destination,
+                    source,
+                    destination,
                     columns.protocol,
                     columns.length,
-                    columns.info
+                    info
                 );
             }
             SummaryStyle::Tabs => {
@@ -206,11 +216,11 @@ impl SummaryWriter {
                     "{:>5}\t{:>10}\t{:>12}\t\u{2192}\t{:<12}\t{}\t{}\t{}",
                     columns.number,
                     columns.time,
-                    columns.source,
-                    columns.destination,
+                    source,
+                    destination,
                     columns.protocol,
                     columns.length,
-                    columns.info
+                    info
                 );
             }
         }
@@ -909,6 +919,10 @@ fn protocol_and_info(
                 protocol.push_str("HTTP");
                 info = packet.columns.info.clone().unwrap_or_default();
             }
+            "http2" => {
+                protocol.push_str("HTTP2");
+                info = packet.columns.info.clone().unwrap_or_default();
+            }
             "tls" => {
                 protocol.push_str(packet.columns.protocol.as_deref().unwrap_or("TLS"));
                 info = packet.columns.info.clone().unwrap_or_default();
@@ -1154,7 +1168,7 @@ fn protocol_and_info(
 
     // Append [Illegal Segments] to the upper-layer Info when the
     // completing TCP segment carried a conflicting overlap.
-    if top.is_some_and(|top| matches!(top.protocol.filter_name, "http" | "tls" | "bgp"))
+    if top.is_some_and(|top| matches!(top.protocol.filter_name, "http" | "http2" | "tls" | "bgp"))
         && !info.contains("[Illegal Segments]")
         && let Some(tcp) = chain
             .iter()
@@ -1224,7 +1238,9 @@ fn protocol_and_info(
             expert.group == packetfin_core::tree::Group::Malformed
                 && !expert.message.starts_with("Bad length value")
         })
-    });
+    }) || chain
+        .last()
+        .is_some_and(|node| node.protocol.filter_name == "http2" && http2_malformed(packet));
     if (packet.malformed || force_malformed) && !info.contains("[Malformed Packet") {
         if let Some(detail) = malformed_detail(chain) {
             let _ = write!(info, "[Malformed Packet: {detail}]");
@@ -3016,6 +3032,8 @@ fn field_text_value(field: &packetfin_core::tree::Field) -> Option<String> {
                 .join("."),
         ),
         Value::Ipv6(_) => Some(field.value.formatted(field.def.display).to_string()),
+        // A string value can carry capture bytes into the summary line (an
+        // LLDP system name), so escape it as the detail view does.
         Value::String(value) => Some(value.clone()),
         Value::Uint8(value) => Some(value.to_string()),
         Value::Uint16(value) => Some(value.to_string()),
@@ -3055,6 +3073,24 @@ mod tests {
         let text = String::from_utf8(output).unwrap_or_default();
         assert!(!text.contains("SEQ/ACK"), "{text}");
         assert!(!text.contains("TCP Analysis Flags"), "{text}");
+    }
+
+    #[test]
+    fn a_session_reset_forgets_echo_requests() {
+        let mut writer = SummaryWriter::new(TimeOptions::default());
+        writer.echo_requests.remember(
+            (
+                false,
+                "192.0.2.1".to_string(),
+                "198.51.100.2".to_string(),
+                1,
+                2,
+            ),
+            7,
+        );
+        assert_eq!(writer.echo_requests.len(), 1);
+        writer.reset_session();
+        assert_eq!(writer.echo_requests.len(), 0);
     }
 }
 
@@ -3166,4 +3202,29 @@ mod echo_tests {
         assert_eq!(ntp_status_text(0x27), "NTP Version 4, private");
         assert_eq!(ntp_status_text(0x24), "NTP Version 4, server");
     }
+}
+
+/// Whether any HTTP/2 subtree in `packet` carries a malformed expert.
+///
+/// HTTP/2 decodes several frames per packet and attaches a frame's expert to
+/// its `http2.stream` field, not to the protocol node the outer chain ends
+/// with, so a node-only check cannot see it. The chain follows one child at
+/// each level, which also hides sibling HTTP/2 nodes.
+fn http2_malformed(packet: &packetfin_core::Packet) -> bool {
+    fn malformed(expert: &packetfin_core::tree::ExpertInfo) -> bool {
+        expert.group == packetfin_core::tree::Group::Malformed
+            && !expert.message.starts_with("Bad length value")
+    }
+    fn field_has_malformed(field: &packetfin_core::tree::Field) -> bool {
+        let mut found = false;
+        field.for_each_in_subtree(&mut |candidate| {
+            found |= candidate.experts.iter().any(malformed);
+        });
+        found
+    }
+    let mut nodes = Vec::new();
+    collect_protocol_nodes(&packet.tree.frame, "http2", &mut nodes);
+    nodes.iter().any(|node| {
+        node.experts.iter().any(malformed) || node.fields.iter().any(field_has_malformed)
+    })
 }

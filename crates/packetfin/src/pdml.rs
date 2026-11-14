@@ -621,8 +621,8 @@ impl<'a> PdmlWriter<'a> {
         let key = node.protocol.filter_name;
         let malformed_only = node.fields.is_empty() && node.children.is_empty();
         let malformed = malformed_expert(node);
-        if let (true, Some(expert)) = (malformed_only, malformed) {
-            self.write_malformed(node, indent, state, expert);
+        if malformed_only && malformed.is_some() {
+            self.write_malformed(node, indent, state);
             return;
         }
         self.push_indent(indent);
@@ -741,8 +741,8 @@ impl<'a> PdmlWriter<'a> {
         }
         self.push_indent(indent);
         self.text.push_str("</proto>\n");
-        if let Some(expert) = malformed {
-            self.write_malformed(node, indent, state, expert);
+        if malformed.is_some() {
+            self.write_malformed(node, indent, state);
         } else if flag != Flag::Filtered && !node.experts.is_empty() {
             self.write_node_experts(node, indent + 2);
         }
@@ -1883,13 +1883,7 @@ impl<'a> PdmlWriter<'a> {
         }
     }
 
-    fn write_malformed(
-        &mut self,
-        node: &Node,
-        indent: usize,
-        state: ChildState<'_>,
-        expert: &packetfin_core::tree::ExpertInfo,
-    ) {
+    fn write_malformed(&mut self, node: &Node, indent: usize, state: ChildState<'_>) {
         let flag = self.flag(state, "_ws.malformed");
         self.push_indent(indent);
         let _ = writeln!(
@@ -1902,7 +1896,7 @@ impl<'a> PdmlWriter<'a> {
             self.text
                 .push_str("<field name=\"filtered\" value=\"_ws.malformed\" />\n");
         } else {
-            let message = malformed_message(expert);
+            let message = malformed_text();
             let mut escaped = String::new();
             xml::escape_display(&mut escaped, message);
             self.push_indent(indent + 2);
@@ -2508,15 +2502,13 @@ fn malformed_expert(node: &Node) -> Option<&packetfin_core::tree::ExpertInfo> {
         .find(|expert| expert.group == packetfin_core::Group::Malformed)
 }
 
-fn malformed_message(expert: &packetfin_core::tree::ExpertInfo) -> &str {
-    if expert.message.contains("truncated")
-        || expert.message.contains("is empty")
-        || expert.message.contains("shorter than")
-    {
-        "Malformed Packet (Exception occurred)"
-    } else {
-        &expert.message
-    }
+/// Text of a protocol-level malformed marker.
+///
+/// A decoder that cannot continue is reported the same way for every
+/// protocol: the display never exposes the decoder's internal reason, only
+/// that decoding stopped. Fields decoded before the failure stay in the tree.
+fn malformed_text() -> &'static str {
+    "Malformed Packet (Exception occurred)"
 }
 
 /// Offset for a protocol-exception marker: the first protocol

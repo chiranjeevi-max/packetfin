@@ -113,6 +113,7 @@ fn protocols_report_lists_the_registry() {
          Syslog Message\tSyslog\tsyslog\tT\tT\tT\n\
          Border Gateway Protocol\tBGP\tbgp\tT\tT\tT\n\
          Hypertext Transfer Protocol\tHTTP\thttp\tT\tT\tT\n\
+         HyperText Transfer Protocol 2\tHTTP2\thttp2\tT\tT\tT\n\
          Transport Layer Security\tTLS\ttls\tT\tT\tT\n"
     );
 }

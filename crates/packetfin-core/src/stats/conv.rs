@@ -338,8 +338,9 @@ impl State {
         let timestamp = clock.relative_ns;
         let family = self.kind.protocol();
         for (fact_index, fact) in facts.protocols.iter().enumerate() {
-            // Conversation tables never count a quoted copy.
-            if fact.quoted || fact.node.protocol.filter_name != family {
+            // Conversation tables never count a quoted copy or a protocol
+            // decoded inside a field of its enclosing protocol.
+            if fact.quoted || fact.nested_in_field || fact.node.protocol.filter_name != family {
                 continue;
             }
             match self.kind {

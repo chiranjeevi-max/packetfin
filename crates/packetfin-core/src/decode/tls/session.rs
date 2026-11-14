@@ -1,16 +1,16 @@
 //! TLS session, epoch and resumption state.
 //!
 //! One [`TlsFlow`] belongs to a TCP conversation. It keeps the bounded
-//! history of handshakes seen on that conversation (a TLS 1.2 renegotiation
-//! starts a new one) and the record keys of each epoch. Keys activate only at
-//! the protocol's own transitions: Change Cipher Spec for TLS 1.2, and the
+//! history of handshakes seen on that conversation (a renegotiation starts a
+//! new one) and the record keys of each epoch. Keys activate only at the
+//! protocol's own transitions: Change Cipher Spec for TLS 1.0-1.2, and the
 //! decrypted Finished messages for TLS 1.3 (RFC 5246 section 6.1, RFC 8446
 //! section 4.4). No trial decryption picks a key.
 //!
-//! TLS 1.2 master secrets may come from `CLIENT_RANDOM` or from the bounded
-//! session-id/ticket cache ([`TlsSecretCache`]); TLS 1.3 traffic secrets come
-//! from the key log labels. There is no key exchange here: the key log is the
-//! only source.
+//! TLS 1.0, 1.1 and 1.2 master secrets may come from `CLIENT_RANDOM` or from
+//! the bounded session-id/ticket cache ([`TlsSecretCache`]); TLS 1.3 traffic
+//! secrets come from the key log labels. There is no key exchange here: the
+//! key log is the only source.
 //!
 //! Key material never leaves this module except through [`ExportedKey`],
 //! which is written by the binary only when `--export-tls-session-keys` is
@@ -20,7 +20,7 @@ use std::collections::VecDeque;
 use std::fmt;
 use std::mem::size_of;
 
-use super::cipher::{Decrypted, RecordKeys, Suite, Tls12KeyBlock, derive_tls12_key_block};
+use super::cipher::{Decrypted, KeyBlock, Protocol, RecordKeys, Suite, derive_key_block};
 use super::keylog::{EXPORT_LABEL_ORDER, KeyEntry, KeyLabel, Secret};
 
 /// Oldest handshake history kept per conversation.
@@ -128,18 +128,18 @@ pub(crate) struct TlsSession {
     server_session_id: Vec<u8>,
     /// Session ticket offered in the ClientHello.
     client_ticket: Option<Vec<u8>>,
-    /// TLS 1.2 master secret.
+    /// Pre-TLS 1.3 master secret.
     master: Option<Secret>,
     /// Whether the server chose Encrypt-then-MAC for a CBC suite.
     encrypt_then_mac: bool,
     /// Whether each direction has sent Change Cipher Spec.
-    tls12_ccs: [bool; 2],
-    /// TLS 1.2 keys waiting for the direction's Change Cipher Spec.
-    pending_tls12_client: Option<RecordKeys>,
-    pending_tls12_server: Option<RecordKeys>,
-    /// TLS 1.2 keys after Change Cipher Spec.
-    tls12_client: Option<RecordKeys>,
-    tls12_server: Option<RecordKeys>,
+    ccs_seen: [bool; 2],
+    /// Pre-TLS 1.3 keys waiting for the direction's Change Cipher Spec.
+    pending_client: Option<RecordKeys>,
+    pending_server: Option<RecordKeys>,
+    /// Pre-TLS 1.3 keys after Change Cipher Spec.
+    client_keys: Option<RecordKeys>,
+    server_keys: Option<RecordKeys>,
     early: Epoch,
     handshake: Epoch,
     application: Epoch,
@@ -169,11 +169,11 @@ impl TlsSession {
             client_ticket: ticket,
             master: None,
             encrypt_then_mac: false,
-            tls12_ccs: [false; 2],
-            pending_tls12_client: None,
-            pending_tls12_server: None,
-            tls12_client: None,
-            tls12_server: None,
+            ccs_seen: [false; 2],
+            pending_client: None,
+            pending_server: None,
+            client_keys: None,
+            server_keys: None,
             early: Epoch::default(),
             handshake: Epoch::default(),
             application: Epoch::default(),
@@ -340,14 +340,14 @@ impl TlsSession {
         header: &[u8; 5],
         fragment: &[u8],
     ) -> Option<Decrypted> {
-        // TLS 1.2: after this direction's CCS every record is protected,
+        // TLS 1.0-1.2: after this direction's CCS every record is protected,
         // whatever its outer content type.
-        let tls12 = match direction {
-            Direction::Client => self.tls12_client.as_mut(),
-            Direction::Server => self.tls12_server.as_mut(),
+        let pre13 = match direction {
+            Direction::Client => self.client_keys.as_mut(),
+            Direction::Server => self.server_keys.as_mut(),
         };
-        if let Some(keys) = tls12 {
-            return keys.open_tls12(outer_type, record_version, fragment);
+        if let Some(keys) = pre13 {
+            return keys.open_pre13(outer_type, record_version, fragment);
         }
         // TLS 1.3: only application-data records carry protected content, and
         // only once an epoch is active.
@@ -372,25 +372,25 @@ impl TlsSession {
     }
 
     fn ccs(&mut self, direction: Direction) {
-        if let Some(slot) = self.tls12_ccs.get_mut(direction.index()) {
+        if let Some(slot) = self.ccs_seen.get_mut(direction.index()) {
             *slot = true;
         }
         match direction {
             Direction::Client => {
-                if let Some(keys) = self.pending_tls12_client.take() {
-                    self.tls12_client = Some(keys);
+                if let Some(keys) = self.pending_client.take() {
+                    self.client_keys = Some(keys);
                 }
             }
             Direction::Server => {
-                if let Some(keys) = self.pending_tls12_server.take() {
-                    self.tls12_server = Some(keys);
+                if let Some(keys) = self.pending_server.take() {
+                    self.server_keys = Some(keys);
                 }
             }
         }
     }
 
     fn encrypted(&self, direction: Direction) -> bool {
-        self.tls12_ccs
+        self.ccs_seen
             .get(direction.index())
             .copied()
             .unwrap_or(false)
@@ -479,6 +479,9 @@ pub(crate) struct TlsFlow {
     /// The client offered HTTP/1.x in ALPN; application data takes that
     /// protocol label even when the record cannot be decrypted.
     http: bool,
+    /// The server's ALPN selection: `Some(true)` for `h2`, `Some(false)` for
+    /// another protocol, `None` when no selection was decrypted.
+    selected_h2: Option<bool>,
 }
 
 impl TlsFlow {
@@ -488,19 +491,52 @@ impl TlsFlow {
             client_port,
             sessions: Vec::new(),
             http: false,
+            selected_h2: None,
         }
     }
 
     /// Remember the application protocol offered in the ClientHello.
+    ///
+    /// The offer only drives the HTTP label; RFC 7301 section 3.2 makes the
+    /// server's selection the protocol decision. ALPN protocol identifiers
+    /// are case-sensitive byte strings (RFC 7301 section 3.1), so only the
+    /// registered lowercase forms match.
     pub(crate) fn set_http_alpn(&mut self, alpn: Option<&str>) {
-        self.http = alpn.is_some_and(|protocol| {
-            protocol.eq_ignore_ascii_case("h1") || protocol.eq_ignore_ascii_case("http/1.1")
-        });
+        self.http = alpn.is_some_and(|protocol| protocol == "h1" || protocol == "http/1.1");
+    }
+
+    /// Remember the application protocol the server selected.
+    ///
+    /// A TLS 1.2 ServerHello or a TLS 1.3 EncryptedExtensions carries it.
+    /// ALPN protocol identifiers are case-sensitive byte strings
+    /// (RFC 7301 section 3.1), so the registered `h2` is the only identifier
+    /// that selects HTTP/2. An absent extension is not a selection: the
+    /// client preface can still identify HTTP/2 when only application
+    /// traffic secrets are available.
+    pub(crate) fn set_selected_alpn(&mut self, alpn: Option<&str>) {
+        if let Some(protocol) = alpn {
+            self.selected_h2 = Some(protocol == "h2");
+        }
+    }
+
+    /// The server's explicit ALPN selection, when one was decrypted.
+    pub(crate) fn selected_http2(&self) -> Option<bool> {
+        self.selected_h2
     }
 
     /// Whether the session negotiated HTTP/1.x in ALPN.
     pub(crate) fn http_alpn(&self) -> bool {
         self.http
+    }
+
+    /// Whether the server selected `h2` in ALPN.
+    ///
+    /// RFC 9113 section 3.3: `h2` identifies HTTP/2 over TLS, and the
+    /// selection fixes the framing for both directions. The server opens with
+    /// SETTINGS rather than the client preface, so its first plaintext record
+    /// has no marker of its own; an ALPN selection is the only evidence.
+    pub(crate) fn http2_alpn(&self) -> bool {
+        self.selected_h2 == Some(true)
     }
 
     /// Whether a TLS 1.3 ServerHello makes plaintext records state-opaque.
@@ -571,6 +607,9 @@ impl TlsFlow {
         if self.sessions.len() >= MAX_TLS_SESSIONS {
             self.sessions.remove(0);
         }
+        // ALPN is negotiated per connection (RFC 7301 section 3.1), so a new
+        // handshake starts without a selection.
+        self.selected_h2 = None;
         self.sessions
             .push(TlsSession::new(client_random, session_id, ticket));
         self.sessions.last_mut()
@@ -604,7 +643,7 @@ impl TlsFlow {
         None
     }
 
-    /// Activate the pending TLS 1.2 keys for one direction at CCS.
+    /// Activate the pending pre-TLS 1.3 keys for one direction at CCS.
     pub(crate) fn ccs(&mut self, direction: Direction) {
         if let Some(session) = self.session_mut() {
             session.ccs(direction);
@@ -656,8 +695,13 @@ impl TlsFlow {
         session.exports(Some(entry), true, false)
     }
 
-    /// Install a TLS 1.2 master secret and derive the pending key block.
-    pub(crate) fn install_tls12(
+    /// Install a pre-TLS 1.3 master secret and derive the pending key block.
+    ///
+    /// The negotiated version set by the ServerHello selects the PRF and the
+    /// key-block layout (RFC 2246 section 6.3, RFC 5246 section 6.3). A suite
+    /// that the version cannot protect, or the absence of a ServerHello,
+    /// installs nothing: the records stay opaque.
+    pub(crate) fn install_master_secret(
         &mut self,
         master: Secret,
         suite: Suite,
@@ -667,18 +711,22 @@ impl TlsFlow {
         let Some(session) = self.session_mut() else {
             return Vec::new();
         };
-        if session.master.is_some() || suite.is_tls13() {
+        if session.master.is_some() {
             return Vec::new();
         }
-        let Some(block) = derive_tls12_key_block(
+        let Some(protocol) = session.version.and_then(Protocol::from_version) else {
+            return Vec::new();
+        };
+        let Some(block) = derive_key_block(
             master.as_bytes(),
             &session.client_random,
             server_random,
             suite,
+            protocol,
         ) else {
             return Vec::new();
         };
-        let Tls12KeyBlock {
+        let KeyBlock {
             client_key,
             server_key,
             client_iv,
@@ -686,20 +734,28 @@ impl TlsFlow {
             client_mac,
             server_mac,
         } = block;
-        session.pending_tls12_client = Some(RecordKeys::tls12(
+        let Some(client_pending) = RecordKeys::tls(
+            protocol,
             client_key,
             client_iv,
             client_mac,
             suite,
             session.encrypt_then_mac,
-        ));
-        session.pending_tls12_server = Some(RecordKeys::tls12(
+        ) else {
+            return Vec::new();
+        };
+        let Some(server_pending) = RecordKeys::tls(
+            protocol,
             server_key,
             server_iv,
             server_mac,
             suite,
             session.encrypt_then_mac,
-        ));
+        ) else {
+            return Vec::new();
+        };
+        session.pending_client = Some(client_pending);
+        session.pending_server = Some(server_pending);
         session.master = Some(master);
         if !export {
             return Vec::new();
@@ -710,16 +766,35 @@ impl TlsFlow {
     /// Forget every record key after a fatal alert.
     pub(crate) fn fatal_alert(&mut self) {
         for session in &mut self.sessions {
-            session.pending_tls12_client = None;
-            session.pending_tls12_server = None;
-            session.tls12_client = None;
-            session.tls12_server = None;
+            session.pending_client = None;
+            session.pending_server = None;
+            session.client_keys = None;
+            session.server_keys = None;
             session.early = Epoch::default();
             session.handshake = Epoch::default();
             session.application = Epoch::default();
-            session.tls12_ccs = [false; 2];
+            session.ccs_seen = [false; 2];
             session.client_phase = Phase::Plaintext;
             session.server_phase = Phase::Plaintext;
+        }
+    }
+
+    /// Whether 0-RTT keys were installed for the current session.
+    pub(crate) fn has_early_keys(&self) -> bool {
+        self.last_session()
+            .is_some_and(|session| session.early_installed)
+    }
+
+    /// End the client's 0-RTT phase after the server declined early data.
+    ///
+    /// RFC 8446 section 4.2.10: the server skips the early records still in
+    /// flight, and the client's next record it reads is protected with the
+    /// handshake keys, so later early records stay opaque here as well.
+    pub(crate) fn reject_early_data(&mut self) {
+        if let Some(session) = self.last_session_mut()
+            && session.client_phase == Phase::Early
+        {
+            session.client_phase = Phase::Handshake;
         }
     }
 
@@ -895,8 +970,37 @@ impl TlsSession {
     pub(crate) fn master_secret(&self) -> Option<&Secret> {
         self.master.as_ref()
     }
+}
 
-    pub(crate) fn version(&self) -> Option<u16> {
-        self.version
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn tls_alpn_http2_selection_is_case_sensitive() {
+        // RFC 7301 §3.1: protocol identifiers are case-sensitive byte
+        // strings, so only the registered `h2` selects HTTP/2.
+        let mut flow = TlsFlow::new(443);
+        flow.set_selected_alpn(Some("H2"));
+        assert_eq!(flow.selected_http2(), Some(false));
+        assert!(!flow.http2_alpn());
+        assert!(!flow.http_alpn());
+
+        flow.set_selected_alpn(Some("h2"));
+        assert_eq!(flow.selected_http2(), Some(true));
+        assert!(flow.http2_alpn());
+    }
+
+    #[test]
+    fn tls_alpn_http1_offer_is_case_sensitive() {
+        let mut flow = TlsFlow::new(443);
+        flow.set_http_alpn(Some("HTTP/1.1"));
+        assert!(!flow.http_alpn());
+        flow.set_http_alpn(Some("http/1.1"));
+        assert!(flow.http_alpn());
+        flow.set_http_alpn(Some("h1"));
+        assert!(flow.http_alpn());
+        flow.set_http_alpn(Some("H1"));
+        assert!(!flow.http_alpn());
     }
 }

@@ -19,14 +19,12 @@
 use crate::decode::DecodeContext;
 use crate::export::ObjectName;
 use crate::fields;
-use crate::http_syntax::{MAX_HEADER_BYTES, StartLine, parse_start_line};
+use crate::http_syntax::{
+    Answer, BodyPlan, ChunkInvalid, ChunkScanner, ChunkStep, Framing, HeaderBudget, HeaderLine,
+    StartLine, content_length_value, continuation_at, next_line, parse_header_line,
+    parse_start_line,
+};
 use crate::tree::{Bytes, ExpertInfo, Group, HexShowname, Node, Range, Severity, Value};
-
-/// Header lines retained for one message.
-///
-/// The cap keeps a hostile message from producing unbounded string fields; a
-/// longer block is left undecoded.
-const MAX_HEADER_LINES: usize = 256;
 
 /// Unnamed start-line or chunk field, which PDML prints with `name=""`.
 static UNNAMED_FIELD: fields::FieldDef = fields::FieldDef {
@@ -52,13 +50,23 @@ static CHUNKED_BODY: fields::FieldDef = fields::FieldDef {
     generated: false,
 };
 
+/// The most chunk and trailer records one chunked body keeps.
+///
+/// Each record becomes a container plus several field occurrences, so a body
+/// of tiny chunks expands its metadata far beyond its transfer size: a
+/// 1.5 MB body of one-octet chunks would retain hundreds of megabytes. The
+/// cap bounds that metadata only; the de-chunked body keeps growing to the
+/// export object cap, so a large body still exports whole. The decoder keeps
+/// the complete record prefix and reports one expert.
+const MAX_CHUNK_RECORDS: usize = 4096;
+
 /// Whether a payload begins with a complete HTTP/1.x start line.
 ///
 /// The check accepts the RFC 7230 token grammar and requires the URI and
 /// version instead of matching a fixed method list; a rejected payload keeps
 /// its existing output.
 pub(crate) fn looks_like_http(data: &[u8]) -> bool {
-    let Some((line, _)) = split_line(data) else {
+    let Some((line, _)) = next_line(data, 0) else {
         return false;
     };
     parse_start_line(line).is_some()
@@ -69,16 +77,10 @@ pub(crate) fn looks_like_http(data: &[u8]) -> bool {
 ///
 /// The heuristic recognises the version token in the first segment and then
 /// asks TCP for the rest; a segment that stops before the version (or in
-/// the middle of it) is left to the port dissector.
+/// the middle of it) is left to the port dissector. A line without its LF is
+/// examined whole, so the check still requires a complete start line.
 pub(crate) fn looks_like_http_prefix(data: &[u8]) -> bool {
-    let line_end = data
-        .iter()
-        .position(|byte| *byte == b'\n')
-        .unwrap_or(data.len());
-    let mut line = data.get(..line_end).unwrap_or_default();
-    if let Some(stripped) = line.strip_suffix(b"\r") {
-        line = stripped;
-    }
+    let line = next_line(data, 0).map_or(data, |(line, _)| line);
     parse_start_line(line).is_some()
 }
 
@@ -88,7 +90,9 @@ pub(crate) fn looks_like_http_prefix(data: &[u8]) -> bool {
 /// arrives: the first record of a split request carries the method and a
 /// space, and a response carries the version. The record gets its
 /// application protocol label at that point, so this check accepts that
-/// permissive prefix.
+/// permissive prefix. A complete line is also parsed with the shared token
+/// grammar, which recognises extension methods (RFC 9110 section 9.1) that
+/// the fast list below does not name.
 pub(crate) fn looks_like_http_stream_prefix(data: &[u8]) -> bool {
     if data.starts_with(b"HTTP/1.") {
         return true;
@@ -100,13 +104,17 @@ pub(crate) fn looks_like_http_stream_prefix(data: &[u8]) -> bool {
         return false;
     };
     let method = data.get(..space).unwrap_or_default();
-    space > 0 && METHODS.contains(&method)
+    if space > 0 && METHODS.contains(&method) {
+        return true;
+    }
+    let line = next_line(data, 0).map_or(data, |(line, _)| line);
+    parse_start_line(line).is_some()
 }
 
 /// The start line of an incomplete HTTP message, which sets the Info column
 /// before the whole header block arrives.
 pub(crate) fn partial_info(data: &[u8]) -> Option<String> {
-    let (line, _) = split_line(data)?;
+    let (line, _) = next_line(data, 0)?;
     match parse_start_line(line)? {
         StartLine::Request {
             method,
@@ -133,6 +141,12 @@ pub(crate) fn decode(context: &mut DecodeContext<'_>, parent: &mut Node, data: &
         .transport_ports
         .and_then(|(source, destination)| context.conversation_key(source, destination))
         .map(|(key, _)| key);
+    // After a 2xx answer to CONNECT the connection is a tunnel (RFC 9112
+    // section 6.3), so its bytes are not messages even when a segment
+    // reaches the decoder on its own, with desegmentation off.
+    if !context.quoted && conversation.is_some_and(|key| context.state.http_tunnel(key)) {
+        return;
+    }
     let mut offset = 0_usize;
     let mut info = String::new();
     let mut decoded = false;
@@ -145,9 +159,15 @@ pub(crate) fn decode(context: &mut DecodeContext<'_>, parent: &mut Node, data: &
             context
                 .protocol_stack
                 .push(fields::HTTP_PROTOCOL.filter_name);
-            if let Some((skip, body)) = continuation_body(data) {
+            if let Some(continuation) = continuation_at(data) {
                 let excess = context.http_pdu_offset > 0;
-                add_continuation(context, parent, body, base.saturating_add(skip), excess);
+                add_continuation(
+                    context,
+                    parent,
+                    continuation.body,
+                    base.saturating_add(continuation.skip),
+                    excess,
+                );
                 context.columns.info = Some("Continuation".to_string());
             }
             context.depth = context.depth.saturating_sub(1);
@@ -165,7 +185,7 @@ pub(crate) fn decode(context: &mut DecodeContext<'_>, parent: &mut Node, data: &
         let response_to_connect = pending_method
             .as_deref()
             .is_some_and(|method| method.eq_ignore_ascii_case("CONNECT"));
-        let Some(mut message) = parse_message(
+        let mut message = match parse_message(
             data.get(offset..).unwrap_or(&[]),
             message_base,
             &MessageOptions {
@@ -176,8 +196,15 @@ pub(crate) fn decode(context: &mut DecodeContext<'_>, parent: &mut Node, data: &
                 fin: context.http_fin,
                 source: context.pdu_bytes.as_ref().map(|bytes| (bytes, offset)),
             },
-        ) else {
-            break;
+        ) {
+            Some(Parsed::Message(message)) => *message,
+            Some(Parsed::Refused { consumed }) if consumed > 0 => {
+                // The refused message stays undecoded, but the next message
+                // starts after its framed length (see `HeaderBudget`).
+                offset = offset.saturating_add(consumed);
+                continue;
+            }
+            Some(Parsed::Refused { .. }) | None => break,
         };
         if !decoded {
             context.depth = context.depth.saturating_add(1);
@@ -211,23 +238,30 @@ pub(crate) fn decode(context: &mut DecodeContext<'_>, parent: &mut Node, data: &
         }
         offset = offset.saturating_add(consumed);
     }
+    if decoded && offset < data.len() {
+        // A completed message ends the decode loop when the bytes after it
+        // cannot start another message. The reassembler presents those bytes
+        // as their own continuation PDU; a direct decode has them in the same
+        // segment and must reach the same fields, or a bodyless response
+        // would silently drop everything after its header section (RFC 9112
+        // section 6.3 case 1).
+        let rest = data.get(offset..).unwrap_or_default();
+        if let Some(continuation) = continuation_at(rest) {
+            add_continuation(
+                context,
+                parent,
+                continuation.body,
+                base.saturating_add(offset)
+                    .saturating_add(continuation.skip),
+                true,
+            );
+            info.push_str("Continuation");
+        }
+    }
     if decoded {
         context.columns.info = Some(info);
         context.depth = context.depth.saturating_sub(1);
     }
-}
-
-/// One parsed header line.
-struct Header<'a> {
-    name: &'a str,
-    value: &'a str,
-    raw: &'a [u8],
-    /// Offset of the line within the message, after the start line.
-    offset: usize,
-    /// Whether the line has a colon separator at all.
-    colon: bool,
-    /// Whether the part before the colon is a valid header name.
-    valid: bool,
 }
 
 /// A reassembly buffer and the message offset within it.
@@ -261,6 +295,10 @@ struct Body {
     trailer_end: Option<usize>,
     /// Trailer lines: offset, length and text within the message data.
     trailers: Vec<(usize, usize, String)>,
+    /// De-chunking stopped at the record cap, so the chunk list is a prefix.
+    chunk_excess: bool,
+    /// The chunked body ended on an unusable size line and why.
+    chunk_invalid: Option<ChunkInvalid>,
 }
 
 struct Chunk {
@@ -269,6 +307,10 @@ struct Chunk {
     data: Bytes,
     data_offset: usize,
     boundary_offset: usize,
+    /// The two bytes captured between the chunk data and the next size line.
+    boundary: [u8; 2],
+    /// Whether those bytes are the CRLF RFC 9112 section 7.1 requires.
+    boundary_ok: bool,
     final_chunk: bool,
 }
 
@@ -292,16 +334,6 @@ struct RequestMeta {
     method: String,
 }
 
-/// Split one LF-terminated line, removing a trailing CR.
-fn split_line(data: &[u8]) -> Option<(&[u8], usize)> {
-    let index = data.iter().position(|byte| *byte == b'\n')?;
-    let mut line = data.get(..index)?;
-    if let Some(stripped) = line.strip_suffix(b"\r") {
-        line = stripped;
-    }
-    Some((line, index.saturating_add(1)))
-}
-
 /// Options controlling one message parse.
 struct MessageOptions<'a> {
     tls_plaintext: bool,
@@ -312,172 +344,190 @@ struct MessageOptions<'a> {
     source: Option<PduSource<'a>>,
 }
 
+/// What one parse found at the start of the data.
+enum Parsed {
+    /// A message that fits the segment and the header budget.
+    Message(Box<HttpMessage>),
+    /// A complete message over the [`HeaderBudget`]: it is left undecoded,
+    /// but it owns its `consumed` framed octets, so the next message stays
+    /// aligned with the wire as the reassembler frames it.
+    Refused { consumed: usize },
+}
+
 /// Parse one message, or return `None` when it does not fit the segment.
-fn parse_message(data: &[u8], base: usize, options: &MessageOptions<'_>) -> Option<HttpMessage> {
+fn parse_message(data: &[u8], base: usize, options: &MessageOptions<'_>) -> Option<Parsed> {
     let tls_plaintext = options.tls_plaintext;
     let response_to_head = options.response_to_head;
     let response_to_connect = options.response_to_connect;
     let export = options.export;
     let fin = options.fin;
     let source = options.source;
-    let (start, start_end) = split_line(data)?;
+    let (start, start_end) = next_line(data, 0)?;
     let start_line = parse_start_line(start)?;
     let start_text = std::str::from_utf8(start).ok()?;
 
-    let mut headers: Vec<Header<'_>> = Vec::new();
+    let mut headers: Vec<HeaderLine<'_>> = Vec::new();
+    let mut budget = HeaderBudget::default();
+    // `MAX_HEADER_BYTES` covers the start line, every field line and the
+    // empty line that ends the section, so charge the start line before the
+    // loop: an oversized target would otherwise create unbounded URI fields
+    // while the header section itself stays empty. Past either cap no line
+    // is retained, but the scan still finds the end of the section so the
+    // refused message keeps its framed length.
+    let mut refused = !budget.take(start_end, false);
     let mut offset = start_end;
-    let mut header_bytes = 0_usize;
     loop {
-        let (line, consumed) = split_line(data.get(offset..)?)?;
-        header_bytes = header_bytes.saturating_add(consumed);
-        if header_bytes > MAX_HEADER_BYTES || headers.len() >= MAX_HEADER_LINES {
-            return None;
-        }
+        let (line, consumed) = next_line(data, offset)?;
         let line_offset = offset;
+        let field = !line.is_empty();
+        refused = refused || !budget.take(consumed, field);
         offset = offset.saturating_add(consumed);
-        if line.is_empty() {
+        if !field {
             break;
         }
-        headers.push(parse_header(line, line_offset));
+        if !refused {
+            headers.push(parse_header_line(line, line_offset));
+        }
     }
 
     let method = match &start_line {
         StartLine::Request { method, .. } => Some(*method),
         StartLine::Response { .. } => None,
     };
-    let status = match &start_line {
-        StartLine::Response { code, .. } => Some(*code),
-        StartLine::Request { .. } => None,
-    };
-    // Update one Content-Length state per header in wire order: a valid
-    // value is remembered and an invalid duplicate clears it. A cleared
-    // state makes a response body extend to the end of the segment.
-    let mut content_length = None;
-    let mut content_length_invalid = false;
-    for header in &headers {
-        if header.valid && header.name.eq_ignore_ascii_case("Content-Length") {
-            match header.value.parse::<usize>() {
-                Ok(value) => {
-                    content_length = Some(value);
-                    content_length_invalid = false;
-                }
-                Err(_) => {
-                    content_length = None;
-                    content_length_invalid = true;
-                }
-            }
-        }
+    if refused && source.is_some() {
+        // A reassembled PDU is the one message the stream layer framed, so
+        // its body need not be rebuilt only to be discarded.
+        return Some(Parsed::Refused {
+            consumed: data.len(),
+        });
     }
-    let chunked = headers.iter().any(|header| {
-        header.name.eq_ignore_ascii_case("Transfer-Encoding")
-            && header.value.to_ascii_lowercase().contains("chunked")
-    });
-    let status_bodyless =
-        status.is_some_and(|code| (100..200).contains(&code) || code == 204 || code == 304);
-    let head_response = status.is_some() && response_to_head;
-    let connect_response =
-        response_to_connect && status.is_some_and(|code| (200..300).contains(&code));
-    let bodyless = status_bodyless
-        || head_response
-        || connect_response
+    let framing = if refused {
+        // The retained lines stopped at the cap; framing needs every field.
+        Framing::of_block(data.get(..offset)?)
+    } else {
+        Framing::of(start, headers.iter().copied())
+    };
+    let answer = Answer {
+        head: response_to_head,
+        connect: response_to_connect,
+    };
+    let plan = framing.body_plan(answer);
+    let bodyless = framing.status_bodyless()
+        || framing.answers_head(answer)
+        || framing.answers_connect(answer)
         || method.is_some_and(|method| method.eq_ignore_ascii_case("HEAD"));
 
     let mut body = None;
     let consumed;
-    if status_bodyless || head_response || connect_response {
-        // A status that never carries a body (1xx, 204, 304) or a response to
-        // HEAD ignores the declared length for delimiting. The available bytes
-        // still become file data: a response to HEAD exports what the segment
-        // carries (RFC 7230 forbids the body, but the body length comes from
-        // the bytes, not the method), while a bodyless status exports nothing.
-        let end = match (content_length, head_response || connect_response) {
-            (Some(length), _) => offset.saturating_add(length).min(data.len()),
-            (None, true) => data.len(),
-            (None, false) => offset,
-        };
-        let bytes = data.get(offset..end).unwrap_or(&[]);
-        body = Some(Body {
-            offset,
-            end,
-            bytes: shared_bytes(source, offset, bytes),
-            chunked: false,
-            exportable: end > offset,
-            chunks: Vec::new(),
-            trailer_end: None,
-            trailers: Vec::new(),
-        });
-        consumed = end;
-    } else if chunked {
-        let (bytes, length, chunks, trailer_end, trailers, truncated) = parse_chunked(
-            data.get(offset..)?,
-            fin,
-            source.map(|(bytes, base)| (bytes, base.saturating_add(offset))),
-        )?;
-        let end = if truncated {
-            data.len()
-        } else {
-            offset.saturating_add(length)
-        };
-        body = Some(Body {
-            offset,
-            end,
-            bytes: Bytes::from(bytes),
-            chunked: true,
-            exportable: !status_bodyless && (!chunks.is_empty() || !truncated),
-            chunks,
-            trailer_end,
-            trailers,
-        });
-        consumed = end;
-    } else if let Some(length) = content_length {
-        let end = offset.checked_add(length)?;
-        let bytes = data.get(offset..end)?;
-        body = Some(Body {
-            offset,
-            end,
-            bytes: shared_bytes(source, offset, bytes),
-            chunked: false,
-            exportable: true,
-            chunks: Vec::new(),
-            trailer_end: None,
-            trailers: Vec::new(),
-        });
-        consumed = end;
-    } else if bodyless || method.is_some() {
-        // A request without Content-Length or Transfer-Encoding has no body
-        // (RFC 7230 section 3.3.3).
-        consumed = offset;
-    } else if content_length_invalid {
-        // A response whose last Content-Length was unusable keeps the rest of
-        // the segment as body data, because its length state is cleared.
-        let bytes = data.get(offset..)?;
-        body = Some(Body {
-            offset,
-            end: data.len(),
-            bytes: shared_bytes(source, offset, bytes),
-            chunked: false,
-            exportable: true,
-            chunks: Vec::new(),
-            trailer_end: None,
-            trailers: Vec::new(),
-        });
-        consumed = data.len();
-    } else {
-        // A close-delimited response keeps the bytes available here as its
-        // body; the stream layer completes it at FIN, and a direct decode
-        // (for example with desegmentation disabled) takes the remainder.
-        let bytes = data.get(offset..).unwrap_or_default();
-        body = Some(Body {
-            offset,
-            end: data.len(),
-            bytes: shared_bytes(source, offset, bytes),
-            chunked: false,
-            exportable: true,
-            chunks: Vec::new(),
-            trailer_end: None,
-            trailers: Vec::new(),
-        });
-        consumed = data.len();
+    match plan {
+        BodyPlan::Empty => {
+            // A request without framing fields has no body (RFC 9112
+            // section 6.3 case 7), and a bodyless status owns nothing after
+            // its header section (case 1).
+            consumed = offset;
+        }
+        BodyPlan::Answer => {
+            // A 2xx answer to CONNECT turns the connection into a tunnel
+            // (RFC 9110 section 9.3.6): the bytes the segment carries still
+            // belong to the answer, so they cannot reopen as a message.
+            let end = data.len();
+            let bytes = data.get(offset..end).unwrap_or(&[]);
+            body = Some(Body {
+                offset,
+                end,
+                bytes: shared_bytes(source, offset, bytes),
+                chunked: false,
+                exportable: end > offset,
+                chunks: Vec::new(),
+                trailer_end: None,
+                trailers: Vec::new(),
+                chunk_excess: false,
+                chunk_invalid: None,
+            });
+            consumed = end;
+        }
+        BodyPlan::Fixed(length) => {
+            let end = offset.checked_add(length)?;
+            let bytes = data.get(offset..end)?;
+            body = Some(Body {
+                offset,
+                end,
+                bytes: shared_bytes(source, offset, bytes),
+                chunked: false,
+                exportable: true,
+                chunks: Vec::new(),
+                trailer_end: None,
+                trailers: Vec::new(),
+                chunk_excess: false,
+                chunk_invalid: None,
+            });
+            consumed = end;
+        }
+        BodyPlan::Chunked => {
+            let chunked_body = parse_chunked(
+                data.get(offset..)?,
+                fin,
+                source.map(|(bytes, base)| (bytes, base.saturating_add(offset))),
+            )?;
+            let end = if chunked_body.truncated {
+                data.len()
+            } else {
+                offset.saturating_add(chunked_body.end)
+            };
+            body = Some(Body {
+                offset,
+                end,
+                bytes: Bytes::from(chunked_body.bytes),
+                chunked: true,
+                exportable: !chunked_body.chunks.is_empty() || !chunked_body.truncated,
+                chunks: chunked_body.chunks,
+                trailer_end: chunked_body.trailer_end,
+                trailers: chunked_body.trailers,
+                chunk_excess: chunked_body.excess,
+                chunk_invalid: chunked_body.invalid,
+            });
+            consumed = end;
+        }
+        BodyPlan::InvalidLength => {
+            // The declared length is unusable, so the captured remainder stays
+            // with the message rather than being guessed at.
+            let bytes = data.get(offset..)?;
+            body = Some(Body {
+                offset,
+                end: data.len(),
+                bytes: shared_bytes(source, offset, bytes),
+                chunked: false,
+                exportable: true,
+                chunks: Vec::new(),
+                trailer_end: None,
+                trailers: Vec::new(),
+                chunk_excess: false,
+                chunk_invalid: None,
+            });
+            consumed = data.len();
+        }
+        BodyPlan::CloseDelimited => {
+            // A close-delimited response keeps the bytes available here as its
+            // body; the stream layer completes it at FIN, and a direct decode
+            // (for example with desegmentation disabled) takes the remainder.
+            let bytes = data.get(offset..).unwrap_or_default();
+            body = Some(Body {
+                offset,
+                end: data.len(),
+                bytes: shared_bytes(source, offset, bytes),
+                chunked: false,
+                exportable: true,
+                chunks: Vec::new(),
+                trailer_end: None,
+                trailers: Vec::new(),
+                chunk_excess: false,
+                chunk_invalid: None,
+            });
+            consumed = data.len();
+        }
+    }
+    if refused {
+        return Some(Parsed::Refused { consumed });
     }
 
     let mut node = Node::new(&fields::HTTP_PROTOCOL, Range::new(base, consumed));
@@ -635,6 +685,41 @@ fn parse_message(data: &[u8], base: usize, options: &MessageOptions<'_>) -> Opti
         }
     }
 
+    if let Some((def, message)) = framing_expert(&framing, plan)
+        && let Some(field) = node
+            .fields
+            .iter_mut()
+            .rev()
+            .find(|field| std::ptr::eq(field.def, def))
+    {
+        field.add_expert(ExpertInfo {
+            severity: Severity::Error,
+            group: Group::Malformed,
+            message: message.to_string(),
+        });
+    }
+    if framing.transfer_coding && (framing.content_length.is_some() || framing.invalid_length) {
+        // RFC 9112 section 6.3 case 3: Transfer-Encoding overrides
+        // Content-Length, and a message with both fields "ought to be handled
+        // as an error". The coding still frames the message; one warning on
+        // the Content-Length field explains the combination, including when
+        // the declared value itself is unusable.
+        if let Some(field) = node
+            .fields
+            .iter_mut()
+            .rev()
+            .find(|field| std::ptr::eq(field.def, &fields::HTTP_CONTENT_LENGTH_HEADER))
+        {
+            field.add_expert(ExpertInfo {
+                severity: Severity::Warning,
+                group: Group::Malformed,
+                message: "The Content-Length and Transfer-Encoding header must not be set \
+                          together"
+                    .to_string(),
+            });
+        }
+    }
+
     if let Some(header) = malformed_header {
         // Stop at the first unusable header line and present the rest of the
         // segment as file data with a `Continuation` summary.
@@ -679,6 +764,8 @@ fn parse_message(data: &[u8], base: usize, options: &MessageOptions<'_>) -> Opti
                 chunks: Vec::new(),
                 trailer_end: None,
                 trailers: Vec::new(),
+                chunk_excess: false,
+                chunk_invalid: None,
             }),
         };
         if let Some(request) = &message.request {
@@ -703,7 +790,7 @@ fn parse_message(data: &[u8], base: usize, options: &MessageOptions<'_>) -> Opti
                 Value::Boolean(true),
             );
         }
-        return Some(message);
+        return Some(Parsed::Message(Box::new(message)));
     }
 
     let terminator = node.add_field(
@@ -741,7 +828,7 @@ fn parse_message(data: &[u8], base: usize, options: &MessageOptions<'_>) -> Opti
     if let Some(suffix) = media_suffix {
         info.push_str(&suffix);
     }
-    Some(HttpMessage {
+    Some(Parsed::Message(Box::new(HttpMessage {
         node,
         info,
         consumed,
@@ -750,39 +837,11 @@ fn parse_message(data: &[u8], base: usize, options: &MessageOptions<'_>) -> Opti
         content_type,
         content_encoding,
         body,
-    })
-}
-
-/// Split a header line at its colon and validate the field name.
-fn parse_header<'a>(line: &'a [u8], offset: usize) -> Header<'a> {
-    let Some(colon) = line.iter().position(|byte| *byte == b':') else {
-        return Header {
-            name: "",
-            value: "",
-            raw: line,
-            offset,
-            colon: false,
-            valid: false,
-        };
-    };
-    let name = line.get(..colon).unwrap_or(&[]);
-    let value = line.get(colon.saturating_add(1)..).unwrap_or(&[]);
-    let valid = !name.is_empty()
-        && name
-            .iter()
-            .all(|byte| byte.is_ascii_alphanumeric() || b"!#$%&'*+-.^_`|~".contains(byte));
-    Header {
-        name: std::str::from_utf8(name).unwrap_or(""),
-        value: std::str::from_utf8(value).map(str::trim).unwrap_or(""),
-        raw: line,
-        offset,
-        colon: true,
-        valid,
-    }
+    })))
 }
 
 /// Add the named header field and the hidden raw-line field.
-fn add_header_fields(node: &mut Node, header: &Header<'_>, base: usize, is_request: bool) {
+fn add_header_fields(node: &mut Node, header: &HeaderLine<'_>, base: usize, is_request: bool) {
     let showname = format!("{}\\r\\n", String::from_utf8_lossy(header.raw));
     let full_range = Range::new(base, header.raw.len().saturating_add(2));
     let def = curated_header(header.name);
@@ -790,7 +849,8 @@ fn add_header_fields(node: &mut Node, header: &Header<'_>, base: usize, is_reque
         let field = node.add_field(def, full_range, Value::String(header.value.to_string()));
         field.showname = Some(showname.clone());
         if header.name.eq_ignore_ascii_case("Content-Length")
-            && let Ok(length) = header.value.parse::<u64>()
+            && let Some(length) = content_length_value(header.value)
+            && let Ok(length) = u64::try_from(length)
         {
             let child = field.add_field(
                 &fields::HTTP_CONTENT_LENGTH,
@@ -832,103 +892,189 @@ fn curated_header(name: &str) -> Option<&'static fields::FieldDef> {
     })
 }
 
-type ParsedChunked = (
-    Vec<u8>,
-    usize,
-    Vec<Chunk>,
-    Option<usize>,
-    Vec<(usize, usize, String)>,
-    bool,
-);
+/// The header field and text of the one expert an unusable framing produces.
+///
+/// RFC 9112 section 6.3 makes a message whose framing fields cannot declare a
+/// boundary unreadable; the malformed rule keeps the fields decoded before the
+/// error and explains it once, on the field that decided the framing.
+fn framing_expert(
+    framing: &Framing,
+    plan: BodyPlan,
+) -> Option<(&'static fields::FieldDef, &'static str)> {
+    if plan != BodyPlan::InvalidLength {
+        return None;
+    }
+    if framing.invalid_length {
+        return Some((
+            &fields::HTTP_CONTENT_LENGTH_HEADER,
+            "Content-Length does not declare one body length",
+        ));
+    }
+    Some((
+        &fields::HTTP_TRANSFER_ENCODING,
+        "Final transfer coding is not chunked",
+    ))
+}
+
+/// One chunked body's de-chunked bytes and the records the field tree shows.
+struct ChunkedBody {
+    /// De-chunked body bytes, in wire order.
+    bytes: Vec<u8>,
+    /// Offset just past the trailer section's empty line.
+    end: usize,
+    /// Chunk records, including the final zero-size chunk.
+    chunks: Vec<Chunk>,
+    /// Offset just past the trailer terminator, when the body completed.
+    trailer_end: Option<usize>,
+    /// Trailer field lines: offset, length and text within the body.
+    trailers: Vec<(usize, usize, String)>,
+    /// The body stopped at the end of the stream before its last chunk.
+    truncated: bool,
+    /// The record prefix reached [`MAX_CHUNK_RECORDS`] and de-chunking
+    /// stopped; the captured remainder stays with the message.
+    excess: bool,
+    /// The body ended on an unusable size line, with its reason.
+    invalid: Option<ChunkInvalid>,
+}
 
 /// Parse a chunked body, or `None` when it does not fit the segment.
 ///
 /// At end of stream (`tolerate_truncated`) the complete chunk prefix is
-/// returned with the final flag set, so those bytes are exported even when the
-/// terminating zero chunk never arrived.
+/// returned with the truncated flag set, so those bytes are exported even when
+/// the terminating zero chunk never arrived. An unusable size line ends the
+/// entity at the bytes already read, the way a peer that stops sending
+/// mid-body ends it.
 fn parse_chunked(
     data: &[u8],
     tolerate_truncated: bool,
     source: Option<PduSource<'_>>,
-) -> Option<ParsedChunked> {
+) -> Option<ChunkedBody> {
+    let mut scanner = ChunkScanner::new(0);
     let mut chunks = Vec::new();
-    let mut body = Vec::with_capacity(data.len());
-    let mut offset = 0_usize;
-    let truncated = |body: Vec<u8>, offset: usize, chunks: Vec<Chunk>| {
-        tolerate_truncated.then_some((body, offset, chunks, None, Vec::new(), true))
-    };
+    let mut bytes = Vec::with_capacity(data.len());
+    let mut trailers = Vec::new();
+    let mut capped = false;
     loop {
-        let Some((line, consumed)) = data.get(offset..).and_then(split_line) else {
-            return truncated(body, offset, chunks);
-        };
-        let Some(size_text) =
-            std::str::from_utf8(line.split(|byte| *byte == b';').next().unwrap_or(&[]))
-                .ok()
-                .map(str::trim)
-        else {
-            return truncated(body, offset, chunks);
-        };
-        let Ok(size) = u32::from_str_radix(size_text, 16) else {
-            // Treat an unusable chunk size as the end of the chunked entity
-            // and export the prefix (empty when the first line is bad), even
-            // without a terminating zero chunk.
-            return Some((body, data.len(), chunks, None, Vec::new(), false));
-        };
-        let size = usize::try_from(size).unwrap_or(usize::MAX);
-        let chunk_offset = offset;
-        offset = offset.saturating_add(consumed);
-        if size == 0 {
-            // Trailer fields end at the blank line.
-            let mut trailers = Vec::new();
-            let trailer_end = loop {
-                let line_start = offset;
-                let Some((trailer, consumed)) = data.get(offset..).and_then(split_line) else {
-                    return truncated(body, offset, chunks);
-                };
-                offset = offset.saturating_add(consumed);
-                if trailer.is_empty() {
-                    break offset;
+        // The record list is metadata, while `bytes` is the de-chunked body
+        // the export path needs; a hostile body of tiny chunks must bound the
+        // first without truncating the second, which the object cap already
+        // bounds. Once the record list is full the scan continues, so the
+        // body still completes and the message end stays exact.
+        if !capped && (chunks.len() >= MAX_CHUNK_RECORDS || trailers.len() >= MAX_CHUNK_RECORDS) {
+            capped = true;
+        }
+        match scanner.step(data, data.len()) {
+            ChunkStep::Data {
+                line,
+                size,
+                data: data_offset,
+                bytes: chunk_data,
+                boundary,
+                boundary_ok,
+            } => {
+                // A declared chunk that fits the segment always fits the field
+                // type; the conversion only rejects an impossible size.
+                let size = u32::try_from(size).ok()?;
+                bytes.extend_from_slice(chunk_data);
+                if !capped {
+                    chunks.push(Chunk {
+                        size,
+                        offset: line,
+                        data: shared_bytes(source, data_offset, chunk_data),
+                        data_offset,
+                        boundary_offset: boundary,
+                        boundary: data
+                            .get(boundary..boundary.saturating_add(2))
+                            .and_then(|captured| <[u8; 2]>::try_from(captured).ok())
+                            .unwrap_or_default(),
+                        boundary_ok,
+                        final_chunk: false,
+                    });
                 }
-                trailers.push((
-                    line_start,
-                    consumed,
-                    format!("{}\r\n", String::from_utf8_lossy(trailer)),
-                ));
-            };
-            chunks.push(Chunk {
-                size: 0,
-                offset: chunk_offset,
-                data: Bytes::default(),
-                data_offset: offset,
-                boundary_offset: offset.saturating_sub(2),
-                final_chunk: true,
-            });
-            return Some((body, offset, chunks, Some(trailer_end), trailers, false));
+                if !boundary_ok {
+                    // RFC 9112 section 7.1 requires CRLF after the chunk data.
+                    // Nothing after a malformed boundary can be framed, so the
+                    // records decoded up to it stay, the boundary bytes are
+                    // shown as captured, and the rest of the PDU is consumed
+                    // so it cannot reopen as another message.
+                    return Some(ChunkedBody {
+                        bytes,
+                        end: data.len(),
+                        chunks,
+                        trailer_end: None,
+                        trailers: Vec::new(),
+                        truncated: false,
+                        excess: capped,
+                        invalid: None,
+                    });
+                }
+            }
+            ChunkStep::Last { .. } => {}
+            ChunkStep::Trailer { line, consumed } => {
+                let text = data
+                    .get(line..line.saturating_add(consumed))
+                    .unwrap_or_default();
+                let text = text.strip_suffix(b"\r\n").unwrap_or(text);
+                if !capped {
+                    trailers.push((
+                        line,
+                        consumed,
+                        format!("{}\r\n", String::from_utf8_lossy(text)),
+                    ));
+                }
+            }
+            ChunkStep::TrailerEnd { end, last } => {
+                if !capped {
+                    chunks.push(Chunk {
+                        size: 0,
+                        offset: last,
+                        data: Bytes::default(),
+                        data_offset: end,
+                        boundary_offset: end.saturating_sub(2),
+                        boundary: *b"\r\n",
+                        boundary_ok: true,
+                        final_chunk: true,
+                    });
+                }
+                return Some(ChunkedBody {
+                    bytes,
+                    end,
+                    chunks,
+                    trailer_end: Some(end),
+                    trailers,
+                    truncated: false,
+                    excess: capped,
+                    invalid: None,
+                });
+            }
+            ChunkStep::Incomplete { restart, .. } => {
+                return tolerate_truncated.then_some(ChunkedBody {
+                    bytes,
+                    end: restart,
+                    chunks,
+                    trailer_end: None,
+                    trailers: Vec::new(),
+                    truncated: true,
+                    excess: capped,
+                    invalid: None,
+                });
+            }
+            ChunkStep::Invalid { reason, .. } => {
+                // An unusable chunk size terminates the chunked entity: the
+                // records read so far stay, and the rest of the segment is
+                // consumed so it cannot reopen as another message.
+                return Some(ChunkedBody {
+                    bytes,
+                    end: data.len(),
+                    chunks,
+                    trailer_end: None,
+                    trailers: Vec::new(),
+                    truncated: false,
+                    excess: capped,
+                    invalid: Some(reason),
+                });
+            }
         }
-        let data_end = offset.checked_add(size)?;
-        let boundary_end = data_end.checked_add(2)?;
-        let Some(chunk_data) = data.get(offset..data_end) else {
-            return truncated(body, offset, chunks);
-        };
-        let Some(boundary) = data.get(data_end..boundary_end) else {
-            return truncated(body, offset, chunks);
-        };
-        // Keep the declared chunk even when its terminating CRLF is
-        // malformed; continue at the next size line.
-        let boundary_ok = boundary == b"\r\n";
-        body.extend_from_slice(chunk_data);
-        chunks.push(Chunk {
-            size: u32::try_from(size).ok()?,
-            offset: chunk_offset,
-            data: shared_bytes(source, offset, chunk_data),
-            data_offset: offset,
-            boundary_offset: data_end,
-            final_chunk: false,
-        });
-        if !boundary_ok {
-            // Skip the two non-conforming bytes and look for the next chunk.
-        }
-        offset = boundary_end;
     }
 }
 
@@ -983,6 +1129,11 @@ fn add_chunk_fields(node: &mut Node, body: &Body, base: usize) {
                 prefix: "Chunk data: ",
                 bytes: chunk.data.clone(),
             });
+            let boundary_hex: String = chunk
+                .boundary
+                .iter()
+                .map(|byte| format!("{byte:02x}"))
+                .collect();
             let boundary = child.add_field(
                 &fields::HTTP_CHUNK_BOUNDARY,
                 Range::new(
@@ -990,9 +1141,16 @@ fn add_chunk_fields(node: &mut Node, body: &Body, base: usize) {
                         .saturating_add(chunk.boundary_offset),
                     2,
                 ),
-                Value::bytes(b"\r\n".to_vec()),
+                Value::bytes(chunk.boundary.to_vec()),
             );
-            boundary.showname = Some("Chunk boundary: 0d0a".to_string());
+            boundary.showname = Some(format!("Chunk boundary: {boundary_hex}"));
+            if !chunk.boundary_ok {
+                boundary.add_expert(ExpertInfo {
+                    severity: Severity::Error,
+                    group: Group::Malformed,
+                    message: "Chunk data is not followed by CRLF".to_string(),
+                });
+            }
         }
     }
     for (line_start, line_length, text) in &body.trailers {
@@ -1017,6 +1175,40 @@ fn add_chunk_fields(node: &mut Node, body: &Body, base: usize) {
             Value::String("\\r\\n".to_string()),
         );
         field.showname = Some("\\r\\n".to_string());
+    }
+    if body.chunk_excess {
+        // A bounded prefix is still a decoded body, so the message keeps its
+        // fields and one expert explains why the record list stops here.
+        container.add_expert(ExpertInfo {
+            severity: Severity::Warning,
+            group: Group::Malformed,
+            message: format!(
+                "Chunk record limit reached; the chunk list stops after {MAX_CHUNK_RECORDS} records"
+            ),
+        });
+    }
+    if let Some(invalid) = body.chunk_invalid {
+        // An unusable size line stops the chunked entity at the records
+        // already decoded. A non-hexadecimal line is malformed data; a
+        // hexadecimal size too large for the size type is a resource bound,
+        // so the prefix stays decoded and the remainder is left undecoded.
+        let (severity, group, message) = match invalid {
+            ChunkInvalid::Syntax => (
+                Severity::Error,
+                Group::Malformed,
+                "Chunk size is not hexadecimal",
+            ),
+            ChunkInvalid::Overflow => (
+                Severity::Warning,
+                Group::Undecoded,
+                "Chunk size exceeds the supported maximum",
+            ),
+        };
+        container.add_expert(ExpertInfo {
+            severity,
+            group,
+            message: message.to_string(),
+        });
     }
 }
 
@@ -1216,28 +1408,6 @@ fn stream_decompressed<R: std::io::Read>(
     }
 }
 
-/// The body of an HTTP continuation and the bytes to skip.
-///
-/// One leading CRLF is ignored, and a first line that begins a request or
-/// response is a message rather than a continuation.
-fn continuation_body(data: &[u8]) -> Option<(usize, &[u8])> {
-    let skip = if data.starts_with(b"\r\n") { 2 } else { 0 };
-    let probe = data.get(skip..)?;
-    let first = *probe.first()?;
-    if !(0x20..=0x7e).contains(&first) {
-        return None;
-    }
-    let newline = probe.iter().position(|byte| *byte == b'\n')?;
-    let mut line = probe.get(..newline)?;
-    if let Some(stripped) = line.strip_suffix(b"\r") {
-        line = stripped;
-    }
-    if parse_start_line(line).is_some() {
-        return None;
-    }
-    Some((skip, probe))
-}
-
 /// Add the `Continuation` node and export its file data.
 fn add_continuation(
     context: &mut DecodeContext<'_>,
@@ -1361,7 +1531,9 @@ fn full_uri(uri: &str, host: Option<&str>, scheme: Option<&str>) -> Option<Strin
 }
 
 /// The status-code description, separate from the server's phrase.
-fn status_description(code: u32) -> &'static str {
+///
+/// HTTP/2 reuses the same reason phrases for its `:status` label.
+pub(crate) fn status_description(code: u32) -> &'static str {
     match code {
         100 => "Continue",
         101 => "Switching Protocols",
@@ -1436,6 +1608,37 @@ fn media_suffix_for(content_type: &str) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::http_syntax::{MAX_HEADER_BYTES, MAX_HEADER_LINES};
+
+    fn parse(message: &[u8], fin: bool) -> Option<Parsed> {
+        parse_message(
+            message,
+            0,
+            &MessageOptions {
+                tls_plaintext: false,
+                response_to_head: false,
+                response_to_connect: false,
+                export: false,
+                fin,
+                source: None,
+            },
+        )
+    }
+
+    fn parse_response(message: &[u8], fin: bool) -> Option<HttpMessage> {
+        match parse(message, fin)? {
+            Parsed::Message(message) => Some(*message),
+            Parsed::Refused { .. } => None,
+        }
+    }
+
+    /// The framed length of a message the header budget refused.
+    fn refused_length(message: &[u8]) -> Option<usize> {
+        match parse(message, false)? {
+            Parsed::Refused { consumed } => Some(consumed),
+            Parsed::Message(_) => None,
+        }
+    }
 
     #[test]
     fn published_start_line_forms_are_recognized() {
@@ -1444,6 +1647,19 @@ mod tests {
         assert!(!looks_like_http(b"HTTP/1.2 200 OK\r\n\r\n"));
         assert!(!looks_like_http(b"GET / HTTP/2.0\r\n\r\n"));
         assert!(!looks_like_http(b"NOT A REQUEST\r\n\r\n"));
+    }
+
+    #[test]
+    fn extension_methods_identify_a_stream_start_line() {
+        assert!(looks_like_http_stream_prefix(
+            b"PROPFIND /dav/notes HTTP/1.1\r\nHost: x\r\n\r\n"
+        ));
+        assert!(looks_like_http_stream_prefix(b"PROPFIND /dav HTTP/1.1"));
+        assert!(looks_like_http_stream_prefix(b"GET / HTTP/1.1\r\n"));
+        assert!(!looks_like_http_stream_prefix(b"PROPFIND /dav"));
+        assert!(!looks_like_http_stream_prefix(
+            b"NOT A REQUEST HTTP/1.1\r\n"
+        ));
     }
 
     #[test]
@@ -1467,27 +1683,39 @@ mod tests {
     }
 
     #[test]
-    fn the_header_count_is_bounded() {
-        let mut message = b"GET / HTTP/1.1\r\n".to_vec();
-        for index in 0..(MAX_HEADER_LINES + 1) {
-            message.extend_from_slice(format!("X-{index}: v\r\n").as_bytes());
+    fn a_message_past_the_header_count_keeps_its_framed_length() {
+        // The cap stops retention, not framing: a framing field after the
+        // last retained line still delimits the body, so the request that
+        // follows starts right after it.
+        let crowded = |framing: &[u8]| {
+            let mut message = b"POST / HTTP/1.1\r\n".to_vec();
+            for index in 0..MAX_HEADER_LINES {
+                message.extend_from_slice(format!("X-{index}: v\r\n").as_bytes());
+            }
+            message.extend_from_slice(framing);
+            message
+        };
+        for framing in [
+            &b"Content-Length: 3\r\n\r\nabc"[..],
+            b"Transfer-Encoding: chunked\r\n\r\n3\r\nabc\r\n0\r\n\r\n",
+        ] {
+            let mut message = crowded(framing);
+            let framed = message.len();
+            message.extend_from_slice(b"GET /next HTTP/1.1\r\n\r\n");
+            assert_eq!(refused_length(&message), Some(framed));
         }
-        message.extend_from_slice(b"\r\n");
-        assert!(
-            parse_message(
-                &message,
-                0,
-                &MessageOptions {
-                    tls_plaintext: false,
-                    response_to_head: false,
-                    response_to_connect: false,
-                    export: false,
-                    fin: false,
-                    source: None,
-                },
-            )
-            .is_none()
-        );
+        // A body the segment does not hold has no framed end yet, exactly as
+        // for a message within the budget.
+        assert!(parse(&crowded(b"Content-Length: 9\r\n\r\nabc"), false).is_none());
+    }
+
+    #[test]
+    fn a_start_line_beyond_the_header_budget_is_refused() {
+        let mut message = b"GET /".to_vec();
+        message.extend(std::iter::repeat_n(b'a', MAX_HEADER_BYTES));
+        message.extend_from_slice(b" HTTP/1.1\r\n\r\n");
+        assert_eq!(refused_length(&message), Some(message.len()));
+        assert!(parse_response(b"GET / HTTP/1.1\r\n\r\n", false).is_some());
     }
 
     #[test]
@@ -1495,19 +1723,7 @@ mod tests {
         let mut message = b"GET / HTTP/1.1\r\nX-Big: ".to_vec();
         message.extend(std::iter::repeat_n(b'a', 9000));
         message.extend_from_slice(b"\r\n\r\n");
-        let parsed = parse_message(
-            &message,
-            0,
-            &MessageOptions {
-                tls_plaintext: false,
-                response_to_head: false,
-                response_to_connect: false,
-                export: false,
-                fin: false,
-                source: None,
-            },
-        );
-        assert!(parsed.is_some());
+        assert!(parse_response(&message, false).is_some());
     }
 
     #[test]
@@ -1539,5 +1755,140 @@ mod tests {
         assert!(!has_zlib_wrapper(&[0x4b, 0x4c, 0x4a, 0x06]));
         assert!(!has_zlib_wrapper(&[]));
         assert!(!has_zlib_wrapper(&[0x78]));
+    }
+
+    #[test]
+    fn a_chunked_body_with_an_unusable_content_length_keeps_the_warning() {
+        // RFC 9112 section 6.3 case 3: the chunked coding still frames the
+        // body, but a message with both fields is an error even when the
+        // Content-Length value cannot be parsed.
+        let message = b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\nContent-Length: abc\r\n\r\n5\r\nHello\r\n0\r\n\r\n";
+        let parsed = parse_response(message, false).unwrap_or_else(|| unreachable!());
+        let field = parsed
+            .node
+            .fields
+            .iter()
+            .find(|field| std::ptr::eq(field.def, &fields::HTTP_CONTENT_LENGTH_HEADER))
+            .unwrap_or_else(|| unreachable!("the Content-Length header was decoded"));
+        assert_eq!(field.experts.len(), 1);
+        let expert = field
+            .experts
+            .first()
+            .unwrap_or_else(|| unreachable!("the framing warning was attached"));
+        assert_eq!(expert.severity, Severity::Warning);
+        assert_eq!(expert.group, Group::Malformed);
+        assert_eq!(
+            expert.message,
+            "The Content-Length and Transfer-Encoding header must not be set together"
+        );
+        let body = parsed
+            .body
+            .unwrap_or_else(|| unreachable!("the body was framed"));
+        assert!(body.chunked);
+        assert_eq!(body.bytes.as_slice(), b"Hello");
+        assert_eq!(parsed.consumed, message.len());
+    }
+
+    #[test]
+    fn a_non_hexadecimal_chunk_size_reports_the_decoded_prefix() {
+        let message = b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n1\r\na\r\nzz\r\nleft";
+        let parsed = parse_response(message, false).unwrap_or_else(|| unreachable!());
+        assert_eq!(parsed.consumed, message.len());
+        let body = parsed
+            .body
+            .as_ref()
+            .unwrap_or_else(|| unreachable!("the body was framed"));
+        assert!(body.chunked);
+        assert_eq!(body.bytes.as_slice(), b"a");
+        assert_eq!(body.chunks.len(), 1);
+        assert_eq!(body.chunk_invalid, Some(ChunkInvalid::Syntax));
+        let container = parsed
+            .node
+            .fields
+            .iter()
+            .find(|field| std::ptr::eq(field.def, &CHUNKED_BODY))
+            .unwrap_or_else(|| unreachable!("the chunked-body container was added"));
+        assert_eq!(container.experts.len(), 1);
+        let expert = container
+            .experts
+            .first()
+            .unwrap_or_else(|| unreachable!("the chunk-size error was attached"));
+        assert_eq!(expert.severity, Severity::Error);
+        assert_eq!(expert.group, Group::Malformed);
+        assert_eq!(expert.message, "Chunk size is not hexadecimal");
+    }
+
+    #[test]
+    fn an_overflowing_chunk_size_is_a_resource_bound() {
+        let message = b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n1\r\na\r\nfffffffffffffffff\r\nleft";
+        let parsed = parse_response(message, false).unwrap_or_else(|| unreachable!());
+        assert_eq!(parsed.consumed, message.len());
+        let body = parsed
+            .body
+            .as_ref()
+            .unwrap_or_else(|| unreachable!("the body was framed"));
+        assert_eq!(body.bytes.as_slice(), b"a");
+        assert_eq!(body.chunk_invalid, Some(ChunkInvalid::Overflow));
+        let container = parsed
+            .node
+            .fields
+            .iter()
+            .find(|field| std::ptr::eq(field.def, &CHUNKED_BODY))
+            .unwrap_or_else(|| unreachable!("the chunked-body container was added"));
+        assert_eq!(container.experts.len(), 1);
+        let expert = container
+            .experts
+            .first()
+            .unwrap_or_else(|| unreachable!("the chunk-size overflow warning was attached"));
+        assert_eq!(expert.severity, Severity::Warning);
+        assert_eq!(expert.group, Group::Undecoded);
+    }
+
+    #[test]
+    fn a_hostile_chunked_body_keeps_a_bounded_record_list() {
+        // One-octet chunks expand into far more metadata than transfer bytes;
+        // the record list must stop at the cap and leave the rest consumed.
+        let mut message = b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n".to_vec();
+        for _ in 0..MAX_CHUNK_RECORDS.saturating_add(64) {
+            message.extend_from_slice(b"1\r\na\r\n");
+        }
+        message.extend_from_slice(b"0\r\n\r\n");
+        let parsed = parse_response(&message, false).unwrap_or_else(|| unreachable!());
+        let body = parsed.body.unwrap_or_else(|| unreachable!());
+        assert!(body.chunked);
+        assert_eq!(body.chunks.len(), MAX_CHUNK_RECORDS);
+        assert!(body.chunk_excess);
+        // The record list stops at the cap, but every chunk's data is still
+        // de-chunked: the export path must receive the whole body.
+        assert_eq!(body.bytes.len(), MAX_CHUNK_RECORDS.saturating_add(64));
+        assert_eq!(parsed.consumed, message.len());
+    }
+
+    #[test]
+    fn a_small_chunked_body_keeps_every_record() {
+        let message =
+            b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n5\r\nabcde\r\n6\r\nfghijk\r\n0\r\n\r\n";
+        let parsed = parse_response(message, false).unwrap_or_else(|| unreachable!());
+        let body = parsed.body.unwrap_or_else(|| unreachable!());
+        assert_eq!(body.chunks.len(), 3);
+        assert!(!body.chunk_excess);
+        assert_eq!(body.bytes.as_slice(), b"abcdefghijk");
+        assert_eq!(body.trailers.len(), 0);
+        assert_eq!(parsed.consumed, message.len());
+    }
+
+    #[test]
+    fn a_hostile_trailer_list_is_bounded() {
+        let mut message =
+            b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n1\r\na\r\n0\r\n".to_vec();
+        for index in 0..MAX_CHUNK_RECORDS.saturating_add(64) {
+            message.extend_from_slice(format!("X-{index}: v\r\n").as_bytes());
+        }
+        message.extend_from_slice(b"\r\n");
+        let parsed = parse_response(&message, true).unwrap_or_else(|| unreachable!());
+        let body = parsed.body.unwrap_or_else(|| unreachable!());
+        assert_eq!(body.trailers.len(), MAX_CHUNK_RECORDS);
+        assert!(body.chunk_excess);
+        assert_eq!(parsed.consumed, message.len());
     }
 }

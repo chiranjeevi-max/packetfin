@@ -9570,6 +9570,19 @@ const ROUTING_OSPF_CASE_SPECS: &[CaseSpec] = &[
         ],
     },
     CaseSpec {
+        id: "detail-tree-malformed",
+        args: &[
+            "-n",
+            "-O",
+            "ospf",
+            "-V",
+            "-Y",
+            "frame.number >= 6 && frame.number <= 7",
+            "-r",
+            "{fixture}",
+        ],
+    },
+    CaseSpec {
         id: "pdml-tree-dbd",
         args: &[
             "-n",
@@ -11283,6 +11296,18 @@ static FIXTURES: &[Fixture] = &[
         case_specs: LLDP_MALFORMED_CASE_SPECS,
     },
     Fixture {
+        name: "lldp-8023",
+        extension: "pcap",
+        builder: build_lldp_8023,
+        case_specs: LLDP_8023_CASE_SPECS,
+    },
+    Fixture {
+        name: "lldp-controls",
+        extension: "pcap",
+        builder: build_lldp_controls,
+        case_specs: &[],
+    },
+    Fixture {
         name: "stp",
         extension: "pcap",
         builder: build_stp,
@@ -11529,6 +11554,48 @@ static FIXTURES: &[Fixture] = &[
         case_specs: HTTP1_EDGE_CASE_SPECS,
     },
     Fixture {
+        name: "http-framing-rfc",
+        extension: "pcap",
+        builder: build_http_framing_rfc,
+        case_specs: &[],
+    },
+    Fixture {
+        name: "http2",
+        extension: "pcap",
+        builder: build_http2,
+        case_specs: HTTP2_CASE_SPECS,
+    },
+    Fixture {
+        name: "http2-split",
+        extension: "pcap",
+        builder: build_http2_split,
+        case_specs: HTTP2_SPLIT_CASE_SPECS,
+    },
+    Fixture {
+        name: "http2-truncated",
+        extension: "pcap",
+        builder: build_http2_truncated,
+        case_specs: HTTP2_TRUNCATED_CASE_SPECS,
+    },
+    Fixture {
+        name: "http2-malformed",
+        extension: "pcap",
+        builder: build_http2_malformed,
+        case_specs: HTTP2_MALFORMED_CASE_SPECS,
+    },
+    Fixture {
+        name: "http2-padded",
+        extension: "pcap",
+        builder: build_http2_padded,
+        case_specs: HTTP2_PADDED_CASE_SPECS,
+    },
+    Fixture {
+        name: "http2-decode-as",
+        extension: "pcap",
+        builder: build_http2_decode_as,
+        case_specs: HTTP2_DECODE_AS_CASE_SPECS,
+    },
+    Fixture {
         name: "bgp-overlong",
         extension: "pcap",
         builder: build_bgp_overlong,
@@ -11551,6 +11618,12 @@ static FIXTURES: &[Fixture] = &[
         extension: "pcap",
         builder: build_dhcp_malformed,
         case_specs: DHCP_MALFORMED_CASE_SPECS,
+    },
+    Fixture {
+        name: "dhcp-option-82",
+        extension: "pcap",
+        builder: build_dhcp_option_82,
+        case_specs: DHCP_OPTION_82_CASE_SPECS,
     },
     Fixture {
         name: "dhcp-client-id",
@@ -12105,6 +12178,102 @@ static FIXTURES: &[Fixture] = &[
         name: "tls12-ticket-keys",
         extension: "log",
         builder: build_tls12_ticket_keys,
+        case_specs: &[],
+    },
+    Fixture {
+        name: "tls10-cbc",
+        extension: "pcap",
+        builder: build_tls10_cbc,
+        case_specs: TLS10_CBC_CASE_SPECS,
+    },
+    Fixture {
+        name: "tls10-cbc-keys",
+        extension: "log",
+        builder: build_tls10_cbc_keys,
+        case_specs: &[],
+    },
+    Fixture {
+        name: "tls10-cbc-etm",
+        extension: "pcap",
+        builder: build_tls10_cbc_etm,
+        case_specs: TLS10_CBC_ETM_CASE_SPECS,
+    },
+    Fixture {
+        name: "tls10-cbc-etm-keys",
+        extension: "log",
+        builder: build_tls10_cbc_etm_keys,
+        case_specs: &[],
+    },
+    Fixture {
+        name: "tls11-cbc",
+        extension: "pcap",
+        builder: build_tls11_cbc,
+        case_specs: TLS11_CBC_CASE_SPECS,
+    },
+    Fixture {
+        name: "tls11-cbc-keys",
+        extension: "log",
+        builder: build_tls11_cbc_keys,
+        case_specs: &[],
+    },
+    Fixture {
+        name: "tls10-split",
+        extension: "pcap",
+        builder: build_tls10_split,
+        case_specs: TLS10_SPLIT_CASE_SPECS,
+    },
+    Fixture {
+        name: "tls10-split-keys",
+        extension: "log",
+        builder: build_tls10_split_keys,
+        case_specs: &[],
+    },
+    Fixture {
+        name: "tls10-truncated",
+        extension: "pcap",
+        builder: build_tls10_truncated,
+        case_specs: TLS10_TRUNCATED_CASE_SPECS,
+    },
+    Fixture {
+        name: "tls10-truncated-keys",
+        extension: "log",
+        builder: build_tls10_truncated_keys,
+        case_specs: &[],
+    },
+    Fixture {
+        name: "tls10-malformed",
+        extension: "pcap",
+        builder: build_tls10_malformed,
+        case_specs: TLS10_MALFORMED_CASE_SPECS,
+    },
+    Fixture {
+        name: "tls10-malformed-keys",
+        extension: "log",
+        builder: build_tls10_malformed_keys,
+        case_specs: &[],
+    },
+    Fixture {
+        name: "tls10-strict",
+        extension: "pcap",
+        builder: build_tls10_strict,
+        case_specs: &[],
+    },
+    Fixture {
+        name: "tls10-strict-keys",
+        extension: "log",
+        builder: build_tls10_strict_keys,
+        case_specs: &[],
+    },
+    Fixture {
+        name: "tls10-padded",
+        extension: "pcap",
+        builder: build_tls10_padded,
+        case_specs: TLS10_PADDED_CASE_SPECS,
+    },
+    Fixture {
+        name: "tls10-padded-keys",
+        extension: "log",
+        builder: build_tls10_padded_keys,
         case_specs: &[],
     },
     Fixture {
@@ -13657,6 +13826,535 @@ const DNS_FILTER_CASE_SPECS: &[CaseSpec] = &[
         ],
     },
 ];
+
+// ---- HTTP/2 fixtures ----
+
+/// The client connection preface (RFC 9113 section 3.4).
+const H2_PREFACE: &[u8] = b"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n";
+
+/// The Huffman code of `www.example.com` (RFC 7541 Appendix C.4.1).
+const H2_HUFFMAN_EXAMPLE: &[u8] = &[
+    0xf1, 0xe3, 0xc2, 0xe5, 0xf2, 0x3a, 0x6b, 0xa0, 0xab, 0x90, 0xf4, 0xff,
+];
+
+/// Encode one HPACK integer (RFC 7541 section 5.1).
+fn h2_integer(value: usize, prefix_bits: u8, prefix: u8) -> Vec<u8> {
+    let mask = (1_usize << prefix_bits).saturating_sub(1);
+    if value < mask {
+        return vec![prefix | u8::try_from(value).unwrap_or(0)];
+    }
+    let mut out = vec![prefix | u8::try_from(mask).unwrap_or(0)];
+    let mut rest = value.saturating_sub(mask);
+    while rest >= 128 {
+        out.push(u8::try_from(rest & 0x7f).unwrap_or(0) | 0x80);
+        rest >>= 7;
+    }
+    out.push(u8::try_from(rest).unwrap_or(0));
+    out
+}
+
+/// A literal header field without indexing with an indexed name.
+fn h2_literal(index: usize, value: &[u8]) -> Vec<u8> {
+    let mut out = h2_integer(index, 4, 0);
+    out.extend_from_slice(&h2_integer(value.len(), 7, 0));
+    out.extend_from_slice(value);
+    out
+}
+
+/// A literal header field with incremental indexing and a new name.
+fn h2_literal_new(name: &[u8], value: &[u8]) -> Vec<u8> {
+    let mut out = vec![0x40];
+    out.extend_from_slice(&h2_integer(name.len(), 7, 0));
+    out.extend_from_slice(name);
+    out.extend_from_slice(&h2_integer(value.len(), 7, 0));
+    out.extend_from_slice(value);
+    out
+}
+
+/// A literal header field with incremental indexing, an indexed name and a
+/// Huffman-coded value.
+fn h2_literal_huffman(index: usize, encoded: &[u8]) -> Vec<u8> {
+    let mut out = h2_integer(index, 4, 0);
+    out.extend_from_slice(&h2_integer(encoded.len(), 7, 0x80));
+    out.extend_from_slice(encoded);
+    out
+}
+
+/// One HTTP/2 frame: the nine-octet header and its payload.
+fn h2_frame(kind: u8, flags: u8, stream: u32, payload: &[u8]) -> Vec<u8> {
+    let length = u32::try_from(payload.len()).unwrap_or(0);
+    let mut out = Vec::with_capacity(9 + payload.len());
+    out.extend_from_slice(&length.to_be_bytes()[1..]);
+    out.push(kind);
+    out.push(flags);
+    out.extend_from_slice(&stream.to_be_bytes());
+    out.extend_from_slice(payload);
+    out
+}
+
+/// A request block with indexed, Huffman and literal fields.
+fn h2_request_block() -> Vec<u8> {
+    let mut block = vec![0x82, 0x87, 0x85];
+    block.extend_from_slice(&h2_literal_huffman(1, H2_HUFFMAN_EXAMPLE));
+    block.extend_from_slice(&h2_literal_new(b"user-agent", b"probe/1.0"));
+    block
+}
+
+/// A response block with a status, a content length and a server field.
+fn h2_response_block() -> Vec<u8> {
+    let mut block = vec![0x88];
+    block.extend_from_slice(&h2_literal_new(b"content-length", b"5"));
+    block.extend_from_slice(&h2_literal_new(b"server", b"s"));
+    block
+}
+
+/// A pushed request block.
+fn h2_push_block() -> Vec<u8> {
+    let mut block = vec![0x82, 0x86];
+    block.extend_from_slice(&h2_literal(4, b"/push"));
+    block.extend_from_slice(&h2_literal(1, b"example.com"));
+    block
+}
+
+/// A trailer block.
+fn h2_trailer_block() -> Vec<u8> {
+    h2_literal_new(b"x-checksum", b"1")
+}
+
+/// Append one TCP payload to a direction's frame list.
+fn h2_push(
+    source: [u8; 4],
+    destination: [u8; 4],
+    source_port: u16,
+    destination_port: u16,
+    sequence: &mut u32,
+    payload: &[u8],
+    frames: &mut Vec<Vec<u8>>,
+) -> Result<(), String> {
+    frames.push(tcp_payload_between(
+        source,
+        destination,
+        source_port,
+        destination_port,
+        *sequence,
+        1,
+        payload,
+    )?);
+    *sequence = sequence.saturating_add(u32::try_from(payload.len()).unwrap_or(u32::MAX));
+    Ok(())
+}
+
+fn build_http2() -> Result<Vec<u8>, String> {
+    let mut frames = Vec::new();
+    let mut client = 10_000_u32;
+    let mut server = 20_000_u32;
+    let mut request = H2_PREFACE.to_vec();
+    request.extend_from_slice(&h2_frame(4, 0, 0, &[]));
+    request.extend_from_slice(&h2_frame(1, 0x04, 1, &h2_request_block()));
+    request.extend_from_slice(&h2_frame(0, 0, 1, b"hel"));
+    request.extend_from_slice(&h2_frame(0, 0, 1, b"lo"));
+    request.extend_from_slice(&h2_frame(1, 0x05, 1, &h2_trailer_block()));
+    h2_push(
+        T20_CLIENT,
+        T20_SERVER,
+        40_000,
+        80,
+        &mut client,
+        &request,
+        &mut frames,
+    )?;
+    let mut response = h2_frame(4, 0, 0, &[0, 1, 0, 0, 0x10, 0, 0, 3, 0, 0, 0, 100]);
+    response.extend_from_slice(&h2_frame(4, 1, 0, &[]));
+    let mut push = vec![0, 0, 0, 2];
+    push.extend_from_slice(&h2_push_block());
+    response.extend_from_slice(&h2_frame(5, 0x04, 1, &push));
+    // The response block declares content-length 5, so the stream carries the
+    // five octets before END_STREAM (RFC 9113 section 8.1.1).
+    response.extend_from_slice(&h2_frame(1, 0x04, 1, &h2_response_block()));
+    response.extend_from_slice(&h2_frame(0, 0x01, 1, b"world"));
+    response.extend_from_slice(&h2_frame(6, 0, 0, b"abcdefgh"));
+    response.extend_from_slice(&h2_frame(8, 0, 0, &[0, 0, 0x03, 0xe8]));
+    response.extend_from_slice(&h2_frame(7, 0, 0, &[0, 0, 0, 1, 0, 0, 0, 0]));
+    h2_push(
+        T20_SERVER,
+        T20_CLIENT,
+        80,
+        40_000,
+        &mut server,
+        &response,
+        &mut frames,
+    )?;
+    link_pcap(u32::from(LINKTYPE_ETHERNET), &frames)
+}
+
+fn build_http2_split() -> Result<Vec<u8>, String> {
+    let mut frames = Vec::new();
+    let mut client = 10_000_u32;
+    let mut server = 20_000_u32;
+    h2_push(
+        T20_CLIENT,
+        T20_SERVER,
+        40_000,
+        80,
+        &mut client,
+        H2_PREFACE.get(..10).unwrap_or_default(),
+        &mut frames,
+    )?;
+    let mut middle = H2_PREFACE.get(10..).unwrap_or_default().to_vec();
+    middle.extend_from_slice(&h2_frame(4, 0, 0, &[]));
+    let headers = h2_frame(1, 0x04, 1, &h2_request_block());
+    middle.extend_from_slice(headers.get(..12).unwrap_or_default());
+    h2_push(
+        T20_CLIENT,
+        T20_SERVER,
+        40_000,
+        80,
+        &mut client,
+        &middle,
+        &mut frames,
+    )?;
+    let mut tail = headers.get(12..).unwrap_or_default().to_vec();
+    tail.extend_from_slice(&h2_frame(0, 0x01, 1, b"hello"));
+    h2_push(
+        T20_CLIENT,
+        T20_SERVER,
+        40_000,
+        80,
+        &mut client,
+        &tail,
+        &mut frames,
+    )?;
+    let mut response = h2_frame(4, 0, 0, &[]);
+    response.extend_from_slice(&h2_frame(1, 0x04, 1, &[0x88]));
+    response.extend_from_slice(&h2_frame(0, 0x01, 1, b"world"));
+    h2_push(
+        T20_SERVER,
+        T20_CLIENT,
+        80,
+        40_000,
+        &mut server,
+        &response,
+        &mut frames,
+    )?;
+    link_pcap(u32::from(LINKTYPE_ETHERNET), &frames)
+}
+
+fn build_http2_truncated() -> Result<Vec<u8>, String> {
+    let mut frames = Vec::new();
+    let mut client = 10_000_u32;
+    let mut payload = H2_PREFACE.to_vec();
+    payload.extend_from_slice(&h2_frame(4, 0, 0, &[]));
+    payload.extend_from_slice(&h2_frame(1, 0x04, 1, &h2_request_block()));
+    // A frame header that declares twenty payload octets with five captured.
+    payload.extend_from_slice(&[0, 0, 20, 1, 0x04, 0, 0, 0, 1, 0x82, 0x86, 0x84, 0x01, 0x01]);
+    h2_push(
+        T20_CLIENT,
+        T20_SERVER,
+        40_000,
+        80,
+        &mut client,
+        &payload,
+        &mut frames,
+    )?;
+    link_pcap(u32::from(LINKTYPE_ETHERNET), &frames)
+}
+
+fn build_http2_malformed() -> Result<Vec<u8>, String> {
+    let mut frames = Vec::new();
+    let mut client = 10_000_u32;
+    let mut payload = H2_PREFACE.to_vec();
+    payload.extend_from_slice(&h2_frame(4, 0, 0, &[0, 153, 0, 0, 0, 7]));
+    // HEADERS on stream zero is a protocol error the decoder still reports.
+    payload.extend_from_slice(&h2_frame(1, 0x05, 0, &h2_request_block()));
+    // A reserved bit set in the stream identifier.
+    let mut reserved = h2_frame(1, 0x05, 0x8000_0001, &h2_request_block());
+    reserved.truncate(9 + h2_request_block().len());
+    payload.extend_from_slice(&reserved);
+    h2_push(
+        T20_CLIENT,
+        T20_SERVER,
+        40_000,
+        80,
+        &mut client,
+        &payload,
+        &mut frames,
+    )?;
+    link_pcap(u32::from(LINKTYPE_ETHERNET), &frames)
+}
+
+fn build_http2_padded() -> Result<Vec<u8>, String> {
+    let mut frames = Vec::new();
+    let mut client = 10_000_u32;
+    let mut payload = H2_PREFACE.to_vec();
+    payload.extend_from_slice(&h2_frame(4, 0, 0, &[]));
+    let mut padded_headers = vec![2];
+    padded_headers.extend_from_slice(&h2_request_block());
+    padded_headers.extend_from_slice(&[0, 0]);
+    // The padded DATA frame that follows ends the stream; this header block
+    // only carries END_HEADERS and PADDED (RFC 9113 section 6.2).
+    payload.extend_from_slice(&h2_frame(1, 0x0c, 1, &padded_headers));
+    let mut padded_data = vec![3];
+    padded_data.extend_from_slice(b"hello");
+    padded_data.extend_from_slice(&[0, 0, 0]);
+    payload.extend_from_slice(&h2_frame(0, 0x09, 1, &padded_data));
+    let mut priority = vec![0x80, 0, 0, 3, 15];
+    priority.extend_from_slice(&h2_request_block());
+    payload.extend_from_slice(&h2_frame(1, 0x25, 3, &priority));
+    h2_push(
+        T20_CLIENT,
+        T20_SERVER,
+        40_000,
+        80,
+        &mut client,
+        &payload,
+        &mut frames,
+    )?;
+    link_pcap(u32::from(LINKTYPE_ETHERNET), &frames)
+}
+
+const HTTP2_CASE_SPECS: &[CaseSpec] = &[
+    CaseSpec {
+        id: "summary",
+        args: T20_SUMMARY_ARGS,
+    },
+    CaseSpec {
+        id: "http2-fields",
+        args: &[
+            "-n",
+            "-T",
+            "fields",
+            "-e",
+            "frame.number",
+            "-e",
+            "http2.type",
+            "-e",
+            "http2.streamid",
+            "-e",
+            "http2.flags",
+            "-e",
+            "http2.headers.method",
+            "-e",
+            "http2.headers.path",
+            "-e",
+            "http2.headers.status",
+            "-e",
+            "http2.headers.content_length",
+            "-e",
+            "http2.header.name",
+            "-e",
+            "http2.header.value",
+            "-e",
+            "http2.data.data",
+            "-e",
+            "http2.request.full_uri",
+            "-r",
+            "{fixture}",
+        ],
+    },
+    CaseSpec {
+        id: "http2-links",
+        args: &[
+            "-n",
+            "-2",
+            "-T",
+            "fields",
+            "-e",
+            "frame.number",
+            "-e",
+            "http2.request_in",
+            "-e",
+            "http2.time",
+            "-r",
+            "{fixture}",
+        ],
+    },
+    CaseSpec {
+        id: "filter-http2",
+        args: &[
+            "-n",
+            "-Y",
+            "http2",
+            "-T",
+            "fields",
+            "-e",
+            "frame.number",
+            "-e",
+            "http2.type",
+            "-r",
+            "{fixture}",
+        ],
+    },
+    CaseSpec {
+        id: "filter-method",
+        args: &[
+            "-n",
+            "-Y",
+            "http2.headers.method == \"GET\"",
+            "-T",
+            "fields",
+            "-e",
+            "frame.number",
+            "-e",
+            "http2.headers.method",
+            "-r",
+            "{fixture}",
+        ],
+    },
+];
+
+const HTTP2_DECODE_AS_CASE_SPECS: &[CaseSpec] = &[
+    CaseSpec {
+        id: "decode-as",
+        args: &[
+            "-n",
+            "-d",
+            "tcp.port==8080,http2",
+            "-T",
+            "fields",
+            "-e",
+            "frame.number",
+            "-e",
+            "http2.type",
+            "-e",
+            "http2.headers.method",
+            "-r",
+            "{fixture}",
+        ],
+    },
+    CaseSpec {
+        id: "decode-as-summary",
+        args: &["-n", "-d", "tcp.port==8080,http2", "-r", "{fixture}"],
+    },
+];
+
+const HTTP2_SPLIT_CASE_SPECS: &[CaseSpec] = &[
+    CaseSpec {
+        id: "summary",
+        args: T20_SUMMARY_ARGS,
+    },
+    CaseSpec {
+        id: "http2-fields",
+        args: &[
+            "-n",
+            "-T",
+            "fields",
+            "-e",
+            "frame.number",
+            "-e",
+            "http2.type",
+            "-e",
+            "http2.streamid",
+            "-e",
+            "http2.headers.method",
+            "-e",
+            "http2.headers.path",
+            "-e",
+            "http2.data.data",
+            "-r",
+            "{fixture}",
+        ],
+    },
+];
+
+const HTTP2_TRUNCATED_CASE_SPECS: &[CaseSpec] = &[
+    CaseSpec {
+        id: "summary",
+        args: T20_SUMMARY_ARGS,
+    },
+    CaseSpec {
+        id: "http2-fields",
+        args: &[
+            "-n",
+            "-T",
+            "fields",
+            "-e",
+            "frame.number",
+            "-e",
+            "http2.type",
+            "-e",
+            "http2.headers.method",
+            "-r",
+            "{fixture}",
+        ],
+    },
+];
+
+const HTTP2_MALFORMED_CASE_SPECS: &[CaseSpec] = &[
+    CaseSpec {
+        id: "summary",
+        args: T20_SUMMARY_ARGS,
+    },
+    CaseSpec {
+        id: "http2-fields",
+        args: &[
+            "-n",
+            "-T",
+            "fields",
+            "-e",
+            "frame.number",
+            "-e",
+            "http2.type",
+            "-e",
+            "http2.streamid",
+            "-e",
+            "http2.r",
+            "-e",
+            "http2.headers.method",
+            "-r",
+            "{fixture}",
+        ],
+    },
+];
+
+const HTTP2_PADDED_CASE_SPECS: &[CaseSpec] = &[
+    CaseSpec {
+        id: "summary",
+        args: T20_SUMMARY_ARGS,
+    },
+    CaseSpec {
+        id: "http2-fields",
+        args: &[
+            "-n",
+            "-T",
+            "fields",
+            "-e",
+            "frame.number",
+            "-e",
+            "http2.type",
+            "-e",
+            "http2.padding",
+            "-e",
+            "http2.pad_length",
+            "-e",
+            "http2.exclusive",
+            "-e",
+            "http2.stream_dependency",
+            "-e",
+            "http2.headers.weight",
+            "-e",
+            "http2.data.data",
+            "-r",
+            "{fixture}",
+        ],
+    },
+];
+
+fn build_http2_decode_as() -> Result<Vec<u8>, String> {
+    let mut frames = Vec::new();
+    let mut client = 10_000_u32;
+    let mut payload = h2_frame(4, 0, 0, &[]);
+    payload.extend_from_slice(&h2_frame(1, 0x05, 1, &h2_request_block()));
+    h2_push(
+        T20_CLIENT,
+        T20_SERVER,
+        40_000,
+        8080,
+        &mut client,
+        &payload,
+        &mut frames,
+    )?;
+    link_pcap(u32::from(LINKTYPE_ETHERNET), &frames)
+}
 
 /// Every registered fixture, in registry order.
 pub fn all() -> &'static [Fixture] {
@@ -21216,6 +21914,98 @@ const LLDP_CASE_SPECS: &[CaseSpec] = &[
     },
 ];
 
+const LLDP_8023_FIELDS_ARGS: &[&str] = &[
+    "-n",
+    "-T",
+    "fields",
+    "-e",
+    "frame.number",
+    "-e",
+    "lldp.ieee.802_3.subtype",
+    "-e",
+    "lldp.ieee.802_3.mac_phy_auto_neg_status",
+    "-e",
+    "lldp.ieee.802_3.mac_phy_auto_neg_status.supported",
+    "-e",
+    "lldp.ieee.802_3.mac_phy_auto_neg_status.enabled",
+    "-e",
+    "lldp.ieee.802_3.pmd_auto_neg_advertised_caps",
+    "-e",
+    "lldp.ieee.802_3.pmd_auto_neg_advertised_caps.1000base_t",
+    "-e",
+    "lldp.ieee.802_3.pmd_auto_neg_advertised_caps_inv.10base_t",
+    "-e",
+    "lldp.ieee.802_3.pmd_mau_type",
+    "-e",
+    "lldp.ieee.802_3.aggregation_status",
+    "-e",
+    "lldp.ieee.802_3.aggregation_status.cap",
+    "-e",
+    "lldp.ieee.802_3.aggregated_port_id",
+    "-e",
+    "lldp.ieee.802_3.max_frame_size",
+    "-Y",
+    "frame.number <= 5",
+    "-r",
+    "{fixture}",
+];
+
+const LLDP_8023_CASE_SPECS: &[CaseSpec] = &[
+    CaseSpec {
+        id: "summary",
+        args: SUMMARY_ARGS,
+    },
+    CaseSpec {
+        id: "lldp-8023-fields",
+        args: LLDP_8023_FIELDS_ARGS,
+    },
+    CaseSpec {
+        id: "hexdump",
+        args: &["-n", "-x", "-r", "{fixture}"],
+    },
+    CaseSpec {
+        id: "pdml-tree",
+        args: &[
+            "-n",
+            "-T",
+            "pdml",
+            "-J",
+            "lldp",
+            "-Y",
+            "frame.number <= 5",
+            "-r",
+            "{fixture}",
+        ],
+    },
+    CaseSpec {
+        id: "json-tree",
+        args: &[
+            "-n",
+            "-T",
+            "json",
+            "-J",
+            "lldp",
+            "-Y",
+            "frame.number <= 5",
+            "-r",
+            "{fixture}",
+        ],
+    },
+    CaseSpec {
+        id: "detail-tree",
+        args: &[
+            "-n",
+            "-O",
+            "lldp",
+            "-V",
+            "-Y",
+            "frame.number <= 5",
+            "-r",
+            "{fixture}",
+        ],
+    },
+];
+
 const LLDP_MALFORMED_CASE_SPECS: &[CaseSpec] = &[
     CaseSpec {
         id: "summary",
@@ -21894,6 +22684,19 @@ fn build_lldp() -> Result<Vec<u8>, String> {
     )
 }
 
+/// An LLDP frame whose text TLVs carry terminal control bytes.
+///
+/// The port description and system name reach the detail and summary
+/// renderers through a showname, so output escaping is checked against this
+/// capture.
+fn build_lldp_controls() -> Result<Vec<u8>, String> {
+    let mut payload = lldp_mandatory();
+    payload.extend_from_slice(&lldp_tlv(4, b"eth0\x1b[2J"));
+    payload.extend_from_slice(&lldp_tlv(5, b"switch-a\x1b[2J"));
+    payload.extend_from_slice(&lldp_tlv(0, b""));
+    link_pcap(u32::from(LINKTYPE_ETHERNET), &[lldp_frame(&payload, false)])
+}
+
 fn build_lldp_malformed() -> Result<Vec<u8>, String> {
     let mut overrun = lldp_mandatory();
     overrun.extend_from_slice(&[0x0a, 0x0a, b'a', b'b', b'c']);
@@ -21927,6 +22730,74 @@ fn build_lldp_malformed() -> Result<Vec<u8>, String> {
             lldp_frame(&unknown_org, false),
             lldp_frame(&invalid_chassis, false),
             lldp_frame(&truncated_header, false),
+        ],
+    )
+}
+
+/// LLDP organizationally specific TLVs under the IEEE 802.3 OUI.
+///
+/// Frames cover the clause 79 MAC/PHY configuration/status, link aggregation
+/// and maximum frame size containers in their full form, a body that stops
+/// before the fixed-length fields finish, and a body longer than the subtype
+/// defines.
+fn build_lldp_8023() -> Result<Vec<u8>, String> {
+    // IEEE 802.1AB-2016 clause 8.5.5: status octet, capability word, MAU type.
+    let mut mac_phy = vec![0x03];
+    mac_phy.extend_from_slice(&0x8001_u16.to_be_bytes());
+    mac_phy.extend_from_slice(&0x0010_u16.to_be_bytes());
+
+    // Clause 8.5.6: status octet and four-octet aggregated port identifier.
+    let mut aggregation = vec![0x03];
+    aggregation.extend_from_slice(&7_u32.to_be_bytes());
+
+    // Clause 8.5.7: two-octet maximum frame size.
+    let max_frame = 1518_u16.to_be_bytes();
+
+    let mut normal = lldp_mandatory();
+    normal.extend_from_slice(&lldp_org_tlv([0x00, 0x12, 0x0f], 1, &mac_phy));
+    normal.extend_from_slice(&lldp_org_tlv([0x00, 0x12, 0x0f], 3, &aggregation));
+    normal.extend_from_slice(&lldp_org_tlv([0x00, 0x12, 0x0f], 4, &max_frame));
+    normal.extend_from_slice(&lldp_tlv(0, b""));
+
+    // Each subtype keeps the fields its body still carries.
+    let mut short_mac_phy = lldp_mandatory();
+    short_mac_phy.extend_from_slice(&lldp_org_tlv([0x00, 0x12, 0x0f], 1, &[0x03, 0x80, 0x01]));
+    short_mac_phy.extend_from_slice(&lldp_tlv(0, b""));
+
+    let mut short_aggregation = lldp_mandatory();
+    short_aggregation.extend_from_slice(&lldp_org_tlv([0x00, 0x12, 0x0f], 3, &[0x03, 0x00]));
+    short_aggregation.extend_from_slice(&lldp_tlv(0, b""));
+
+    let mut short_max_frame = lldp_mandatory();
+    short_max_frame.extend_from_slice(&lldp_org_tlv([0x00, 0x12, 0x0f], 4, &[0x05]));
+    short_max_frame.extend_from_slice(&lldp_tlv(0, b""));
+
+    let mut excess = lldp_mandatory();
+    let mut long_mac_phy = mac_phy.clone();
+    long_mac_phy.extend_from_slice(&[0x00, 0x01]);
+    excess.extend_from_slice(&lldp_org_tlv([0x00, 0x12, 0x0f], 1, &long_mac_phy));
+    let mut long_aggregation = aggregation.clone();
+    long_aggregation.push(0x00);
+    excess.extend_from_slice(&lldp_org_tlv([0x00, 0x12, 0x0f], 3, &long_aggregation));
+    let mut long_max_frame = max_frame.to_vec();
+    long_max_frame.push(0x00);
+    excess.extend_from_slice(&lldp_org_tlv([0x00, 0x12, 0x0f], 4, &long_max_frame));
+    excess.extend_from_slice(&lldp_tlv(0, b""));
+
+    // A subtype body shorter than the OUI and subtype header itself.
+    let mut short_header = lldp_mandatory();
+    short_header.extend_from_slice(&lldp_tlv(127, &[0x00, 0x12]));
+    short_header.extend_from_slice(&lldp_tlv(0, b""));
+
+    link_pcap(
+        u32::from(LINKTYPE_ETHERNET),
+        &[
+            lldp_frame(&normal, false),
+            lldp_frame(&short_mac_phy, false),
+            lldp_frame(&short_aggregation, false),
+            lldp_frame(&short_max_frame, false),
+            lldp_frame(&excess, false),
+            lldp_frame(&short_header, false),
         ],
     )
 }
@@ -26531,6 +27402,263 @@ const DHCP_CASE_SPECS: &[CaseSpec] = &[
     },
 ];
 
+/// Frames whose access-technology type Packetfin decodes per RFC 7839 §4.2.
+///
+/// The expected output reads the two-octet value as one integer instead of
+/// the ATT octet, so those frames are covered by decoder tests rather than
+/// full-tree expected output.
+const ATTESTED_ATT_FRAMES: &str = "frame.number != 1 && frame.number != 6 && frame.number != 7";
+
+const DHCP_OPTION_82_CASE_SPECS: &[CaseSpec] = &[
+    CaseSpec {
+        id: "dhcp-fields",
+        args: &[
+            "-n",
+            "-T",
+            "fields",
+            "-e",
+            "frame.number",
+            "-e",
+            "dhcp.bootp",
+            "-e",
+            "dhcp.type",
+            "-e",
+            "dhcp.hw.type",
+            "-e",
+            "dhcp.hw.len",
+            "-e",
+            "dhcp.hops",
+            "-e",
+            "dhcp.id",
+            "-e",
+            "dhcp.secs",
+            "-e",
+            "dhcp.secs_le",
+            "-e",
+            "dhcp.flags",
+            "-e",
+            "dhcp.flags.bc",
+            "-e",
+            "dhcp.flags.reserved",
+            "-e",
+            "dhcp.ip.client",
+            "-e",
+            "dhcp.ip.your",
+            "-e",
+            "dhcp.ip.server",
+            "-e",
+            "dhcp.ip.relay",
+            "-e",
+            "dhcp.hw.addr",
+            "-e",
+            "dhcp.hw.addr_padding",
+            "-e",
+            "dhcp.hw.mac_addr",
+            "-e",
+            "dhcp.server",
+            "-e",
+            "dhcp.file",
+            "-e",
+            "dhcp.cookie",
+            "-e",
+            "dhcp.client_id.type",
+            "-e",
+            "dhcp.client_id",
+            "-e",
+            "dhcp.client_id.undef",
+            "-e",
+            "dhcp.client_hardware_address",
+            "-e",
+            "dhcp.client_id.iaid",
+            "-e",
+            "dhcp.client_id.duid_type",
+            "-e",
+            "dhcp.client_id.duid_llt_hw_type",
+            "-e",
+            "dhcp.client_id.duid_ll_hw_type",
+            "-e",
+            "dhcp.client_id.time",
+            "-e",
+            "dhcp.client_id.link_layer_address",
+            "-e",
+            "dhcp.client_id.link_layer_address_ether",
+            "-e",
+            "dhcp.client_id.enterprise_num",
+            "-e",
+            "dhcp.option.type",
+            "-e",
+            "dhcp.option.length",
+            "-e",
+            "dhcp.option.value",
+            "-e",
+            "dhcp.option.dhcp",
+            "-e",
+            "dhcp.option.dhcp_server_id",
+            "-e",
+            "dhcp.option.ip_address_lease_time",
+            "-e",
+            "dhcp.option.requested_ip_address",
+            "-e",
+            "dhcp.option.subnet_mask",
+            "-e",
+            "dhcp.option.router",
+            "-e",
+            "dhcp.option.domain_name_server",
+            "-e",
+            "dhcp.option.hostname",
+            "-e",
+            "dhcp.option.domain_name",
+            "-e",
+            "dhcp.option.broadcast_address",
+            "-e",
+            "dhcp.option.request_list_item",
+            "-e",
+            "dhcp.option.message",
+            "-e",
+            "dhcp.option.dhcp_max_message_size",
+            "-e",
+            "dhcp.option.renewal_time_value",
+            "-e",
+            "dhcp.option.rebinding_time_value",
+            "-e",
+            "dhcp.option.vendor_class_id",
+            "-e",
+            "dhcp.option.tftp_server_name",
+            "-e",
+            "dhcp.option.bootfile_name",
+            "-e",
+            "dhcp.option.option_overload",
+            "-e",
+            "dhcp.option.agent_information_option.suboption",
+            "-e",
+            "dhcp.option.agent_information_option.value",
+            "-e",
+            "dhcp.option.agent_information_option.agent_circuit_id",
+            "-e",
+            "dhcp.option.agent_information_option.agent_remote_id",
+            "-e",
+            "dhcp.option.agent_information_option.docsis_device_class",
+            "-e",
+            "dhcp.option.agent_information_option.link_selection",
+            "-e",
+            "dhcp.option.agent_information_option.subscriber_id",
+            "-e",
+            "dhcp.option.end",
+            "-e",
+            "dhcp.option.padding",
+            "-e",
+            "dhcp.end_option_missing",
+            "-e",
+            "dhcp.client_address_not_given",
+            "-e",
+            "dhcp.server_name_overloaded_by_dhcp",
+            "-e",
+            "dhcp.boot_filename_overloaded_by_dhcp",
+            "-e",
+            "dhcp.bad_length",
+            "-e",
+            "dhcp.option.option_overload.wrong_field",
+            "-e",
+            "dhcp.option.option_overload.file_end_missing",
+            "-e",
+            "dhcp.option.option_overload.sname_end_missing",
+            "-r",
+            "{fixture}",
+            "-Y",
+            ATTESTED_ATT_FRAMES,
+        ],
+    },
+    CaseSpec {
+        id: "json-fields",
+        args: &[
+            "-n",
+            "-T",
+            "json",
+            "-e",
+            "dhcp.option.agent_information_option.suboption",
+            "-e",
+            "dhcp.option.agent_information_option.value",
+            "-Y",
+            ATTESTED_ATT_FRAMES,
+            "-r",
+            "{fixture}",
+        ],
+    },
+    CaseSpec {
+        id: "filter-dhcp-request",
+        args: &[
+            "-n",
+            "-Y",
+            "dhcp.option.agent_information_option.suboption == 13",
+            "-T",
+            "fields",
+            "-e",
+            "frame.number",
+            "-r",
+            "{fixture}",
+        ],
+    },
+    CaseSpec {
+        id: "hexdump",
+        args: &["-n", "-x", "-r", "{fixture}"],
+    },
+    CaseSpec {
+        id: "pdml-tree",
+        args: &[
+            "-n",
+            "-T",
+            "pdml",
+            "-J",
+            "dhcp",
+            "-Y",
+            ATTESTED_ATT_FRAMES,
+            "-r",
+            "{fixture}",
+        ],
+    },
+    CaseSpec {
+        id: "json-tree",
+        args: &[
+            "-n",
+            "-T",
+            "json",
+            "-J",
+            "dhcp",
+            "-Y",
+            ATTESTED_ATT_FRAMES,
+            "-r",
+            "{fixture}",
+        ],
+    },
+    CaseSpec {
+        id: "ek-tree",
+        args: &[
+            "-n",
+            "-T",
+            "ek",
+            "-J",
+            "dhcp",
+            "-Y",
+            ATTESTED_ATT_FRAMES,
+            "-r",
+            "{fixture}",
+        ],
+    },
+    CaseSpec {
+        id: "detail-tree",
+        args: &[
+            "-n",
+            "-O",
+            "dhcp",
+            "-V",
+            "-Y",
+            ATTESTED_ATT_FRAMES,
+            "-r",
+            "{fixture}",
+        ],
+    },
+];
+
 const DHCP_OVERLOAD_CASE_SPECS: &[CaseSpec] = &[
     CaseSpec {
         id: "summary",
@@ -27463,6 +28591,98 @@ fn build_dhcp_malformed() -> Result<Vec<u8>, String> {
         )?;
     }
     file.to_bytes()
+}
+
+/// DHCP relay agent information (option 82) shapes.
+///
+/// One frame per measured suboption family: the full registry layout, the
+/// RFC 4243 enterprise block loop, a suboption value cut short by the option
+/// length, a suboption whose length octet is missing, a wrong length on the
+/// fixed-size suboptions, the RFC 7839 access-technology integer with too few
+/// and too many octets, and the zero-length typed values.
+fn build_dhcp_option_82() -> Result<Vec<u8>, String> {
+    let mut full = Vec::new();
+    full.extend_from_slice(&dhcp_option(0, &[0x00]));
+    full.extend_from_slice(&dhcp_option(1, b"circuit-1"));
+    full.extend_from_slice(&dhcp_option(2, b"remote-1"));
+    full.extend_from_slice(&dhcp_option(3, &[0x01, 0x02, 0x03]));
+    full.extend_from_slice(&dhcp_option(4, &5_u32.to_be_bytes()));
+    full.extend_from_slice(&dhcp_option(5, &[203, 0, 113, 5]));
+    full.extend_from_slice(&dhcp_option(6, b"server.example"));
+    full.extend_from_slice(&dhcp_option(7, &[0x01, 0x02]));
+    full.extend_from_slice(&dhcp_option(8, &[0x11, 0x22]));
+    full.extend_from_slice(&dhcp_option(10, &[0x05]));
+    full.extend_from_slice(&dhcp_option(11, &[198, 51, 100, 10]));
+    full.extend_from_slice(&dhcp_option(12, b"relay-1"));
+    full.extend_from_slice(&dhcp_option(13, &[0x0a, 0xa0]));
+
+    let mut vendor = Vec::new();
+    vendor.extend_from_slice(&dhcp_option(9, &vendor_block(32473, &[0xaa, 0xbb])));
+    vendor.extend_from_slice(&dhcp_option(9, &vendor_block(32473, &[])));
+
+    let mut truncated_value = Vec::new();
+    truncated_value.extend_from_slice(&dhcp_option(3, &[0xaa, 0xbb]));
+    truncated_value.extend_from_slice(&[7, 9, 0x01, 0x02]);
+
+    let mut missing_length = Vec::new();
+    missing_length.extend_from_slice(&dhcp_option(3, &[0xaa, 0xbb]));
+    missing_length.push(8);
+
+    let mut wrong_length = Vec::new();
+    wrong_length.extend_from_slice(&dhcp_option(4, &[0x01, 0x02]));
+    wrong_length.extend_from_slice(&dhcp_option(5, &[0xc6, 0x33, 0x64]));
+    wrong_length.extend_from_slice(&dhcp_option(10, &[0x05, 0x06]));
+    wrong_length.extend_from_slice(&dhcp_option(11, &[0xc6, 0x33, 0x64]));
+
+    // RFC 7839 §5: no octet means no integer, so the protocol decode stops;
+    // five octets are reported as a warning and the first four are shown.
+    let short_access = dhcp_option(13, &[]);
+    let long_access = dhcp_option(13, &[0x01, 0x02, 0x03, 0x04, 0x05]);
+
+    // RFC 4243 section 4 requires at least one vendor block, so a
+    // zero-length suboption 9 is malformed rather than an empty typed value;
+    // its diagnostic is covered by a unit test, outside the reference-shaped
+    // expected output.
+    let mut zero_values = Vec::new();
+    zero_values.extend_from_slice(&dhcp_option(1, &[]));
+    zero_values.extend_from_slice(&dhcp_option(3, &[]));
+    zero_values.extend_from_slice(&dhcp_option(7, &[]));
+    zero_values.extend_from_slice(&dhcp_option(8, &[]));
+    zero_values.extend_from_slice(&dhcp_option(12, &[]));
+
+    let agents = [
+        full,
+        vendor,
+        truncated_value,
+        missing_length,
+        wrong_length,
+        short_access,
+        long_access,
+        zero_values,
+    ];
+    let mut file = pcap::Pcap::new(ByteOrder::Little, TimestampResolution::Microsecond);
+    for (index, agent) in agents.iter().enumerate() {
+        let mut options = dhcp_option(53, &[1]);
+        options.extend_from_slice(&dhcp_option(82, agent));
+        options.push(255);
+        let payload = dhcp_payload(1, [0; 4], [0; 4], &options);
+        let frame = services_frame(&payload, 68, 67)?;
+        let offset = u32::try_from(index).unwrap_or(0);
+        file.push(
+            Timestamp::new(TIMESTAMP_SECONDS, 123_456_u32.saturating_add(offset)),
+            frame,
+        )?;
+    }
+    file.to_bytes()
+}
+
+/// One RFC 4243 vendor-specific block: enterprise number, data length, data.
+fn vendor_block(enterprise: u32, data: &[u8]) -> Vec<u8> {
+    let mut block = Vec::with_capacity(5 + data.len());
+    block.extend_from_slice(&enterprise.to_be_bytes());
+    block.push(u8::try_from(data.len()).unwrap_or(u8::MAX));
+    block.extend_from_slice(data);
+    block
 }
 
 fn build_dhcp_hardware() -> Result<Vec<u8>, String> {
@@ -30378,14 +31598,6 @@ fn build_http_objects_split() -> Result<Vec<u8>, String> {
         connection.server_fin(b"")?;
     }
 
-    // Extra bytes in a HEAD response's frame are its body for export.
-    {
-        let mut connection = ObjectConnection::new(&mut frames, 40_510);
-        connection.client(b"HEAD /head-extra HTTP/1.1\r\nHost: h\r\n\r\n")?;
-        connection.server(b"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\njunk\n")?;
-        connection.server_fin(b"")?;
-    }
-
     // A close-delimited response carried entirely by the FIN segment.
     {
         let mut connection = ObjectConnection::new(&mut frames, 40_511);
@@ -30944,9 +32156,21 @@ fn tls13_hellos(writer: &tls::Tls13Writer) -> (Vec<u8>, Vec<u8>) {
     if writer.has_early() {
         client_extensions.push((42, Vec::new()));
     }
-    let hello = tls::client_hello(writer.client_random(), &[], &ciphers, &client_extensions);
+    let hello = tls::client_hello(
+        tls::TLS12_VERSION,
+        writer.client_random(),
+        &[],
+        &ciphers,
+        &client_extensions,
+    );
     let server_extensions = [(43, vec![0x03, 0x04]), (51, tls_server_key_share())];
-    let server = tls::server_hello(writer.server_random(), &[], suite, &server_extensions);
+    let server = tls::server_hello(
+        tls::TLS12_VERSION,
+        writer.server_random(),
+        &[],
+        suite,
+        &server_extensions,
+    );
     (hello, server)
 }
 
@@ -31384,6 +32608,7 @@ fn build_tls13_hrr_spoof() -> Result<Vec<u8>, String> {
     let mut writer = tls::Tls13Writer::new(0x1301);
     let (hello, _) = tls13_hellos(&writer);
     let hrr = tls::server_hello(
+        tls::TLS12_VERSION,
         tls::HELLO_RETRY_REQUEST_RANDOM,
         &[],
         writer.suite_id(),
@@ -31861,7 +33086,14 @@ fn build_tls12_resume_split() -> Result<Vec<u8>, String> {
     );
     let first_chunked = split_tls_exchanges(&first_exchanges, &[(0, &[20]), (6, &[5]), (7, &[4])]);
     let mut frames = tls_frames_chunked(443, 40_000, &first_chunked)?;
-    let mut second = tls::Tls12Writer::resumed(0xc030, false, [0x77_u8; 32], [0x88_u8; 32], master);
+    let mut second = tls::Tls12Writer::resumed(
+        tls::TLS12_VERSION,
+        0xc030,
+        false,
+        [0x77_u8; 32],
+        [0x88_u8; 32],
+        master,
+    );
     let (hello, server) = tls12_hellos(&second, &session_id, None, false);
     let request = b"GET /two HTTP/1.1\r\nHost: tls.test\r\n\r\n".to_vec();
     let response = b"HTTP/1.1 200 OK\r\nContent-Length: 3\r\n\r\ntwo".to_vec();
@@ -32184,6 +33416,7 @@ fn tls12_hellos(
         client_extensions.push((35, ticket.to_vec()));
     }
     let hello = tls::client_hello(
+        tls::TLS12_VERSION,
         writer.client_random(),
         session_id,
         &[suite, 0xc02f, 0xc030],
@@ -32194,6 +33427,7 @@ fn tls12_hellos(
         server_extensions.push((22, Vec::new()));
     }
     let server = tls::server_hello(
+        tls::TLS12_VERSION,
         writer.server_random(),
         session_id,
         suite,
@@ -32285,7 +33519,14 @@ fn build_tls12_resume() -> Result<Vec<u8>, String> {
     );
     let first_len = frames.len();
     // The resumed connection has new randoms but reuses the first master.
-    let mut second = tls::Tls12Writer::resumed(0xc030, false, [0x77_u8; 32], [0x88_u8; 32], master);
+    let mut second = tls::Tls12Writer::resumed(
+        tls::TLS12_VERSION,
+        0xc030,
+        false,
+        [0x77_u8; 32],
+        [0x88_u8; 32],
+        master,
+    );
     let (hello, server) = tls12_hellos(&second, &session_id, None, false);
     frames.push((true, tls::plain_record(tls::HANDSHAKE, 0x0301, &hello)));
     frames.push((false, tls::plain_record(tls::HANDSHAKE, 0x0303, &server)));
@@ -32347,7 +33588,14 @@ fn build_tls12_ticket() -> Result<Vec<u8>, String> {
         b"HTTP/1.1 200 OK\r\nContent-Length: 3\r\n\r\none",
     );
     let first_len = frames.len();
-    let mut second = tls::Tls12Writer::resumed(0xc030, false, [0x77_u8; 32], [0x88_u8; 32], master);
+    let mut second = tls::Tls12Writer::resumed(
+        tls::TLS12_VERSION,
+        0xc030,
+        false,
+        [0x77_u8; 32],
+        [0x88_u8; 32],
+        master,
+    );
     let new_session_id = [0x93_u8; 32];
     let (hello, server) = tls12_hellos(&second, &new_session_id, Some(&ticket), false);
     frames.push((true, tls::plain_record(tls::HANDSHAKE, 0x0301, &hello)));
@@ -32394,6 +33642,438 @@ fn build_tls12_ticket() -> Result<Vec<u8>, String> {
 
 fn build_tls12_ticket_keys() -> Result<Vec<u8>, String> {
     Ok(tls::Tls12Writer::new(0xc030, false).keylog().into_bytes())
+}
+
+/// The two hello messages of a TLS 1.0 or 1.1 handshake.
+///
+/// The hello body version and the record version both carry the negotiated
+/// version, as RFC 2246 section 7.4.1 and RFC 4346 require before a
+/// supported_versions extension existed.
+fn tls_legacy_hellos(writer: &tls::Tls12Writer, session_id: &[u8]) -> (Vec<u8>, Vec<u8>) {
+    let version = writer.version();
+    let suite = writer.suite_id();
+    let mut alpn = vec![2, b'h', b'1'];
+    let mut alpn_body = u16::try_from(alpn.len())
+        .unwrap_or(0)
+        .to_be_bytes()
+        .to_vec();
+    alpn_body.append(&mut alpn);
+    let mut client_extensions = vec![(0, tls_sni(b"tls.test")), (16, alpn_body)];
+    let mut server_extensions = Vec::new();
+    if writer.encrypt_then_mac() {
+        client_extensions.push((22, Vec::new()));
+        server_extensions.push((22, Vec::new()));
+    }
+    let hello = tls::client_hello(
+        version,
+        writer.client_random(),
+        session_id,
+        &[suite, 0xc013, 0xc014],
+        &client_extensions,
+    );
+    let server = tls::server_hello(
+        version,
+        writer.server_random(),
+        session_id,
+        suite,
+        &server_extensions,
+    );
+    (hello, server)
+}
+
+/// The handshake records of one TLS 1.0/1.1 CBC session.
+///
+/// The caller appends application records, so a fixture can place a record
+/// of its own at the next sequence number of either direction.
+fn tls_legacy_handshake(writer: &mut tls::Tls12Writer, session_id: &[u8]) -> Vec<(bool, Vec<u8>)> {
+    let version = writer.version();
+    let (hello, server) = tls_legacy_hellos(writer, session_id);
+    vec![
+        (true, tls::plain_record(tls::HANDSHAKE, version, &hello)),
+        (false, tls::plain_record(tls::HANDSHAKE, version, &server)),
+        (
+            false,
+            tls::plain_record(tls::CHANGE_CIPHER_SPEC, version, &[1]),
+        ),
+        (
+            false,
+            writer.record(false, tls::HANDSHAKE, &tls::handshake(20, &[0xaa; 12])),
+        ),
+        (
+            true,
+            tls::plain_record(tls::CHANGE_CIPHER_SPEC, version, &[1]),
+        ),
+        (
+            true,
+            writer.record(true, tls::HANDSHAKE, &tls::handshake(20, &[0xbb; 12])),
+        ),
+    ]
+}
+
+/// Handshake and application records of one TLS 1.0/1.1 CBC session.
+///
+/// Each request and response is its own record, so the second record in each
+/// direction witnesses the IV rule: TLS 1.0 chains the previous ciphertext
+/// block, TLS 1.1 carries a fresh explicit IV. Requests and responses are
+/// paired in wire order but neither list truncates the other, so a fixture
+/// can protect a record that never reaches the capture.
+fn tls_legacy_exchanges(
+    writer: &mut tls::Tls12Writer,
+    session_id: &[u8],
+    requests: &[&[u8]],
+    responses: &[&[u8]],
+) -> Vec<(bool, Vec<u8>)> {
+    let mut exchanges = tls_legacy_handshake(writer, session_id);
+    let mut requests = requests.iter();
+    let mut responses = responses.iter();
+    loop {
+        let request = requests.next();
+        let response = responses.next();
+        if request.is_none() && response.is_none() {
+            break;
+        }
+        if let Some(request) = request {
+            exchanges.push((true, writer.record(true, tls::APPLICATION_DATA, request)));
+        }
+        if let Some(response) = response {
+            exchanges.push((false, writer.record(false, tls::APPLICATION_DATA, response)));
+        }
+    }
+    exchanges
+}
+
+fn build_tls10_cbc() -> Result<Vec<u8>, String> {
+    let mut writer = tls::Tls12Writer::legacy(0xc014, tls::TLS10_VERSION, false);
+    let session_id = [0x81_u8; 32];
+    let exchanges = tls_legacy_exchanges(
+        &mut writer,
+        &session_id,
+        &[
+            b"GET /one HTTP/1.1\r\nHost: tls.test\r\n\r\n",
+            b"GET /two HTTP/1.1\r\nHost: tls.test\r\n\r\n",
+        ],
+        &[
+            b"HTTP/1.1 200 OK\r\nContent-Length: 3\r\n\r\none",
+            b"HTTP/1.1 200 OK\r\nContent-Length: 3\r\n\r\ntwo",
+        ],
+    );
+    tls_exchange(443, &exchanges)
+}
+
+fn build_tls10_cbc_keys() -> Result<Vec<u8>, String> {
+    Ok(tls::Tls12Writer::legacy(0xc014, tls::TLS10_VERSION, false)
+        .keylog()
+        .into_bytes())
+}
+
+fn build_tls10_cbc_etm() -> Result<Vec<u8>, String> {
+    let mut writer = tls::Tls12Writer::legacy(0xc014, tls::TLS10_VERSION, true);
+    let session_id = [0x8a_u8; 32];
+    let exchanges = tls_legacy_exchanges(
+        &mut writer,
+        &session_id,
+        &[b"GET /etm HTTP/1.1\r\nHost: tls.test\r\n\r\n"],
+        &[b"HTTP/1.1 200 OK\r\nContent-Length: 3\r\n\r\netm"],
+    );
+    tls_exchange(443, &exchanges)
+}
+
+fn build_tls10_cbc_etm_keys() -> Result<Vec<u8>, String> {
+    Ok(tls::Tls12Writer::legacy(0xc014, tls::TLS10_VERSION, true)
+        .keylog()
+        .into_bytes())
+}
+
+fn build_tls11_cbc() -> Result<Vec<u8>, String> {
+    let mut writer = tls::Tls12Writer::legacy(0xc013, tls::TLS11_VERSION, false);
+    let session_id = [0x82_u8; 32];
+    let exchanges = tls_legacy_exchanges(
+        &mut writer,
+        &session_id,
+        &[b"GET /one-one HTTP/1.1\r\nHost: tls.test\r\n\r\n"],
+        &[b"HTTP/1.1 200 OK\r\nContent-Length: 3\r\n\r\none"],
+    );
+    tls_exchange(443, &exchanges)
+}
+
+fn build_tls11_cbc_keys() -> Result<Vec<u8>, String> {
+    Ok(tls::Tls12Writer::legacy(0xc013, tls::TLS11_VERSION, false)
+        .keylog()
+        .into_bytes())
+}
+
+fn build_tls10_split() -> Result<Vec<u8>, String> {
+    let mut writer = tls::Tls12Writer::legacy(0xc014, tls::TLS10_VERSION, false);
+    let session_id = [0x83_u8; 32];
+    let exchanges = tls_legacy_exchanges(
+        &mut writer,
+        &session_id,
+        &[b"GET /split HTTP/1.1\r\nHost: tls.test\r\n\r\n"],
+        &[b"HTTP/1.1 200 OK\r\nContent-Length: 5\r\n\r\nhello"],
+    );
+    // The client Finished record is split at its third octet and the
+    // response record twenty octets in, so both a handshake message and an
+    // application record complete in a later segment.
+    let chunked = split_tls_exchanges(&exchanges, &[(5, &[3]), (7, &[20])]);
+    let frames = tls_frames_chunked(443, 40_000, &chunked)?;
+    link_pcap(u32::from(LINKTYPE_ETHERNET), &frames)
+}
+
+fn build_tls10_split_keys() -> Result<Vec<u8>, String> {
+    Ok(tls::Tls12Writer::legacy(0xc014, tls::TLS10_VERSION, false)
+        .keylog()
+        .into_bytes())
+}
+
+fn build_tls10_truncated() -> Result<Vec<u8>, String> {
+    let mut writer = tls::Tls12Writer::legacy(0xc014, tls::TLS10_VERSION, false);
+    let session_id = [0x84_u8; 32];
+    let exchanges = tls_legacy_exchanges(
+        &mut writer,
+        &session_id,
+        &[b"GET /truncated HTTP/1.1\r\nHost: tls.test\r\n\r\n"],
+        &[b"HTTP/1.1 200 OK\r\nContent-Length: 5\r\n\r\nhello"],
+    );
+    let chunked = split_tls_exchanges(&exchanges, &[(7, &[5, 20])]);
+    let mut frames = tls_frames_chunked(443, 40_000, &chunked)?;
+    // Drop the middle segment of the response record: the capture has a hole
+    // and the record can never complete, so its plaintext stays opaque.
+    frames.remove(8);
+    link_pcap(u32::from(LINKTYPE_ETHERNET), &frames)
+}
+
+fn build_tls10_truncated_keys() -> Result<Vec<u8>, String> {
+    Ok(tls::Tls12Writer::legacy(0xc014, tls::TLS10_VERSION, false)
+        .keylog()
+        .into_bytes())
+}
+
+fn build_tls10_padded() -> Result<Vec<u8>, String> {
+    let mut writer = tls::Tls12Writer::legacy(0xc014, tls::TLS10_VERSION, false);
+    let session_id = [0x85_u8; 32];
+    let version = writer.version();
+    let (hello, server) = tls_legacy_hellos(&writer, &session_id);
+    let request = b"GET /padded HTTP/1.1\r\nHost: tls.test\r\n\r\n";
+    let response = b"HTTP/1.1 200 OK\r\nContent-Length: 6\r\n\r\nhello!";
+    let mut exchanges = vec![
+        (true, tls::plain_record(tls::HANDSHAKE, version, &hello)),
+        (false, tls::plain_record(tls::HANDSHAKE, version, &server)),
+        (
+            false,
+            tls::plain_record(tls::CHANGE_CIPHER_SPEC, version, &[1]),
+        ),
+        (
+            false,
+            writer.record(false, tls::HANDSHAKE, &tls::handshake(20, &[0xaa; 12])),
+        ),
+        (
+            true,
+            tls::plain_record(tls::CHANGE_CIPHER_SPEC, version, &[1]),
+        ),
+        (
+            true,
+            writer.record(true, tls::HANDSHAKE, &tls::handshake(20, &[0xbb; 12])),
+        ),
+        (true, writer.record(true, tls::APPLICATION_DATA, request)),
+    ];
+    // The response's 43 content octets plus its 20-octet MAC fill four
+    // blocks exactly, so RFC 2246 section 6.2.3.2 padding is a whole extra
+    // block of sixteen 0x0f octets: the longest run the protocol allows.
+    exchanges.push((
+        false,
+        writer.record_with_padding(false, tls::APPLICATION_DATA, response, &[0x0f_u8; 16]),
+    ));
+    tls_exchange(443, &exchanges)
+}
+
+fn build_tls10_padded_keys() -> Result<Vec<u8>, String> {
+    Ok(tls::Tls12Writer::legacy(0xc014, tls::TLS10_VERSION, false)
+        .keylog()
+        .into_bytes())
+}
+
+/// The two independently keyed writers of the malformed TLS 1.0 fixture.
+fn tls10_malformed_writers() -> [tls::Tls12Writer; 2] {
+    [
+        tls::Tls12Writer::legacy(0xc014, tls::TLS10_VERSION, false),
+        tls::Tls12Writer::resumed(
+            tls::TLS10_VERSION,
+            0xc014,
+            false,
+            [0x12_u8; 32],
+            [0x23_u8; 32],
+            [0x34_u8; 48],
+        ),
+    ]
+}
+
+fn build_tls10_malformed() -> Result<Vec<u8>, String> {
+    // Two failures the expected output also rejects: a pasted ciphertext
+    // octet and a record that skips its predecessor's sequence number. Each
+    // is in its own conversation so that the held sequence number of one
+    // cannot mask the cause in the other.
+    let mut frames = Vec::new();
+    let [mut bad_mac, mut wrong_sequence] = tls10_malformed_writers();
+
+    let mut exchanges = tls_legacy_exchanges(
+        &mut bad_mac,
+        &[0x86_u8; 32],
+        &[b"GET /bad-mac HTTP/1.1\r\nHost: tls.test\r\n\r\n"],
+        &[b"HTTP/1.1 200 OK\r\nContent-Length: 3\r\n\r\nbad"],
+    );
+    if let Some(record) = exchanges.get_mut(7).map(|(_, record)| record)
+        && let Some(last) = record.last_mut()
+    {
+        *last ^= 0x01;
+    }
+    frames.extend(tls_frames_from(443, 40_000, &exchanges)?);
+
+    let mut exchanges = tls_legacy_exchanges(
+        &mut wrong_sequence,
+        &[0x89_u8; 32],
+        &[b"GET /sequence HTTP/1.1\r\nHost: tls.test\r\n\r\n"],
+        &[
+            b"HTTP/1.1 200 OK\r\nContent-Length: 3\r\n\r\none",
+            b"HTTP/1.1 200 OK\r\nContent-Length: 3\r\n\r\ntwo",
+        ],
+    );
+    // Drop the first response record from the capture: the second one was
+    // protected with sequence number 1 and arrives where 0 is expected.
+    exchanges.remove(7);
+    frames.extend(tls_frames_from(443, 40_001, &exchanges)?);
+
+    link_pcap(u32::from(LINKTYPE_ETHERNET), &frames)
+}
+
+fn build_tls10_malformed_keys() -> Result<Vec<u8>, String> {
+    let mut keylog = String::new();
+    for writer in tls10_malformed_writers() {
+        keylog.push_str(&writer.keylog());
+    }
+    Ok(keylog.into_bytes())
+}
+
+/// The two independently keyed writers of the strict TLS 1.0 fixture.
+fn tls10_strict_writers() -> [tls::Tls12Writer; 3] {
+    [
+        tls::Tls12Writer::resumed(
+            tls::TLS10_VERSION,
+            0xc014,
+            false,
+            [0x13_u8; 32],
+            [0x24_u8; 32],
+            [0x35_u8; 48],
+        ),
+        tls::Tls12Writer::resumed(
+            tls::TLS10_VERSION,
+            0xc014,
+            false,
+            [0x14_u8; 32],
+            [0x25_u8; 32],
+            [0x36_u8; 48],
+        ),
+        tls::Tls12Writer::resumed(
+            tls::TLS10_VERSION,
+            0xc014,
+            false,
+            [0x15_u8; 32],
+            [0x26_u8; 32],
+            [0x37_u8; 48],
+        ),
+    ]
+}
+
+/// Record-protection failures the expected output does not reject.
+///
+/// It strips CBC padding without validating it and ignores a record version
+/// that differs from the negotiated one, so it decodes every response.
+/// Packetfin follows RFC 2246 sections 6.2.1 and 6.2.3.2 and keeps them
+/// opaque, which is why this capture has no stored expected output:
+/// `tests/tls.rs` asserts the fail-closed result instead.
+fn build_tls10_strict() -> Result<Vec<u8>, String> {
+    let mut frames = Vec::new();
+    let [mut bad_padding, mut version_mismatch, mut version_only] = tls10_strict_writers();
+
+    let mut exchanges = tls_legacy_handshake(&mut bad_padding, &[0x87_u8; 32]);
+    exchanges.push((
+        true,
+        bad_padding.record(
+            true,
+            tls::APPLICATION_DATA,
+            b"GET /bad-padding HTTP/1.1\r\nHost: tls.test\r\n\r\n",
+        ),
+    ));
+    // Content plus MAC is 61 octets, so the record needs three padding
+    // octets. The last one claims a three-octet run of 0x02 while the two
+    // before it are 0x00: the MAC is correct and only the padding fails.
+    let padding = [0x00_u8, 0x00, 0x02];
+    exchanges.push((
+        false,
+        bad_padding.record_with_padding(
+            false,
+            tls::APPLICATION_DATA,
+            b"HTTP/1.1 200 OK\r\nContent-Length: 3\r\n\r\npad",
+            &padding,
+        ),
+    ));
+    frames.extend(tls_frames_from(443, 40_002, &exchanges)?);
+
+    let mut exchanges = tls_legacy_handshake(&mut version_mismatch, &[0x88_u8; 32]);
+    exchanges.push((
+        true,
+        version_mismatch.record(
+            true,
+            tls::APPLICATION_DATA,
+            b"GET /version HTTP/1.1\r\nHost: tls.test\r\n\r\n",
+        ),
+    ));
+    exchanges.push((
+        false,
+        version_mismatch.record(
+            false,
+            tls::APPLICATION_DATA,
+            b"HTTP/1.1 200 OK\r\nContent-Length: 3\r\n\r\nver",
+        ),
+    ));
+    // Relabel the response record's version octets as TLS 1.2 after
+    // protection. The MAC covers the version in the header (RFC 2246
+    // section 6.2.3.1), so this record fails authentication as well.
+    if let Some(record) = exchanges.get_mut(7).map(|(_, record)| record) {
+        record.splice(1..3, tls::TLS12_VERSION.to_be_bytes());
+    }
+    frames.extend(tls_frames_from(443, 40_003, &exchanges)?);
+
+    // A response whose header and MAC agree on TLS 1.2 inside a TLS 1.0
+    // session: it authenticates, so only the version check rejects it.
+    let mut exchanges = tls_legacy_handshake(&mut version_only, &[0x89_u8; 32]);
+    exchanges.push((
+        true,
+        version_only.record(
+            true,
+            tls::APPLICATION_DATA,
+            b"GET /version-only HTTP/1.1\r\nHost: tls.test\r\n\r\n",
+        ),
+    ));
+    exchanges.push((
+        false,
+        version_only.record_with_version(
+            false,
+            tls::APPLICATION_DATA,
+            b"HTTP/1.1 200 OK\r\nContent-Length: 3\r\n\r\nv12",
+            tls::TLS12_VERSION,
+        ),
+    ));
+    frames.extend(tls_frames_from(443, 40_004, &exchanges)?);
+
+    link_pcap(u32::from(LINKTYPE_ETHERNET), &frames)
+}
+
+fn build_tls10_strict_keys() -> Result<Vec<u8>, String> {
+    let mut keylog = String::new();
+    for writer in tls10_strict_writers() {
+        keylog.push_str(&writer.keylog());
+    }
+    Ok(keylog.into_bytes())
 }
 
 fn build_http1() -> Result<Vec<u8>, String> {
@@ -33936,6 +35616,13 @@ macro_rules! tls_fields_case {
     };
 }
 
+const TLS10_CBC_CASE_SPECS: &[CaseSpec] = tls_cases!("tls10-cbc-keys.log");
+const TLS10_CBC_ETM_CASE_SPECS: &[CaseSpec] = tls_cases!("tls10-cbc-etm-keys.log");
+const TLS11_CBC_CASE_SPECS: &[CaseSpec] = tls_cases!("tls11-cbc-keys.log");
+const TLS10_SPLIT_CASE_SPECS: &[CaseSpec] = tls_cases!("tls10-split-keys.log");
+const TLS10_TRUNCATED_CASE_SPECS: &[CaseSpec] = &[tls_fields_case!("tls10-truncated-keys.log")];
+const TLS10_MALFORMED_CASE_SPECS: &[CaseSpec] = tls_cases!("tls10-malformed-keys.log");
+const TLS10_PADDED_CASE_SPECS: &[CaseSpec] = tls_cases!("tls10-padded-keys.log");
 const TLS12_GCM_CASE_SPECS: &[CaseSpec] = tls_cases!("tls12-gcm-keys.log");
 const TLS12_CBC_ETM_CASE_SPECS: &[CaseSpec] = tls_cases!("tls12-cbc-etm-keys.log");
 const TLS12_CBC_MTE_CASE_SPECS: &[CaseSpec] = tls_cases!("tls12-cbc-mte-keys.log");
@@ -35337,14 +37024,6 @@ fn build_http1_edge() -> Result<Vec<u8>, String> {
         b"HTTP/1.1 304 Not Modified\r\nContent-Length: 100\r\n\r\n",
         &mut frames,
     )?;
-    push_server(
-        b"HTTP/1.1 304 Not Modified\r\nContent-Length: 5\r\n\r\nabc",
-        &mut frames,
-    )?;
-    push_client(
-        b"POST /dup HTTP/1.1\r\nHost: x\r\nContent-Length: 3\r\nContent-Length: 5\r\n\r\nhello",
-        &mut frames,
-    )?;
     push_client(b"GET /chunk HTTP/1.1\r\nHost: x\r\n\r\n", &mut frames)?;
     push_server(
         b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n1\r\na\r\n0\r\nX: y\r\n\r\n",
@@ -35359,24 +37038,193 @@ fn build_http1_edge() -> Result<Vec<u8>, String> {
         b"GET /name HTTP/1.1\r\nBad Name: v\r\nHost: x\r\n\r\n",
         &mut frames,
     )?;
-    frames.push(tcp_payload_between(
-        T20_SERVER,
-        T20_CLIENT,
-        80,
-        40_131,
-        1000,
-        1,
-        b"HTTP/1.1 200 OK\r\nContent-Length: 3\r\nContent-Length: abc\r\n\r\nhello",
-    )?);
-    frames.push(tcp_payload_between(
-        T20_SERVER,
-        T20_CLIENT,
-        80,
-        40_132,
-        1000,
-        1,
-        b"HTTP/1.1 200 OK\r\nContent-Length: abc\r\nContent-Length: 3\r\n\r\nhello",
-    )?);
+    link_pcap(u32::from(LINKTYPE_ETHERNET), &frames)
+}
+
+fn build_http_framing_rfc() -> Result<Vec<u8>, String> {
+    let mut frames = Vec::new();
+
+    // A method outside the common set still starts a message and a follow
+    // record. This connection comes first so it is stream 0.
+    {
+        let mut connection = ObjectConnection::new(&mut frames, 40_600);
+        connection.client(b"PROPFIND /dav HTTP/1.1\r\nHost: h\r\nContent-Length: 0\r\n\r\n")?;
+        connection.server(b"HTTP/1.1 207 Multi-Status\r\nContent-Length: 0\r\n\r\n")?;
+        connection.server_fin(b"")?;
+    }
+
+    // Repeated Content-Length fields that agree frame the declared body once.
+    {
+        let mut connection = ObjectConnection::new(&mut frames, 40_601);
+        connection.client(b"GET /agree HTTP/1.1\r\nHost: h\r\n\r\n")?;
+        connection
+            .server(b"HTTP/1.1 200 OK\r\nContent-Length: 5\r\nContent-Length: 5\r\n\r\nhello")?;
+        connection.server_fin(b"")?;
+    }
+
+    // Repeated Content-Length fields that disagree make the length unusable;
+    // the captured remainder stays with the message.
+    {
+        let mut connection = ObjectConnection::new(&mut frames, 40_602);
+        connection.client(b"POST /disagree HTTP/1.1\r\nHost: h\r\n\r\n")?;
+        connection
+            .server(b"HTTP/1.1 200 OK\r\nContent-Length: 3\r\nContent-Length: 5\r\n\r\nhello!")?;
+        connection.server_fin(b"")?;
+    }
+
+    // An unreadable Content-Length before a usable one stays unusable.
+    {
+        let mut connection = ObjectConnection::new(&mut frames, 40_603);
+        connection.client(b"GET /unreadable HTTP/1.1\r\nHost: h\r\n\r\n")?;
+        connection
+            .server(b"HTTP/1.1 200 OK\r\nContent-Length: abc\r\nContent-Length: 5\r\n\r\nhello!")?;
+        connection.server_fin(b"")?;
+    }
+
+    // A final transfer coding that is not chunked close-delimits a response.
+    {
+        let mut connection = ObjectConnection::new(&mut frames, 40_604);
+        connection.client(b"GET /coding HTTP/1.1\r\nHost: h\r\n\r\n")?;
+        connection.server(b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked, gzip\r\n\r\nbody")?;
+        connection.server_fin(b"")?;
+    }
+
+    // A request whose final transfer coding is not chunked cannot be framed;
+    // the captured remainder stays with it.
+    {
+        let mut connection = ObjectConnection::new(&mut frames, 40_605);
+        connection
+            .client(b"POST /coding HTTP/1.1\r\nHost: h\r\nTransfer-Encoding: gzip\r\n\r\nbody")?;
+        connection.server_fin(b"")?;
+    }
+
+    // A 304 response ends at the header section; the fragment after it cannot
+    // start a message, so it becomes a continuation record.
+    {
+        let mut connection = ObjectConnection::new(&mut frames, 40_606);
+        connection.client(b"GET /304 HTTP/1.1\r\nHost: h\r\n\r\n")?;
+        connection.server(b"HTTP/1.1 304 Not Modified\r\nContent-Length: 5\r\n\r\njunk\r\n")?;
+        connection.server_fin(b"")?;
+    }
+
+    // A response to HEAD carries no body even when its fields declare one.
+    {
+        let mut connection = ObjectConnection::new(&mut frames, 40_607);
+        connection.client(b"HEAD /head HTTP/1.1\r\nHost: h\r\n\r\n")?;
+        connection.server(b"HTTP/1.1 200 OK\r\nContent-Length: 4\r\n\r\njunk\r\n")?;
+        connection.server_fin(b"")?;
+    }
+
+    // A chunk boundary that is not CRLF keeps the decoded chunk, shows the
+    // captured bytes and carries one malformed expert.
+    {
+        let mut connection = ObjectConnection::new(&mut frames, 40_608);
+        connection.client(b"GET /boundary HTTP/1.1\r\nHost: h\r\n\r\n")?;
+        connection.server(b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n1\r\naXX")?;
+        connection.server_fin(b"")?;
+    }
+
+    // The same unusable Content-Length with the body in a later segment: the
+    // message must own those bytes too, so both segmentations frame one body.
+    {
+        let mut connection = ObjectConnection::new(&mut frames, 40_609);
+        connection.client(b"GET /disagree-split HTTP/1.1\r\nHost: h\r\n\r\n")?;
+        connection.server(b"HTTP/1.1 200 OK\r\nContent-Length: 3\r\nContent-Length: 5\r\n\r\n")?;
+        connection.server(b"hello!")?;
+        connection.server_fin(b"")?;
+    }
+
+    // An unusable Content-Length without a connection close: the response has
+    // no declared boundary and no FIN to bound it, so it stays a TCP row.
+    {
+        let mut connection = ObjectConnection::new(&mut frames, 40_610);
+        connection
+            .server(b"HTTP/1.1 200 OK\r\nContent-Length: 3\r\nContent-Length: abc\r\n\r\nhello")?;
+    }
+
+    // A transfer parameter's quoted comma does not split the coding list, so
+    // the response is de-chunked and the pipelined 204 still decodes.
+    {
+        let mut connection = ObjectConnection::new(&mut frames, 40_611);
+        connection.client(b"GET /quoted HTTP/1.1\r\nHost: h\r\n\r\n")?;
+        connection.server(
+            b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked; q=\"a,b\"\r\n\r\n1\r\na\r\n0\r\n\r\n\
+              HTTP/1.1 204 No Content\r\n\r\n",
+        )?;
+        connection.server_fin(b"")?;
+    }
+
+    // A plus-signed length is not one or more digits, so it declares nothing
+    // and the field must not render a length the framing does not use.
+    {
+        let mut connection = ObjectConnection::new(&mut frames, 40_612);
+        connection.client(b"GET /plus HTTP/1.1\r\nHost: h\r\n\r\n")?;
+        connection.server(b"HTTP/1.1 200 OK\r\nContent-Length: +5\r\n\r\nhello")?;
+        connection.server_fin(b"")?;
+    }
+
+    // A list of identical decimal values collapses to one usable length.
+    {
+        let mut connection = ObjectConnection::new(&mut frames, 40_613);
+        connection.client(b"GET /list HTTP/1.1\r\nHost: h\r\n\r\n")?;
+        connection.server(b"HTTP/1.1 200 OK\r\nContent-Length: 5, 5\r\n\r\nhello")?;
+        connection.server_fin(b"")?;
+    }
+
+    // Both framing fields: the chunked coding still frames the body, and the
+    // combination carries one warning expert on the Content-Length field.
+    {
+        let mut connection = ObjectConnection::new(&mut frames, 40_614);
+        connection.client(
+            b"POST /te-cl HTTP/1.1\r\nHost: h\r\nTransfer-Encoding: chunked\r\n\
+              Content-Length: 5\r\n\r\n5\r\nhello\r\n0\r\n\r\n",
+        )?;
+        connection.server(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n")?;
+        connection.server_fin(b"")?;
+    }
+
+    // A request with an unusable length split before its body: requests are
+    // never close-delimited (RFC 9112 section 6.3 note), so the message ends
+    // at the segment that completed its header and the later body segment is
+    // not attached. The shape is pinned so the limitation stays measured.
+    {
+        let mut connection = ObjectConnection::new(&mut frames, 40_615);
+        connection.client(
+            b"POST /split-req HTTP/1.1\r\nHost: h\r\nContent-Length: 3\r\n\
+              Content-Length: 5\r\n\r\n",
+        )?;
+        connection.client(b"hello!")?;
+        connection.server(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n")?;
+        connection.server_fin(b"")?;
+    }
+
+    // A 2xx answer to CONNECT turns the connection into a tunnel (RFC 9112
+    // section 6.3 case 2): the later server and client segments look like a
+    // response and a request, but they are tunnel bytes.
+    {
+        let mut connection = ObjectConnection::new(&mut frames, 40_616);
+        connection.client(b"CONNECT example.com:443 HTTP/1.1\r\nHost: h\r\n\r\n")?;
+        connection.server(b"HTTP/1.1 200 Connection established\r\n\r\n")?;
+        connection.server(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n")?;
+        connection.client(b"GET /inside HTTP/1.1\r\nHost: h\r\n\r\n")?;
+        connection.server_fin(b"")?;
+    }
+
+    // A request with 257 fields, one past the 256 lines the decoder retains,
+    // pipelined with a second request in one segment. The first is left
+    // undecoded but keeps its framed length, so the second still decodes at
+    // its own start.
+    {
+        let mut crowded = b"GET /crowded HTTP/1.1\r\nHost: h\r\n".to_vec();
+        for index in 0..256 {
+            crowded.extend_from_slice(format!("X-{index}: v\r\n").as_bytes());
+        }
+        crowded.extend_from_slice(b"\r\nGET /second HTTP/1.1\r\nHost: h\r\n\r\n");
+        let mut connection = ObjectConnection::new(&mut frames, 40_617);
+        connection.client(&crowded)?;
+        connection.server_fin(b"")?;
+    }
+
     link_pcap(u32::from(LINKTYPE_ETHERNET), &frames)
 }
 

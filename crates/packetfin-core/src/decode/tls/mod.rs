@@ -30,7 +30,7 @@ use crate::decode::DecodeContext;
 use crate::decode::bytes::{hex_lower, read_u16_be, read_u24_be, read_u32_be};
 use crate::decode::http;
 use crate::fields;
-use crate::state::{ConversationKey, PduAction};
+use crate::state::{ConversationKey, PduAction, PlaintextAlpn};
 use crate::tree::{Field, Node, Range, RawField, RawSource, Value};
 
 use self::cipher::{Suite, suite};
@@ -52,6 +52,7 @@ const CONTENT_HEARTBEAT: u8 = 24;
 const HANDSHAKE_CLIENT_HELLO: u8 = 1;
 const HANDSHAKE_SERVER_HELLO: u8 = 2;
 const HANDSHAKE_NEW_SESSION_TICKET: u8 = 4;
+const HANDSHAKE_ENCRYPTED_EXTENSIONS: u8 = 8;
 const HANDSHAKE_FINISHED: u8 = 20;
 const HANDSHAKE_KEY_UPDATE: u8 = 24;
 
@@ -63,6 +64,7 @@ const EXTENSION_ALPN: u16 = 16;
 const EXTENSION_SUPPORTED_VERSIONS: u16 = 43;
 const EXTENSION_KEY_SHARE: u16 = 51;
 const EXTENSION_SESSION_TICKET: u16 = 35;
+const EXTENSION_EARLY_DATA: u16 = 42;
 const EXTENSION_ENCRYPT_THEN_MAC: u16 = 22;
 
 const VERSION_TLS_1_2: u16 = 0x0303;
@@ -87,6 +89,13 @@ enum HandshakeEvent {
         session_id: Vec<u8>,
         encrypt_then_mac: bool,
         hello_retry_request: bool,
+        alpn: Option<String>,
+    },
+    EncryptedExtensions {
+        alpn: Option<String>,
+        /// The extensions were read and hold no "early_data": the server
+        /// skipped the client's 0-RTT records (RFC 8446 section 4.2.10).
+        early_data_rejected: bool,
     },
     NewSessionTicket {
         ticket: Vec<u8>,
@@ -622,7 +631,10 @@ pub(crate) fn decode(context: &mut DecodeContext<'_>, parent: &mut Node, data: &
         );
     }
 
-    let alpn_http = flow.as_ref().is_some_and(TlsFlow::http_alpn);
+    let selected_http2 = flow.as_ref().and_then(TlsFlow::selected_http2);
+    let alpn_http = flow
+        .as_ref()
+        .is_some_and(|flow| flow.http_alpn() || flow.http2_alpn());
     if !context.quoted
         && let Some(key) = conversation
     {
@@ -672,6 +684,7 @@ pub(crate) fn decode(context: &mut DecodeContext<'_>, parent: &mut Node, data: &
             plaintext_direction,
             &mut client_plaintext,
             plaintext_info,
+            selected_http2,
         );
         plaintext_info = info;
         client_http |= http;
@@ -685,6 +698,7 @@ pub(crate) fn decode(context: &mut DecodeContext<'_>, parent: &mut Node, data: &
             plaintext_direction,
             &mut server_plaintext,
             plaintext_info,
+            selected_http2,
         );
         plaintext_info = info;
         server_http |= http;
@@ -722,6 +736,7 @@ fn decode_plaintext(
     direction: usize,
     plaintext: &mut Vec<u8>,
     info: Option<String>,
+    selected_http2: Option<bool>,
 ) -> (bool, Option<String>) {
     if plaintext.is_empty() {
         return (false, info);
@@ -736,6 +751,11 @@ fn decode_plaintext(
         context.frame.number,
         plaintext,
         false,
+        match selected_http2 {
+            Some(true) => PlaintextAlpn::Http2,
+            Some(false) => PlaintextAlpn::Other,
+            None => PlaintextAlpn::Unknown,
+        },
     );
     plaintext.clear();
     (
@@ -765,28 +785,23 @@ fn decode_plaintext_actions(
     mut info: Option<String>,
 ) -> Option<String> {
     for action in actions {
-        let data = match action {
-            PduAction::Standalone {
-                ulp: crate::state::Ulp::Http,
-                data,
-                ..
-            }
-            | PduAction::Reassembled {
-                pdu:
-                    crate::state::ReassembledPdu {
-                        ulp: crate::state::Ulp::Http,
-                        data,
-                        ..
-                    },
-                ..
-            } => data,
+        let (ulp, data) = match action {
+            PduAction::Standalone { ulp, data, .. } => (ulp, data),
+            PduAction::Reassembled { pdu, .. } => (pdu.ulp, pdu.data),
             _ => continue,
         };
+        if !matches!(ulp, crate::state::Ulp::Http | crate::state::Ulp::Http2) {
+            continue;
+        }
         let before = parent.children.len();
         let source = context.reserve_plaintext_source();
         let previous = std::mem::replace(&mut context.tls_plaintext, true);
         let previous_info = context.columns.info.take();
-        http::decode(context, parent, &data, 0);
+        if ulp == crate::state::Ulp::Http2 {
+            crate::decode::http2::decode(context, parent, &data, 0);
+        } else {
+            http::decode(context, parent, &data, 0);
+        }
         context.tls_plaintext = previous;
         let current = context.columns.info.take();
         context.columns.info = previous_info;
@@ -801,13 +816,27 @@ fn decode_plaintext_actions(
         // allocation with the fields already added, so no body copy is made.
         context.set_data_source(source, data);
         if let Some(current) = current {
-            info = Some(match info {
-                Some(previous) => format!("{previous}{current}"),
-                None => current,
-            });
+            info = Some(join_plaintext_info(
+                info,
+                current,
+                ulp == crate::state::Ulp::Http2,
+            ));
         }
     }
     info
+}
+
+/// Append one PDU's summary to the plaintext column.
+///
+/// HTTP/2 summaries carry no separators of their own, so a preface PDU and a
+/// following frame PDU would otherwise read `MagicSETTINGS[0]`. HTTP/1.x
+/// messages keep their existing spacing.
+fn join_plaintext_info(info: Option<String>, current: String, http2: bool) -> String {
+    match info {
+        Some(previous) if http2 => format!("{previous}, {current}"),
+        Some(previous) => format!("{previous}{current}"),
+        None => current,
+    }
 }
 
 /// Name the inner protocol on the records whose plaintext the HTTP decoder
@@ -908,10 +937,14 @@ fn process_event(
             session_id,
             encrypt_then_mac,
             hello_retry_request,
+            alpn,
         } => {
             let Some(flow) = flow.as_mut() else {
                 return;
             };
+            // RFC 7301 section 3.2: only the server's selection fixes the
+            // application protocol; the client's offer order proves nothing.
+            flow.set_selected_alpn(alpn.as_deref());
             let Some(session) = flow.last_session_mut() else {
                 return;
             };
@@ -967,7 +1000,7 @@ fn process_event(
             let Some(master) = master else {
                 return;
             };
-            let exports = flow.install_tls12(master, suite, &server_random, export);
+            let exports = flow.install_master_secret(master, suite, &server_random, export);
             context.state.push_exported_keys(exports);
             let Some(session) = flow.last_session() else {
                 return;
@@ -977,6 +1010,26 @@ fn process_event(
                 context.state.cache_tls_secret(&id, &master);
             }
         }
+        HandshakeEvent::EncryptedExtensions {
+            alpn,
+            early_data_rejected,
+        } => {
+            let Some(flow) = flow.as_mut() else {
+                return;
+            };
+            // Without early keys no 0-RTT record was decrypted, so a
+            // rejection has nothing to undo.
+            if early_data_rejected && flow.has_early_keys() {
+                flow.reject_early_data();
+                if let Some((conversation, _)) = context
+                    .transport_ports
+                    .and_then(|(source, destination)| context.conversation_key(source, destination))
+                {
+                    context.state.discard_early_application(conversation);
+                }
+            }
+            flow.set_selected_alpn(alpn.as_deref());
+        }
         HandshakeEvent::NewSessionTicket { ticket } => {
             let Some(flow) = flow.as_ref() else {
                 return;
@@ -984,9 +1037,10 @@ fn process_event(
             let Some(session) = flow.last_session() else {
                 return;
             };
-            if session.version() == Some(VERSION_TLS_1_2)
-                && let Some(master) = session.master_secret().and_then(Secret::duplicate)
-            {
+            // RFC 5077 applies to TLS 1.0 and later; a session has a master
+            // secret only when a pre-TLS 1.3 key block was installed, so the
+            // version needs no separate test.
+            if let Some(master) = session.master_secret().and_then(Secret::duplicate) {
                 context.state.cache_tls_secret(&ticket, &master);
             }
         }
@@ -1095,7 +1149,7 @@ fn add_record<'a>(
         );
         field.showname = Some(format!(
             "Version: {} (0x{version:04x})",
-            version_name(version)
+            version_label(version)
         ));
     }
     if let Some(length) = read_u16_be(record, 3) {
@@ -1418,10 +1472,22 @@ fn decode_handshake(
                         session_id: info.session_id,
                         encrypt_then_mac: info.encrypt_then_mac,
                         hello_retry_request: hrr,
+                        alpn: info.alpn,
                     });
                 } else {
                     events.push(HandshakeEvent::Message(message_type));
                 }
+            }
+            HANDSHAKE_ENCRYPTED_EXTENSIONS => {
+                let extensions =
+                    parse_encrypted_extensions(handshake, message_body, message_body_base);
+                infos.push(message_name.to_string());
+                events.push(HandshakeEvent::EncryptedExtensions {
+                    early_data_rejected: extensions
+                        .as_ref()
+                        .is_some_and(|info| !info.extensions.contains(&EXTENSION_EARLY_DATA)),
+                    alpn: extensions.and_then(|info| info.alpn),
+                });
             }
             HANDSHAKE_NEW_SESSION_TICKET => {
                 if let Some(ticket) = parse_new_session_ticket(
@@ -1610,6 +1676,7 @@ struct ServerHelloInfo {
     cipher_suite: Option<u16>,
     session_id: Vec<u8>,
     encrypt_then_mac: bool,
+    alpn: Option<String>,
 }
 
 /// Parse a ClientHello and add `tls.handshake.*` fields.
@@ -1645,7 +1712,7 @@ fn parse_client_hello(field: &mut Field, body: &[u8], base: usize) -> ClientHell
         );
         version_field.showname = Some(format!(
             "Version: {} (0x{version:04x})",
-            version_name(version)
+            version_label(version)
         ));
     }
     add_random(field, body, base, false);
@@ -1847,6 +1914,47 @@ fn server_hello_supported_version(body: &[u8]) -> Option<u16> {
     None
 }
 
+/// Parse a TLS 1.3 EncryptedExtensions and return the extensions it holds.
+///
+/// The body is a two-octet extension-vector length followed by the same
+/// extension encoding a hello carries (RFC 8446 section 4.3.1). `None` means
+/// the vector could not be read, so nothing is known about its contents.
+fn parse_encrypted_extensions(
+    field: &mut Field,
+    body: &[u8],
+    base: usize,
+) -> Option<ClientHelloInfo> {
+    let length = read_u16_be(body, 0)?;
+    field.add_field(
+        &fields::TLS_HANDSHAKE_EXTENSIONS_LENGTH,
+        Range::new(base, 2),
+        Value::Uint16(length),
+    );
+    let start = 2_usize;
+    let end = start.checked_add(usize::from(length))?;
+    let data = body.get(start..end)?;
+    let mut info = ClientHelloInfo {
+        version: 0,
+        last_supported_version: None,
+        max_supported_version: None,
+        cipher_suites: Vec::new(),
+        extensions: Vec::new(),
+        groups: Vec::new(),
+        formats: Vec::new(),
+        signature_algorithms: Vec::new(),
+        sni: None,
+        has_sni: false,
+        alpn: None,
+        client_random: None,
+        session_id: Vec::new(),
+        ticket: None,
+        first_tls13_suite: None,
+        encrypt_then_mac: false,
+    };
+    parse_extensions(field, data, base.saturating_add(start), false, &mut info);
+    Some(info)
+}
+
 /// Parse a ServerHello and add `tls.handshake.*` fields.
 fn parse_server_hello(field: &mut Field, body: &[u8], base: usize) -> ServerHelloInfo {
     let mut negotiated = read_u16_be(body, 0).unwrap_or(0);
@@ -1862,6 +1970,7 @@ fn parse_server_hello(field: &mut Field, body: &[u8], base: usize) -> ServerHell
     let mut server_random = None;
     let mut session_id = Vec::new();
     let mut encrypt_then_mac = false;
+    let mut alpn = None;
     if let Some(random) = body.get(2..34) {
         let mut parsed = [0_u8; 32];
         parsed.copy_from_slice(random);
@@ -1875,7 +1984,7 @@ fn parse_server_hello(field: &mut Field, body: &[u8], base: usize) -> ServerHell
         );
         version_field.showname = Some(format!(
             "Version: {} (0x{version:04x})",
-            version_name(version)
+            version_label(version)
         ));
     }
     // A TLS 1.3 ServerHello and a HelloRetryRequest omit the random time and
@@ -1888,6 +1997,7 @@ fn parse_server_hello(field: &mut Field, body: &[u8], base: usize) -> ServerHell
             cipher_suite: Some(cipher_suite),
             session_id,
             encrypt_then_mac,
+            alpn: None,
         };
     };
     field.add_field(
@@ -1966,6 +2076,7 @@ fn parse_server_hello(field: &mut Field, body: &[u8], base: usize) -> ServerHell
         );
         extensions = hello.extensions;
         encrypt_then_mac = hello.encrypt_then_mac;
+        alpn = hello.alpn;
         if legacy == VERSION_TLS_1_2
             && let Some(supported) = hello.last_supported_version
         {
@@ -1994,6 +2105,7 @@ fn parse_server_hello(field: &mut Field, body: &[u8], base: usize) -> ServerHell
         cipher_suite: Some(cipher_suite),
         session_id,
         encrypt_then_mac,
+        alpn,
     }
 }
 
@@ -2186,9 +2298,12 @@ fn parse_alpn(field: &mut Field, data: &[u8], base: usize) -> Option<String> {
         Range::new(base.saturating_add(2), usize::from(length)),
         Some("ALPN Protocol".to_string()),
     );
+    // RFC 7301 section 3.1: the ProtocolNameList length bounds the names;
+    // bytes after it belong to no protocol and are not read.
+    let list_end = 2_usize.saturating_add(usize::from(length));
     let mut offset = 2_usize;
     let mut first = None;
-    while offset < data.len() {
+    while offset < list_end {
         let Some(protocol_length) = data.get(offset).copied() else {
             break;
         };
@@ -2197,7 +2312,7 @@ fn parse_alpn(field: &mut Field, data: &[u8], base: usize) -> Option<String> {
         let Some(end) = start.checked_add(protocol_length) else {
             break;
         };
-        if end > data.len() {
+        if end > list_end || end > data.len() {
             break;
         }
         list.add_field(
@@ -2236,7 +2351,7 @@ fn parse_supported_versions(
             );
             version_field.showname = Some(format!(
                 "Supported Version: {} (0x{version:04x})",
-                version_name(version)
+                version_label(version)
             ));
             // The negotiated-version scan only reads a two-octet
             // supported_versions extension.
@@ -2271,7 +2386,7 @@ fn parse_supported_versions(
         );
         version_field.showname = Some(format!(
             "Supported Version: {} (0x{version:04x})",
-            version_name(version)
+            version_label(version)
         ));
         last = Some(version);
         offset = offset.saturating_add(2);
@@ -2674,15 +2789,31 @@ fn content_type_name(content_type: u8) -> &'static str {
     }
 }
 
-fn version_name(version: u16) -> &'static str {
+/// The two spellings of a TLS version.
+///
+/// The short form names the protocol column and the record-layer prefix
+/// (`TLSv1.2 Record Layer`); the long form follows `Version: ` and
+/// `Supported Version: `, matching the version labels the expected output
+/// prints (`TLS 1.2`, `SSL 3.0`).
+const fn version_names(version: u16) -> (&'static str, &'static str) {
     match version {
-        0x0300 => "SSLv3",
-        0x0301 => "TLSv1",
-        0x0302 => "TLSv1.1",
-        0x0303 => "TLSv1.2",
-        0x0304 => "TLSv1.3",
-        _ => "TLS",
+        0x0300 => ("SSLv3", "SSL 3.0"),
+        0x0301 => ("TLSv1", "TLS 1.0"),
+        0x0302 => ("TLSv1.1", "TLS 1.1"),
+        0x0303 => ("TLSv1.2", "TLS 1.2"),
+        0x0304 => ("TLSv1.3", "TLS 1.3"),
+        _ => ("TLS", "TLS"),
     }
+}
+
+/// The protocol-column and record-layer name of a version.
+fn version_name(version: u16) -> &'static str {
+    version_names(version).0
+}
+
+/// The field showname of a version, without its hex value.
+fn version_label(version: u16) -> &'static str {
+    version_names(version).1
 }
 
 fn handshake_name(message_type: u8) -> &'static str {
@@ -2878,6 +3009,20 @@ fn ec_point_format_name(format: u8) -> &'static str {
 mod tests {
     use super::*;
 
+    #[test]
+    fn version_names_use_the_short_and_long_spellings() {
+        for (version, short, long) in [
+            (0x0300_u16, "SSLv3", "SSL 3.0"),
+            (0x0301, "TLSv1", "TLS 1.0"),
+            (0x0302, "TLSv1.1", "TLS 1.1"),
+            (0x0303, "TLSv1.2", "TLS 1.2"),
+            (0x0304, "TLSv1.3", "TLS 1.3"),
+            (0x1234, "TLS", "TLS"),
+        ] {
+            assert_eq!(version_names(version), (short, long), "{version:#06x}");
+        }
+    }
+
     fn example_client_hello() -> ClientHelloInfo {
         ClientHelloInfo {
             version: 0x0303,
@@ -2897,6 +3042,74 @@ mod tests {
             first_tls13_suite: None,
             encrypt_then_mac: false,
         }
+    }
+
+    #[test]
+    fn encrypted_extensions_select_their_alpn_protocol() {
+        let mut node = Node::new(&fields::TLS_PROTOCOL, Range::default());
+        let field = node.add_field(
+            &fields::TLS_HANDSHAKE_LENGTH,
+            Range::default(),
+            Value::Uint32(0),
+        );
+        // EncryptedExtensions: a 9-octet extension vector holding one ALPN
+        // extension whose list names h2 (RFC 8446 section 4.3.1).
+        let body = [
+            0x00, 0x09, 0x00, 0x10, 0x00, 0x05, 0x00, 0x03, 0x02, b'h', b'2',
+        ];
+        let extensions = parse_encrypted_extensions(field, &body, 0);
+        assert_eq!(
+            extensions.as_ref().and_then(|info| info.alpn.as_deref()),
+            Some("h2")
+        );
+        // No early_data extension: a server that leaves it out rejected any
+        // 0-RTT data (RFC 8446 section 4.2.10).
+        assert!(extensions.is_some_and(|info| !info.extensions.contains(&EXTENSION_EARLY_DATA)));
+        // An empty body has no extension vector to read.
+        assert!(parse_encrypted_extensions(field, &[], 0).is_none());
+    }
+
+    #[test]
+    fn an_alpn_list_stops_at_its_declared_length() {
+        let mut node = Node::new(&fields::TLS_PROTOCOL, Range::default());
+        let field = node.add_field(
+            &fields::TLS_HANDSHAKE_LENGTH,
+            Range::default(),
+            Value::Uint32(0),
+        );
+        // A three-octet list names h2; the trailing octets are not a second
+        // protocol.
+        let data = [0x00, 0x03, 0x02, b'h', b'2', 0x02, b'h', b'3'];
+        assert_eq!(parse_alpn(field, &data, 0).as_deref(), Some("h2"));
+        let list = field
+            .children
+            .get(1)
+            .unwrap_or_else(|| unreachable!("the ALPN list container"));
+        // Only h2's length and value sit inside the declared list.
+        assert_eq!(list.children.len(), 2);
+
+        let mut node = Node::new(&fields::TLS_PROTOCOL, Range::default());
+        let field = node.add_field(
+            &fields::TLS_HANDSHAKE_LENGTH,
+            Range::default(),
+            Value::Uint32(0),
+        );
+        // A two-octet list cannot hold the two-octet name that starts at its
+        // last octet, so the crossing name is not a protocol at all.
+        let data = [0x00, 0x02, 0x02, b'h', b'2'];
+        assert_eq!(parse_alpn(field, &data, 0), None);
+    }
+
+    #[test]
+    fn http2_plaintext_summaries_keep_their_separator() {
+        assert_eq!(
+            join_plaintext_info(Some("Magic".to_string()), "SETTINGS[0]".to_string(), true),
+            "Magic, SETTINGS[0]"
+        );
+        assert_eq!(
+            join_plaintext_info(Some("GET / ".to_string()), "HTTP/1.1".to_string(), false),
+            "GET / HTTP/1.1"
+        );
     }
 
     #[test]

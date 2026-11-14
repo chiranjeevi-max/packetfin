@@ -42,7 +42,10 @@ use super::SessionState;
 use super::budget::StateValue;
 use super::conversation::ConversationKey;
 use crate::capture::Timestamp;
-use crate::http_syntax::MAX_HEADER_BYTES;
+use crate::http_syntax::{
+    Answer, BodyPlan, ChunkScanner, ChunkStep, Framing, MAX_HEADER_BYTES, continuation,
+    header_section_end, next_line,
+};
 use crate::tree::Bytes;
 
 /// DNS's `dns.retransmission_timer` default in nanoseconds.
@@ -158,6 +161,9 @@ impl HttpExchange {
 #[derive(Debug, Default)]
 pub(crate) struct HttpConversation {
     tail: Option<HttpExchange>,
+    /// A 2xx answer to CONNECT turned the connection into a tunnel
+    /// (RFC 9112 section 6.3), so it carries no further HTTP message.
+    tunnel: bool,
 }
 
 impl StateValue for HttpConversation {
@@ -233,6 +239,15 @@ pub(crate) struct TlsPlaintextKey {
     conversation: ConversationKey,
 }
 
+/// One frame's run of retained undecided plaintext.
+#[derive(Clone, Copy, Debug)]
+struct PlaintextPart {
+    /// Frame that supplied the bytes up to [`Self::end`].
+    frame: u64,
+    /// Exclusive end offset within the direction's retained buffer.
+    end: usize,
+}
+
 /// Decrypted application-data streams awaiting or forming an HTTP message.
 ///
 /// Record boundaries are invisible to HTTP/1.x (RFC 9112 section 3), so the
@@ -245,12 +260,224 @@ pub(crate) struct TlsPlaintext {
     next_sequence: [u32; 2],
     /// The direction's plaintext has been recognised as HTTP/1.x.
     http: [bool; 2],
+    /// Plaintext retained until the direction's protocol is identified.
+    ///
+    /// A decrypted stream with no ALPN selection has no protocol until the
+    /// HTTP/2 connection preface (RFC 9113 section 3.5) or an HTTP/1.x start
+    /// line (RFC 9112 section 3) appears. Until then its bytes wait here,
+    /// bounded by [`MAX_UNDECIDED_PLAINTEXT_BYTES`], so a server's
+    /// application data arriving before the client preface does not select
+    /// HTTP/1.x by guess.
+    undecided: [Vec<u8>; 2],
+    /// Frame that supplied each run of retained bytes, oldest first.
+    ///
+    /// A protocol decision may arrive in a later frame than the bytes it
+    /// frames, so every retained run keeps its own arrival frame instead of
+    /// taking the frame that supplied the evidence. Adjacent runs from one
+    /// frame share a part, and the parts cover the direction's retained
+    /// buffer exactly.
+    parts: [Vec<PlaintextPart>; 2],
 }
 
 impl StateValue for TlsPlaintext {
     fn state_bytes(&self) -> usize {
-        self.streams.heap_bytes()
+        let retained = self
+            .undecided
+            .iter()
+            .try_fold(0_usize, |total, buffer| {
+                total.checked_add(buffer.capacity())
+            })
+            .zip(self.parts.iter().try_fold(0_usize, |total, parts| {
+                total.checked_add(parts.capacity().checked_mul(size_of::<PlaintextPart>())?)
+            }))
+            .map(|(undecided, parts)| undecided.saturating_add(parts))
+            .unwrap_or(usize::MAX);
+        self.streams.heap_bytes().saturating_add(retained)
     }
+}
+
+impl TlsPlaintext {
+    /// Insert one direction's plaintext at its next offset.
+    fn insert_direction(
+        &mut self,
+        direction: usize,
+        frame: u64,
+        bytes: &[u8],
+        fin: bool,
+        report: &mut ReassemblyReport,
+    ) {
+        let sequence = self
+            .next_sequence
+            .get(direction)
+            .copied()
+            .unwrap_or_default();
+        let inserted = self
+            .streams
+            .direction_mut(direction)
+            .insert_with_fin(sequence, bytes, frame, true, fin);
+        self.streams
+            .observe_http_actions(direction, &inserted.actions);
+        report.actions.extend(inserted.actions);
+        report.error |= inserted.error;
+        if report.error_frame.is_none() {
+            report.error_frame = inserted.error_frame;
+        }
+        if report.oversized.is_none() {
+            report.oversized = inserted.oversized;
+        }
+        report.limit_reached |= inserted.limit_reached;
+        if report.malformed.is_none() {
+            report.malformed = inserted.malformed;
+        }
+        if let Some(slot) = self.next_sequence.get_mut(direction) {
+            *slot = sequence.wrapping_add(u32::try_from(bytes.len()).unwrap_or(u32::MAX));
+        }
+    }
+
+    /// Whether retaining `bytes` from `frame` would pass a retention cap.
+    ///
+    /// The byte cap bounds the window and the part cap bounds the
+    /// attribution list. A contribution that continues the newest run shares
+    /// its part, so only a new frame can reach the part cap.
+    fn undecided_over_cap(&self, direction: usize, frame: u64, bytes: &[u8]) -> bool {
+        let retained = self
+            .undecided
+            .get(direction)
+            .map(Vec::as_slice)
+            .unwrap_or_default();
+        let over_bytes = retained
+            .len()
+            .checked_add(bytes.len())
+            .is_none_or(|end| end > MAX_UNDECIDED_PLAINTEXT_BYTES);
+        let parts = self
+            .parts
+            .get(direction)
+            .map(Vec::as_slice)
+            .unwrap_or_default();
+        let needs_part = !bytes.is_empty() && parts.last().is_none_or(|part| part.frame != frame);
+        over_bytes || (needs_part && parts.len() >= MAX_UNDECIDED_PARTS)
+    }
+
+    /// Append one direction's plaintext while its protocol is unknown.
+    ///
+    /// Adjacent contributions from the same frame extend one part, so a
+    /// stream split at record boundaries keeps a small attribution list.
+    fn retain_undecided(&mut self, direction: usize, frame: u64, bytes: &[u8]) {
+        if bytes.is_empty() {
+            return;
+        }
+        let (Some(retained), Some(parts)) = (
+            self.undecided.get_mut(direction),
+            self.parts.get_mut(direction),
+        ) else {
+            return;
+        };
+        let Some(end) = retained.len().checked_add(bytes.len()) else {
+            return;
+        };
+        retained.extend_from_slice(bytes);
+        match parts.last_mut() {
+            Some(last) if last.frame == frame => last.end = end,
+            _ => parts.push(PlaintextPart { frame, end }),
+        }
+    }
+
+    /// Emit a direction's retained plaintext once its protocol is selected.
+    ///
+    /// Every run keeps the frame that supplied it, and a later record that
+    /// only completes the evidence must not take that attribution. The FIN
+    /// belongs only to the record that ends the stream, so no retained run
+    /// carries it.
+    fn flush_retained(&mut self, direction: usize, report: &mut ReassemblyReport) {
+        let retained = self
+            .undecided
+            .get_mut(direction)
+            .map(std::mem::take)
+            .unwrap_or_default();
+        let parts = self
+            .parts
+            .get_mut(direction)
+            .map(std::mem::take)
+            .unwrap_or_default();
+        let mut start = 0_usize;
+        for part in parts {
+            let end = part.end.min(retained.len());
+            if end <= start {
+                continue;
+            }
+            let Some(range) = retained.get(start..end) else {
+                continue;
+            };
+            self.insert_direction(direction, part.frame, range, false, report);
+            start = end;
+        }
+    }
+
+    /// Select a direction's protocol and emit its retained plaintext first.
+    fn decide(
+        &mut self,
+        direction: usize,
+        ulp: Ulp,
+        frame: u64,
+        bytes: &[u8],
+        fin: bool,
+        report: &mut ReassemblyReport,
+    ) {
+        self.streams.direction_mut(direction).set_ulp(ulp);
+        self.flush_retained(direction, report);
+        self.insert_direction(direction, frame, bytes, fin, report);
+    }
+}
+
+/// The protocol the leading undecided bytes identify, if any.
+///
+/// RFC 9113 section 3.5 identifies HTTP/2 by its connection preface, and
+/// RFC 9112 section 3 identifies an HTTP/1.x message by its start line.
+fn plaintext_evidence(retained: &[u8], bytes: &[u8]) -> Option<Ulp> {
+    let mut probe = [0_u8; PLAINTEXT_EVIDENCE_BYTES];
+    let mut length = 0_usize;
+    for source in [retained, bytes] {
+        let room = PLAINTEXT_EVIDENCE_BYTES.saturating_sub(length);
+        let take = source.len().min(room);
+        if let (Some(target), Some(source)) = (
+            probe.get_mut(length..length.saturating_add(take)),
+            source.get(..take),
+        ) {
+            target.copy_from_slice(source);
+        }
+        length = length.saturating_add(take);
+        if length >= PLAINTEXT_EVIDENCE_BYTES {
+            break;
+        }
+    }
+    let probe = probe.get(..length).unwrap_or_default();
+    if crate::decode::http2::looks_like_http2_prefix(probe) {
+        return Some(Ulp::Http2);
+    }
+    if crate::decode::looks_like_http_stream_prefix(probe) {
+        return Some(Ulp::Http);
+    }
+    if crate::decode::http2::looks_like_frame_header(probe) {
+        return Some(Ulp::Http2);
+    }
+    None
+}
+
+/// Whether the framer emitted an HTTP/1.x message that opens with a start
+/// line (RFC 9112 section 3).
+///
+/// A start line split across records is whole only in the emitted message:
+/// the current record holds its tail, and the bytes that held its head are
+/// consumed once the message completes.
+fn emits_http_message(actions: &[PduAction]) -> bool {
+    actions.iter().any(|action| {
+        let (ulp, data) = match action {
+            PduAction::Standalone { ulp, data, .. } => (*ulp, data.as_slice()),
+            PduAction::Reassembled { pdu, .. } => (pdu.ulp, pdu.data.as_slice()),
+            _ => return false,
+        };
+        ulp == Ulp::Http && crate::decode::looks_like_http_stream_prefix(data)
+    })
 }
 
 /// The request a response matched, as the decoder needs it.
@@ -374,6 +601,7 @@ impl SessionState {
         frame: u64,
         bytes: &[u8],
         fin: bool,
+        alpn: PlaintextAlpn,
     ) -> (ReassemblyReport, bool) {
         if self.budget.suspended() || (bytes.is_empty() && !fin) {
             return (ReassemblyReport::default(), false);
@@ -384,35 +612,99 @@ impl SessionState {
             .take_with(&mut self.budget, &key)
             .unwrap_or_default();
         let direction = direction.min(1);
-        plaintext
-            .streams
-            .direction_mut(direction)
-            .set_ulp(Ulp::Http);
-        let sequence = plaintext
-            .next_sequence
-            .get(direction)
-            .copied()
-            .unwrap_or_default();
-        let report = plaintext
-            .streams
-            .direction_mut(direction)
-            .insert_with_fin(sequence, bytes, frame, true, fin);
-        plaintext
-            .streams
-            .observe_http_actions(direction, &report.actions);
+        let mut report = ReassemblyReport::default();
+        if plaintext.streams.direction(direction).ulp().is_none() {
+            // An ALPN `h2` selection fixes HTTP/2 for both directions: the
+            // client opens with the connection preface, but the server's
+            // first record is a SETTINGS frame with no marker of its own.
+            // Without a decrypted selection (RFC 7301 section 3.2), only the
+            // connection preface (RFC 9113 section 3.5), an already HTTP/2
+            // peer, or an HTTP/1.x start line (RFC 9112 section 3) identifies
+            // the protocol; anything else stays undecided rather than guess.
+            let peer = direction ^ 1;
+            let peer_http2 = plaintext.streams.direction(peer).ulp() == Some(Ulp::Http2);
+            let retained = plaintext
+                .undecided
+                .get(direction)
+                .map(Vec::as_slice)
+                .unwrap_or_default();
+            let selected = match alpn {
+                PlaintextAlpn::Http2 => Some(Ulp::Http2),
+                PlaintextAlpn::Other => Some(Ulp::Http),
+                PlaintextAlpn::Unknown if peer_http2 => Some(Ulp::Http2),
+                PlaintextAlpn::Unknown => plaintext_evidence(retained, bytes),
+            };
+            let over_cap = plaintext.undecided_over_cap(direction, frame, bytes);
+            let selected = match selected {
+                Some(selected) => Some(selected),
+                // A stream that ends now has no later record to identify it,
+                // and one past either retention cap cannot wait longer, so the
+                // retained bytes are emitted as HTTP/1.x. This is the
+                // documented fallback; the buffer never grows past its caps.
+                // The check runs before the current bytes are retained, so the
+                // fallback replays them after the bytes already kept.
+                None if fin || over_cap => Some(Ulp::Http),
+                None => None,
+            };
+            let Some(selected) = selected else {
+                plaintext.retain_undecided(direction, frame, bytes);
+                self.tls_plaintext
+                    .put_with(&mut self.budget, key, plaintext);
+                return (ReassemblyReport::default(), false);
+            };
+            if selected == Ulp::Http2 {
+                // HTTP/2 is connection-wide (RFC 9113 section 3.4): the peer
+                // direction frames HTTP/2 from its own bytes. Its retained
+                // bytes stay put and are emitted on the peer's next record,
+                // decoded with the peer's own state.
+                plaintext.streams.direction_mut(peer).set_ulp(Ulp::Http2);
+            }
+            plaintext.decide(direction, selected, frame, bytes, fin, &mut report);
+        } else {
+            plaintext.flush_retained(direction, &mut report);
+            plaintext.insert_direction(direction, frame, bytes, fin, &mut report);
+        }
         let buffered = plaintext.streams.direction(direction).buffered_prefix();
         let prefix = if buffered.is_empty() { bytes } else { buffered };
         let http = plaintext.http.get(direction).copied().unwrap_or(false)
-            || crate::decode::looks_like_http_stream_prefix(prefix);
+            || crate::decode::looks_like_http_stream_prefix(prefix)
+            || emits_http_message(&report.actions);
         if let Some(slot) = plaintext.http.get_mut(direction) {
             *slot = http;
-        }
-        if let Some(slot) = plaintext.next_sequence.get_mut(direction) {
-            *slot = sequence.wrapping_add(u32::try_from(bytes.len()).unwrap_or(u32::MAX));
         }
         self.tls_plaintext
             .put_with(&mut self.budget, key, plaintext);
         (report, http)
+    }
+
+    /// Forget the application state that rejected 0-RTT data built.
+    ///
+    /// RFC 8446 section 4.2.10: a server that returns no "early_data"
+    /// extension skips the client's early records, and its ALPN selection may
+    /// differ from the one they assumed. The application stream starts again
+    /// with the 1-RTT records, so the plaintext framing, the HTTP/2 connection
+    /// state and an HTTP/1.x request still waiting for its answer are
+    /// dropped. A CONNECT tunnel the connection carries beneath TLS stays.
+    pub(crate) fn discard_early_application(&mut self, conversation: ConversationKey) {
+        let _ = self
+            .tls_plaintext
+            .take_with(&mut self.budget, &TlsPlaintextKey { conversation });
+        for direction in 0..2 {
+            let key = crate::state::Http2Key {
+                conversation,
+                direction,
+            };
+            let _ = self.http2.take_with(&mut self.budget, &key);
+        }
+        let _ = self
+            .http2_streams
+            .take_with(&mut self.budget, &conversation);
+        if let Some(mut http) = self.http.take_with(&mut self.budget, &conversation)
+            && http.tunnel
+        {
+            http.tail = None;
+            self.http.put_with(&mut self.budget, conversation, http);
+        }
     }
 
     /// Complete a close-delimited PDU at TCP FIN or TLS close_notify.
@@ -430,25 +722,12 @@ impl SessionState {
             return ReassemblyReport::default();
         };
         let direction = direction.min(1);
-        plaintext
-            .streams
-            .direction_mut(direction)
-            .set_ulp(Ulp::Http);
-        let sequence = plaintext
-            .next_sequence
-            .get(direction)
-            .copied()
-            .unwrap_or_default();
-        let report = plaintext.streams.direction_mut(direction).insert_with_fin(
-            sequence,
-            &[],
-            frame,
-            true,
-            true,
-        );
-        plaintext
-            .streams
-            .observe_http_actions(direction, &report.actions);
+        let mut report = ReassemblyReport::default();
+        // A stream that ends here has no later record to identify it, so
+        // retained undecided bytes are emitted as HTTP/1.x and the pending
+        // close-delimited message completes at the FIN; `set_ulp` keeps a
+        // protocol the direction already selected.
+        plaintext.decide(direction, Ulp::Http, frame, &[], true, &mut report);
         self.tls_plaintext
             .put_with(&mut self.budget, key, plaintext);
         report
@@ -698,8 +977,27 @@ impl SessionState {
         };
         exchange.response_frame = frame;
         exchange.response_code = code;
+        let answers_connect = matched.is_some()
+            && exchange
+                .method
+                .as_deref()
+                .is_some_and(|method| method.eq_ignore_ascii_case("CONNECT"));
+        conversation.tunnel |= answers_connect && (200..300).contains(&code);
         self.http.put_with(&mut self.budget, key, conversation);
         matched
+    }
+
+    /// Whether a 2xx answer to CONNECT made the conversation a tunnel.
+    pub(crate) fn http_tunnel(&mut self, key: ConversationKey) -> bool {
+        if self.budget.suspended() {
+            return false;
+        }
+        let Some(conversation) = self.http.take_with(&mut self.budget, &key) else {
+            return false;
+        };
+        let tunnel = conversation.tunnel;
+        self.http.put_with(&mut self.budget, key, conversation);
+        tunnel
     }
 }
 
@@ -732,6 +1030,27 @@ pub(crate) enum Ulp {
     Bgp,
     /// HTTP/1.x: a header block and an optional declared body.
     Http,
+    /// HTTP/2: the connection preface and one frame at a time.
+    Http2,
+}
+
+/// What the TLS layer knows about the application protocol before plaintext.
+///
+/// ALPN is authoritative when the server's selection was decrypted
+/// (RFC 7301 section 3.2). A TLS 1.3 key log may carry only application
+/// traffic secrets, which cannot decrypt EncryptedExtensions; in that case
+/// the client preface or the peer direction identifies HTTP/2.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum PlaintextAlpn {
+    /// No selection was decrypted; infer it from the preface or the peer.
+    ///
+    /// Until one of them identifies the protocol, the direction's plaintext
+    /// is retained instead of guessed.
+    Unknown,
+    /// The server selected HTTP/2.
+    Http2,
+    /// The server selected another protocol.
+    Other,
 }
 
 impl Ulp {
@@ -743,30 +1062,42 @@ impl Ulp {
     fn first_segment_minimum(self) -> usize {
         match self {
             Self::Bgp => 16,
-            Self::Dns | Self::Tls | Self::Http => 1,
+            Self::Dns | Self::Tls | Self::Http | Self::Http2 => 1,
         }
     }
 
     /// Whether a PDU that fits one segment exposes `tcp.pdu.size`.
     ///
-    /// DNS and BGP report a PDU length for every message; HTTP and TLS
-    /// never do.
+    /// DNS, BGP and HTTP/2 report a PDU length for every message; HTTP/1.x
+    /// and TLS never do.
     fn standalone_pdu_size(self) -> bool {
-        matches!(self, Self::Dns | Self::Bgp)
+        matches!(self, Self::Dns | Self::Bgp | Self::Http2)
     }
 
     /// Whether a reassembled PDU exposes `tcp.pdu.size`.
     ///
-    /// The same rule as for a single-segment PDU: HTTP reports no length even
-    /// for a reassembled message, although the buffer length is known.
+    /// The same rule as for a single-segment PDU: HTTP/1.x reports no length
+    /// even for a reassembled message, although the buffer length is known.
     fn reassembled_pdu_size(self) -> bool {
-        matches!(self, Self::Dns | Self::Bgp)
+        matches!(self, Self::Dns | Self::Bgp | Self::Http2)
+    }
+
+    /// The most PDUs this upper layer emits from one segment/frame.
+    ///
+    /// HTTP/2 frames are small and numerous, and each is a tree node, so its
+    /// per-insert bound is lower than the generic one.
+    fn insert_pdu_limit(self) -> usize {
+        match self {
+            Self::Http2 => MAX_HTTP2_PDUS_PER_INSERT,
+            Self::Dns | Self::Tls | Self::Http | Self::Bgp => MAX_PDUS_PER_INSERT,
+        }
     }
 
     /// The largest message this upper layer reassembles in one direction.
     fn pdu_limit(self) -> usize {
         match self {
             Self::Http => MAX_HTTP_MESSAGE_BYTES,
+            Self::Http2 => MAX_HTTP2_FRAME_BYTES,
             Self::Dns | Self::Tls | Self::Bgp => MAX_PDU_BYTES,
         }
     }
@@ -775,6 +1106,7 @@ impl Ulp {
     fn pdu_limit_label(self) -> &'static str {
         match self {
             Self::Http => "64 MiB HTTP",
+            Self::Http2 => "16 MiB HTTP/2 frame",
             Self::Dns | Self::Tls | Self::Bgp => "1 MiB",
         }
     }
@@ -791,6 +1123,9 @@ impl Ulp {
     fn window_limit(self, trailing: usize) -> usize {
         match self {
             Self::Http => MAX_HTTP_MESSAGE_BYTES
+                .saturating_add(trailing.max(65_535))
+                .saturating_add(1),
+            Self::Http2 => MAX_HTTP2_FRAME_BYTES
                 .saturating_add(trailing.max(65_535))
                 .saturating_add(1),
             Self::Dns | Self::Tls | Self::Bgp => MAX_PDU_BYTES,
@@ -814,7 +1149,7 @@ impl Ulp {
     /// bounding a one-byte-segment flood.
     fn segment_limit(self) -> usize {
         match self {
-            Self::Http => 65_536,
+            Self::Http | Self::Http2 => 65_536,
             Self::Dns | Self::Tls | Self::Bgp => MAX_PDU_SEGMENTS,
         }
     }
@@ -833,6 +1168,41 @@ pub(crate) const MAX_PDU_BYTES: usize = 1024 * 1024;
 pub(crate) const MAX_HTTP_MESSAGE_BYTES: usize =
     crate::export::MAX_EXPORT_OBJECT_BYTES as usize + MAX_PDU_BYTES;
 
+/// The largest HTTP/2 frame a direction reassembles.
+///
+/// RFC 9113 section 4.1 encodes the payload length in 24 bits, so a frame is
+/// at most 16,777,215 payload octets plus its nine-octet header. The absolute
+/// field width is the memory bound; SETTINGS_MAX_FRAME_SIZE is the protocol
+/// limit the decoder checks.
+pub(crate) const MAX_HTTP2_FRAME_BYTES: usize = crate::decode::http2::MAX_FRAME_BYTES;
+
+/// The most plaintext one direction retains before its protocol is known.
+///
+/// Identification needs only the leading octets: the HTTP/2 connection
+/// preface (RFC 9113 section 3.5) or an HTTP/1.x start line (RFC 9112
+/// section 3). The cap keeps a decrypted flow that presents neither from
+/// growing the state ledger without bound; passing it falls back to HTTP/1.x.
+const MAX_UNDECIDED_PLAINTEXT_BYTES: usize = 64 * 1024;
+
+/// The most retained plaintext runs one direction keeps while undecided.
+///
+/// Each run records the frame that supplied it, so a flood of one-byte
+/// records would otherwise grow the attribution list without bound. Adjacent
+/// contributions from one frame coalesce, so a message split at record
+/// boundaries costs a handful of runs; passing the cap falls back to HTTP/1.x
+/// exactly like the byte cap.
+const MAX_UNDECIDED_PARTS: usize = 64;
+
+/// The leading octets examined for protocol evidence.
+///
+/// The connection preface is 24 octets and an HTTP/2 frame header is nine, so
+/// HTTP/2 is decided from 64 bytes. A complete HTTP/1.x request line can be
+/// much longer (a long URI after an extension method), and the token grammar
+/// needs the whole line, so the probe covers a bounded 8 KiB. A start line
+/// longer than this stays undecided until the stream ends or the retained
+/// bound falls back, rather than scanning without limit.
+const PLAINTEXT_EVIDENCE_BYTES: usize = 8 * 1024;
+
 /// The most contributing segments one non-HTTP PDU records.
 ///
 /// Every contribution costs metadata beyond its bytes, so the cap keeps a
@@ -847,6 +1217,16 @@ const MAX_PDU_SEGMENTS: usize = 4096;
 /// list and Info string.
 const MAX_PDUS_PER_INSERT: usize = 4096;
 
+/// The most HTTP/2 frames one segment/frame emits.
+///
+/// Each frame becomes a protocol node with several fields, so the generic PDU
+/// bound still lets a hostile segment of one-byte DATA frames retain tens of
+/// megabytes of tree metadata for one packet. The bound is one and a half
+/// times the body-view cap, so a body that just exceeds that cap still
+/// completes in one segment while a flood stops with the existing sequence
+/// expert; 384 frames is far beyond any real per-segment flight.
+const MAX_HTTP2_PDUS_PER_INSERT: usize = 384;
+
 /// DNS's TCP length prefix.
 const DNS_LENGTH_BYTES: usize = 2;
 
@@ -858,6 +1238,9 @@ const BGP_MARKER_BYTES: usize = 16;
 
 /// A BGP message header: marker, length and type.
 const BGP_HEADER_BYTES: usize = 19;
+
+/// An HTTP/2 frame header: length, type, flags and stream identifier.
+const HTTP2_HEADER_BYTES: usize = 9;
 
 /// One segment's contribution to a reassembled PDU.
 #[derive(Clone, Debug)]
@@ -1003,6 +1386,11 @@ enum FrameLength {
     NeedMore,
     /// The PDU ends at this many bytes from the window start.
     Complete(usize),
+    /// The PDU ends at this many bytes and is the last message the direction
+    /// carries, because its framing is unusable or a tunnel follows it: emit
+    /// this message, then stop the direction so no later byte is framed as
+    /// another message.
+    Final(usize),
     /// The bytes are a continuation, ending at this many bytes.
     Continuation(usize),
     /// The declared length is invalid for the protocol.
@@ -1015,34 +1403,6 @@ enum FrameLength {
     /// The message cannot be delimited within the limit; report and stop the
     /// direction rather than skipping into the middle of its body.
     FatalOversized(&'static str),
-}
-
-/// HTTP/1.x header framing parsed once per pending message.
-#[derive(Clone, Copy, Debug)]
-struct HttpFraming {
-    content_length: Option<usize>,
-    chunked: bool,
-    no_body: bool,
-    invalid_length: bool,
-    /// The start line is an HTTP/1.x response status line.
-    is_response: bool,
-    /// Status code from a response start line.
-    response_code: Option<u16>,
-}
-
-/// Position of the incremental chunked-body parser.
-#[derive(Clone, Copy, Debug)]
-struct ChunkedParse {
-    /// Absolute index of the next chunk-size or trailer line.
-    position: usize,
-    /// Data bytes still owed by the current chunk before its trailing CRLF.
-    pending: Option<usize>,
-    /// The zero-size chunk was seen; parsing trailer lines.
-    trailers: bool,
-    /// Absolute end of the bytes already searched for the current line's
-    /// CRLF. A long size or trailer line split across many segments is then
-    /// scanned once instead of from its start on every insert.
-    line_scan: usize,
 }
 
 /// Per-insert facts shared by the PDU loop.
@@ -1092,9 +1452,19 @@ pub(crate) struct StreamBuffer {
     /// Absolute prefix examined for `header_end` with no match.
     header_scan: usize,
     /// Parsed framing of the pending header block.
-    header_framing: Option<HttpFraming>,
+    header_framing: Option<Framing>,
     /// Cursor of the pending chunked-body parser.
-    chunk_parse: Option<ChunkedParse>,
+    chunk_parse: Option<ChunkScanner>,
+    /// The pending chunked body's framing was already found unusable.
+    ///
+    /// The scanner cannot continue past an unusable size line or a boundary
+    /// that is not CRLF, and the message ends when the covered prefix or the
+    /// stream does. Remembering that keeps a stream being finished from
+    /// rescanning the body from its first chunk on every insert.
+    chunk_invalid: bool,
+    /// New chunked scanners built for the pending body (tests only).
+    #[cfg(test)]
+    chunk_scans: usize,
     /// Contributions from segments that supplied at least one new byte.
     contributions: Vec<Contribution>,
     /// Novel payload bytes retained outside the vectors above.
@@ -1109,10 +1479,16 @@ pub(crate) struct StreamBuffer {
     head_pending: bool,
     /// The next response is a 2xx reply to CONNECT.
     connect_pending: bool,
+    /// A 2xx answer to CONNECT turned the connection into a tunnel, so this
+    /// direction never frames another message. [`Self::clear`] keeps it: the
+    /// tunnel lasts as long as the connection.
+    tunnel: bool,
     /// Sequence just past an oversized PDU that must be skipped.
     skip_until: Option<u32>,
     /// The pending PDU's first segment lacked its framing header.
     short_start: bool,
+    /// The HTTP/2 connection preface has been consumed in this direction.
+    http2_preface_done: bool,
 }
 
 impl StreamBuffer {
@@ -1124,6 +1500,11 @@ impl StreamBuffer {
         if self.ulp.is_none() {
             self.ulp = Some(ulp);
         }
+    }
+
+    /// The upper protocol recognised for this direction, if any.
+    pub(crate) fn ulp(&self) -> Option<Ulp> {
+        self.ulp
     }
 
     /// Bytes retained for the pending PDU, for budget accounting.
@@ -1493,12 +1874,14 @@ impl StreamBuffer {
         report
     }
 
-    /// Finish a close-delimited HTTP response when the connection closes.
+    /// Finish an HTTP response whose body ends when the connection closes.
     ///
     /// A TCP FIN ends the stream, and the bytes that follow a response header
-    /// without a length delimiter decode as the body. The empty FIN frame is
-    /// named in the reassembly list, and the FIN sequence bounds the completed
-    /// body.
+    /// without a usable length delimiter decode as the body: a close-delimited
+    /// response (RFC 9112 section 6.3 case 8) and a response whose
+    /// Content-Length is unusable (case 5) both end here. The empty FIN frame
+    /// is named in the reassembly list, and the FIN sequence bounds the
+    /// completed body.
     fn finish_on_close(
         &mut self,
         ulp: Ulp,
@@ -1523,15 +1906,10 @@ impl StreamBuffer {
         }
         let covered = contiguous.min(fin_end);
         let data = self.extract_prefix(covered);
-        let Some(header_end) = find_header_end(&data) else {
+        let Some(header_end) = header_section_end(&data) else {
             return;
         };
-        let start_line_end = data
-            .iter()
-            .position(|byte| *byte == b'\n')
-            .map(|index| index.saturating_add(1))
-            .unwrap_or(0);
-        if header_end.saturating_sub(start_line_end) > MAX_HEADER_BYTES {
+        if header_end > MAX_HEADER_BYTES {
             // The decoder cannot accept this close-delimited message; report
             // the header cap and do not emit partial framing at FIN.
             report.oversized = Some("1 MiB header");
@@ -1543,24 +1921,14 @@ impl StreamBuffer {
         if !matches!(http_start(header), Some(HttpStart::Response(_))) {
             return;
         }
-        let HttpFraming {
-            content_length,
-            chunked,
-            no_body,
-            invalid_length,
-            ..
-        } = http_header_framing(header);
-        let head_response = self.head_pending && header.starts_with(b"HTTP/1.");
-        let connect_response = self.connect_pending
-            && header.starts_with(b"HTTP/1.")
-            && response_code(header).is_some_and(|code| (200..300).contains(&code));
+        // Only a response the rules delimit by the connection close belongs to
+        // this path (RFC 9112 section 6.3 cases 5 and 8); every other framing
+        // ends the message earlier and was already emitted.
         if covered == 0
-            || no_body
-            || head_response
-            || connect_response
-            || chunked
-            || invalid_length
-            || content_length.is_some()
+            || !matches!(
+                Framing::of_block(header).body_plan(self.answer()),
+                BodyPlan::CloseDelimited | BodyPlan::InvalidLength
+            )
         {
             return;
         }
@@ -1615,7 +1983,7 @@ impl StreamBuffer {
             if self.start.is_none() {
                 return;
             }
-            if emitted >= MAX_PDUS_PER_INSERT {
+            if emitted >= ulp.insert_pdu_limit() {
                 report.error = true;
                 report.error_frame = Some(frame);
                 report.limit_reached = true;
@@ -1623,7 +1991,7 @@ impl StreamBuffer {
                 self.refused = true;
                 return;
             }
-            let (length, continuation) = match self.frame_length(ulp, state.fin_end) {
+            let (length, continuation, last) = match self.frame_length(ulp, state.fin_end) {
                 FrameLength::NeedMore => {
                     self.add_partial(
                         ulp,
@@ -1684,8 +2052,9 @@ impl StreamBuffer {
                     self.refused = true;
                     return;
                 }
-                FrameLength::Complete(length) => (length, false),
-                FrameLength::Continuation(length) => (length, true),
+                FrameLength::Complete(length) => (length, false, false),
+                FrameLength::Final(length) => (length, false, true),
+                FrameLength::Continuation(length) => (length, true, false),
             };
             if length == 0 || self.covered_prefix() < length {
                 self.add_partial(
@@ -1785,6 +2154,15 @@ impl StreamBuffer {
             if let Some(end) = state.fin_end.as_mut() {
                 *end = end.saturating_sub(length);
             }
+            if last {
+                // Unusable framing (RFC 9112 sections 6.3 and 7.1) or a
+                // CONNECT tunnel leaves no further message on this direction.
+                // The emitted PDU is kept; the bytes after it are dropped
+                // along with the direction.
+                self.clear();
+                self.refused = true;
+                return;
+            }
             if let Some(next) = self.start {
                 let difference = next.wrapping_sub(segment_sequence) as i32;
                 if difference >= 0 {
@@ -1814,6 +2192,10 @@ impl StreamBuffer {
         self.header_scan = 0;
         self.header_framing = None;
         self.chunk_parse = None;
+        self.chunk_invalid = false;
+        // The bounded-rescan test counts the scanners each message builds.
+        #[cfg(test)]
+        let _ = std::mem::take(&mut self.chunk_scans);
     }
 
     /// Advance the HTTP framing scans to the covered prefix.
@@ -1898,7 +2280,7 @@ impl StreamBuffer {
             if header_end > start_line
                 && let Some(header) = self.data.get(self.head..self.head + header_end)
             {
-                self.header_framing = Some(http_header_framing(header));
+                self.header_framing = Some(Framing::of_block(header));
             }
         }
     }
@@ -1928,12 +2310,18 @@ impl StreamBuffer {
         let Some(framing) = self.header_framing else {
             return false;
         };
-        let is_response = self
-            .data
-            .get(self.head..self.head.saturating_add(7))
-            .is_some_and(|prefix| prefix == b"HTTP/1.");
-        let head_response = self.head_pending && is_response;
-        !framing.no_body && !head_response && (framing.chunked || framing.content_length.is_some())
+        matches!(
+            framing.body_plan(self.answer()),
+            BodyPlan::Fixed(_) | BodyPlan::Chunked
+        )
+    }
+
+    /// The peer-request facts the framing rules need (RFC 9112 section 6.3).
+    fn answer(&self) -> Answer {
+        Answer {
+            head: self.head_pending,
+            connect: self.connect_pending,
+        }
     }
 
     /// The pending PDU's first line, when one is buffered.
@@ -1975,6 +2363,12 @@ impl StreamBuffer {
         };
         let segment_offset =
             usize::try_from(segment_sequence.wrapping_sub(start) as i32).unwrap_or(usize::MAX);
+        if ulp == Ulp::Http2 {
+            // The expected output buffers a split HTTP/2 frame without
+            // `tcp.segment_data`; the frame decodes once, on the completing
+            // segment.
+            return;
+        }
         let pdu_start = if !started_here
             && segment_offset == contiguous_before
             && ulp == Ulp::Http
@@ -2101,7 +2495,42 @@ impl StreamBuffer {
                 FrameLength::Complete(length)
             }
             Ulp::Http => self.http_length(covered, fin_end),
+            Ulp::Http2 => self.http2_length(covered),
         }
+    }
+
+    /// HTTP/2: the connection preface, then one frame per PDU.
+    ///
+    /// RFC 9113 section 3.4 opens the connection with a fixed 24-octet
+    /// preface, which the expected output reports as its own node. After it,
+    /// frame is its nine-octet header plus the payload length that header
+    /// declares. A stream that starts mid-connection (no preface) frames its
+    /// first bytes as a frame.
+    fn http2_length(&mut self, covered: usize) -> FrameLength {
+        if !self.http2_preface_done {
+            let prefix = self
+                .window_data()
+                .get(..covered.min(crate::decode::http2::PREFACE_BYTES))
+                .unwrap_or_default();
+            if crate::decode::http2::preface_prefix(prefix) {
+                if covered < crate::decode::http2::PREFACE_BYTES {
+                    return FrameLength::NeedMore;
+                }
+                self.http2_preface_done = true;
+                return FrameLength::Complete(crate::decode::http2::PREFACE_BYTES);
+            }
+            self.http2_preface_done = true;
+        }
+        if covered < HTTP2_HEADER_BYTES {
+            return FrameLength::NeedMore;
+        }
+        let Some(length) = read_u24(self.window_data(), 0).map(usize::try_from) else {
+            return FrameLength::NeedMore;
+        };
+        let Ok(length) = length else {
+            return FrameLength::Invalid("HTTP/2 frame length is invalid");
+        };
+        FrameLength::Complete(HTTP2_HEADER_BYTES.saturating_add(length))
     }
 
     /// HTTP/1.x: the header block plus its content-length or chunked body.
@@ -2112,7 +2541,7 @@ impl StreamBuffer {
         let continuation = {
             let window = self.window_data();
             let data = window.get(..covered).unwrap_or_default();
-            http_continuation_length(data, self.relative_continuation_newline())
+            continuation(data, self.relative_continuation_newline()).map(|_| data.len())
         };
         if let Some(length) = continuation {
             // Bytes that cannot begin a message are a "file data"
@@ -2120,15 +2549,11 @@ impl StreamBuffer {
             // consumes the rest of the available bytes.
             return FrameLength::Continuation(length);
         }
-        let start_line_end = self
-            .relative_first_newline()
-            .map(|index| index.saturating_add(1))
-            .unwrap_or(0);
         let Some(header_end) = self.relative_header_end().filter(|end| *end <= covered) else {
-            // The shared header cap counts the header lines after the start
-            // line, like the decoder. Waiting past it could never produce a
-            // header the decoder accepts.
-            let header_area = covered.saturating_sub(start_line_end);
+            // The shared header cap counts the start line as well as the
+            // field lines, like the decoder. Waiting past it could never
+            // produce a header the decoder accepts.
+            let header_area = covered;
             if covered >= limit {
                 // A header that never terminates cannot be resynchronised.
                 return if header_area > MAX_HEADER_BYTES {
@@ -2144,28 +2569,27 @@ impl StreamBuffer {
             // block is complete.
             return FrameLength::Oversized(limit);
         };
-        let head_response = self.head_pending && framing.is_response;
-        let connect_response = self.connect_pending
-            && framing.is_response
-            && framing
-                .response_code
-                .is_some_and(|code| (200..300).contains(&code));
-        if header_end.saturating_sub(start_line_end) > MAX_HEADER_BYTES {
+        let plan = framing.body_plan(self.answer());
+        let available = covered.saturating_sub(header_end);
+        if header_end > MAX_HEADER_BYTES {
             // The decoder will not accept this header, but its framing still
             // says where the message ends. Skip the whole message; never hand
             // partial framing to the decoder.
-            if framing.no_body || head_response || connect_response {
-                return FrameLength::HeaderOversized(header_end);
-            }
-            if let Some(length) = framing.content_length {
-                return FrameLength::HeaderOversized(header_end.saturating_add(length));
-            }
-            if !framing.is_response {
-                // A request without a length delimiter has no body.
-                return FrameLength::HeaderOversized(header_end);
-            }
-            if framing.chunked {
-                return match self.chunked_body_end(header_end, covered, limit) {
+            return match plan {
+                // A bodyless status, or a response to HEAD, ends at the header
+                // section: a declared length describes a body the message does
+                // not carry.
+                BodyPlan::Empty => FrameLength::HeaderOversized(header_end),
+                // A 2xx answer to CONNECT is followed by tunnel bytes, not by
+                // another message, so nothing after the header can be framed.
+                BodyPlan::Answer => {
+                    self.tunnel = true;
+                    FrameLength::FatalOversized("1 MiB header")
+                }
+                BodyPlan::Fixed(length) => {
+                    FrameLength::HeaderOversized(header_end.saturating_add(length))
+                }
+                BodyPlan::Chunked => match self.chunked_body_end(header_end, covered, limit) {
                     ChunkedEnd::Complete(end) => FrameLength::HeaderOversized(end),
                     ChunkedEnd::NeedMore => {
                         if let Some(end) = fin_end {
@@ -2183,84 +2607,109 @@ impl StreamBuffer {
                     ChunkedEnd::TooLarge | ChunkedEnd::Invalid => {
                         FrameLength::FatalOversized("1 MiB header")
                     }
-                };
-            }
-            if framing.invalid_length {
-                return FrameLength::FatalOversized("1 MiB header");
-            }
-            // A close-delimited response needs FIN to know its end.
-            if let Some(end) = fin_end {
-                if covered < end {
+                },
+                // A response without a declared end, close-delimited or with
+                // an unusable length, needs FIN to know its end.
+                BodyPlan::CloseDelimited => {
+                    if let Some(end) = fin_end {
+                        if covered < end {
+                            return FrameLength::NeedMore;
+                        }
+                        return FrameLength::HeaderOversized(end);
+                    }
+                    if covered >= limit {
+                        return FrameLength::FatalOversized("1 MiB header");
+                    }
                     return FrameLength::NeedMore;
                 }
-                return FrameLength::HeaderOversized(end);
-            }
-            if covered >= limit {
-                return FrameLength::FatalOversized("1 MiB header");
-            }
-            return FrameLength::NeedMore;
-        }
-        if framing.no_body || head_response || connect_response {
-            // A bodyless status or a response to HEAD carries no body even
-            // when the header advertises a length. The bytes already present
-            // still count as file data and the consumed length is clamped, so
-            // they do not reopen as another message. A response to HEAD
-            // consumes everything the segment carries, because the body
-            // length comes from the bytes rather than the method.
-            let available = covered.saturating_sub(header_end);
-            let consumed = if head_response || connect_response {
-                framing
-                    .content_length
-                    .map_or(available, |length| length.min(available))
-            } else {
-                framing
-                    .content_length
-                    .map_or(0, |length| length.min(available))
+                BodyPlan::InvalidLength if framing.response => {
+                    if let Some(end) = fin_end {
+                        if covered < end {
+                            return FrameLength::NeedMore;
+                        }
+                        return FrameLength::HeaderOversized(end);
+                    }
+                    if covered >= limit {
+                        return FrameLength::FatalOversized("1 MiB header");
+                    }
+                    return FrameLength::NeedMore;
+                }
+                // A request is never close-delimited (RFC 9112 section 6.3
+                // note), so an unusable length has no end to skip over.
+                BodyPlan::InvalidLength => FrameLength::FatalOversized("1 MiB header"),
             };
-            return FrameLength::Complete(header_end.saturating_add(consumed));
         }
-        if framing.chunked {
-            match self.chunked_body_end(header_end, covered, limit) {
+        match plan {
+            BodyPlan::Empty => FrameLength::Complete(header_end),
+            BodyPlan::Answer => {
+                // RFC 9112 section 6.3 case 2: a 2xx answer to CONNECT makes
+                // the connection a tunnel right after its header section
+                // (RFC 9110 section 9.3.6). The answer keeps the bytes already
+                // buffered, and neither direction frames a message again.
+                self.tunnel = true;
+                FrameLength::Final(header_end.saturating_add(available))
+            }
+            BodyPlan::Fixed(length) => {
+                let end = header_end.saturating_add(length);
+                if end > limit {
+                    // Skip to the declared end so a later message on the same
+                    // connection still decodes.
+                    FrameLength::Oversized(end)
+                } else {
+                    FrameLength::Complete(end)
+                }
+            }
+            BodyPlan::Chunked => match self.chunked_body_end(header_end, covered, limit) {
                 ChunkedEnd::Complete(end) => {
-                    return if end > limit {
+                    if end > limit {
                         FrameLength::Oversized(limit)
                     } else {
                         FrameLength::Complete(end)
-                    };
+                    }
                 }
-                ChunkedEnd::NeedMore => {
-                    if let Some(end) = fin_end {
-                        if covered < end {
-                            return FrameLength::NeedMore;
-                        }
-                        return FrameLength::Complete(end.min(covered));
+                ChunkedEnd::NeedMore => match fin_end {
+                    Some(end) if covered < end => FrameLength::NeedMore,
+                    Some(end) => FrameLength::Complete(end.min(covered)),
+                    None if covered >= limit => {
+                        FrameLength::FatalOversized(Ulp::Http.pdu_limit_label())
                     }
-                    if covered >= limit {
-                        return FrameLength::FatalOversized(Ulp::Http.pdu_limit_label());
-                    }
+                    None => FrameLength::NeedMore,
+                },
+                ChunkedEnd::TooLarge => FrameLength::FatalOversized(Ulp::Http.pdu_limit_label()),
+                ChunkedEnd::Invalid => match fin_end {
+                    Some(end) if covered < end => FrameLength::NeedMore,
+                    Some(end) => FrameLength::Complete(end.min(covered)),
+                    // An invalid chunk-size line loses the body's end, so no
+                    // later message boundary can be found on this direction
+                    // (RFC 9112 section 7.1). Emit the covered prefix and
+                    // refuse the direction like an unusable Content-Length.
+                    None => FrameLength::Final(covered),
+                },
+            },
+            BodyPlan::InvalidLength if framing.response => {
+                // An unusable Content-Length leaves a response without a
+                // declared boundary, so the connection close ends its body
+                // (RFC 9112 section 6.3 case 5 makes the framing invalid, and
+                // case 8 bounds it by the close). Waiting for FIN keeps a
+                // split capture and a one-segment capture identical.
+                let Some(end) = fin_end else {
+                    return FrameLength::NeedMore;
+                };
+                if covered < end {
                     return FrameLength::NeedMore;
                 }
-                ChunkedEnd::TooLarge => {
-                    return FrameLength::FatalOversized(Ulp::Http.pdu_limit_label());
-                }
-                ChunkedEnd::Invalid => {
-                    if let Some(end) = fin_end {
-                        if covered < end {
-                            return FrameLength::NeedMore;
-                        }
-                        return FrameLength::Complete(end.min(covered));
-                    }
-                    return FrameLength::Complete(covered);
-                }
+                FrameLength::Complete(end.min(covered))
             }
-        }
-        if framing.invalid_length {
-            // A cleared Content-Length makes a response body extend to the
-            // end of the available segment.
-            return FrameLength::Complete(covered);
-        }
-        let Some(content_length) = framing.content_length else {
-            if framing.is_response {
+            BodyPlan::InvalidLength => {
+                // RFC 9112 section 6.3 case 6: an invalid Content-Length makes
+                // the message framing unusable, and the connection cannot be
+                // reused for another message. A request is never
+                // close-delimited, so the captured remainder is the message;
+                // emit it and then stop the direction instead of framing
+                // later bytes as a new message.
+                FrameLength::Final(covered)
+            }
+            BodyPlan::CloseDelimited => {
                 // A response with no length is delimitable only by the
                 // connection close; wait for FIN and require the contiguous
                 // prefix to reach the FIN stream end (a gap exports nothing).
@@ -2270,18 +2719,8 @@ impl StreamBuffer {
                 if covered < end {
                     return FrameLength::NeedMore;
                 }
-                return FrameLength::Complete(end.min(covered));
+                FrameLength::Complete(end.min(covered))
             }
-            // A request without Content-Length has no body.
-            return FrameLength::Complete(header_end);
-        };
-        let end = header_end.saturating_add(content_length);
-        if end > limit {
-            // Skip to the declared end so a later message on the same
-            // connection still decodes.
-            FrameLength::Oversized(end)
-        } else {
-            FrameLength::Complete(end)
         }
     }
 
@@ -2291,86 +2730,65 @@ impl StreamBuffer {
     /// chunk line is parsed once. Only the contiguous covered prefix is
     /// trusted; a gap leaves the cursor at the incomplete construct.
     fn chunked_body_end(&mut self, header_end: usize, covered: usize, limit: usize) -> ChunkedEnd {
+        if self.chunk_invalid {
+            // The body already failed its grammar; its end still depends on the
+            // covered prefix or the stream end, and rescanning the chunks could
+            // not produce a different answer.
+            return ChunkedEnd::Invalid;
+        }
         let covered_end = self.head.saturating_add(covered);
-        let limit_abs = self.head.saturating_add(limit);
-        let mut state = self.chunk_parse.unwrap_or(ChunkedParse {
-            position: self.head.saturating_add(header_end),
-            pending: None,
-            trailers: false,
-            line_scan: 0,
-        });
-        loop {
-            if state.position > limit_abs {
-                self.chunk_parse = None;
-                return ChunkedEnd::TooLarge;
+        let limit_end = self.head.saturating_add(limit);
+        let mut scanner = match self.chunk_parse {
+            Some(scanner) => scanner,
+            None => {
+                #[cfg(test)]
+                {
+                    self.chunk_scans = self.chunk_scans.saturating_add(1);
+                }
+                ChunkScanner::new(self.head.saturating_add(header_end))
             }
-            if state.trailers {
-                let start = state.position.max(state.line_scan.saturating_sub(1));
-                let Some(line_end) = find_crlf(&self.data, start, covered_end) else {
-                    state.line_scan = covered_end;
-                    self.chunk_parse = Some(state);
-                    return ChunkedEnd::NeedMore;
-                };
-                state.line_scan = 0;
-                if line_end == state.position {
-                    let end = state.position.saturating_add(2);
+        };
+        loop {
+            match scanner.step(&self.data, covered_end) {
+                ChunkStep::Data { boundary_ok, .. } => {
+                    if !boundary_ok {
+                        // RFC 9112 section 7.1 requires CRLF; a message that
+                        // breaks the chunk framing cannot be delimited, so the
+                        // available prefix completes it.
+                        self.chunk_parse = None;
+                        self.chunk_invalid = true;
+                        return ChunkedEnd::Invalid;
+                    }
+                }
+                ChunkStep::Last | ChunkStep::Trailer { .. } => {}
+                ChunkStep::TrailerEnd { end, .. } => {
                     self.chunk_parse = None;
-                    return if end > limit_abs {
+                    return if end > limit_end {
                         ChunkedEnd::TooLarge
                     } else {
                         ChunkedEnd::Complete(end.saturating_sub(self.head))
                     };
                 }
-                state.position = line_end.saturating_add(2);
-                continue;
-            }
-            if let Some(size) = state.pending {
-                let data_end = state.position.saturating_add(size);
-                let chunk_end = data_end.saturating_add(2);
-                if chunk_end > limit_abs {
-                    self.chunk_parse = None;
-                    return ChunkedEnd::TooLarge;
-                }
-                if covered_end < chunk_end {
-                    self.chunk_parse = Some(state);
+                ChunkStep::Incomplete {
+                    pending, restart, ..
+                } => {
+                    // A declared chunk that cannot fit the reassembly limit is
+                    // refused before its bytes are buffered.
+                    let over = pending.is_some_and(|pending| {
+                        pending.data.saturating_add(pending.size).saturating_add(2) > limit_end
+                    }) || restart > limit_end;
+                    if over {
+                        self.chunk_parse = None;
+                        return ChunkedEnd::TooLarge;
+                    }
+                    self.chunk_parse = Some(scanner);
                     return ChunkedEnd::NeedMore;
                 }
-                if self.data.get(data_end..chunk_end) != Some(b"\r\n") {
+                ChunkStep::Invalid { .. } => {
                     self.chunk_parse = None;
+                    self.chunk_invalid = true;
                     return ChunkedEnd::Invalid;
                 }
-                state.position = chunk_end;
-                state.pending = None;
-                state.line_scan = 0;
-                continue;
-            }
-            let start = state.position.max(state.line_scan.saturating_sub(1));
-            let Some(line_end) = find_crlf(&self.data, start, covered_end) else {
-                state.line_scan = covered_end;
-                self.chunk_parse = Some(state);
-                return ChunkedEnd::NeedMore;
-            };
-            state.line_scan = 0;
-            let size_text = self
-                .data
-                .get(state.position..line_end)
-                .unwrap_or_default()
-                .split(|byte| *byte == b';')
-                .next()
-                .unwrap_or_default();
-            let Ok(size_text) = std::str::from_utf8(size_text) else {
-                self.chunk_parse = None;
-                return ChunkedEnd::Invalid;
-            };
-            let Ok(size) = usize::from_str_radix(size_text.trim(), 16) else {
-                self.chunk_parse = None;
-                return ChunkedEnd::Invalid;
-            };
-            state.position = line_end.saturating_add(2);
-            if size == 0 {
-                state.trailers = true;
-            } else {
-                state.pending = Some(size);
             }
         }
     }
@@ -2543,11 +2961,7 @@ enum HttpStart<'a> {
 
 /// Read an HTTP request method or recognise a response start line.
 fn http_start(data: &[u8]) -> Option<HttpStart<'_>> {
-    let line_end = data.iter().position(|byte| *byte == b'\n')?;
-    let mut line = data.get(..line_end)?;
-    if let Some(stripped) = line.strip_suffix(b"\r") {
-        line = stripped;
-    }
+    let (line, _) = next_line(data, 0)?;
     let line = crate::http_syntax::parse_start_line(line)?;
     if line.is_response() {
         return Some(HttpStart::Response(
@@ -2567,7 +2981,8 @@ fn header_present(ulp: Ulp, chunk: &[u8]) -> bool {
         Ulp::Dns => chunk.len() >= DNS_LENGTH_BYTES,
         Ulp::Tls => chunk.len() >= TLS_HEADER_BYTES,
         Ulp::Bgp => chunk.len() >= BGP_HEADER_BYTES,
-        Ulp::Http => chunk.windows(4).any(|window| window == b"\r\n\r\n"),
+        Ulp::Http => header_section_end(chunk).is_some(),
+        Ulp::Http2 => chunk.len() >= HTTP2_HEADER_BYTES,
     }
 }
 
@@ -2576,93 +2991,13 @@ fn read_u16(data: &[u8], offset: usize) -> Option<u16> {
     Some(u16::from_be_bytes([*bytes.first()?, *bytes.get(1)?]))
 }
 
-/// The status code of an HTTP response header block.
-fn response_code(header: &[u8]) -> Option<u16> {
-    let line_end = header.iter().position(|byte| *byte == b'\n')?;
-    let line = header.get(..line_end)?;
-    let line = line.strip_suffix(b"\r").unwrap_or(line);
-    line.split(|byte| *byte == b' ')
-        .nth(1)
-        .and_then(|code| std::str::from_utf8(code).ok())
-        .and_then(|code| code.parse::<u16>().ok())
-}
-
-/// Find the end of an HTTP header block within already-captured bytes.
-fn find_header_end(data: &[u8]) -> Option<usize> {
-    data.windows(4)
-        .position(|window| window == b"\r\n\r\n")
-        .map(|index| index + 4)
-}
-
-/// Content-length, chunked framing and bodyless status from an HTTP header.
-fn http_header_framing(header: &[u8]) -> HttpFraming {
-    let text = String::from_utf8_lossy(header);
-    let mut lines = text.split("\r\n");
-    let start = lines.next().unwrap_or_default();
-    let response = start.starts_with("HTTP/1.");
-    let response_code = response.then(|| response_code(header)).flatten();
-    let no_body = response
-        && start
-            .split_ascii_whitespace()
-            .nth(1)
-            .and_then(|code| code.parse::<u16>().ok())
-            .is_some_and(|code| (100..200).contains(&code) || code == 204 || code == 304);
-    let mut content_length = None;
-    let mut invalid_length = false;
-    let mut chunked = false;
-    for line in lines {
-        let Some((name, value)) = line.split_once(':') else {
-            continue;
-        };
-        if name.eq_ignore_ascii_case("content-length") {
-            match value.trim().parse::<usize>() {
-                Ok(length) => {
-                    content_length = Some(length);
-                    invalid_length = false;
-                }
-                Err(_) => {
-                    content_length = None;
-                    invalid_length = true;
-                }
-            }
-        } else if name.eq_ignore_ascii_case("transfer-encoding")
-            && value
-                .split(',')
-                .any(|coding| coding.trim().eq_ignore_ascii_case("chunked"))
-        {
-            chunked = true;
-        }
-    }
-    HttpFraming {
-        content_length,
-        chunked,
-        no_body,
-        invalid_length,
-        is_response: response,
-        response_code,
-    }
-}
-
-/// The continuation length when the buffered bytes cannot begin a message.
-///
-/// Printable data after a completed message is file data once a complete
-/// first line is available; one leading CRLF is ignored.
-///
-/// `newline` is the first LF at or after the continuation probe, as found by
-/// [`StreamBuffer::scan_http_prefix`]; `None` means the scans covered the
-/// whole prefix without one.
-fn http_continuation_length(data: &[u8], newline: Option<usize>) -> Option<usize> {
-    let probe = data.strip_prefix(b"\r\n").unwrap_or(data);
-    let skip = data.len().saturating_sub(probe.len());
-    let mut line = data.get(skip..newline?)?;
-    if let Some(stripped) = line.strip_suffix(b"\r") {
-        line = stripped;
-    }
-    if crate::http_syntax::parse_start_line(line).is_some() {
-        return None;
-    }
-    let first = *probe.first()?;
-    (0x20..=0x7e).contains(&first).then_some(data.len())
+fn read_u24(data: &[u8], offset: usize) -> Option<u32> {
+    let bytes = data.get(offset..offset.checked_add(3)?)?;
+    Some(
+        u32::from(*bytes.first()?) << 16
+            | u32::from(*bytes.get(1)?) << 8
+            | u32::from(*bytes.get(2)?),
+    )
 }
 
 /// Where a chunked body ends.
@@ -2671,15 +3006,6 @@ enum ChunkedEnd {
     NeedMore,
     Invalid,
     TooLarge,
-}
-
-/// Find the next CRLF at or after `position`, bounded by `end`.
-fn find_crlf(data: &[u8], position: usize, end: usize) -> Option<usize> {
-    let window = data.get(position..end)?;
-    window
-        .windows(2)
-        .position(|window| window == b"\r\n")
-        .map(|index| position.saturating_add(index))
 }
 
 /// Both directions of one conversation, each with its own reassembly limit.
@@ -2790,6 +3116,13 @@ impl ConversationStreams {
                 Some(HttpStart::Response(_)) | None => {}
             }
         }
+        // The tunnel carries opaque bytes both ways (RFC 9110 section 9.3.6),
+        // so the direction that sent CONNECT stops framing messages as well.
+        if current.tunnel && !peer.tunnel {
+            peer.clear();
+            peer.refused = true;
+            peer.tunnel = true;
+        }
     }
 }
 
@@ -2797,6 +3130,29 @@ impl ConversationStreams {
 mod tests {
     use super::*;
     use crate::state::DEFAULT_STATE_BUDGET;
+
+    #[test]
+    fn rejected_early_data_drops_its_request_but_keeps_the_tunnel() {
+        let mut session = SessionState::new(DEFAULT_STATE_BUDGET);
+        let (key, _) = ConversationKey::ipv4([192, 0, 2, 1], 40_000, [192, 0, 2, 2], 8080);
+        let frame = |number| HttpFrame {
+            display: number,
+            file: number,
+        };
+        // A plain request on its own connection is forgotten entirely.
+        session.http_request(key, frame(1), None, Some("GET"), Some("/early"), None);
+        session.discard_early_application(key);
+        assert_eq!(session.http_pending_method(key), None);
+
+        // Beneath TLS inside a CONNECT tunnel, the 0-RTT request goes but the
+        // tunnel the plaintext exchange opened stays.
+        session.http_request(key, frame(2), None, Some("CONNECT"), Some("h:443"), None);
+        let _ = session.http_response(key, 3, 200);
+        session.http_request(key, frame(4), None, Some("GET"), Some("/early"), None);
+        session.discard_early_application(key);
+        assert_eq!(session.http_pending_method(key), None);
+        assert!(session.http_tunnel(key));
+    }
 
     #[test]
     fn tls_version_round_trips_through_the_store() {
@@ -2829,6 +3185,7 @@ mod tests {
                 u64::try_from(frame).unwrap_or(0),
                 chunk,
                 false,
+                PlaintextAlpn::Other,
             );
             for action in report.actions {
                 if let PduAction::Reassembled { pdu, .. } = action {
@@ -2837,6 +3194,329 @@ mod tests {
             }
         }
         assert_eq!(completed, vec![request.to_vec()]);
+    }
+
+    /// Read a conversation's plaintext framing state, emptying the store.
+    fn plaintext_state(session: &mut SessionState, key: ConversationKey) -> TlsPlaintext {
+        session
+            .tls_plaintext
+            .take_with(&mut session.budget, &TlsPlaintextKey { conversation: key })
+            .unwrap_or_default()
+    }
+
+    fn restore_plaintext(session: &mut SessionState, key: ConversationKey, state: TlsPlaintext) {
+        session.tls_plaintext.put_with(
+            &mut session.budget,
+            TlsPlaintextKey { conversation: key },
+            state,
+        );
+    }
+
+    /// An HTTP/2 SETTINGS frame carrying one setting (RFC 9113 section 6.5).
+    fn settings_frame() -> Vec<u8> {
+        vec![0, 0, 6, 4, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 100]
+    }
+
+    #[test]
+    fn tls_plaintext_defers_server_bytes_until_the_client_preface() {
+        // A server's first record can arrive before the client preface
+        // (RFC 9113 sections 3.4 and 3.5), and a key log without the ALPN
+        // selection cannot identify it. Guessing HTTP/1.x would misframe the
+        // bytes, so the direction waits. The preface then fixes HTTP/2 for
+        // both directions, but the server bytes are emitted on the server's
+        // own next record, decoded with the server direction and its frame.
+        let mut session = SessionState::new(DEFAULT_STATE_BUDGET);
+        let (key, _) = ConversationKey::ipv4([192, 0, 2, 1], 40_000, [192, 0, 2, 2], 443);
+        let settings = settings_frame();
+        let (first_half, second_half) = settings.split_at(5);
+        let (deferred, deferred_http) =
+            session.insert_tls_plaintext(key, 0, 1, first_half, false, PlaintextAlpn::Unknown);
+        assert!(
+            deferred.actions.is_empty(),
+            "undecided bytes emit nothing: {:?}",
+            deferred.actions
+        );
+        assert!(!deferred_http);
+        let preface: &[u8] = b"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n";
+        let (evidence, evidence_http) =
+            session.insert_tls_plaintext(key, 1, 2, preface, false, PlaintextAlpn::Unknown);
+        assert!(!evidence_http);
+        assert_eq!(
+            evidence.actions.len(),
+            1,
+            "the client direction emits only its preface: {:?}",
+            evidence.actions
+        );
+        assert!(matches!(
+            evidence.actions.first(),
+            Some(PduAction::Standalone { ulp: Ulp::Http2, data, .. })
+                if data.as_ref() == preface
+        ));
+        let state = plaintext_state(&mut session, key);
+        assert_eq!(state.streams.direction(0).ulp(), Some(Ulp::Http2));
+        assert_eq!(state.streams.direction(1).ulp(), Some(Ulp::Http2));
+        restore_plaintext(&mut session, key, state);
+        let (completed, _) =
+            session.insert_tls_plaintext(key, 0, 3, second_half, false, PlaintextAlpn::Unknown);
+        let Some(PduAction::Reassembled { pdu, .. }) = completed.actions.first() else {
+            unreachable!(
+                "the SETTINGS frame completes on the server record: {:?}",
+                completed.actions
+            );
+        };
+        assert_eq!(pdu.data.as_ref(), settings.as_slice());
+        assert_eq!(
+            pdu.segments
+                .iter()
+                .map(|segment| segment.frame)
+                .collect::<Vec<_>>(),
+            [1, 3],
+            "retained bytes keep their arrival frame"
+        );
+    }
+
+    #[test]
+    fn tls_plaintext_identifies_a_server_settings_frame() {
+        // RFC 9113 section 6.5: a SETTINGS frame header identifies HTTP/2 on
+        // its own, so a server-first record need not wait for the client
+        // preface that the key log could not decrypt.
+        let mut session = SessionState::new(DEFAULT_STATE_BUDGET);
+        let (key, _) = ConversationKey::ipv4([192, 0, 2, 1], 40_000, [192, 0, 2, 2], 443);
+        let settings = settings_frame();
+        let (report, http) =
+            session.insert_tls_plaintext(key, 0, 1, &settings, false, PlaintextAlpn::Unknown);
+        assert!(!http);
+        assert_eq!(report.actions.len(), 1, "{:?}", report.actions);
+        assert!(
+            matches!(
+                report.actions.first(),
+                Some(PduAction::Standalone { ulp: Ulp::Http2, data, .. })
+                    if data.as_ref() == settings.as_slice()
+            ),
+            "{:?}",
+            report.actions
+        );
+        let state = plaintext_state(&mut session, key);
+        assert_eq!(state.streams.direction(0).ulp(), Some(Ulp::Http2));
+        assert!(
+            state.undecided.first().is_none_or(Vec::is_empty),
+            "the frame header selects the protocol without retention"
+        );
+    }
+
+    #[test]
+    fn tls_plaintext_selects_http_from_a_request_start_line() {
+        let mut session = SessionState::new(DEFAULT_STATE_BUDGET);
+        let (key, _) = ConversationKey::ipv4([192, 0, 2, 1], 40_000, [192, 0, 2, 2], 443);
+        let request: &[u8] = b"GET /probe HTTP/1.1\r\nHost: tls.test\r\n\r\n";
+        let (report, http) =
+            session.insert_tls_plaintext(key, 0, 1, request, false, PlaintextAlpn::Unknown);
+        assert!(http);
+        assert!(
+            matches!(
+                report.actions.first(),
+                Some(PduAction::Standalone { ulp: Ulp::Http, data, .. })
+                    if data.as_ref() == request
+            ),
+            "{:?}",
+            report.actions
+        );
+        assert_eq!(
+            plaintext_state(&mut session, key)
+                .streams
+                .direction(0)
+                .ulp(),
+            Some(Ulp::Http)
+        );
+    }
+
+    #[test]
+    fn a_long_extension_method_request_still_identifies_http() {
+        // The token grammar needs the complete start line; a long URI pushes
+        // the version past the first 64 bytes, which must not keep the
+        // direction undecided.
+        let mut session = SessionState::new(DEFAULT_STATE_BUDGET);
+        let (key, _) = ConversationKey::ipv4([192, 0, 2, 1], 40_000, [192, 0, 2, 2], 443);
+        let mut request = b"PROPFIND /".to_vec();
+        request.extend_from_slice(&[b'a'; 200]);
+        request.extend_from_slice(b" HTTP/1.1\r\n\r\n");
+        let (report, http) =
+            session.insert_tls_plaintext(key, 0, 1, &request, false, PlaintextAlpn::Unknown);
+        assert!(http);
+        assert!(
+            matches!(
+                report.actions.first(),
+                Some(PduAction::Standalone { ulp: Ulp::Http, .. })
+            ),
+            "{:?}",
+            report.actions
+        );
+    }
+
+    #[test]
+    fn tls_plaintext_retains_undecided_bytes_within_the_bound() {
+        let mut session = SessionState::new(DEFAULT_STATE_BUDGET);
+        let (key, _) = ConversationKey::ipv4([192, 0, 2, 1], 40_000, [192, 0, 2, 2], 443);
+        let chunk = vec![0_u8; MAX_UNDECIDED_PLAINTEXT_BYTES / 2 + 1];
+        let (first, http) =
+            session.insert_tls_plaintext(key, 0, 1, &chunk, false, PlaintextAlpn::Unknown);
+        assert!(!http);
+        assert!(first.actions.is_empty());
+        let state = plaintext_state(&mut session, key);
+        assert_eq!(state.streams.direction(0).ulp(), None);
+        assert_eq!(
+            state.undecided.first().map(Vec::len),
+            Some(chunk.len()),
+            "undecided bytes are retained, not emitted"
+        );
+        restore_plaintext(&mut session, key, state);
+        let (_, http) =
+            session.insert_tls_plaintext(key, 0, 2, &chunk, false, PlaintextAlpn::Unknown);
+        assert!(!http);
+        let state = plaintext_state(&mut session, key);
+        assert_eq!(
+            state.streams.direction(0).ulp(),
+            Some(Ulp::Http),
+            "past the bound the documented fallback selects HTTP/1.x"
+        );
+        assert!(state.undecided.first().is_none_or(Vec::is_empty));
+    }
+
+    #[test]
+    fn tls_plaintext_attributes_each_undecided_run_to_its_frame() {
+        // The first two records carry too little to identify the protocol, so
+        // each run keeps its own arrival frame. The third record completes
+        // the start line, and every run is replayed under its own frame
+        // before the current bytes, so the completed PDU names all three.
+        let mut session = SessionState::new(DEFAULT_STATE_BUDGET);
+        let (key, _) = ConversationKey::ipv4([192, 0, 2, 1], 40_000, [192, 0, 2, 2], 443);
+        for (frame, chunk) in [(1_u64, &b"G"[..]), (2, &b"E"[..])] {
+            let (report, http) =
+                session.insert_tls_plaintext(key, 0, frame, chunk, false, PlaintextAlpn::Unknown);
+            assert!(report.actions.is_empty(), "{:?}", report.actions);
+            assert!(!http);
+        }
+        let rest: &[u8] = b"T / HTTP/1.1\r\n\r\n";
+        let (report, http) =
+            session.insert_tls_plaintext(key, 0, 3, rest, false, PlaintextAlpn::Unknown);
+        assert!(http);
+        let Some(PduAction::Reassembled { pdu, .. }) = report.actions.last() else {
+            unreachable!(
+                "the request completes on the third record: {:?}",
+                report.actions
+            );
+        };
+        let request: &[u8] = b"GET / HTTP/1.1\r\n\r\n";
+        assert_eq!(pdu.data.as_ref(), request);
+        assert_eq!(
+            pdu.segments
+                .iter()
+                .map(|segment| (segment.frame, segment.length))
+                .collect::<Vec<_>>(),
+            [(1, 1), (2, 1), (3, 16)],
+            "each run keeps its own frame and length"
+        );
+        let state = plaintext_state(&mut session, key);
+        assert!(state.parts.iter().all(Vec::is_empty));
+        assert!(state.undecided.iter().all(Vec::is_empty));
+    }
+
+    #[test]
+    fn tls_plaintext_recognises_a_start_line_split_across_records() {
+        // `GET` alone names no protocol, and the record that completes the
+        // request begins with the tail ` / HTTP/1.1`. The completed message
+        // is the evidence, with or without an ALPN selection.
+        for alpn in [PlaintextAlpn::Unknown, PlaintextAlpn::Other] {
+            let mut session = SessionState::new(DEFAULT_STATE_BUDGET);
+            let (key, _) = ConversationKey::ipv4([192, 0, 2, 1], 40_000, [192, 0, 2, 2], 443);
+            let (_, http) = session.insert_tls_plaintext(key, 0, 1, b"GET", false, alpn);
+            assert!(!http, "{alpn:?}: a method alone is not a start line");
+            let (report, http) =
+                session.insert_tls_plaintext(key, 0, 2, b" / HTTP/1.1\r\n\r\n", false, alpn);
+            assert!(
+                matches!(report.actions.last(), Some(PduAction::Reassembled { .. })),
+                "{alpn:?}: {:?}",
+                report.actions
+            );
+            assert!(http, "{alpn:?}: the completed request is HTTP");
+        }
+    }
+
+    #[test]
+    fn adjacent_undecided_runs_from_one_frame_share_a_part() {
+        // Two records of one frame form one run: the part's end advances
+        // instead of a second part being pushed.
+        let mut session = SessionState::new(DEFAULT_STATE_BUDGET);
+        let (key, _) = ConversationKey::ipv4([192, 0, 2, 1], 40_000, [192, 0, 2, 2], 443);
+        for _ in 0..2 {
+            let (report, http) =
+                session.insert_tls_plaintext(key, 0, 1, b"G", false, PlaintextAlpn::Unknown);
+            assert!(report.actions.is_empty(), "{:?}", report.actions);
+            assert!(!http);
+        }
+        let state = plaintext_state(&mut session, key);
+        let parts = state.parts.first().map(Vec::as_slice).unwrap_or_default();
+        assert_eq!(parts.len(), 1, "adjacent runs from one frame coalesce");
+        assert_eq!(
+            parts.first().map(|part| (part.frame, part.end)),
+            Some((1, 2))
+        );
+    }
+
+    #[test]
+    fn tls_plaintext_part_cap_falls_back_before_retaining() {
+        // One-byte records from distinct frames never identify a protocol and
+        // never coalesce, so the next run passes the part cap. The fallback
+        // replays every retained run and then the current bytes as HTTP/1.x,
+        // and the attribution list is emptied.
+        let mut session = SessionState::new(DEFAULT_STATE_BUDGET);
+        let (key, _) = ConversationKey::ipv4([192, 0, 2, 1], 40_000, [192, 0, 2, 2], 443);
+        let frames = u64::try_from(MAX_UNDECIDED_PARTS).unwrap_or(0);
+        for frame in 1..=frames {
+            let (report, http) =
+                session.insert_tls_plaintext(key, 0, frame, b"A", false, PlaintextAlpn::Unknown);
+            assert!(
+                report.actions.is_empty(),
+                "frame {frame}: {:?}",
+                report.actions
+            );
+            assert!(!http);
+        }
+        let state = plaintext_state(&mut session, key);
+        assert_eq!(state.parts.first().map(Vec::len), Some(MAX_UNDECIDED_PARTS));
+        assert_eq!(
+            state.undecided.first().map(Vec::len),
+            Some(MAX_UNDECIDED_PARTS)
+        );
+        restore_plaintext(&mut session, key, state);
+        let (report, _) = session.insert_tls_plaintext(
+            key,
+            0,
+            frames.saturating_add(1),
+            b"A",
+            false,
+            PlaintextAlpn::Unknown,
+        );
+        let emitted = report
+            .actions
+            .iter()
+            .filter_map(|action| match action {
+                PduAction::Partial { segment_data, .. } => Some(segment_data.bytes.len()),
+                _ => None,
+            })
+            .sum::<usize>();
+        assert_eq!(
+            emitted,
+            MAX_UNDECIDED_PARTS.saturating_add(1),
+            "every retained byte and the new byte reach the buffer"
+        );
+        let state = plaintext_state(&mut session, key);
+        assert_eq!(state.streams.direction(0).ulp(), Some(Ulp::Http));
+        assert!(
+            state.parts.first().is_some_and(Vec::is_empty),
+            "the fallback clears the attribution list"
+        );
+        assert!(state.undecided.first().is_some_and(Vec::is_empty));
     }
 
     fn dns_pdu(message_len: u16) -> Vec<u8> {
@@ -3184,6 +3864,107 @@ mod tests {
     }
 
     #[test]
+    fn an_unusable_content_length_waits_for_fin_and_keeps_the_body() {
+        // RFC 9112 section 6.3 case 5 makes the framing invalid, and case 8
+        // bounds a response without a declared length by the connection
+        // close. A body that arrives in a later segment must belong to the
+        // message, not disappear.
+        let mut buffer = StreamBuffer::default();
+        buffer.set_ulp(Ulp::Http);
+        let header = b"HTTP/1.1 200 OK\r\nContent-Length: 3\r\nContent-Length: 5\r\n\r\n";
+        let report = buffer.insert(1000, header, 1, false);
+        assert!(
+            matches!(report.actions.first(), Some(PduAction::Partial { .. })),
+            "the message must stay pending: {:?}",
+            report.actions
+        );
+        assert!(buffer.has_pending());
+        let sequence = 1000_u32.saturating_add(u32::try_from(header.len()).unwrap_or(0));
+        let report = buffer.insert(sequence, b"hello!", 2, false);
+        assert!(
+            !report.actions.iter().any(|action| matches!(
+                action,
+                PduAction::Standalone { .. } | PduAction::Reassembled { .. }
+            )),
+            "the message must still be pending: {:?}",
+            report.actions
+        );
+        let fin = sequence.saturating_add(6);
+        let report = buffer.insert_with_fin(fin, b"", 3, false, true);
+        assert!(
+            matches!(report.actions.first(), Some(PduAction::Reassembled { .. })),
+            "{:?}",
+            report.actions
+        );
+        let Some(PduAction::Reassembled { pdu, .. }) = report.actions.first() else {
+            unreachable!("the reassembled action was asserted to be present");
+        };
+        let mut expected = header.to_vec();
+        expected.extend_from_slice(b"hello!");
+        assert_eq!(pdu.data, expected);
+        assert_eq!(
+            pdu.segments
+                .iter()
+                .map(|segment| segment.frame)
+                .collect::<Vec<_>>(),
+            [1, 2, 3]
+        );
+        assert!(!buffer.has_pending());
+    }
+
+    #[test]
+    fn a_request_with_an_unusable_content_length_keeps_its_remainder() {
+        // A request is never close-delimited (RFC 9112 section 6.3 note), so
+        // its captured remainder ends the message even without a FIN.
+        let mut buffer = StreamBuffer::default();
+        buffer.set_ulp(Ulp::Http);
+        let message = b"POST /x HTTP/1.1\r\nContent-Length: 3\r\nContent-Length: 5\r\n\r\nhello!";
+        let report = buffer.insert(1000, message, 1, false);
+        assert!(
+            matches!(report.actions.first(), Some(PduAction::Standalone { .. })),
+            "{:?}",
+            report.actions
+        );
+        let Some(PduAction::Standalone { data, .. }) = report.actions.first() else {
+            unreachable!("the standalone action was asserted to be present");
+        };
+        assert_eq!(data.as_ref(), message);
+        assert!(!buffer.has_pending());
+    }
+
+    #[test]
+    fn a_request_with_an_unusable_content_length_refuses_later_messages() {
+        // RFC 9112 section 6.3 case 6: an invalid Content-Length makes the
+        // message framing unusable, so the connection carries no further
+        // message. The request itself is still emitted in full, and the
+        // request-like bytes of a later segment are not framed as another.
+        let mut buffer = StreamBuffer::default();
+        buffer.set_ulp(Ulp::Http);
+        let message: &[u8] =
+            b"POST /x HTTP/1.1\r\nContent-Length: 3\r\nContent-Length: 5\r\n\r\nhello!";
+        let report = buffer.insert(1000, message, 1, false);
+        assert!(
+            matches!(
+                report.actions.first(),
+                Some(PduAction::Standalone { data, .. }) if data.as_ref() == message
+            ),
+            "{:?}",
+            report.actions
+        );
+        assert!(buffer.refused);
+        let sequence = 1000_u32.saturating_add(u32::try_from(message.len()).unwrap_or(0));
+        let second: &[u8] = b"GET /next HTTP/1.1\r\nHost: split.test\r\n\r\n";
+        let report = buffer.insert(sequence, second, 2, false);
+        assert!(
+            report.actions.is_empty(),
+            "the unusable direction frames no further message: {:?}",
+            report.actions
+        );
+        assert!(buffer.refused);
+        assert!(!buffer.has_pending());
+    }
+
+    #[test]
     fn an_empty_fin_is_named_in_the_reassembly_list() {
         let mut buffer = StreamBuffer::default();
         buffer.set_ulp(Ulp::Http);
@@ -3313,6 +4094,23 @@ mod tests {
     }
 
     #[test]
+    fn a_window_of_tiny_http2_frames_is_capped() {
+        // Each frame is one protocol node, so the HTTP/2 per-insert bound is
+        // much lower than the generic PDU bound; a hostile segment must stop
+        // before its tree metadata outgrows the published ceiling.
+        let mut buffer = StreamBuffer::default();
+        buffer.set_ulp(Ulp::Http2);
+        let mut payload = b"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n".to_vec();
+        for _ in 0..400 {
+            payload.extend_from_slice(&[0, 0, 1, 0, 0, 0, 0, 0, 1, b'A']);
+        }
+        let report = buffer.insert(100, &payload, 1, false);
+        assert!(report.limit_reached);
+        assert!(report.actions.len() <= MAX_HTTP2_PDUS_PER_INSERT);
+        assert!(buffer.refused);
+    }
+
+    #[test]
     fn a_chunked_http_body_waits_for_the_last_chunk() {
         let mut buffer = StreamBuffer::default();
         buffer.set_ulp(Ulp::Http);
@@ -3334,6 +4132,39 @@ mod tests {
             return;
         };
         assert_eq!(pdu.data, message);
+    }
+
+    #[test]
+    fn a_header_block_split_across_segments_frames_the_message_once() {
+        let mut buffer = StreamBuffer::default();
+        buffer.set_ulp(Ulp::Http);
+        let message =
+            b"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 5\r\n\r\nhello";
+        // Split inside the Content-Length field name, so neither the framing
+        // field nor the header terminator arrives whole.
+        let cut = 50_usize;
+        assert_eq!(
+            message.get(cut..cut.saturating_add(8)),
+            Some(b"-Length:".as_slice())
+        );
+        let first = buffer.insert(100, message.get(..cut).unwrap_or_default(), 1, false);
+        assert!(matches!(
+            first.actions.first(),
+            Some(PduAction::Partial { .. })
+        ));
+        assert!(buffer.has_pending());
+        let completed = buffer.insert(
+            100_u32.saturating_add(u32::try_from(cut).unwrap_or(u32::MAX)),
+            message.get(cut..).unwrap_or_default(),
+            2,
+            false,
+        );
+        let Some(PduAction::Reassembled { pdu, .. }) = completed.actions.first() else {
+            return;
+        };
+        assert_eq!(pdu.ulp, Ulp::Http);
+        assert_eq!(pdu.data, message);
+        assert!(!buffer.has_pending());
     }
 
     #[test]
@@ -3486,6 +4317,98 @@ mod tests {
         assert!(streams.direction(1).has_pending());
     }
 
+    /// Two HTTP directions that observe each other's messages, as the TCP
+    /// state drives them.
+    struct HttpExchange {
+        streams: ConversationStreams,
+        next_sequence: [u32; 2],
+        frame: u64,
+    }
+
+    impl HttpExchange {
+        fn new() -> Self {
+            let mut streams = ConversationStreams::default();
+            streams.direction_mut(0).set_ulp(Ulp::Http);
+            streams.direction_mut(1).set_ulp(Ulp::Http);
+            Self {
+                streams,
+                next_sequence: [1, 1],
+                frame: 0,
+            }
+        }
+
+        /// Deliver one in-order segment and report what it framed.
+        fn send(&mut self, direction: usize, payload: &[u8]) -> ReassemblyReport {
+            self.frame = self.frame.saturating_add(1);
+            let slot = self
+                .next_sequence
+                .get_mut(direction)
+                .unwrap_or_else(|| unreachable!("a direction is zero or one"));
+            let sequence = *slot;
+            *slot = sequence.wrapping_add(u32::try_from(payload.len()).unwrap_or(u32::MAX));
+            let report = self
+                .streams
+                .direction_mut(direction)
+                .insert(sequence, payload, self.frame, false);
+            self.streams
+                .observe_http_actions(direction, &report.actions);
+            report
+        }
+    }
+
+    const CONNECT: &[u8] = b"CONNECT example.com:443 HTTP/1.1\r\nHost: h\r\n\r\n";
+    const LATER_RESPONSE: &[u8] = b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n";
+    const LATER_REQUEST: &[u8] = b"GET / HTTP/1.1\r\nHost: h\r\n\r\n";
+
+    #[test]
+    fn a_connect_tunnel_frames_no_later_message_in_either_direction() {
+        // RFC 9112 section 6.3 case 2: after a 2xx answer to CONNECT the
+        // connection is a tunnel, so later bytes that look like messages are
+        // tunnel data in both directions.
+        let mut exchange = HttpExchange::new();
+        assert!(emits_http_message(&exchange.send(0, CONNECT).actions));
+        let answer = exchange.send(1, b"HTTP/1.1 200 Connection established\r\n\r\n");
+        assert!(emits_http_message(&answer.actions));
+        let response = exchange.send(1, LATER_RESPONSE);
+        assert!(response.actions.is_empty(), "{:?}", response.actions);
+        let request = exchange.send(0, LATER_REQUEST);
+        assert!(request.actions.is_empty(), "{:?}", request.actions);
+    }
+
+    #[test]
+    fn a_refused_connect_keeps_framing_messages() {
+        // Only a 2xx answer opens a tunnel. After a 407 the client may send
+        // another request on the same connection, and its answer is framed.
+        let mut exchange = HttpExchange::new();
+        exchange.send(0, CONNECT);
+        let refusal = exchange.send(
+            1,
+            b"HTTP/1.1 407 Proxy Authentication Required\r\nContent-Length: 0\r\n\r\n",
+        );
+        assert!(emits_http_message(&refusal.actions));
+        assert!(emits_http_message(&exchange.send(0, LATER_REQUEST).actions));
+        assert!(emits_http_message(
+            &exchange.send(1, LATER_RESPONSE).actions
+        ));
+    }
+
+    #[test]
+    fn an_oversized_connect_answer_still_opens_the_tunnel() {
+        // The answer's header section is over the decoder cap, so it is not
+        // decoded, but the tunnel still begins after it.
+        let mut exchange = HttpExchange::new();
+        exchange.send(0, CONNECT);
+        let mut answer = b"HTTP/1.1 200 Connection established\r\nX-Pad: ".to_vec();
+        answer.resize(answer.len().saturating_add(MAX_HEADER_BYTES), b'a');
+        answer.extend_from_slice(b"\r\n\r\n");
+        let oversized = exchange.send(1, &answer);
+        assert_eq!(oversized.oversized, Some("1 MiB header"));
+        let response = exchange.send(1, LATER_RESPONSE);
+        assert!(response.actions.is_empty(), "{:?}", response.actions);
+        let request = exchange.send(0, LATER_REQUEST);
+        assert!(request.actions.is_empty(), "{:?}", request.actions);
+    }
+
     #[test]
     fn a_declared_body_over_the_cap_skips_to_its_declared_end() {
         let mut buffer = StreamBuffer::default();
@@ -3581,6 +4504,66 @@ mod tests {
     }
 
     #[test]
+    fn an_unusable_chunk_body_is_not_scanned_again() {
+        // Once the chunk grammar fails, the message can only end at the
+        // covered prefix or at the stream close; rescanning the body from its
+        // first chunk on every later insert would be quadratic on a hostile
+        // stream.
+        let mut message = b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n".to_vec();
+        message.extend_from_slice(b"1\r\naXX");
+        let header_end = header_section_end(&message).unwrap_or_default();
+        let mut buffer = StreamBuffer::default();
+        buffer.set_ulp(Ulp::Http);
+        buffer.data = message;
+        buffer.covered = vec![true; buffer.data.len()];
+        buffer.contiguous = buffer.data.len();
+        let covered = buffer.data.len();
+        assert!(matches!(
+            buffer.chunked_body_end(header_end, covered, MAX_PDU_BYTES),
+            ChunkedEnd::Invalid
+        ));
+        let scans = buffer.chunk_scans;
+        assert_eq!(scans, 1, "the body must be scanned once");
+        // A later call for the same pending message reuses the failed result.
+        assert!(matches!(
+            buffer.chunked_body_end(header_end, covered, MAX_PDU_BYTES),
+            ChunkedEnd::Invalid
+        ));
+        assert_eq!(buffer.chunk_scans, scans, "the body was scanned again");
+    }
+
+    #[test]
+    fn an_unusable_chunk_body_refuses_later_messages() {
+        // An invalid chunk-size line loses the body's end, so the message
+        // ends at the covered prefix and no later message boundary can be
+        // found on the direction (RFC 9112 section 7.1).
+        let mut buffer = StreamBuffer::default();
+        buffer.set_ulp(Ulp::Http);
+        let message: &[u8] = b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\nzz\r\n";
+        let report = buffer.insert(1000, message, 1, false);
+        assert!(
+            matches!(
+                report.actions.first(),
+                Some(PduAction::Standalone { data, .. }) if data.as_ref() == message
+            ),
+            "{:?}",
+            report.actions
+        );
+        assert!(buffer.refused);
+        assert!(!buffer.has_pending());
+        let sequence = 1000_u32.saturating_add(u32::try_from(message.len()).unwrap_or(0));
+        let second: &[u8] = b"GET /body HTTP/1.1\r\n\r\n";
+        let report = buffer.insert(sequence, second, 2, false);
+        assert!(
+            report.actions.is_empty(),
+            "the unusable direction frames no further message: {:?}",
+            report.actions
+        );
+        assert!(buffer.refused);
+        assert!(!buffer.has_pending());
+    }
+
+    #[test]
     fn an_oversized_chunked_header_skips_the_whole_message() {
         let mut buffer = StreamBuffer::default();
         buffer.set_ulp(Ulp::Http);
@@ -3642,7 +4625,7 @@ mod tests {
         let mut session = SessionState::new(4096);
         let (key, _) = ConversationKey::ipv4([192, 0, 2, 1], 40_000, [192, 0, 2, 2], 80);
         let chunk = vec![b'A'; 8192];
-        let _ = session.insert_tls_plaintext(key, 0, 1, &chunk, false);
+        let _ = session.insert_tls_plaintext(key, 0, 1, &chunk, false, PlaintextAlpn::Other);
         assert!(session.take_dropped(), "the state ledger accepted 8 KiB");
     }
 }

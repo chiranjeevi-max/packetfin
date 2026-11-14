@@ -17,7 +17,7 @@ use crate::decode::DecodeContext;
 use crate::decode::bytes::{array, read_u16_be, read_u32_be};
 use crate::fields;
 use crate::tree::{
-    Bytes, ExpertInfo, Field, Group, Node, Range, RawField, RawSource, Severity, Value,
+    Bytes, ExpertInfo, Field, FieldParent, Group, Node, Range, RawField, RawSource, Severity, Value,
 };
 
 const HEADER_LENGTH: usize = 2;
@@ -75,6 +75,144 @@ const ENABLED_CAPABILITY_BITS: [(&fields::FieldDef, u16); 11] = [
     (&fields::LLDP_TLV_ENABLE_SYSTEM_CAP_CVLAN, 0x0100),
     (&fields::LLDP_TLV_ENABLE_SYSTEM_CAP_SVLAN, 0x0200),
     (&fields::LLDP_TLV_ENABLE_SYSTEM_CAP_TPMR, 0x0400),
+];
+
+/// One IEEE 802.3 clause 30 PMD auto-negotiation capability bit, in the bit
+/// order a 16-bit network-order word exposes.
+const PMD_CAPABILITY_BITS: [(&fields::FieldDef, u16); 16] = [
+    (
+        &fields::LLDP_IEEE_802_3_PMD_AUTO_NEG_ADVERTISED_CAPS_1000BASE_TFD,
+        0x0001,
+    ),
+    (
+        &fields::LLDP_IEEE_802_3_PMD_AUTO_NEG_ADVERTISED_CAPS_1000BASE_T,
+        0x0002,
+    ),
+    (
+        &fields::LLDP_IEEE_802_3_PMD_AUTO_NEG_ADVERTISED_CAPS_1000BASE_XFD,
+        0x0004,
+    ),
+    (
+        &fields::LLDP_IEEE_802_3_PMD_AUTO_NEG_ADVERTISED_CAPS_1000BASE_X,
+        0x0008,
+    ),
+    (
+        &fields::LLDP_IEEE_802_3_PMD_AUTO_NEG_ADVERTISED_CAPS_FDX_BPAUSE,
+        0x0010,
+    ),
+    (
+        &fields::LLDP_IEEE_802_3_PMD_AUTO_NEG_ADVERTISED_CAPS_FDX_SPAUSE,
+        0x0020,
+    ),
+    (
+        &fields::LLDP_IEEE_802_3_PMD_AUTO_NEG_ADVERTISED_CAPS_FDX_APAUSE,
+        0x0040,
+    ),
+    (
+        &fields::LLDP_IEEE_802_3_PMD_AUTO_NEG_ADVERTISED_CAPS_FDX_PAUSE,
+        0x0080,
+    ),
+    (
+        &fields::LLDP_IEEE_802_3_PMD_AUTO_NEG_ADVERTISED_CAPS_100BASE_T2FD,
+        0x0100,
+    ),
+    (
+        &fields::LLDP_IEEE_802_3_PMD_AUTO_NEG_ADVERTISED_CAPS_100BASE_T2,
+        0x0200,
+    ),
+    (
+        &fields::LLDP_IEEE_802_3_PMD_AUTO_NEG_ADVERTISED_CAPS_100BASE_TXFD,
+        0x0400,
+    ),
+    (
+        &fields::LLDP_IEEE_802_3_PMD_AUTO_NEG_ADVERTISED_CAPS_100BASE_TX,
+        0x0800,
+    ),
+    (
+        &fields::LLDP_IEEE_802_3_PMD_AUTO_NEG_ADVERTISED_CAPS_100BASE_T4,
+        0x1000,
+    ),
+    (
+        &fields::LLDP_IEEE_802_3_PMD_AUTO_NEG_ADVERTISED_CAPS_10BASE_TFD,
+        0x2000,
+    ),
+    (
+        &fields::LLDP_IEEE_802_3_PMD_AUTO_NEG_ADVERTISED_CAPS_10BASE_T,
+        0x4000,
+    ),
+    (
+        &fields::LLDP_IEEE_802_3_PMD_AUTO_NEG_ADVERTISED_CAPS_OTHER,
+        0x8000,
+    ),
+];
+
+/// The same sixteen capabilities read with the octet pair swapped, which is
+/// what a receiver that treats the field as little-endian reports.
+const PMD_CAPABILITY_BITS_INVERSE: [(&fields::FieldDef, u16); 16] = [
+    (
+        &fields::LLDP_IEEE_802_3_PMD_AUTO_NEG_ADVERTISED_CAPS_INV_1000BASE_TFD,
+        0x8000,
+    ),
+    (
+        &fields::LLDP_IEEE_802_3_PMD_AUTO_NEG_ADVERTISED_CAPS_INV_1000BASE_T,
+        0x4000,
+    ),
+    (
+        &fields::LLDP_IEEE_802_3_PMD_AUTO_NEG_ADVERTISED_CAPS_INV_1000BASE_XFD,
+        0x2000,
+    ),
+    (
+        &fields::LLDP_IEEE_802_3_PMD_AUTO_NEG_ADVERTISED_CAPS_INV_1000BASE_X,
+        0x1000,
+    ),
+    (
+        &fields::LLDP_IEEE_802_3_PMD_AUTO_NEG_ADVERTISED_CAPS_INV_FDX_BPAUSE,
+        0x0800,
+    ),
+    (
+        &fields::LLDP_IEEE_802_3_PMD_AUTO_NEG_ADVERTISED_CAPS_INV_FDX_SPAUSE,
+        0x0400,
+    ),
+    (
+        &fields::LLDP_IEEE_802_3_PMD_AUTO_NEG_ADVERTISED_CAPS_INV_FDX_APAUSE,
+        0x0200,
+    ),
+    (
+        &fields::LLDP_IEEE_802_3_PMD_AUTO_NEG_ADVERTISED_CAPS_INV_FDX_PAUSE,
+        0x0100,
+    ),
+    (
+        &fields::LLDP_IEEE_802_3_PMD_AUTO_NEG_ADVERTISED_CAPS_INV_100BASE_T2FD,
+        0x0080,
+    ),
+    (
+        &fields::LLDP_IEEE_802_3_PMD_AUTO_NEG_ADVERTISED_CAPS_INV_100BASE_T2,
+        0x0040,
+    ),
+    (
+        &fields::LLDP_IEEE_802_3_PMD_AUTO_NEG_ADVERTISED_CAPS_INV_100BASE_TXFD,
+        0x0020,
+    ),
+    (
+        &fields::LLDP_IEEE_802_3_PMD_AUTO_NEG_ADVERTISED_CAPS_INV_100BASE_TX,
+        0x0010,
+    ),
+    (
+        &fields::LLDP_IEEE_802_3_PMD_AUTO_NEG_ADVERTISED_CAPS_INV_100BASE_T4,
+        0x0008,
+    ),
+    (
+        &fields::LLDP_IEEE_802_3_PMD_AUTO_NEG_ADVERTISED_CAPS_INV_10BASE_TFD,
+        0x0004,
+    ),
+    (
+        &fields::LLDP_IEEE_802_3_PMD_AUTO_NEG_ADVERTISED_CAPS_INV_10BASE_T,
+        0x0002,
+    ),
+    (
+        &fields::LLDP_IEEE_802_3_PMD_AUTO_NEG_ADVERTISED_CAPS_INV_OTHER,
+        0x0001,
+    ),
 ];
 
 #[derive(Clone, Copy, Default)]
@@ -281,6 +419,12 @@ pub(crate) fn decode(context: &mut DecodeContext<'_>, parent: &mut Node, data: &
                 }
                 TLV_ORGANIZATION => {
                     if content.len() < 4 {
+                        // The type and length octets were decoded before the
+                        // OUI and subtype failed, so the header stays in the
+                        // tree and the protocol-level marker explains the
+                        // stop (fields-before-error rule). The expected output
+                        // drops the header; that difference is recorded as a
+                        // deviation.
                         context.mark_malformed(&mut node, "LLDP organization TLV is too short");
                         stop = true;
                         break 'tlv;
@@ -310,7 +454,12 @@ pub(crate) fn decode(context: &mut DecodeContext<'_>, parent: &mut Node, data: &
             break;
         }
     }
-    if consumed != 0 {
+    if node.protocol_exception {
+        // A malformed TLV ends the decode, but the protocol still spans every
+        // captured byte of the PDU; the expected output reports the full
+        // extent rather than the bytes decoded before the failure.
+        node.range = Range::new(base, data.len());
+    } else if consumed != 0 {
         node.range = Range::new(base, consumed);
     }
     parent.add_child(node);
@@ -383,6 +532,30 @@ fn tlv_bit_pattern(width: usize, mask: u64, raw: u64) -> String {
         }
     }
     pattern
+}
+
+/// Add one boolean child of a wider field.
+///
+/// The showname carries the bit diagram for `width` bits and the field's own
+/// true/false words (for example `Capable`/`Not capable`), which is the form
+/// the detail view prints for capability bits.
+fn add_bit_child(
+    parent: &mut Field,
+    definition: &'static fields::FieldDef,
+    range: Range,
+    mask: u16,
+    raw: u16,
+    width: usize,
+) {
+    let set = raw & mask != 0;
+    let child = parent.add_field(definition, range, Value::Boolean(set));
+    let (yes, no) = fields::true_false_name(definition.abbrev).unwrap_or(("True", "False"));
+    child.showname = Some(format!(
+        "{} = {}: {}",
+        tlv_bit_pattern(width, u64::from(mask), u64::from(raw)),
+        definition.name,
+        if set { yes } else { no }
+    ));
 }
 
 fn decode_chassis(
@@ -597,14 +770,7 @@ fn decode_capabilities(
     let system_cap = tlv.add_container(&fields::LLDP_TLV_SYSTEM_CAP, range, None);
     system_cap.value = Value::Uint16(capabilities);
     for (field, mask) in CAPABILITY_BITS {
-        let set = capabilities & mask != 0;
-        let child = system_cap.add_field(field, range, Value::Boolean(set));
-        child.showname = Some(format!(
-            "{} = {}: {}",
-            tlv_bit_pattern(16, u64::from(mask), u64::from(capabilities)),
-            field.name,
-            if set { "Capable" } else { "Not capable" }
-        ));
+        add_bit_child(system_cap, field, range, mask, capabilities, 16);
     }
     if content.len() < 4 {
         context.mark_malformed(node, "LLDP enabled capabilities TLV is too short");
@@ -617,14 +783,7 @@ fn decode_capabilities(
     let enabled_cap = tlv.add_container(&fields::LLDP_TLV_ENABLE_SYSTEM_CAP, enabled_range, None);
     enabled_cap.value = Value::Uint16(enabled);
     for (field, mask) in ENABLED_CAPABILITY_BITS {
-        let set = enabled & mask != 0;
-        let child = enabled_cap.add_field(field, enabled_range, Value::Boolean(set));
-        child.showname = Some(format!(
-            "{} = {}: {}",
-            tlv_bit_pattern(16, u64::from(mask), u64::from(enabled)),
-            field.name,
-            if set { "Capable" } else { "Not capable" }
-        ));
+        add_bit_child(enabled_cap, field, enabled_range, mask, enabled, 16);
     }
     tlv.showname = Some("Capabilities".to_string());
     true
@@ -820,7 +979,7 @@ fn decode_organization(
                 tlv.add_field(&fields::LLDP_TLV_DEPRECATED, Range::new(0, 0), Value::None)
                     .hide();
             }
-            let decoded = decode_ieee_802_3(context, node, tlv, subtype, body, body_start, base);
+            let decoded = decode_ieee_802_3(context, node, tlv, subtype, body, body_start);
             tlv.showname = Some(label);
             decoded
         }
@@ -998,36 +1157,54 @@ fn decode_ieee_802_3(
     subtype: u8,
     body: &[u8],
     body_start: usize,
-    base: usize,
 ) -> bool {
     match subtype {
         1 => {
-            let Some(autonegotiation) = body.first().copied() else {
-                context.mark_malformed(node, "IEEE 802.3 MAC/PHY TLV is too short");
-                return false;
-            };
-            let range = Range::new(body_start, 1);
-            tlv.add_field(
-                &fields::LLDP_IEEE_802_3_MAC_PHY_AUTO_NEG_STATUS,
-                range,
-                Value::Uint8(autonegotiation),
-            );
-            tlv.add_field(
-                &fields::LLDP_IEEE_802_3_MAC_PHY_AUTO_NEG_STATUS_SUPPORTED,
-                range,
-                Value::Boolean(autonegotiation & 0x01 != 0),
-            );
-            tlv.add_field(
-                &fields::LLDP_IEEE_802_3_MAC_PHY_AUTO_NEG_STATUS_ENABLED,
-                range,
-                Value::Boolean(autonegotiation & 0x02 != 0),
-            );
-            if let Some(capabilities) = read_u16_be(body, 1) {
-                tlv.add_field(
-                    &fields::LLDP_IEEE_802_3_PMD_AUTO_NEG_ADVERTISED_CAPS,
-                    Range::new(body_start.saturating_add(1), 2),
-                    Value::Uint16(capabilities),
+            // IEEE 802.1AB-2016 clause 8.5.5: one octet of auto-negotiation
+            // support/status, a two-octet capability word and a two-octet
+            // operational MAU type. Fields present before a short body are
+            // kept; the decoder still reports that the TLV stopped early.
+            if let Some(autonegotiation) = body.first().copied() {
+                let range = Range::new(body_start, 1);
+                let status = tlv.add_container(
+                    &fields::LLDP_IEEE_802_3_MAC_PHY_AUTO_NEG_STATUS,
+                    range,
+                    None,
                 );
+                status.value = Value::Uint8(autonegotiation);
+                add_bit_child(
+                    status,
+                    &fields::LLDP_IEEE_802_3_MAC_PHY_AUTO_NEG_STATUS_SUPPORTED,
+                    range,
+                    0x01,
+                    u16::from(autonegotiation),
+                    8,
+                );
+                add_bit_child(
+                    status,
+                    &fields::LLDP_IEEE_802_3_MAC_PHY_AUTO_NEG_STATUS_ENABLED,
+                    range,
+                    0x02,
+                    u16::from(autonegotiation),
+                    8,
+                );
+            }
+            if let Some(capabilities) = read_u16_be(body, 1) {
+                let range = Range::new(body_start.saturating_add(1), 2);
+                let caps = tlv.add_container(
+                    &fields::LLDP_IEEE_802_3_PMD_AUTO_NEG_ADVERTISED_CAPS,
+                    range,
+                    None,
+                );
+                caps.value = Value::Uint16(capabilities);
+                for (field, mask) in PMD_CAPABILITY_BITS {
+                    add_bit_child(caps, field, range, mask, capabilities, 16);
+                }
+                let inverse =
+                    tlv.add_unnamed(range, "Same in inverse (wrong) bitorder".to_string());
+                for (field, mask) in PMD_CAPABILITY_BITS_INVERSE {
+                    add_bit_child(inverse, field, range, mask, capabilities, 16);
+                }
             }
             if let Some(mau) = read_u16_be(body, 3) {
                 tlv.add_field(
@@ -1041,50 +1218,66 @@ fn decode_ieee_802_3(
                 return false;
             }
             if body.len() > 5 {
-                mark_excess_length(context, node, tlv, base);
+                mark_excess_length(tlv, body_start.saturating_add(5), body.len() - 5);
             }
             true
         }
         3 => {
-            let (Some(status), Some(port)) = (body.first().copied(), read_u32_be(body, 1)) else {
+            // IEEE 802.1AB-2016 clause 8.5.6: one status octet and a
+            // four-octet aggregated port identifier.
+            if let Some(status) = body.first().copied() {
+                let range = Range::new(body_start, 1);
+                let aggregation =
+                    tlv.add_container(&fields::LLDP_IEEE_802_3_AGGREGATION_STATUS, range, None);
+                aggregation.value = Value::Uint8(status);
+                add_bit_child(
+                    aggregation,
+                    &fields::LLDP_IEEE_802_3_AGGREGATION_STATUS_CAP,
+                    range,
+                    0x01,
+                    u16::from(status),
+                    8,
+                );
+                add_bit_child(
+                    aggregation,
+                    &fields::LLDP_IEEE_802_3_AGGREGATION_STATUS_ENABLED,
+                    range,
+                    0x02,
+                    u16::from(status),
+                    8,
+                );
+            }
+            if let Some(port) = read_u32_be(body, 1) {
+                tlv.add_field(
+                    &fields::LLDP_IEEE_802_3_AGGREGATED_PORT_ID,
+                    Range::new(body_start.saturating_add(1), 4),
+                    Value::Uint32(port),
+                );
+            }
+            if body.len() < 5 {
                 context.mark_malformed(node, "IEEE 802.3 link aggregation TLV is too short");
                 return false;
-            };
-            let range = Range::new(body_start, 1);
-            tlv.add_field(
-                &fields::LLDP_IEEE_802_3_AGGREGATION_STATUS,
-                range,
-                Value::Uint8(status),
-            );
-            tlv.add_field(
-                &fields::LLDP_IEEE_802_3_AGGREGATION_STATUS_CAP,
-                range,
-                Value::Boolean(status & 0x01 != 0),
-            );
-            tlv.add_field(
-                &fields::LLDP_IEEE_802_3_AGGREGATION_STATUS_ENABLED,
-                range,
-                Value::Boolean(status & 0x02 != 0),
-            );
-            tlv.add_field(
-                &fields::LLDP_IEEE_802_3_AGGREGATED_PORT_ID,
-                Range::new(body_start.saturating_add(1), 4),
-                Value::Uint32(port),
-            );
+            }
+            if body.len() > 5 {
+                mark_excess_length(tlv, body_start.saturating_add(5), body.len() - 5);
+            }
             true
         }
         4 => {
-            let Some(maximum) = read_u16_be(body, 0).filter(|_| body.len() >= 2) else {
+            // IEEE 802.1AB-2016 clause 8.5.7: a two-octet maximum frame size.
+            if let Some(maximum) = read_u16_be(body, 0) {
+                tlv.add_field(
+                    &fields::LLDP_IEEE_802_3_MAX_FRAME_SIZE,
+                    Range::new(body_start, 2),
+                    Value::Uint16(maximum),
+                );
+            }
+            if body.len() < 2 {
                 context.mark_malformed(node, "IEEE 802.3 maximum frame size TLV is too short");
                 return false;
-            };
-            tlv.add_field(
-                &fields::LLDP_IEEE_802_3_MAX_FRAME_SIZE,
-                Range::new(body_start, 2),
-                Value::Uint16(maximum),
-            );
+            }
             if body.len() > 2 {
-                mark_excess_length(context, node, tlv, base);
+                mark_excess_length(tlv, body_start.saturating_add(2), body.len() - 2);
             }
             true
         }
@@ -1149,21 +1342,29 @@ fn invalid_fixed_length(
     false
 }
 
-fn mark_excess_length(
-    context: &mut DecodeContext<'_>,
-    node: &mut Node,
-    tlv: &mut Field,
-    _base: usize,
-) {
-    add_tlv_expert(
-        tlv,
-        "lldp.tlv.len",
-        &fields::LLDP_EXCESS_LENGTH,
-        "LLDP excess TLV length",
-        "Invalid length, greater than expected",
-        Group::Malformed,
+/// Report bytes beyond the fixed length of an organizationally specific TLV.
+///
+/// The expert belongs to an unnamed group spanning the extra bytes, not to
+/// the TLV length field, so the detail view prints it after the decoded
+/// sub-fields. The group also carries a hidden `lldp.excess_length`
+/// occurrence, like the TLV-level expert path, so field traversal and display
+/// filters see the expert even though the detail view hides the occurrence.
+fn mark_excess_length(tlv: &mut Field, start: usize, length: usize) {
+    let group = tlv.add_unnamed(
+        Range::new(start, length),
+        "Invalid length, greater than expected".to_string(),
     );
-    let _ = (context, node);
+    group.add_expert_for(
+        ExpertInfo {
+            severity: Severity::Warning,
+            group: Group::Malformed,
+            message: "Invalid length, greater than expected".to_string(),
+        },
+        &fields::LLDP_EXCESS_LENGTH,
+    );
+    let occurrence = group.add_field(&fields::LLDP_EXCESS_LENGTH, Range::new(0, 0), Value::None);
+    occurrence.hide();
+    occurrence.showname = Some("LLDP excess TLV length".to_string());
 }
 
 fn add_tlv_expert(

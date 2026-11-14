@@ -20,6 +20,7 @@ use crate::decode::bytes::{byte_count_text, read_u16_be, read_u32_be};
 use crate::decode::{DecodeContext, LayerType, NetworkContext};
 use crate::decode::{bgp, checksum, dns, http, looks_like_http_prefix, tls};
 use crate::fields;
+use crate::fields::Protocol;
 use crate::state::{
     ConversationKey, PduAction, TcpAnalysisOptions, TcpObservation, TcpPacketState, TcpSegment, Ulp,
 };
@@ -175,10 +176,35 @@ pub(crate) fn decode(context: &mut DecodeContext<'_>, parent: &mut Node, data: &
     } else {
         &[]
     };
+    // A forced decode-as replaces the port table. HTTP/2 is the exception:
+    // its frames are length-delimited across TCP segments, so the forced
+    // protocol still goes through the stream framer like the heuristic one.
+    let forced = context.options.decode_as.lookup(
+        LayerType::TcpPort,
+        &[u32::from(source_port), u32::from(destination_port)],
+    );
+    let forced_http2 =
+        forced == Some(Protocol::Http2) && context.options.policy.enabled(Protocol::Http2);
+    let forced_tcp = forced.is_some() && !forced_http2;
     let detected_ulp = if context.quoted {
         None
+    } else if forced_http2 {
+        Some(Ulp::Http2)
     } else {
         ulp_for_ports(source_port, destination_port, payload)
+    };
+    // Only the client sends the connection preface; once either direction of
+    // the conversation has HTTP/2 state, the other direction's frames belong
+    // to the same connection (RFC 9113 section 3.4).
+    let detected_ulp = if detected_ulp.is_none()
+        && !context.quoted
+        && !payload.is_empty()
+        && let Some((key, _)) = conversation_key(context, source_port, destination_port)
+        && context.state.http2_known(key)
+    {
+        Some(Ulp::Http2)
+    } else {
+        detected_ulp
     };
     // Turning desegmentation off leaves each segment a PDU on its own: no
     // buffering and no segment data, but a complete fixed header still
@@ -613,14 +639,6 @@ pub(crate) fn decode(context: &mut DecodeContext<'_>, parent: &mut Node, data: &
         add_analysis_fields(&mut node, base, state);
     }
 
-    let forced_tcp = context
-        .options
-        .decode_as
-        .lookup(
-            LayerType::TcpPort,
-            &[u32::from(source_port), u32::from(destination_port)],
-        )
-        .is_some();
     if let Some(payload) = data.get(header_length..)
         && !payload.is_empty()
         && !rst
@@ -910,6 +928,12 @@ fn ulp_for_ports(source: u16, destination: u16, payload: &[u8]) -> Option<Ulp> {
     }
     if http_port(ports) && http_prefix(payload) {
         return Some(Ulp::Http);
+    }
+    // The connection preface is the only cleartext HTTP/2 heuristic: a frame
+    // shape alone is not enough, because every frame type shares the same
+    // nine-octet header (RFC 9113 section 4.1).
+    if crate::decode::http2::looks_like_http2_prefix(payload) {
+        return Some(Ulp::Http2);
     }
     looks_like_http_prefix(payload).then_some(Ulp::Http)
 }
@@ -1598,12 +1622,14 @@ fn decode_stream_pdus(
                 if pdu.ulp == Ulp::Http {
                     context.pdu_bytes = Some(pdu.data.clone());
                 }
-                let record_source = if pdu.ulp == Ulp::Tls {
+                let record_source = if matches!(pdu.ulp, Ulp::Tls | Ulp::Http2) {
                     // The PDU bytes are the reassembly buffer, not the frame
                     // at offset zero; record fields must read this source.
                     let source = context.reserve_reassembled_source();
                     context.set_data_source(source, pdu.data.clone());
-                    context.tls_record_source = Some(source);
+                    if pdu.ulp == Ulp::Tls {
+                        context.tls_record_source = Some(source);
+                    }
                     Some(source)
                 } else {
                     None
@@ -1737,6 +1763,11 @@ fn decode_stream_pdus(
                         }
                     }
                     Ulp::Dns => {}
+                    Ulp::Http2 => {
+                        // A frame that is not complete yet has no node and no
+                        // Info text; it decodes once, when its last byte
+                        // arrives.
+                    }
                 }
             }
             Some(PduAction::SegmentData { .. }) => {}
@@ -1804,6 +1835,7 @@ fn decode_ulp(
         Ulp::Tls => tls(context, node, data, base),
         Ulp::Bgp => bgp(context, node, data, base),
         Ulp::Http => http(context, node, data, base),
+        Ulp::Http2 => crate::decode::http2::decode(context, node, data, base),
     }
 }
 

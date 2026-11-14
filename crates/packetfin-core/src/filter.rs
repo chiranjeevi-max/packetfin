@@ -899,6 +899,21 @@ fn resolve_contains(left: &mut Operand, right: &mut Operand) -> Result<(), Filte
 }
 
 fn resolve_operand(operand: &mut Operand, expected: Option<Type>) -> Result<Type, FilterError> {
+    // A relative time stores nanoseconds (see `FieldType::RelativeTime`), but
+    // the evaluator reads a bare constant beside one as seconds. Arithmetic
+    // made only of constants takes its unit from that enclosing context, so
+    // evaluate it here and store the scaled value: otherwise `1 * 1` would
+    // reach evaluation as one nanosecond and `10 / 4` as integer two.
+    if expected == Some(Type::Relative)
+        && matches!(&operand.kind, OperandKind::Binary { .. })
+        && let Some(nanos) = relative_constant_nanos(operand)?
+    {
+        operand.kind = OperandKind::Literal {
+            literal: Literal::Integer(nanos),
+            ty: Type::Relative,
+        };
+        return Ok(Type::Relative);
+    }
     match &mut operand.kind {
         OperandKind::Field { field, .. } => Ok(type_of(field.field_type)),
         OperandKind::Protocol { .. } => Ok(Type::Protocol),
@@ -906,6 +921,20 @@ fn resolve_operand(operand: &mut Operand, expected: Option<Type>) -> Result<Type
             let inner_type = resolve_operand(inner, None)?;
             if inner_type == Type::Untyped {
                 return Ok(Type::Untyped);
+            }
+            // A protocol slice would read the protocol's own frame bytes, and
+            // the evaluator keeps no byte source for a protocol node. Reject
+            // it here so the deviation is a parse error instead of a filter
+            // that silently matches nothing.
+            if inner_type == Type::Protocol {
+                return Err(FilterError::at_span(
+                    inner.start,
+                    inner.end,
+                    format!(
+                        "{} cannot be sliced into a sequence of bytes",
+                        inner_type.name()
+                    ),
+                ));
             }
             if !inner_type.is_sequence() {
                 return Err(FilterError::at_span(
@@ -980,10 +1009,12 @@ fn resolve_operand(operand: &mut Operand, expected: Option<Type>) -> Result<Type
                     "argument cannot be negated".to_string(),
                 ));
             }
-            Ok(if ty == Type::Time {
-                Type::Time
-            } else {
-                Type::Int(64)
+            // Negation keeps a time or a double as it is: a relative value
+            // still counts nanoseconds, which mixed time arithmetic scales to
+            // seconds, and a double has no integer form to widen to.
+            Ok(match ty {
+                Type::Time | Type::Relative | Type::Double => ty,
+                _ => Type::Int(64),
             })
         }
         OperandKind::UnaryPlus(inner) => resolve_operand(inner, expected),
@@ -1035,21 +1066,89 @@ fn resolve_binary(
         *ty = Type::Untyped;
         return Ok(Type::Untyped);
     }
-    let time = target == Type::Time;
+    // A relative time is stored in nanoseconds like an absolute time, but a
+    // bare scalar beside `*` or `/` counts seconds rather than nanoseconds:
+    // the scalar scales the value, it is not itself a duration.
+    let time = matches!(target, Type::Time | Type::Relative);
     if time {
         if matches!(operator, ArithOp::Modulo | ArithOp::BitwiseAnd) {
             return Err(FilterError::at_span(
                 start,
                 end,
                 format!(
-                    "\"{}\" is not a valid arithmetic operator for a date and time",
-                    arith_symbol(operator)
+                    "\"{}\" is not a valid arithmetic operator for {}",
+                    arith_symbol(operator),
+                    target.name()
                 ),
             ));
         }
+        // A relative time combined with an absolute time is a scalar
+        // duration in seconds (RFC 3339 timestamps are offsets from an
+        // epoch): the sum or difference stays numeric, as the reference
+        // implementation evaluates it. Multiplication and division by an
+        // absolute time has no meaning and is rejected at parse time.
+        let mixed_absolute =
+            target == Type::Relative && (left_type == Type::Time || right_type == Type::Time);
+        // A time operand combines with a number (or another time); anything
+        // else, such as an address, cannot be converted and would otherwise
+        // resolve and then silently match nothing.
+        for (operand, ty) in [(&*left, left_type), (&*right, right_type)] {
+            if ty != Type::Untyped
+                && !matches!(
+                    ty,
+                    Type::Uint(_) | Type::Int(_) | Type::Double | Type::Time | Type::Relative
+                )
+            {
+                return Err(FilterError::at_span(
+                    operand.start,
+                    operand.end,
+                    format!(
+                        "{} cannot be used with {}",
+                        ty.name(),
+                        arith_symbol(operator)
+                    ),
+                ));
+            }
+        }
+        // A double scales a time but is not a duration itself, so it cannot
+        // be added to or subtracted from one. A double on the left makes the
+        // target a double, so here it can only be the right operand.
+        if right_type == Type::Double && matches!(operator, ArithOp::Add | ArithOp::Subtract) {
+            return Err(FilterError::at_span(
+                right.start,
+                right.end,
+                format!(
+                    "{} cannot be used with {} on {}",
+                    right_type.name(),
+                    arith_symbol(operator),
+                    target.name()
+                ),
+            ));
+        }
+        if mixed_absolute {
+            if matches!(operator, ArithOp::Multiply | ArithOp::Divide) {
+                return Err(FilterError::at_span(
+                    right.start,
+                    right.end,
+                    format!(
+                        "{} cannot be the right-hand operand of {}",
+                        Type::Time.name(),
+                        arith_symbol(operator)
+                    ),
+                ));
+            }
+            if has_unconverted(left) {
+                resolve_operand(left, Some(Type::Relative))?;
+            }
+            if has_unconverted(right) {
+                resolve_operand(right, Some(Type::Relative))?;
+            }
+            *ty = Type::Double;
+            return Ok(Type::Double);
+        }
         let operand_type = match operator {
             ArithOp::Multiply | ArithOp::Divide => Type::Int(64),
-            _ => Type::Time,
+            _ => target,
         };
         if has_unconverted(left) {
             resolve_operand(left, Some(operand_type))?;
@@ -1091,6 +1190,125 @@ fn resolve_binary(
     }
     *ty = target;
     Ok(target)
+}
+
+/// Nanoseconds per second, the unit a relative field stores.
+const NANOS_PER_SECOND: i128 = 1_000_000_000;
+
+/// Evaluate a constant relative-time expression as exact nanoseconds.
+///
+/// A relative field keeps nanoseconds, while a bare constant beside one counts
+/// seconds: `frame.time_relative + 10 / 4` adds 2.5 s. A node whose operands
+/// are all constants has no unit of its own, so its enclosing relative context
+/// supplies one, and the node is folded here. Every operation stays in integer
+/// nanoseconds with checked arithmetic; routing the value through `f64` would
+/// lose the low nanoseconds of a large relative time.
+///
+/// Returns `Ok(None)` for an operand that is not a constant expression so the
+/// ordinary resolution path and its diagnostics still apply.
+fn relative_constant_nanos(operand: &Operand) -> Result<Option<i128>, FilterError> {
+    match &operand.kind {
+        OperandKind::TokenLiteral(TokenLiteral::Word(text)) => {
+            // Match the direct relative literal grammar exactly: decimal
+            // seconds, not the integer parser's base prefixes (`010` is ten
+            // seconds beside a relative field, not eight).
+            Ok(parse_relative_seconds(text))
+        }
+        OperandKind::Literal { literal, ty } => match (literal, *ty) {
+            (Literal::Integer(value), Type::Relative) => Ok(Some(*value)),
+            (Literal::Integer(value), Type::Uint(_) | Type::Int(_)) => value
+                .checked_mul(NANOS_PER_SECOND)
+                .map(Some)
+                .ok_or_else(|| relative_constant_range(operand)),
+            _ => Ok(None),
+        },
+        OperandKind::UnaryPlus(inner) => relative_constant_nanos(inner),
+        OperandKind::Negate(inner) => {
+            let Some(value) = relative_constant_nanos(inner)? else {
+                return Ok(None);
+            };
+            value
+                .checked_neg()
+                .map(Some)
+                .ok_or_else(|| relative_constant_range(operand))
+        }
+        OperandKind::Binary {
+            operator,
+            left,
+            right,
+            ..
+        } => {
+            let Some(left) = relative_constant_nanos(left)? else {
+                return Ok(None);
+            };
+            let Some(right) = relative_constant_nanos(right)? else {
+                return Ok(None);
+            };
+            let value = match operator {
+                ArithOp::Add => left.checked_add(right),
+                ArithOp::Subtract => left.checked_sub(right),
+                ArithOp::Multiply => left
+                    .checked_mul(right)
+                    .and_then(|product| rounded_quotient(product, NANOS_PER_SECOND)),
+                ArithOp::Divide if right == 0 => {
+                    return Err(FilterError::at_span(
+                        operand.start,
+                        operand.end,
+                        "division by zero".to_string(),
+                    ));
+                }
+                ArithOp::Divide => left
+                    .checked_mul(NANOS_PER_SECOND)
+                    .and_then(|scaled| rounded_quotient(scaled, right)),
+                ArithOp::Modulo | ArithOp::BitwiseAnd => {
+                    return Err(FilterError::at_span(
+                        operand.start,
+                        operand.end,
+                        format!(
+                            "\"{}\" is not a valid arithmetic operator for {}",
+                            arith_symbol(*operator),
+                            Type::Relative.name()
+                        ),
+                    ));
+                }
+            };
+            value
+                .map(Some)
+                .ok_or_else(|| relative_constant_range(operand))
+        }
+        _ => Ok(None),
+    }
+}
+
+/// The diagnostic for a relative constant that does not fit `i128` nanoseconds.
+fn relative_constant_range(operand: &Operand) -> FilterError {
+    FilterError::at_span(
+        operand.start,
+        operand.end,
+        "relative time constant is out of range".to_string(),
+    )
+}
+
+/// Divide with the quotient rounded to nearest, ties away from zero.
+///
+/// Folding multiplies and divides durations, so the fractional nanosecond is
+/// rounded once here instead of being truncated (`1 / 3` is 333333333 ns).
+fn rounded_quotient(numerator: i128, denominator: i128) -> Option<i128> {
+    let quotient = numerator.checked_div(denominator)?;
+    let remainder = numerator.checked_rem(denominator)?;
+    if remainder == 0 {
+        return Some(quotient);
+    }
+    let doubled = remainder.unsigned_abs().checked_mul(2)?;
+    if doubled < denominator.unsigned_abs() {
+        return Some(quotient);
+    }
+    let step: i128 = if (remainder > 0) == (denominator > 0) {
+        1
+    } else {
+        -1
+    };
+    quotient.checked_add(step)
 }
 
 fn negated_unsigned_type(operand: &Operand) -> Option<Type> {
@@ -1410,6 +1628,7 @@ fn evaluate_operand<'a>(operand: &'a Operand, tree: &'a Tree) -> Sequence<'a> {
                 .iter()
                 .filter_map(|value| match value {
                     RuntimeValue::Int(value) => value.checked_neg().map(RuntimeValue::Int),
+                    RuntimeValue::Double(value) => Some(RuntimeValue::Double(-value)),
                     RuntimeValue::Time { seconds, nanos } => {
                         let total = i128::from(*seconds)
                             .checked_mul(1_000_000_000)?
@@ -1420,7 +1639,7 @@ fn evaluate_operand<'a>(operand: &'a Operand, tree: &'a Tree) -> Sequence<'a> {
                 })
                 .collect();
             let ty = match inner.ty {
-                Type::Time => Type::Time,
+                Type::Time | Type::Relative | Type::Double => inner.ty,
                 ty if ty.is_numeric() => Type::Int(64),
                 ty => ty,
             };
@@ -1438,7 +1657,7 @@ fn evaluate_operand<'a>(operand: &'a Operand, tree: &'a Tree) -> Sequence<'a> {
             for left_value in &left.values {
                 for right_value in &right.values {
                     if let Some(value) =
-                        apply_arithmetic(*operator, left_value, right.ty, right_value, *ty)
+                        apply_arithmetic(*operator, left.ty, left_value, right.ty, right_value, *ty)
                     {
                         values.push(value);
                     }
@@ -1514,11 +1733,39 @@ fn time_value(nanos: i128) -> Option<RuntimeValue<'static>> {
 
 fn apply_arithmetic(
     operator: ArithOp,
+    left_type: Type,
     left: &RuntimeValue<'_>,
     right_type: Type,
     right: &RuntimeValue<'_>,
     ty: Type,
 ) -> Option<RuntimeValue<'static>> {
+    let time_beside_numeric = matches!(left_type, Type::Time | Type::Relative)
+        || matches!(right_type, Type::Time | Type::Relative);
+    if ty == Type::Double && time_beside_numeric {
+        // A time beside a numeric value is a duration in seconds, so both
+        // operands convert alike. A chain such as
+        // `frame.time_relative + frame.time_epoch - frame.time_relative`
+        // carries a seconds intermediate, while a relative operand still
+        // stores nanoseconds: converting only the direct relative operand
+        // would subtract its raw nanoseconds from a seconds value.
+        if matches!(operator, ArithOp::Add | ArithOp::Subtract) {
+            let left = arithmetic_seconds(left, left_type)?;
+            let right = arithmetic_seconds(right, right_type)?;
+            let value = match operator {
+                ArithOp::Add => left + right,
+                _ => left - right,
+            };
+            return value.is_finite().then_some(RuntimeValue::Double(value));
+        }
+        // A product or quotient of an absolute and a relative time has no
+        // meaning and stays rejected, as the type resolver rejects it; every
+        // other combination keeps the ordinary numeric path.
+        if (left_type == Type::Time || right_type == Type::Time)
+            && (left_type == Type::Relative || right_type == Type::Relative)
+        {
+            return None;
+        }
+    }
     if ty == Type::Double {
         let left = double_value(left)?;
         let right = double_value(right)?;
@@ -1533,6 +1780,16 @@ fn apply_arithmetic(
             ArithOp::BitwiseAnd => return None,
         };
         return value.is_finite().then_some(RuntimeValue::Double(value));
+    }
+    if let (Type::Time | Type::Relative, RuntimeValue::Double(factor)) = (ty, right) {
+        // A double factor scales the stored nanoseconds; the result keeps
+        // the time's own unit (the resolver admits only `*` and `/` here).
+        let nanos = scaled_nanos(time_nanos(left)?, operator, *factor)?;
+        return if ty == Type::Time {
+            time_value(nanos)
+        } else {
+            Some(RuntimeValue::Int(nanos))
+        };
     }
     if ty == Type::Time {
         let left = time_nanos(left)?;
@@ -1566,11 +1823,43 @@ fn time_nanos(value: &RuntimeValue<'_>) -> Option<i128> {
     }
 }
 
+/// A nanosecond count multiplied or divided by a double factor.
+///
+/// Returns `None` for any other operator, a zero divisor, or a result that is
+/// not finite or does not fit the nanosecond range, so an extreme factor
+/// produces no value instead of a saturated one. The product is computed in
+/// `f64`, so an epoch time loses its last few hundred nanoseconds; the factor
+/// itself is a double, so no exact integer form exists to keep.
+fn scaled_nanos(nanos: i128, operator: ArithOp, factor: f64) -> Option<i128> {
+    let value = match operator {
+        ArithOp::Multiply => nanos as f64 * factor,
+        ArithOp::Divide if factor != 0.0 => nanos as f64 / factor,
+        _ => return None,
+    };
+    (value.is_finite() && value.abs() < i128::MAX as f64).then_some(value as i128)
+}
+
 fn double_value(value: &RuntimeValue<'_>) -> Option<f64> {
     match value {
         RuntimeValue::Double(value) => Some(*value),
         RuntimeValue::Int(value) => Some(*value as f64),
         RuntimeValue::Bool(value) => Some(f64::from(u8::from(*value))),
+        _ => None,
+    }
+}
+
+/// One operand of mixed absolute/relative arithmetic, in seconds.
+///
+/// Relative fields store nanoseconds, so their integer value is scaled; an
+/// absolute time carries whole seconds and a nanosecond fraction.
+fn arithmetic_seconds(value: &RuntimeValue<'_>, ty: Type) -> Option<f64> {
+    match value {
+        RuntimeValue::Time { seconds, nanos } => {
+            Some(*seconds as f64 + f64::from(*nanos) / 1_000_000_000.0)
+        }
+        RuntimeValue::Int(value) if ty == Type::Relative => Some(*value as f64 / 1_000_000_000.0),
+        RuntimeValue::Int(value) => Some(*value as f64),
+        RuntimeValue::Double(value) => Some(*value),
         _ => None,
     }
 }
@@ -4017,25 +4306,34 @@ fn double_literal(text: &str, token: &Token) -> Result<Literal, FilterError> {
 /// nanoseconds the field stores, so `tcp.analysis.initial_rtt > 0.0005`
 /// compares in fractional seconds.
 fn relative_seconds_literal(text: &str, token: &Token) -> Result<Literal, FilterError> {
-    let invalid = || FilterError::at(token, format!("{text:?} is not a valid relative time"));
+    parse_relative_seconds(text)
+        .map(Literal::Integer)
+        .ok_or_else(|| FilterError::at(token, format!("{text:?} is not a valid relative time")))
+}
+
+/// Parse decimal seconds as exactly the nanoseconds a relative field stores.
+///
+/// Accepts an optional sign, an optional whole part and up to nine fractional
+/// digits. Other forms, such as an exponent, are not relative seconds.
+fn parse_relative_seconds(text: &str) -> Option<i128> {
     let (negative, body) = match text.strip_prefix('-') {
         Some(body) => (true, body),
         None => (false, text.strip_prefix('+').unwrap_or(text)),
     };
     if body.is_empty() {
-        return Err(invalid());
+        return None;
     }
     let (whole, fraction) = body.split_once('.').unwrap_or((body, ""));
     if fraction.len() > 9
         || (!whole.is_empty() && !whole.chars().all(|character| character.is_ascii_digit()))
         || !fraction.chars().all(|character| character.is_ascii_digit())
     {
-        return Err(invalid());
+        return None;
     }
     let whole: i128 = if whole.is_empty() {
         0
     } else {
-        whole.parse().map_err(|_| invalid())?
+        whole.parse().ok()?
     };
     let mut fractional: i128 = 0;
     for character in fraction.chars() {
@@ -4045,13 +4343,12 @@ fn relative_seconds_literal(text: &str, token: &Token) -> Result<Literal, Filter
         fractional *= 10;
     }
     let mut nanos = whole
-        .checked_mul(1_000_000_000)
-        .and_then(|seconds| seconds.checked_add(fractional))
-        .ok_or_else(invalid)?;
+        .checked_mul(NANOS_PER_SECOND)
+        .and_then(|seconds| seconds.checked_add(fractional))?;
     if negative {
         nanos = -nanos;
     }
-    Ok(Literal::Integer(nanos))
+    Some(nanos)
 }
 
 fn integer_literal(
@@ -4766,6 +5063,260 @@ mod tests {
             );
             assert_eq!(ty, Type::Uint(bits));
         }
+    }
+
+    #[test]
+    fn relative_and_absolute_times_combine_in_seconds() {
+        use crate::capture::Timestamp;
+        use crate::tree::Range;
+
+        let mut frame = Node::new(&fields::FRAME_PROTOCOL, Range::new(0, 0));
+        frame.add_field(
+            &fields::FRAME_TIME_RELATIVE,
+            Range::new(0, 0),
+            Value::RelativeTime(1_500_000_000),
+        );
+        frame.add_field(
+            &fields::FRAME_TIME_EPOCH,
+            Range::new(0, 0),
+            Value::AbsoluteTime(Timestamp {
+                seconds: 1_700_000_000,
+                nanos: 0,
+            }),
+        );
+        let tree = Tree::new(frame);
+        let matches =
+            |expression: &str| Filter::parse(expression).is_ok_and(|filter| filter.matches(&tree));
+
+        // 1.5 s relative plus 1,700,000,000 s epoch is a scalar in seconds,
+        // so a whole-second comparison literal applies directly.
+        assert!(matches(
+            "frame.time_relative + frame.time_epoch > 1700000001"
+        ));
+
+        // A leading zero is decimal beside a relative field, exactly like
+        // the direct literal parser, so folding cannot change its meaning.
+        assert!(matches(
+            "frame.time_relative + 010 * 1 == frame.time_relative + 10"
+        ));
+        assert!(matches("frame.time_relative - frame.time_epoch < 0"));
+        assert!(!matches(
+            "frame.time_relative + frame.time_epoch > 1700000002"
+        ));
+
+        // An absolute time cannot scale another value.
+        let Err(error) = Filter::parse("frame.time_relative * frame.time_epoch > 0") else {
+            unreachable!("multiplication by an absolute time must be rejected")
+        };
+        assert!(
+            error.message().contains("right-hand operand"),
+            "{}",
+            error.message()
+        );
+    }
+
+    #[test]
+    fn mixed_time_chains_stay_in_seconds() {
+        use crate::capture::Timestamp;
+        use crate::tree::Range;
+
+        let mut frame = Node::new(&fields::FRAME_PROTOCOL, Range::new(0, 0));
+        frame.add_field(
+            &fields::FRAME_TIME_RELATIVE,
+            Range::new(0, 0),
+            Value::RelativeTime(1_500_000_000),
+        );
+        frame.add_field(
+            &fields::FRAME_TIME_EPOCH,
+            Range::new(0, 0),
+            Value::AbsoluteTime(Timestamp {
+                seconds: 1_700_000_000,
+                nanos: 0,
+            }),
+        );
+        let mut stp = Node::new(&fields::STP_PROTOCOL, Range::new(34, 4));
+        stp.add_field(
+            &fields::STP_MSG_AGE,
+            Range::new(38, 2),
+            Value::Uint16(0x0500),
+        );
+        frame.add_child(stp);
+        let tree = Tree::new(frame);
+        let matches =
+            |expression: &str| Filter::parse(expression).is_ok_and(|filter| filter.matches(&tree));
+
+        // The addition yields 1700000001.5 s as a Double. The outer
+        // subtraction must convert the relative operand's stored
+        // nanoseconds to seconds as well, so the chain cancels exactly
+        // instead of taking the nanoseconds for a scalar.
+        assert!(matches(
+            "frame.time_relative + frame.time_epoch - frame.time_relative == 1700000000"
+        ));
+        assert!(matches(
+            "frame.time_relative + frame.time_epoch - 0.5 - frame.time_relative == 1699999999.5"
+        ));
+
+        // A relative operand can also follow a seconds value in the middle
+        // of a chain: 1.5 - 1700000000 + 1.5 is -1699999997 s.
+        assert!(matches(
+            "frame.time_relative - frame.time_epoch + frame.time_relative + 1699999997 == 0"
+        ));
+        assert!(matches(
+            "frame.time_relative - frame.time_epoch + frame.time_relative < 0"
+        ));
+
+        // A negated relative operand is still a relative time, so adding it
+        // cancels the same 1.5 s instead of adding -1500000000 seconds.
+        assert!(matches(
+            "frame.time_relative + frame.time_epoch + -frame.time_relative == 1700000000"
+        ));
+        assert!(matches("-frame.time_relative == -1.5"));
+
+        // Ordinary Double arithmetic keeps its raw numeric values: a
+        // 5/256-unit field plus a fraction and a product stay scalar.
+        assert!(matches("stp.msg_age + 1.5 == 6.5"));
+        assert!(matches("stp.msg_age * 2 == 10"));
+    }
+
+    #[test]
+    fn a_double_negates_and_scales_but_is_not_added_after_a_time() {
+        use crate::capture::Timestamp;
+        use crate::tree::Range;
+
+        let mut frame = Node::new(&fields::FRAME_PROTOCOL, Range::new(0, 0));
+        frame.add_field(
+            &fields::FRAME_TIME_RELATIVE,
+            Range::new(0, 0),
+            Value::RelativeTime(1_500_000_000),
+        );
+        frame.add_field(
+            &fields::FRAME_TIME_EPOCH,
+            Range::new(0, 0),
+            Value::AbsoluteTime(Timestamp {
+                seconds: 1_700_000_000,
+                nanos: 0,
+            }),
+        );
+        let mut stp = Node::new(&fields::STP_PROTOCOL, Range::new(34, 4));
+        stp.add_field(
+            &fields::STP_MSG_AGE,
+            Range::new(38, 2),
+            Value::Uint16(0x0500),
+        );
+        frame.add_child(stp);
+        let tree = Tree::new(frame);
+        let matches =
+            |expression: &str| Filter::parse(expression).is_ok_and(|filter| filter.matches(&tree));
+
+        // A negated double stays a double: 5 becomes -5, not nothing.
+        assert!(matches("-stp.msg_age == -5"));
+        assert!(matches("-stp.msg_age < 0"));
+        assert!(matches("-stp.msg_age == -stp.msg_age"));
+
+        // A double scales a time and the result keeps its unit: 1.5 s times
+        // 5 is 7.5 s, and the absolute time shrinks below itself.
+        assert!(matches("frame.time_relative * stp.msg_age == 7.5"));
+        assert!(matches("frame.time_relative / stp.msg_age == 0.3"));
+        assert!(matches("frame.time_epoch / stp.msg_age < frame.time_epoch"));
+
+        // A double is not a duration, so adding it to or subtracting it from
+        // a time is a type error rather than a filter that matches nothing.
+        for expression in [
+            "frame.time_relative + stp.msg_age > 0",
+            "frame.time_relative - stp.msg_age < 0",
+            "frame.time_epoch + stp.msg_age > 0",
+        ] {
+            let Err(error) = Filter::parse(expression) else {
+                unreachable!("{expression} must be rejected")
+            };
+            assert!(
+                error.message().contains("double cannot be used with"),
+                "{expression}: {}",
+                error.message()
+            );
+        }
+    }
+
+    #[test]
+    fn nested_relative_constants_scale_from_seconds() {
+        use crate::capture::Timestamp;
+        use crate::tree::Range;
+
+        let mut frame = Node::new(&fields::FRAME_PROTOCOL, Range::new(0, 0));
+        frame.add_field(
+            &fields::FRAME_TIME_RELATIVE,
+            Range::new(0, 0),
+            Value::RelativeTime(1_500_000_000),
+        );
+        frame.add_field(
+            &fields::FRAME_TIME_EPOCH,
+            Range::new(0, 0),
+            Value::AbsoluteTime(Timestamp {
+                seconds: 1_700_000_000,
+                nanos: 0,
+            }),
+        );
+        let mut tcp = Node::new(&fields::TCP_PROTOCOL, Range::new(34, 20));
+        tcp.add_field(&fields::TCP_LEN, Range::new(38, 2), Value::Uint16(20));
+        frame.add_child(tcp);
+        let tree = Tree::new(frame);
+
+        let matches =
+            |expression: &str| Filter::parse(expression).is_ok_and(|filter| filter.matches(&tree));
+
+        // The frame's relative time is 1.5 s. A nested constant expression
+        // beside it counts seconds, so `1 * 1` adds one second and `10 / 4`
+        // adds two and a half.
+        assert!(matches("frame.time_relative + 1 * 1 > 2"));
+        assert!(matches("frame.time_relative + 1 / 1 > 2"));
+        assert!(matches("frame.time_relative + 10 / 4 > 3"));
+        assert!(matches("frame.time_relative + 1 * 2 == 3.5"));
+        assert!(matches("frame.time_relative - 1 * 1 < 1"));
+        assert!(!matches("frame.time_relative - 1 * 1 > 1"));
+
+        // Multiplication still scales the stored nanoseconds by a scalar.
+        assert!(matches("frame.time_relative * 2 == 3"));
+        assert!(matches("frame.time_relative * 2 > 1"));
+        assert!(!matches("frame.time_relative * 2 > 3"));
+
+        // Mixed absolute and relative arithmetic stays in seconds.
+        assert!(matches(
+            "frame.time_relative + frame.time_epoch > 1700000001"
+        ));
+
+        // Ordinary integer arithmetic keeps integer division and no scaling.
+        assert!(matches("tcp.len + 1 * 1 == 21"));
+        assert!(matches("tcp.len + 10 / 4 == 22"));
+    }
+
+    #[test]
+    fn relative_constants_keep_nanosecond_precision() {
+        use crate::tree::Range;
+
+        let mut frame = Node::new(&fields::FRAME_PROTOCOL, Range::new(0, 0));
+        frame.add_field(
+            &fields::FRAME_TIME_RELATIVE,
+            Range::new(0, 0),
+            Value::RelativeTime(10_000_000_000_000_001),
+        );
+        let tree = Tree::new(frame);
+
+        let matches =
+            |expression: &str| Filter::parse(expression).is_ok_and(|filter| filter.matches(&tree));
+
+        // The literal is 10000000.000000001 s. Folding it through a
+        // floating-point value loses the last nanosecond, so `+ 0` would stop
+        // comparing equal to the direct literal.
+        assert!(matches("frame.time_relative == 10000000.000000001"));
+        assert!(matches("frame.time_relative + 0 == 10000000.000000001"));
+
+        // Constant division is exact to the nanosecond and rounds a
+        // fractional nanosecond to nearest.
+        assert!(matches(
+            "frame.time_relative + 10 / 4 == 10000002.500000001"
+        ));
+        assert!(matches("frame.time_relative + 1 / 2 == 10000000.500000001"));
+        assert!(matches("frame.time_relative + 1 / 3 == 10000000.333333334"));
     }
 
     #[test]

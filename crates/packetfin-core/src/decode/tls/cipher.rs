@@ -1,13 +1,17 @@
 //! TLS record protection primitives.
 //!
-//! The module holds the cipher-suite table, the TLS 1.2 PRF (RFC 5246
-//! section 5) and key block, the TLS 1.3 HKDF-Expand-Label/key schedule
-//! (RFC 8446 section 7.1), and the two record-protection profiles:
+//! The module holds the cipher-suite table, the TLS 1.0/1.1 PRF and key
+//! block (RFC 2246 sections 5 and 6.3), the TLS 1.2 PRF and key block
+//! (RFC 5246 sections 5 and 6.3), the TLS 1.3 HKDF-Expand-Label/key schedule
+//! (RFC 8446 section 7.1), and the three record-protection profiles:
 //!
 //! * TLS 1.2 AEAD (RFC 5288 AES-GCM, RFC 7905 ChaCha20-Poly1305) with the
 //!   sequence-number nonce and the `seq || type || version || length` AAD.
-//! * TLS 1.2 CBC with HMAC-then-encrypt (RFC 5246 section 6.2.3.2), an
-//!   explicit per-record IV and constant-time tag verification.
+//! * TLS 1.0/1.1/1.2 CBC with MAC-then-encrypt (RFC 2246 section 6.2.3.1,
+//!   RFC 5246 section 6.2.3.2). The TLS 1.0 implicit write IV chains through
+//!   each direction's ciphertext (RFC 2246 section 6.2.3.2); TLS 1.1 and 1.2
+//!   carry an explicit per-record IV (RFC 4346 section 6.2.3.2). The MAC is
+//!   compared in constant time before any plaintext is emitted.
 //! * TLS 1.3 AEAD (RFC 8446 section 5.2) with the 12-byte IV XOR sequence
 //!   nonce, the five-byte record header as AAD, and the inner content type
 //!   followed by zero padding.
@@ -31,6 +35,7 @@ use cbc::cipher::{BlockModeDecrypt, KeyIvInit};
 use chacha20poly1305::ChaCha20Poly1305;
 use hkdf::Hkdf;
 use hmac::{Hmac, KeyInit, Mac};
+use md5::Md5;
 use sha1::Sha1;
 use sha2::{Sha256, Sha384};
 use subtle::ConstantTimeEq as _;
@@ -39,6 +44,68 @@ use super::keylog::Secret;
 
 /// Longest AES-CBC record fragment plus TLS 1.2 overhead.
 const MAX_CBC_FRAGMENT: usize = 18_432;
+
+/// AES block size, which is also the CBC IV and padding granularity.
+const CBC_BLOCK_SIZE: usize = 16;
+
+/// Largest key block any supported suite needs: two 48-byte MAC keys, two
+/// 32-byte cipher keys and two 16-byte write IVs.
+const MAX_KEY_BLOCK: usize = 2 * 48 + 2 * 32 + 2 * 16;
+
+/// Protocol version negotiated by the handshake, which selects the PRF, the
+/// key-block layout and the CBC IV rule.
+///
+/// The record layer's own version field must equal it (RFC 2246 section 6.2.1,
+/// RFC 4346 section 6.2.1, RFC 5246 section 6.2.1), so a record carrying
+/// another version is rejected before any key is applied.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Protocol {
+    /// TLS 1.0: implicit CBC IV chaining and the RFC 2246 PRF.
+    Tls10,
+    /// TLS 1.1: explicit CBC IV and the RFC 2246 PRF.
+    Tls11,
+    /// TLS 1.2: explicit CBC IV, AEAD suites and the RFC 5246 PRF.
+    Tls12,
+    /// TLS 1.3: HKDF key schedule and AEAD records.
+    Tls13,
+}
+
+impl Protocol {
+    /// The protocol version of a wire version field.
+    pub(crate) const fn from_version(version: u16) -> Option<Self> {
+        match version {
+            0x0301 => Some(Self::Tls10),
+            0x0302 => Some(Self::Tls11),
+            0x0303 => Some(Self::Tls12),
+            0x0304 => Some(Self::Tls13),
+            _ => None,
+        }
+    }
+
+    /// The wire version field of this protocol.
+    pub(crate) const fn version(self) -> u16 {
+        match self {
+            Self::Tls10 => 0x0301,
+            Self::Tls11 => 0x0302,
+            Self::Tls12 => 0x0303,
+            Self::Tls13 => 0x0304,
+        }
+    }
+
+    /// Whether CBC records carry their IV in the fragment.
+    ///
+    /// RFC 4346 section 6.2.3.2 (TLS 1.1) introduced the explicit IV that
+    /// RFC 5246 section 6.2.3.2 keeps; TLS 1.0 derives it from the previous
+    /// ciphertext instead (RFC 2246 section 6.2.3.2).
+    const fn has_explicit_iv(self) -> bool {
+        matches!(self, Self::Tls11 | Self::Tls12)
+    }
+
+    /// Whether the TLS 1.0 PRF and key block apply.
+    const fn uses_tls10_prf(self) -> bool {
+        matches!(self, Self::Tls10 | Self::Tls11)
+    }
+}
 
 /// Hash algorithms used by the supported TLS 1.2/1.3 suites.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -123,7 +190,8 @@ pub(crate) struct Suite {
     pub(crate) hash: HashAlgorithm,
     /// CBC record MAC hash. AEAD suites ignore it.
     pub(crate) mac_hash: HashAlgorithm,
-    /// TLS version the suite belongs to (`0x0303` or `0x0304`).
+    /// Version that defines the suite: `0x0303` for a pre-1.3 suite (which a
+    /// TLS 1.0/1.1 session may also negotiate) or `0x0304` for TLS 1.3.
     pub(crate) version: u16,
 }
 
@@ -221,16 +289,17 @@ pub(crate) fn suite(id: u16) -> Option<Suite> {
     })
 }
 
-/// A TLS 1.2 key block, split by direction.
-pub(crate) struct Tls12KeyBlock {
+/// A pre-TLS 1.3 key block, split by direction.
+pub(crate) struct KeyBlock {
     /// Client write key.
     pub(crate) client_key: Secret,
     /// Server write key.
     pub(crate) server_key: Secret,
-    /// Client fixed IV (GCM/ChaCha20); zero for CBC.
-    pub(crate) client_iv: [u8; 12],
-    /// Server fixed IV (GCM/ChaCha20); zero for CBC.
-    pub(crate) server_iv: [u8; 12],
+    /// Client write IV: 4 octets for GCM, 12 for ChaCha20-Poly1305, 16 for a
+    /// TLS 1.0 CBC salt, and empty for CBC with an explicit IV.
+    pub(crate) client_iv: [u8; 16],
+    /// Server write IV, with the same per-suite length as `client_iv`.
+    pub(crate) server_iv: [u8; 16],
     /// Client write MAC key (CBC only).
     pub(crate) client_mac: Option<Secret>,
     /// Server write MAC key (CBC only).
@@ -240,13 +309,18 @@ pub(crate) struct Tls12KeyBlock {
 /// Record keys for one direction of one epoch.
 pub(crate) struct RecordKeys {
     suite: Suite,
+    /// Negotiated protocol, which fixes the PRF, record version and IV rule.
+    protocol: Protocol,
     /// AEAD key or CBC encryption key.
     key: Secret,
-    /// Fixed IV (GCM/ChaCha20) or the TLS 1.3 12-byte IV.
+    /// AEAD fixed IV: 4 octets for GCM, 12 for ChaCha20-Poly1305.
     iv: [u8; 12],
-    /// TLS 1.2 CBC write MAC key.
+    /// Current CBC IV for TLS 1.0 implicit chaining. Unused when the IV is
+    /// explicit or the suite is AEAD.
+    chain_iv: [u8; 16],
+    /// CBC write MAC key.
     mac_key: Option<Secret>,
-    /// Whether the TLS 1.2 CBC suite uses Encrypt-then-MAC (RFC 7366).
+    /// Whether the CBC suite uses Encrypt-then-MAC (RFC 7366).
     encrypt_then_mac: bool,
     /// TLS 1.3 traffic secret, retained so KeyUpdate can advance it.
     traffic_secret: Option<Secret>,
@@ -256,25 +330,55 @@ pub(crate) struct RecordKeys {
     exhausted: bool,
 }
 
+// CBC decrypt attempts on the current test thread. Encrypt-then-MAC must
+// reject a forged tag before the block cipher runs, so the regression test
+// observes this counter rather than only the returned value, which is `None`
+// for every failure.
+#[cfg(test)]
+thread_local! {
+    static CBC_DECRYPTS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
 impl RecordKeys {
-    /// Build keys for a TLS 1.2 direction.
-    pub(crate) fn tls12(
+    /// Build keys for one direction of a TLS 1.0, 1.1 or 1.2 session.
+    ///
+    /// Returns `None` when the suite and protocol cannot be combined: AEAD
+    /// suites are defined only by TLS 1.2 (RFC 5288, RFC 7905) and the
+    /// SHA-256/SHA-384 CBC suites are TLS 1.2 registry entries introduced by
+    /// RFC 5246 section 6.2.3.1. Every such session keeps its records opaque
+    /// instead of decrypting with a guessed construction.
+    pub(crate) fn tls(
+        protocol: Protocol,
         key: Secret,
-        iv: [u8; 12],
+        iv: [u8; 16],
         mac_key: Option<Secret>,
         suite: Suite,
         encrypt_then_mac: bool,
-    ) -> Self {
-        Self {
+    ) -> Option<Self> {
+        if !compatible(suite, protocol) {
+            return None;
+        }
+        let mut fixed_iv = [0_u8; 12];
+        if suite.bulk.is_aead() {
+            fixed_iv.copy_from_slice(iv.get(..12)?);
+        }
+        let chain_iv = if suite.bulk.is_aead() || protocol.has_explicit_iv() {
+            [0_u8; 16]
+        } else {
+            iv
+        };
+        Some(Self {
             suite,
+            protocol,
             key,
-            iv,
+            iv: fixed_iv,
+            chain_iv,
             mac_key,
             encrypt_then_mac,
             traffic_secret: None,
             sequence: 0,
             exhausted: false,
-        }
+        })
     }
 
     /// Build keys for a TLS 1.3 direction from a traffic secret.
@@ -282,8 +386,10 @@ impl RecordKeys {
         let (key, iv) = derive_tls13_key_iv(secret.as_bytes(), suite)?;
         Some(Self {
             suite,
+            protocol: Protocol::Tls13,
             key,
             iv,
+            chain_iv: [0_u8; 16],
             mac_key: None,
             encrypt_then_mac: false,
             traffic_secret: Some(secret),
@@ -319,7 +425,7 @@ impl RecordKeys {
     /// including the tag. Returns the inner content type and content, with
     /// the zero padding before the type removed.
     pub(crate) fn open_tls13(&mut self, header: &[u8; 5], fragment: &[u8]) -> Option<Decrypted> {
-        if self.exhausted || self.suite.version != 0x0304 {
+        if self.exhausted || self.protocol != Protocol::Tls13 {
             return None;
         }
         let sequence = self.sequence;
@@ -338,24 +444,31 @@ impl RecordKeys {
         Some(decrypted)
     }
 
-    /// Decrypt one TLS 1.2 record.
+    /// Decrypt one TLS 1.0, 1.1 or 1.2 record.
     ///
-    /// `content_type`, `version` and `fragment` are the wire fields. Returns
-    /// the record's content bytes on success.
-    pub(crate) fn open_tls12(
+    /// `content_type`, `version` and `fragment` are the wire fields. A record
+    /// whose version differs from the negotiated protocol is rejected before
+    /// decryption: RFC 2246, RFC 4346 and RFC 5246 section 6.2.1 all require
+    /// the negotiated version in the record header, and the MAC covers it, so
+    /// a mismatched record can only be an attacker's or a parsing error.
+    /// Returns the record's content bytes on success.
+    pub(crate) fn open_pre13(
         &mut self,
         content_type: u8,
         version: u16,
         fragment: &[u8],
     ) -> Option<Decrypted> {
-        if self.exhausted || self.suite.version != 0x0303 {
+        if self.exhausted || self.protocol == Protocol::Tls13 {
+            return None;
+        }
+        if version != self.protocol.version() {
             return None;
         }
         let sequence = self.sequence;
         let content = if self.suite.bulk.is_aead() {
-            self.open_tls12_aead(sequence, content_type, version, fragment)?
+            self.open_pre13_aead(sequence, content_type, version, fragment)?
         } else {
-            self.open_tls12_cbc(sequence, content_type, version, fragment)?
+            self.open_pre13_cbc(sequence, content_type, version, fragment)?
         };
         self.advance();
         Some(Decrypted {
@@ -367,7 +480,7 @@ impl RecordKeys {
         })
     }
 
-    fn open_tls12_aead(
+    fn open_pre13_aead(
         &self,
         sequence: u64,
         content_type: u8,
@@ -446,7 +559,7 @@ impl RecordKeys {
         }
     }
 
-    fn open_tls12_cbc(
+    fn open_pre13_cbc(
         &mut self,
         sequence: u64,
         content_type: u8,
@@ -457,33 +570,85 @@ impl RecordKeys {
         let mac_len = self.suite.bulk.tag_len(self.suite.mac_hash);
         // RFC 7366 Encrypt-then-MAC keeps the tag outside the ciphertext:
         // fragment = IV || ENC(content || padding) || MAC(header || IV ||
-        // ciphertext). Classic TLS 1.2 CBC (RFC 5246) keeps it inside.
+        // ciphertext). Classic CBC (RFC 2246, RFC 5246) keeps it inside.
         let (record, outer_tag) = if self.encrypt_then_mac {
             let split = fragment.len().checked_sub(mac_len)?;
             (fragment.get(..split)?, Some(fragment.get(split..)?))
         } else {
             (fragment, None)
         };
-        if record.len() < 16 || record.len() > MAX_CBC_FRAGMENT {
+        // TLS 1.1 and 1.2 prefix the fragment with the IV (RFC 4346 section
+        // 6.2.3.2); TLS 1.0 carries no IV field and uses the last ciphertext
+        // block of the previous record in this direction (RFC 2246 section
+        // 6.2.3.2).
+        let (iv, ciphertext) = if self.protocol.has_explicit_iv() {
+            let (head, rest) = record.split_at_checked(CBC_BLOCK_SIZE)?;
+            let mut iv = [0_u8; CBC_BLOCK_SIZE];
+            iv.copy_from_slice(head);
+            (iv, rest)
+        } else {
+            (self.chain_iv, record)
+        };
+        if record.len() > MAX_CBC_FRAGMENT {
             return None;
         }
-        let (iv, ciphertext) = record.split_at_checked(16)?;
-        if ciphertext.is_empty() || ciphertext.len() % 16 != 0 {
+        if ciphertext.is_empty() || !ciphertext.len().is_multiple_of(CBC_BLOCK_SIZE) {
             return None;
         }
         if !self.encrypt_then_mac && ciphertext.len() < mac_len.saturating_add(1) {
             return None;
         }
+        // RFC 7366 section 3 authenticates the protected fragment before any
+        // ciphertext is decrypted, so a forged tag never reaches the block
+        // cipher or its padding check. Classic CBC authenticates after
+        // unpadding because its MAC travels inside the ciphertext
+        // (RFC 2246 section 6.2.3.1).
+        if let Some(tag) = outer_tag {
+            let mut mac_input = [0_u8; 13];
+            mac_input
+                .get_mut(..8)?
+                .copy_from_slice(&sequence.to_be_bytes());
+            *mac_input.get_mut(8)? = content_type;
+            mac_input
+                .get_mut(9..11)?
+                .copy_from_slice(&version.to_be_bytes());
+            // The tag covers the protected fragment as carried: the explicit
+            // IV of TLS 1.1 and later plus the ciphertext, or only the
+            // ciphertext for TLS 1.0, whose record has no IV field.
+            mac_input
+                .get_mut(11..13)?
+                .copy_from_slice(&u16::try_from(record.len()).ok()?.to_be_bytes());
+            let verified = if self.protocol.has_explicit_iv() {
+                verify_hmac_parts(
+                    self.suite.mac_hash,
+                    mac_key.as_bytes(),
+                    &[&mac_input, &iv, ciphertext],
+                    tag,
+                )
+            } else {
+                verify_hmac_parts(
+                    self.suite.mac_hash,
+                    mac_key.as_bytes(),
+                    &[&mac_input, ciphertext],
+                    tag,
+                )
+            };
+            if !verified {
+                return None;
+            }
+        }
+        #[cfg(test)]
+        CBC_DECRYPTS.with(|count| count.set(count.get().saturating_add(1)));
         let mut buffer = zeroize::Zeroizing::new(ciphertext.to_vec());
         if !match self.suite.bulk {
             BulkCipher::Aes128Cbc => {
-                let cipher = Decryptor::<Aes128>::new_from_slices(self.key.as_bytes(), iv).ok()?;
+                let cipher = Decryptor::<Aes128>::new_from_slices(self.key.as_bytes(), &iv).ok()?;
                 cipher
                     .decrypt_padded::<cbc::cipher::block_padding::NoPadding>(&mut buffer)
                     .is_ok()
             }
             BulkCipher::Aes256Cbc => {
-                let cipher = Decryptor::<Aes256>::new_from_slices(self.key.as_bytes(), iv).ok()?;
+                let cipher = Decryptor::<Aes256>::new_from_slices(self.key.as_bytes(), &iv).ok()?;
                 cipher
                     .decrypt_padded::<cbc::cipher::block_padding::NoPadding>(&mut buffer)
                     .is_ok()
@@ -509,53 +674,48 @@ impl RecordKeys {
         if accumulator != 0 {
             return None;
         }
-        let content_length = if self.encrypt_then_mac {
-            split
+        let content = if self.encrypt_then_mac {
+            buffer.get(..split)?
         } else {
-            split.checked_sub(mac_len)?
-        };
-        let content = buffer.get(..content_length)?;
-        if content.len() > usize::from(u16::MAX) {
-            return None;
-        }
-        let mut mac_input = [0_u8; 13];
-        mac_input
-            .get_mut(..8)?
-            .copy_from_slice(&sequence.to_be_bytes());
-        *mac_input.get_mut(8)? = content_type;
-        mac_input
-            .get_mut(9..11)?
-            .copy_from_slice(&version.to_be_bytes());
-        // RFC 7366 MACs the whole fragment (IV + ciphertext); classic CBC
-        // MACs the content length only.
-        let mac_length = if self.encrypt_then_mac {
-            record.len()
-        } else {
-            content_length
-        };
-        mac_input
-            .get_mut(11..13)?
-            .copy_from_slice(&u16::try_from(mac_length).ok()?.to_be_bytes());
-        let verified = if let Some(tag) = outer_tag {
-            verify_hmac_parts(
-                self.suite.mac_hash,
-                mac_key.as_bytes(),
-                &[&mac_input, iv, ciphertext],
-                tag,
-            )
-        } else {
+            let content_length = split.checked_sub(mac_len)?;
+            let content = buffer.get(..content_length)?;
+            let mut mac_input = [0_u8; 13];
+            mac_input
+                .get_mut(..8)?
+                .copy_from_slice(&sequence.to_be_bytes());
+            *mac_input.get_mut(8)? = content_type;
+            mac_input
+                .get_mut(9..11)?
+                .copy_from_slice(&version.to_be_bytes());
+            // Classic CBC MACs the plaintext length (RFC 2246 section
+            // 6.2.3.1), and its tag travels inside the ciphertext.
+            mac_input
+                .get_mut(11..13)?
+                .copy_from_slice(&u16::try_from(content_length).ok()?.to_be_bytes());
             let tag_start = content_length;
             let tag = buffer.get(tag_start..tag_start.checked_add(mac_len)?)?;
-            verify_hmac(
+            if !verify_hmac(
                 self.suite.mac_hash,
                 mac_key.as_bytes(),
                 &mac_input,
                 content,
                 tag,
-            )
+            ) {
+                return None;
+            }
+            content
         };
-        if !verified {
+        if content.len() > usize::from(u16::MAX) {
             return None;
+        }
+        if !self.protocol.has_explicit_iv() {
+            // RFC 2246 section 6.2.3.2: the IV of the next record is this
+            // record's last ciphertext block. The chain advances only after
+            // the MAC verified, because a rejected record also leaves the
+            // sequence number unchanged and later records cannot be opened.
+            let start = ciphertext.len().checked_sub(CBC_BLOCK_SIZE)?;
+            let last: &[u8; CBC_BLOCK_SIZE] = ciphertext.get(start..)?.try_into().ok()?;
+            self.chain_iv = *last;
         }
         Some(content.to_vec())
     }
@@ -595,6 +755,7 @@ impl std::fmt::Debug for RecordKeys {
         formatter
             .debug_struct("RecordKeys")
             .field("suite", &self.suite)
+            .field("protocol", &self.protocol)
             .field("sequence", &self.sequence)
             .field("exhausted", &self.exhausted)
             .field("iv", &"[redacted]")
@@ -658,35 +819,71 @@ fn derive_tls13_key_iv(secret: &[u8], suite: Suite) -> Option<(Secret, [u8; 12])
     Some((key, iv))
 }
 
-/// Derive the TLS 1.2 key block (RFC 5246 section 6.3).
-pub(crate) fn derive_tls12_key_block(
+/// Whether a suite's record protection is defined for the negotiated
+/// protocol.
+///
+/// AEAD suites arrive with TLS 1.2 (RFC 5288, RFC 7905) and the SHA-256 and
+/// SHA-384 CBC suites are TLS 1.2 registry additions (RFC 5246 section
+/// 6.2.3.1). Encrypt-then-MAC is defined for every one of these protocols;
+/// RFC 7366 section 3 gives TLS 1.0 an IV-less MAC input, so the flag does
+/// not restrict the combination. Any other combination installs no keys, so
+/// its records stay opaque.
+fn compatible(suite: Suite, protocol: Protocol) -> bool {
+    if suite.is_tls13() || protocol == Protocol::Tls13 {
+        return false;
+    }
+    if suite.bulk.is_aead() {
+        return protocol == Protocol::Tls12;
+    }
+    !protocol.uses_tls10_prf() || suite.mac_hash == HashAlgorithm::Sha1
+}
+
+/// Derive the key block for a TLS 1.0, 1.1 or 1.2 session.
+///
+/// RFC 2246 section 6.3 and RFC 5246 section 6.3 define the same order:
+/// two MAC keys, two cipher keys and two write IVs. The IV length differs:
+/// a TLS 1.0 CBC salt is one cipher block, and a TLS 1.1/1.2 CBC suite has
+/// no key-block IV because every record carries its own (RFC 4346 section
+/// 6.2.3.2).
+pub(crate) fn derive_key_block(
     master: &[u8],
     client_random: &[u8; 32],
     server_random: &[u8; 32],
     suite: Suite,
-) -> Option<Tls12KeyBlock> {
-    if suite.is_tls13() {
+    protocol: Protocol,
+) -> Option<KeyBlock> {
+    if !compatible(suite, protocol) {
         return None;
     }
-    let mac_len = match suite.bulk {
-        BulkCipher::Aes128Cbc | BulkCipher::Aes256Cbc => suite.mac_hash.len(),
-        _ => 0,
-    };
+    let cbc = matches!(suite.bulk, BulkCipher::Aes128Cbc | BulkCipher::Aes256Cbc);
+    let mac_len = if cbc { suite.mac_hash.len() } else { 0 };
     let key_len = suite.bulk.key_len();
-    let iv_len = suite.bulk.fixed_iv_len();
+    let iv_len = if cbc {
+        if protocol == Protocol::Tls10 {
+            CBC_BLOCK_SIZE
+        } else {
+            0
+        }
+    } else {
+        suite.bulk.fixed_iv_len()
+    };
     let total = mac_len
         .checked_mul(2)?
         .checked_add(key_len.checked_mul(2)?)?
         .checked_add(iv_len.checked_mul(2)?)?;
-    if total > 256 {
+    if total > MAX_KEY_BLOCK {
         return None;
     }
     let mut seed = [0_u8; 64];
     seed.get_mut(..32)?.copy_from_slice(server_random);
     seed.get_mut(32..64)?.copy_from_slice(client_random);
-    let mut block = [0_u8; 256];
+    let mut block = [0_u8; MAX_KEY_BLOCK];
     let output = block.get_mut(..total)?;
-    prf(suite.hash, master, b"key expansion", &seed, output)?;
+    if protocol.uses_tls10_prf() {
+        prf_legacy(master, b"key expansion", &seed, output)?;
+    } else {
+        prf(suite.hash, master, b"key expansion", &seed, output)?;
+    }
 
     let mut offset = 0_usize;
     let mut next = |length: usize| -> Option<&[u8]> {
@@ -708,19 +905,19 @@ pub(crate) fn derive_tls12_key_block(
     };
     let client_key = Secret::new(next(key_len)?)?;
     let server_key = Secret::new(next(key_len)?)?;
-    let mut client_iv = [0_u8; 12];
+    let mut client_iv = [0_u8; 16];
     if iv_len > 0 {
         let source = next(iv_len)?;
         client_iv.get_mut(..iv_len)?.copy_from_slice(source);
     }
-    let mut server_iv = [0_u8; 12];
+    let mut server_iv = [0_u8; 16];
     if iv_len > 0 {
         let source = next(iv_len)?;
         server_iv.get_mut(..iv_len)?.copy_from_slice(source);
     }
     drop(next);
     block.zeroize();
-    Some(Tls12KeyBlock {
+    Some(KeyBlock {
         client_key,
         server_key,
         client_iv,
@@ -731,6 +928,9 @@ pub(crate) fn derive_tls12_key_block(
 }
 
 /// Compute the TLS 1.2 PRF (RFC 5246 section 5) with the suite's hash.
+///
+/// No TLS 1.2 suite in the table uses SHA-1; the SHA-1 PRF role belongs to
+/// [`prf_legacy`], so the SHA-1 arm is unreachable here.
 fn prf(
     hash: HashAlgorithm,
     secret: &[u8],
@@ -748,32 +948,81 @@ fn prf(
         .get_mut(label.len()..label_len)?
         .copy_from_slice(seed);
     let seed_slice = label_seed.get(..label_len)?;
+    let result = match hash {
+        HashAlgorithm::Sha1 => None,
+        HashAlgorithm::Sha256 => p_hash::<Hmac<Sha256>>(secret, seed_slice, out),
+        HashAlgorithm::Sha384 => p_hash::<Hmac<Sha384>>(secret, seed_slice, out),
+    };
+    label_seed.zeroize();
+    result
+}
 
+/// Compute the TLS 1.0/1.1 PRF (RFC 2246 section 5).
+///
+/// `PRF(secret, label, seed) = P_MD5(S1, label + seed) XOR
+/// P_SHA-1(S2, label + seed)`, where S1 is the first half of the secret and
+/// S2 the second; an odd-length secret shares its middle octet. TLS 1.1
+/// keeps the same PRF (RFC 4346 section 5).
+fn prf_legacy(secret: &[u8], label: &[u8], seed: &[u8], out: &mut [u8]) -> Option<()> {
+    let half = secret.len().checked_add(1)?.checked_div(2)?;
+    let first = secret.get(..half)?;
+    let second = secret.get(secret.len().checked_sub(half)?..)?;
+    let mut label_seed = [0_u8; 128];
+    let label_len = label.len().checked_add(seed.len())?;
+    if label_len > label_seed.len() || out.len() > MAX_KEY_BLOCK {
+        return None;
+    }
+    label_seed.get_mut(..label.len())?.copy_from_slice(label);
+    label_seed
+        .get_mut(label.len()..label_len)?
+        .copy_from_slice(seed);
+    let seed_slice = label_seed.get(..label_len)?;
+    let mut md5 = [0_u8; MAX_KEY_BLOCK];
+    let mut sha1 = [0_u8; MAX_KEY_BLOCK];
+    let md5_out = md5.get_mut(..out.len())?;
+    let sha1_out = sha1.get_mut(..out.len())?;
+    let result = p_hash::<Hmac<Md5>>(first, seed_slice, md5_out)
+        .and_then(|()| p_hash::<Hmac<Sha1>>(second, seed_slice, sha1_out));
+    if result.is_some() {
+        for ((slot, left), right) in out.iter_mut().zip(md5_out.iter()).zip(sha1_out.iter()) {
+            *slot = left ^ right;
+        }
+    }
+    md5.zeroize();
+    sha1.zeroize();
+    label_seed.zeroize();
+    result
+}
+
+/// `P_hash(secret, seed)` from RFC 5246 section 5, with the HMAC chosen by
+/// `M`; the TLS 1.0 PRF reuses it for both of its halves.
+///
+/// `A(0) = seed`, `A(i) = HMAC(secret, A(i-1))` and the output is
+/// `HMAC(secret, A(1) + seed) || HMAC(secret, A(2) + seed) || ...`.
+fn p_hash<M: Mac + KeyInit>(secret: &[u8], seed: &[u8], out: &mut [u8]) -> Option<()> {
     let mut a = [0_u8; 48];
-    let mut a_len = hmac_parts(hash, secret, &[seed_slice], &mut a)?;
+    let mut a_len = hmac_into::<M>(secret, &[seed], &mut a)?;
     let mut written = 0_usize;
     while written < out.len() {
         let mut block = [0_u8; 48];
-        let block_len = hmac_parts(hash, secret, &[a.get(..a_len)?, seed_slice], &mut block)?;
+        let block_len = hmac_into::<M>(secret, &[a.get(..a_len)?, seed], &mut block)?;
         let remaining = out.len().saturating_sub(written);
         let take = block_len.min(remaining);
         out.get_mut(written..written.checked_add(take)?)?
             .copy_from_slice(block.get(..take)?);
         block.zeroize();
         written = written.checked_add(take)?;
-        // A(i+1) = HMAC(secret, A(i))
         let mut next_a = [0_u8; 48];
-        a_len = hmac_parts(hash, secret, &[a.get(..a_len)?], &mut next_a)?;
+        a_len = hmac_into::<M>(secret, &[a.get(..a_len)?], &mut next_a)?;
         a.zeroize();
         a = next_a;
         next_a.zeroize();
     }
     a.zeroize();
-    label_seed.zeroize();
     Some(())
 }
 
-/// HMAC over the concatenation of `parts`, writing into `out`.
+/// HMAC over the concatenation of `parts` with the suite's MAC hash.
 fn hmac_parts(
     hash: HashAlgorithm,
     key: &[u8],
@@ -781,37 +1030,23 @@ fn hmac_parts(
     out: &mut [u8; 48],
 ) -> Option<usize> {
     match hash {
-        HashAlgorithm::Sha1 => {
-            let mut mac = Hmac::<Sha1>::new_from_slice(key).ok()?;
-            for part in parts {
-                mac.update(part);
-            }
-            let mut tag = mac.finalize().into_bytes();
-            out.get_mut(..tag.len())?.copy_from_slice(&tag);
-            tag.as_mut_slice().zeroize();
-            Some(tag.len())
-        }
-        HashAlgorithm::Sha256 => {
-            let mut mac = Hmac::<Sha256>::new_from_slice(key).ok()?;
-            for part in parts {
-                mac.update(part);
-            }
-            let mut tag = mac.finalize().into_bytes();
-            out.get_mut(..tag.len())?.copy_from_slice(&tag);
-            tag.as_mut_slice().zeroize();
-            Some(tag.len())
-        }
-        HashAlgorithm::Sha384 => {
-            let mut mac = Hmac::<Sha384>::new_from_slice(key).ok()?;
-            for part in parts {
-                mac.update(part);
-            }
-            let mut tag = mac.finalize().into_bytes();
-            out.get_mut(..tag.len())?.copy_from_slice(&tag);
-            tag.as_mut_slice().zeroize();
-            Some(tag.len())
-        }
+        HashAlgorithm::Sha1 => hmac_into::<Hmac<Sha1>>(key, parts, out),
+        HashAlgorithm::Sha256 => hmac_into::<Hmac<Sha256>>(key, parts, out),
+        HashAlgorithm::Sha384 => hmac_into::<Hmac<Sha384>>(key, parts, out),
     }
+}
+
+/// HMAC over the concatenation of `parts`, writing into `out`.
+fn hmac_into<M: Mac + KeyInit>(key: &[u8], parts: &[&[u8]], out: &mut [u8; 48]) -> Option<usize> {
+    let mut mac = M::new_from_slice(key).ok()?;
+    for part in parts {
+        mac.update(part);
+    }
+    let mut tag = mac.finalize().into_bytes();
+    out.get_mut(..tag.len())?.copy_from_slice(&tag);
+    let length = tag.len();
+    tag.as_mut_slice().zeroize();
+    Some(length)
 }
 
 /// Verify a CBC record's HMAC in constant time.
@@ -1109,19 +1344,38 @@ mod tests {
         let master = [0x11_u8; 48];
         let client_random = [0x22_u8; 32];
         let server_random = [0x33_u8; 32];
-        let block =
-            derive_tls12_key_block(&master, &client_random, &server_random, suite).expect("block");
+        let block = derive_key_block(
+            &master,
+            &client_random,
+            &server_random,
+            suite,
+            Protocol::Tls12,
+        )
+        .expect("block");
         assert_eq!(block.client_key.len(), 32);
-        assert_eq!(block.client_iv.len(), 12);
+        assert_eq!(
+            block.client_iv.get(4..),
+            Some([0_u8; 12].as_slice()),
+            "only the four fixed GCM octets come from the key block"
+        );
         assert!(block.client_mac.is_none());
         // Encrypt a record with the same block, then open it through the
         // public TLS 1.2 path.
-        let mut keys = RecordKeys::tls12(block.client_key, block.client_iv, None, suite, false);
+        let mut keys = RecordKeys::tls(
+            Protocol::Tls12,
+            block.client_key,
+            block.client_iv,
+            None,
+            suite,
+            false,
+        )
+        .expect("keys");
         let plaintext = b"hello";
         let content_type = 23_u8;
         let version = 0x0303_u16;
         let explicit = [0x01_u8, 2, 3, 4, 5, 6, 7, 8];
-        let mut nonce = block.client_iv;
+        let mut nonce = [0_u8; 12];
+        nonce.copy_from_slice(block.client_iv.get(..12).expect("fixed iv"));
         nonce[4..].copy_from_slice(&explicit);
         let mut aad = [0_u8; 13];
         aad[..8].copy_from_slice(&keys.sequence().to_be_bytes());
@@ -1136,15 +1390,16 @@ mod tests {
             .expect("encrypt");
         fragment.extend_from_slice(&tag);
         let opened = keys
-            .open_tls12(content_type, version, &fragment)
+            .open_pre13(content_type, version, &fragment)
             .expect("open");
         assert_eq!(opened.content, plaintext);
     }
 
     #[test]
-    fn tls12_prf_matches_openssl() {
-        // OpenSSL 4.1.0:
-        // openssl kdf -keylen 104 -kdfopt digest:SHA256         //   -kdfopt hexsecret:<0b * 48>         //   -kdfopt hexseed:<"key expansion" || 00..3f> TLS1-PRF
+    fn tls12_prf_matches_a_known_answer() {
+        // RFC 5246 section 5 with the suite's SHA-256: a 48-byte secret and
+        // the "key expansion" label over 64 octets of client and server
+        // random, pinned by an independent TLS 1.2 PRF implementation.
         let master = [0x0b_u8; 48];
         let mut seed = b"key expansion".to_vec();
         seed.extend(0_u8..64);
@@ -1173,8 +1428,8 @@ mod tests {
     fn tls12_cbc_round_trip_and_bad_mac() {
         let suite = suite(0xc014).expect("suite");
         let master = [0x44_u8; 48];
-        let block =
-            derive_tls12_key_block(&master, &[1_u8; 32], &[2_u8; 32], suite).expect("block");
+        let block = derive_key_block(&master, &[1_u8; 32], &[2_u8; 32], suite, Protocol::Tls12)
+            .expect("block");
         let mac_key = block.client_mac.expect("mac");
         let key = block.client_key;
         let seq = 0_u64;
@@ -1210,22 +1465,32 @@ mod tests {
             .to_vec();
         let mut fragment = iv.to_vec();
         fragment.extend_from_slice(&ciphertext);
-        let mut keys = RecordKeys::tls12(key, [0_u8; 12], Some(mac_key), suite, false);
+        let mut keys = RecordKeys::tls(
+            Protocol::Tls12,
+            key,
+            [0_u8; 16],
+            Some(mac_key),
+            suite,
+            false,
+        )
+        .expect("keys");
         let opened = keys
-            .open_tls12(content_type, version, &fragment)
+            .open_pre13(content_type, version, &fragment)
             .expect("open");
         assert_eq!(opened.content, content);
         let mut bad = fragment.clone();
         let last = bad.len() - 1;
         bad[last] ^= 1;
-        let mut keys = RecordKeys::tls12(
+        let mut keys = RecordKeys::tls(
+            Protocol::Tls12,
             Secret::new(&[0_u8; 32]).expect("key"),
-            [0_u8; 12],
+            [0_u8; 16],
             Some(Secret::new(&[0_u8; 20]).expect("mac")),
             suite,
             false,
-        );
-        assert!(keys.open_tls12(content_type, version, &bad).is_none());
+        )
+        .expect("keys");
+        assert!(keys.open_pre13(content_type, version, &bad).is_none());
     }
 
     #[test]
@@ -1234,8 +1499,8 @@ mod tests {
         // IV || ciphertext).
         let suite = suite(0xc014).expect("suite");
         let master = [0x44_u8; 48];
-        let block =
-            derive_tls12_key_block(&master, &[1_u8; 32], &[2_u8; 32], suite).expect("block");
+        let block = derive_key_block(&master, &[1_u8; 32], &[2_u8; 32], suite, Protocol::Tls12)
+            .expect("block");
         let mac_key = block.client_mac.expect("mac");
         let key = block.client_key;
         let sequence = 3_u64;
@@ -1269,24 +1534,84 @@ mod tests {
         mac.update(&mac_input);
         mac.update(&fragment);
         fragment.extend_from_slice(&mac.finalize().into_bytes());
-        let mut keys = RecordKeys::tls12(key, [0_u8; 12], Some(mac_key), suite, true);
+        let mut keys =
+            RecordKeys::tls(Protocol::Tls12, key, [0_u8; 16], Some(mac_key), suite, true)
+                .expect("keys");
         keys.set_sequence(sequence);
         let opened = keys
-            .open_tls12(content_type, version, &fragment)
+            .open_pre13(content_type, version, &fragment)
             .expect("open");
         assert_eq!(opened.content, content);
         // A flipped tag is rejected.
-        let mut keys = RecordKeys::tls12(
+        let mut keys = RecordKeys::tls(
+            Protocol::Tls12,
             Secret::new(&[0_u8; 32]).expect("key"),
-            [0_u8; 12],
+            [0_u8; 16],
             Some(Secret::new(&[0_u8; 20]).expect("mac")),
             suite,
             true,
-        );
+        )
+        .expect("keys");
         let mut bad = fragment;
         let last = bad.len() - 1;
         bad[last] ^= 1;
-        assert!(keys.open_tls12(content_type, version, &bad).is_none());
+        assert!(keys.open_pre13(content_type, version, &bad).is_none());
+    }
+
+    #[test]
+    fn tls12_encrypt_then_mac_rejects_a_forged_tag_before_decrypting() {
+        // A full block whose last octet cannot be a padding length: only the
+        // MAC decides whether the CBC path is reachable, and the counter
+        // proves the forged record never gets there.
+        let suite = suite(0xc014).expect("suite");
+        let master = [0x47_u8; 48];
+        let block = derive_key_block(&master, &[1_u8; 32], &[2_u8; 32], suite, Protocol::Tls12)
+            .expect("block");
+        let mac_key = block.client_mac.expect("mac");
+        let key = block.client_key;
+        let sequence = 5_u64;
+        let content_type = 23_u8;
+        let version = 0x0303_u16;
+        let mut plaintext = vec![0x2a_u8; 16];
+        plaintext[15] = 0xff;
+        let iv = [0x7c_u8; 16];
+        let cipher =
+            cbc::Encryptor::<Aes256>::new_from_slices(key.as_bytes(), &iv).expect("cipher");
+        let mut buffer = plaintext;
+        let length = buffer.len();
+        let ciphertext = cipher
+            .encrypt_padded::<cbc::cipher::block_padding::NoPadding>(&mut buffer, length)
+            .expect("encrypt")
+            .to_vec();
+        let mut record = iv.to_vec();
+        record.extend_from_slice(&ciphertext);
+        let mut mac_input = [0_u8; 13];
+        mac_input[..8].copy_from_slice(&sequence.to_be_bytes());
+        mac_input[8] = content_type;
+        mac_input[9..11].copy_from_slice(&version.to_be_bytes());
+        mac_input[11..]
+            .copy_from_slice(&u16::try_from(record.len()).expect("length").to_be_bytes());
+        let mut mac = Hmac::<Sha1>::new_from_slice(mac_key.as_bytes()).expect("hmac");
+        mac.update(&mac_input);
+        mac.update(&record);
+        let tag = mac.finalize().into_bytes();
+        let mut keys =
+            RecordKeys::tls(Protocol::Tls12, key, [0_u8; 16], Some(mac_key), suite, true)
+                .expect("keys");
+        keys.set_sequence(sequence);
+        CBC_DECRYPTS.with(|count| count.set(0));
+        let mut forged = record.clone();
+        forged.extend_from_slice(&tag);
+        let last = forged.len() - 1;
+        forged[last] ^= 1;
+        assert!(keys.open_pre13(content_type, version, &forged).is_none());
+        assert_eq!(CBC_DECRYPTS.with(|count| count.get()), 0);
+        // The authentic record reaches the cipher, then the padding rejects
+        // it, which shows the counter observes real CBC attempts.
+        let mut authentic = record;
+        authentic.extend_from_slice(&tag);
+        assert!(keys.open_pre13(content_type, version, &authentic).is_none());
+        assert_eq!(CBC_DECRYPTS.with(|count| count.get()), 1);
     }
 
     #[test]
@@ -1322,5 +1647,461 @@ mod tests {
         let empty = strip_tls13_padding(vec![23]).expect("type-only record");
         assert!(empty.content.is_empty());
         assert_eq!(empty.content_type, 23);
+    }
+
+    /// TLS 1.0 record MAC over `seq || type || version || length || content`
+    /// (RFC 2246 section 6.2.3.1), returned with its length.
+    fn cbc_tag(
+        hash: HashAlgorithm,
+        key: &[u8],
+        sequence: u64,
+        content_type: u8,
+        version: u16,
+        content: &[u8],
+    ) -> Vec<u8> {
+        let mut input = [0_u8; 13];
+        input[..8].copy_from_slice(&sequence.to_be_bytes());
+        input[8] = content_type;
+        input[9..11].copy_from_slice(&version.to_be_bytes());
+        input[11..].copy_from_slice(
+            &u16::try_from(content.len())
+                .expect("content length")
+                .to_be_bytes(),
+        );
+        let mut out = [0_u8; 48];
+        let length = hmac_parts(hash, key, &[&input, content], &mut out).expect("hmac");
+        out[..length].to_vec()
+    }
+
+    /// Block-aligned `content || MAC || padding` (RFC 2246 section 6.2.3.2):
+    /// at least one padding octet, each holding `padding_length`.
+    fn cbc_plaintext(content: &[u8], tag: &[u8]) -> Vec<u8> {
+        let mut plaintext = content.to_vec();
+        plaintext.extend_from_slice(tag);
+        let padding = CBC_BLOCK_SIZE - plaintext.len() % CBC_BLOCK_SIZE;
+        let padding_length = u8::try_from(padding - 1).expect("padding length");
+        plaintext.extend(std::iter::repeat_n(padding_length, padding));
+        plaintext
+    }
+
+    fn cbc_encrypt(key: &[u8], iv: &[u8; CBC_BLOCK_SIZE], plaintext: &[u8]) -> Vec<u8> {
+        let mut buffer = plaintext.to_vec();
+        let length = buffer.len();
+        if key.len() == 16 {
+            let cipher = cbc::Encryptor::<Aes128>::new_from_slices(key, iv).expect("cipher");
+            cipher
+                .encrypt_padded::<cbc::cipher::block_padding::NoPadding>(&mut buffer, length)
+                .expect("encrypt")
+                .to_vec()
+        } else {
+            let cipher = cbc::Encryptor::<Aes256>::new_from_slices(key, iv).expect("cipher");
+            cipher
+                .encrypt_padded::<cbc::cipher::block_padding::NoPadding>(&mut buffer, length)
+                .expect("encrypt")
+                .to_vec()
+        }
+    }
+
+    #[test]
+    fn tls10_prf_matches_a_known_answer() {
+        // Pinned by an independent TLS 1.0 PRF implementation (TLS1-PRF over
+        // the MD5 and SHA-1 halves): MD5 over the 24-byte first half of a
+        // 48-byte secret, SHA-1 over the 24-byte second half, XORed as
+        // RFC 2246 section 5 requires.
+        let master = [0x0b_u8; 48];
+        let mut seed = b"key expansion".to_vec();
+        seed.extend(0_u8..64);
+        let mut out = [0_u8; 104];
+        prf_legacy(&master, b"key expansion", &seed[13..], &mut out).expect("prf");
+        assert_eq!(
+            out.as_slice(),
+            hex(
+                "a903444cb6f29536413291c0570e020ac1666c112146762742363de6ef6aedd2\
+                 bd59d472b8da225ef1e82517d65becd5cccebd49e59b50d1e78a63c6020e2644\
+                 dc8d25b2e0349a731a1acece35a62ca96986d3b2730bc6a2c676ad4a069404a5\
+                 c4fdc43f28311b43"
+            )
+            .as_slice()
+        );
+    }
+
+    #[test]
+    fn tls10_key_block_layout_is_rfc2246_section_6_3() {
+        // RFC 2246 section 6.3 with AES-128-CBC and SHA-1: two 20-byte MAC
+        // keys, two 16-byte keys, then two 16-byte write IVs. The vector is
+        // pinned by the same independent TLS 1.0 construction as the PRF
+        // test above.
+        let suite = suite(0xc009).expect("suite");
+        let block = derive_key_block(
+            &[0x44_u8; 48],
+            &[0x01_u8; 32],
+            &[0x02_u8; 32],
+            suite,
+            Protocol::Tls10,
+        )
+        .expect("block");
+        assert_eq!(
+            block.client_mac.as_ref().map(Secret::as_bytes),
+            Some(hex("473252c094a3819c3810ca7d3f442a7c92fde483").as_slice())
+        );
+        assert_eq!(
+            block.server_mac.as_ref().map(Secret::as_bytes),
+            Some(hex("8c92afd77b44ca0e5edee45ed2e43195b0eda2de").as_slice())
+        );
+        assert_eq!(
+            block.client_key.as_bytes(),
+            hex("781e103b5d346f037ebe8e9854c54394")
+        );
+        assert_eq!(
+            block.server_key.as_bytes(),
+            hex("5b26873fc72b23f8b90453901e8c0308")
+        );
+        assert_eq!(
+            block.client_iv,
+            hex("6c7d7c565d4a60fe247326dd68bacc2c").as_slice()
+        );
+        assert_eq!(
+            block.server_iv,
+            hex("5089d30cada45824950ae79f4702fb74").as_slice()
+        );
+    }
+
+    #[test]
+    fn tls10_cbc_chains_the_iv_across_records() {
+        let suite = suite(0xc014).expect("suite");
+        let block = derive_key_block(
+            &[0x44_u8; 48],
+            &[1_u8; 32],
+            &[2_u8; 32],
+            suite,
+            Protocol::Tls10,
+        )
+        .expect("block");
+        let mac_key = block.client_mac.as_ref().expect("mac");
+        let content_type = 23_u8;
+        let version = 0x0301_u16;
+        let first = b"first record";
+        let second = b"second record";
+        let first_tag = cbc_tag(
+            HashAlgorithm::Sha1,
+            mac_key.as_bytes(),
+            0,
+            content_type,
+            version,
+            first,
+        );
+        let first_ciphertext = cbc_encrypt(
+            block.client_key.as_bytes(),
+            &block.client_iv,
+            &cbc_plaintext(first, &first_tag),
+        );
+        // The next record's IV is the last ciphertext block of the previous
+        // one (RFC 2246 section 6.2.3.2).
+        let next_iv: [u8; CBC_BLOCK_SIZE] = first_ciphertext
+            .get(first_ciphertext.len() - CBC_BLOCK_SIZE..)
+            .expect("tail")
+            .try_into()
+            .expect("block");
+        let second_tag = cbc_tag(
+            HashAlgorithm::Sha1,
+            mac_key.as_bytes(),
+            1,
+            content_type,
+            version,
+            second,
+        );
+        let second_ciphertext = cbc_encrypt(
+            block.client_key.as_bytes(),
+            &next_iv,
+            &cbc_plaintext(second, &second_tag),
+        );
+
+        let mut keys = RecordKeys::tls(
+            Protocol::Tls10,
+            block.client_key,
+            block.client_iv,
+            block.client_mac,
+            suite,
+            false,
+        )
+        .expect("keys");
+        let opened = keys
+            .open_pre13(content_type, version, &first_ciphertext)
+            .expect("first record");
+        assert_eq!(opened.content, first);
+        assert_eq!(opened.sequence, 0);
+        let opened = keys
+            .open_pre13(content_type, version, &second_ciphertext)
+            .expect("second record");
+        assert_eq!(opened.content, second);
+        assert_eq!(opened.sequence, 1);
+    }
+
+    #[test]
+    fn tls11_cbc_requires_the_explicit_iv() {
+        let suite = suite(0xc013).expect("suite");
+        let block = derive_key_block(
+            &[0x44_u8; 48],
+            &[1_u8; 32],
+            &[2_u8; 32],
+            suite,
+            Protocol::Tls11,
+        )
+        .expect("block");
+        assert_eq!(
+            block.client_iv, [0_u8; CBC_BLOCK_SIZE],
+            "a TLS 1.1 CBC key block carries no write IV"
+        );
+        let mac_key = block.client_mac.expect("mac");
+        let content_type = 23_u8;
+        let version = 0x0302_u16;
+        let content = b"explicit iv";
+        let tag = cbc_tag(
+            HashAlgorithm::Sha1,
+            mac_key.as_bytes(),
+            0,
+            content_type,
+            version,
+            content,
+        );
+        let iv = [0x7e_u8; CBC_BLOCK_SIZE];
+        let ciphertext = cbc_encrypt(
+            block.client_key.as_bytes(),
+            &iv,
+            &cbc_plaintext(content, &tag),
+        );
+        let mut fragment = iv.to_vec();
+        fragment.extend_from_slice(&ciphertext);
+        let mut keys = RecordKeys::tls(
+            Protocol::Tls11,
+            block.client_key,
+            block.client_iv,
+            Some(mac_key),
+            suite,
+            false,
+        )
+        .expect("keys");
+        assert!(
+            keys.open_pre13(content_type, version, &ciphertext)
+                .is_none(),
+            "the explicit IV prefix is part of the fragment"
+        );
+        assert!(
+            keys.open_pre13(content_type, version, &fragment)
+                .is_some_and(|record| record.content == content)
+        );
+    }
+
+    #[test]
+    fn tls10_rejects_a_mismatched_record_version() {
+        let suite = suite(0xc014).expect("suite");
+        let block = derive_key_block(
+            &[0x44_u8; 48],
+            &[1_u8; 32],
+            &[2_u8; 32],
+            suite,
+            Protocol::Tls10,
+        )
+        .expect("block");
+        let mac_key = block.client_mac.as_ref().expect("mac");
+        let tag = cbc_tag(
+            HashAlgorithm::Sha1,
+            mac_key.as_bytes(),
+            0,
+            23,
+            0x0303,
+            b"wrong version",
+        );
+        let ciphertext = cbc_encrypt(
+            block.client_key.as_bytes(),
+            &block.client_iv,
+            &cbc_plaintext(b"wrong version", &tag),
+        );
+        let mut keys = RecordKeys::tls(
+            Protocol::Tls10,
+            block.client_key,
+            block.client_iv,
+            block.client_mac,
+            suite,
+            false,
+        )
+        .expect("keys");
+        assert!(keys.open_pre13(23, 0x0303, &ciphertext).is_none());
+        assert_eq!(keys.sequence(), 0);
+    }
+
+    #[test]
+    fn tls10_rejects_bad_padding_and_bad_mac_without_advancing() {
+        let suite = suite(0xc014).expect("suite");
+        let block = derive_key_block(
+            &[0x44_u8; 48],
+            &[1_u8; 32],
+            &[2_u8; 32],
+            suite,
+            Protocol::Tls10,
+        )
+        .expect("block");
+        let mac_key = block.client_mac.as_ref().expect("mac");
+        let content = b"padding check";
+        let tag = cbc_tag(
+            HashAlgorithm::Sha1,
+            mac_key.as_bytes(),
+            0,
+            23,
+            0x0301,
+            content,
+        );
+        // A wrong padding_length: the last octet claims a shorter run than
+        // the plaintext carries, so the padding check fails on its own.
+        let mut bad_padding = cbc_plaintext(content, &tag);
+        if let Some(last) = bad_padding.last_mut() {
+            *last = 0;
+        }
+        let bad_padding_ciphertext =
+            cbc_encrypt(block.client_key.as_bytes(), &block.client_iv, &bad_padding);
+
+        // A well-formed padding around a MAC computed for another sequence
+        // number: only the MAC check can reject it.
+        let wrong_tag = cbc_tag(
+            HashAlgorithm::Sha1,
+            mac_key.as_bytes(),
+            1,
+            23,
+            0x0301,
+            content,
+        );
+        let bad_mac = cbc_encrypt(
+            block.client_key.as_bytes(),
+            &block.client_iv,
+            &cbc_plaintext(content, &wrong_tag),
+        );
+        let good = cbc_plaintext(content, &tag);
+        let good_ciphertext = cbc_encrypt(block.client_key.as_bytes(), &block.client_iv, &good);
+
+        let mut keys = RecordKeys::tls(
+            Protocol::Tls10,
+            block.client_key,
+            block.client_iv,
+            block.client_mac,
+            suite,
+            false,
+        )
+        .expect("keys");
+        assert!(
+            keys.open_pre13(23, 0x0301, &bad_padding_ciphertext)
+                .is_none()
+        );
+        assert!(keys.open_pre13(23, 0x0301, &bad_mac).is_none());
+        assert_eq!(keys.sequence(), 0, "a failed record consumes nothing");
+        assert_eq!(keys.chain_iv, block.client_iv, "and keeps the IV chain");
+        assert!(
+            keys.open_pre13(23, 0x0301, &good_ciphertext)
+                .is_some_and(|record| record.content == content)
+        );
+    }
+
+    #[test]
+    fn tls10_encrypt_then_mac_authenticates_the_ciphertext_only() {
+        // RFC 7366 section 3: a TLS 1.0 record has no IV field, so the MAC
+        // covers seq_num, type, version and TLSCipherText.length followed by
+        // ENC(content + padding + padding_length) alone.
+        let suite = suite(0xc014).expect("suite");
+        let block = derive_key_block(
+            &[0x44_u8; 48],
+            &[1_u8; 32],
+            &[2_u8; 32],
+            suite,
+            Protocol::Tls10,
+        )
+        .expect("block");
+        let mac_key = block.client_mac.as_ref().expect("mac");
+        let content_type = 23_u8;
+        let version = 0x0301_u16;
+        let content = b"tls10 etm";
+        let first_iv = block.client_iv;
+        let first_ciphertext = cbc_encrypt(
+            block.client_key.as_bytes(),
+            &first_iv,
+            &cbc_plaintext(content, &[]),
+        );
+        let mut first = first_ciphertext.clone();
+        let mut input = [0_u8; 13];
+        input[..8].copy_from_slice(&0_u64.to_be_bytes());
+        input[8] = content_type;
+        input[9..11].copy_from_slice(&version.to_be_bytes());
+        input[11..].copy_from_slice(
+            &u16::try_from(first_ciphertext.len())
+                .expect("length")
+                .to_be_bytes(),
+        );
+        let mut out = [0_u8; 48];
+        let length = hmac_parts(
+            HashAlgorithm::Sha1,
+            mac_key.as_bytes(),
+            &[&input, &first_ciphertext],
+            &mut out,
+        )
+        .expect("mac");
+        first.extend_from_slice(out.get(..length).expect("tag"));
+        // The same record with the IV inside the MAC input must fail.
+        let mut wrong_out = [0_u8; 48];
+        let wrong_length = hmac_parts(
+            HashAlgorithm::Sha1,
+            mac_key.as_bytes(),
+            &[&input, &first_iv, &first_ciphertext],
+            &mut wrong_out,
+        )
+        .expect("mac");
+        let mut wrong = first_ciphertext.clone();
+        wrong.extend_from_slice(wrong_out.get(..wrong_length).expect("tag"));
+
+        let mut keys = RecordKeys::tls(
+            Protocol::Tls10,
+            block.client_key,
+            block.client_iv,
+            block.client_mac,
+            suite,
+            true,
+        )
+        .expect("keys");
+        assert!(keys.open_pre13(content_type, version, &wrong).is_none());
+        assert!(
+            keys.open_pre13(content_type, version, &first)
+                .is_some_and(|record| record.content == content)
+        );
+    }
+
+    #[test]
+    fn unsupported_protocol_and_suite_combinations_install_no_keys() {
+        // AEAD suites are TLS 1.2 only and the SHA-256 CBC suites are TLS
+        // 1.2 registry entries, so a legacy session installs no keys for
+        // either and its records stay opaque.
+        let aead = suite(0xc030).expect("suite");
+        assert!(
+            derive_key_block(&[0_u8; 48], &[0_u8; 32], &[0_u8; 32], aead, Protocol::Tls11)
+                .is_none()
+        );
+        assert!(
+            RecordKeys::tls(
+                Protocol::Tls11,
+                Secret::new(&[1_u8; 32]).expect("key"),
+                [0_u8; 16],
+                None,
+                aead,
+                false
+            )
+            .is_none()
+        );
+        let sha256 = suite(0xc027).expect("suite");
+        assert!(
+            derive_key_block(
+                &[0_u8; 48],
+                &[0_u8; 32],
+                &[0_u8; 32],
+                sha256,
+                Protocol::Tls10
+            )
+            .is_none()
+        );
     }
 }

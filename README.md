@@ -5,7 +5,7 @@
 [![Rust 1.99](https://img.shields.io/badge/rust-1.99-orange.svg)](rust-toolchain.toml)
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
-Packetfin is a command-line packet analyzer written in Rust. It reads capture files or live traffic, decodes 45 protocols, filters packets, and prints summaries, full packet details or structured output such as JSON, CSV and XML.
+Packetfin is a command-line packet analyzer written in Rust. It reads capture files or live traffic, decodes 46 protocols, filters packets, and prints summaries, full packet details or structured output such as JSON, CSV and XML.
 
 It is built for captures you don't trust. A malformed or hostile capture should not crash Packetfin, hang it, or make its memory grow without limit.
 
@@ -37,18 +37,18 @@ It is built for captures you don't trust. A malformed or hostile capture should 
 | Tunnels | GRE, ERSPAN types I–III, VXLAN, Geneve, MPLS, IP-in-IP, 6in4 |
 | Layer 2 control | LLDP, LACP, Marker, STP, RSTP, MSTP |
 | Routing | OSPFv2, OSPFv3, BGP, VRRP, BFD |
-| Services | DNS over UDP and TCP, mDNS, LLMNR, DHCP, DHCPv6, NTP, HTTP/1.x, TLS |
+| Services | DNS over UDP and TCP, mDNS, LLMNR, DHCP, DHCPv6, NTP, HTTP/1.x, HTTP/2, TLS |
 | Monitoring | Syslog, SNMP v1 and v2c, NetFlow v5 and v9, IPFIX, sFlow v5 |
 
-Run `packetfin -G protocols` for the full list and `packetfin -G fields` for all 1,493 field names.
+Run `packetfin -G protocols` for the full list and `packetfin -G fields` for all 1,690 field names.
 
 **Analysis**
 
-- Reassemble IPv4 and IPv6 fragments, TCP streams, and DNS, HTTP, TLS and BGP messages that span several segments.
+- Reassemble IPv4 and IPv6 fragments, TCP streams, and DNS, HTTP, HTTP/2, TLS and BGP messages that span several segments.
 - TCP analysis: retransmissions, duplicate ACKs, out-of-order and lost segments, zero windows, keep-alives and round-trip times.
 - Expert notes flag malformed packets, protocol errors and unusual behavior.
 - Two-pass mode (`-2`) links requests to responses and lets the read filter (`-R`) see the whole capture.
-- Decrypt TLS 1.2 and 1.3 with a key log file (the `SSLKEYLOGFILE` format), and compute JA3, JA3S and JA4 fingerprints.
+- Decrypt TLS 1.0 through 1.3 with a key log file (the `SSLKEYLOGFILE` format), and compute JA3, JA3S and JA4 fingerprints.
 - Export HTTP objects to a folder with `--export-objects http,DIR`.
 
 **Filters**
@@ -147,7 +147,12 @@ Run `packetfin --help` to see every option.
 ## Notable techniques
 
 - **One memory budget for all cross-packet state.** Conversations, IP fragments, TCP reassembly buffers and NetFlow/IPFIX templates share one store with a byte limit and a single least-recently-used clock ([`budget.rs`](crates/packetfin-core/src/state/budget.rs)). Each stored value reports the heap memory it owns, so the limit counts real bytes. When the store is full, Packetfin evicts the oldest entries and records an expert note instead of failing.
-- **Lints that rule out panics.** Outside the live-capture crate, `unsafe` code is forbidden, and every crate denies slice indexing, `unwrap`, `expect` and `panic!` ([`Cargo.toml`](Cargo.toml)). Each exception must state its reason. Integer overflow checks stay on in release builds. Parsers read bytes through checked accessors, so a short packet becomes a decode error rather than a crash, and 24 fuzz targets in [`fuzz/fuzz_targets`](fuzz/fuzz_targets) exercise them.
+- **One HTTP framer for three consumers.** The stream reassembler, the HTTP decoder and the
+  stream-follow tap all frame messages through [`http_syntax`](crates/packetfin-core/src/http_syntax.rs):
+  one start-line grammar, one header parser, one body-length precedence and one resumable
+  chunk scanner, so the layers cannot disagree about the same bytes. HTTP/2 uses the same
+  reassembly path with its own binary framing.
+- **Lints that rule out panics.** Outside the live-capture crate, `unsafe` code is forbidden, and every crate denies slice indexing, `unwrap`, `expect` and `panic!` ([`Cargo.toml`](Cargo.toml)). Each exception must state its reason. Integer overflow checks stay on in release builds. Parsers read bytes through checked accessors, so a short packet becomes a decode error rather than a crash, and 25 fuzz targets in [`fuzz/fuzz_targets`](fuzz/fuzz_targets) exercise them.
 - **Test captures generated from code.** No recorded traffic is checked in. Every test capture is built by a function in [`fixtures.rs`](crates/packetfin-testkit/src/fixtures.rs), and each protocol family comes with normal, truncated, malformed and padded variants. The TLS captures are encrypted with real cipher suites and generated keys, and ship with their key log files.
 
 ## Project structure
@@ -214,8 +219,6 @@ packetfin/
 
 **Next**
 
-- HTTP/2, including HPACK header compression.
-- TLS 1.0 and 1.1 decryption.
 - Windows: test live capture with Npcap and run the test suite on Windows in CI.
 - Prebuilt binaries for macOS, Linux and Windows.
 - `packetfin-core` on crates.io, so other Rust programs can decode packets with it.

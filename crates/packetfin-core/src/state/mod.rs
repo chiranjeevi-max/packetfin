@@ -15,13 +15,19 @@ mod budget;
 mod conversation;
 mod dns;
 mod fragment;
+mod http2;
 mod sequence;
 mod snmp;
 mod stream;
 mod tcp;
 mod template;
 
-pub(crate) use stream::{PduAction, ReassembledPdu, ReassemblyReport, SegmentDataPiece, Ulp};
+pub(crate) use http2::{
+    BlockFragment, BlockOrigin, BlockStart, BodyFragmentView, DataOutcome, Http2Data, Http2Key,
+};
+pub(crate) use stream::{
+    PduAction, PlaintextAlpn, ReassembledPdu, ReassemblyReport, SegmentDataPiece, Ulp,
+};
 pub(crate) use tcp::{TcpAnalysisOptions, TcpObservation, TcpPacketState};
 
 use std::sync::Arc;
@@ -187,6 +193,10 @@ pub struct SessionState {
     dns_tcp: StateStore<ConversationKey, DnsConversation>,
     /// HTTP request/response tail per TCP conversation.
     http: StateStore<ConversationKey, HttpConversation>,
+    /// HTTP/2 header compression, windows and pending blocks per direction.
+    http2: StateStore<Http2Key, http2::Http2Direction>,
+    /// HTTP/2 request/response linkage and DATA bodies per conversation.
+    http2_streams: StateStore<ConversationKey, http2::Http2Streams>,
     /// TLS session version per TCP conversation.
     tls: StateStore<ConversationKey, TlsConversation>,
     /// TLS record flows and decrypted plaintext streams.
@@ -232,6 +242,8 @@ impl SessionState {
             snmp: StateStore::new(),
             dns_tcp: StateStore::new(),
             http: StateStore::new(),
+            http2: StateStore::new(),
+            http2_streams: StateStore::new(),
             tls: StateStore::new(),
             tls_flows: StateStore::new(),
             tls_handshake: StateStore::new(),
@@ -626,10 +638,17 @@ impl DecodeSession {
     /// Clear every table and counter, starting a new analysis session.
     ///
     /// `-M` uses this every N frames. Budgets stay as configured; stream
-    /// counters restart at zero and no protocol state survives.
+    /// counters restart at zero and no protocol state survives. The TLS key
+    /// log and the key-export setting are session configuration rather than
+    /// per-frame state, so they carry over: dropping them would silently
+    /// stop decryption and key export after the first reset.
     pub fn reset_session(&mut self) {
-        self.state =
+        let mut replacement =
             SessionState::with_annotation_budget(self.state.limit(), self.state.annotation_limit());
+        replacement.keylog = self.state.keylog.take();
+        replacement.export_tls_keys = self.state.export_tls_keys;
+        replacement.exported_tls_keys = std::mem::take(&mut self.state.exported_tls_keys);
+        self.state = replacement;
     }
 
     /// Finish the recording pass: queries left waiting are unanswered.

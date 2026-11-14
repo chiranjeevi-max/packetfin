@@ -327,9 +327,10 @@ fn escape_value(values: &mut FieldValues, scratch: &mut Vec<u8>, options: &Field
 ///
 /// The fixed renderings use only decimal and lowercase hexadecimal digits,
 /// `0x`, address and timestamp punctuation, and the words `True`, `False`,
-/// `<MISSING>` and `<none>`. String values are always scanned for escapes,
-/// and a separator outside this set cannot occur in any other rendering, so
-/// those values skip the scan entirely.
+/// `<MISSING>` and `<none>`. The ISO time renderings add the `+` offset
+/// sign and the `Z` zone suffix (`IsoTime` and `IsoTimeZ`). String values
+/// are always scanned for escapes, and a separator outside this set cannot
+/// occur in any other rendering, so those values skip the scan entirely.
 fn fixed_values_may_contain(separator: u8) -> bool {
     matches!(
         separator,
@@ -339,6 +340,8 @@ fn fixed_values_may_contain(separator: u8) -> bool {
             | b':'
             | b'.'
             | b'-'
+            | b'+'
+            | b'Z'
             | b'<'
             | b'>'
             | b'M'
@@ -700,6 +703,54 @@ mod tests {
     }
 
     #[test]
+    fn absolute_time_separators_are_escaped() {
+        let timestamp = packetfin_core::capture::Timestamp {
+            seconds: 1_700_000_000,
+            nanos: 123_456_789,
+        };
+        let mut frame = Node::new(&FRAME_PROTOCOL, Range::new(0, 0));
+        frame.add_field(&FRAME_NUMBER, Range::new(0, 8), Value::Uint64(1));
+        frame.add_field(
+            &packetfin_core::fields::NTP_XMT,
+            Range::new(0, 8),
+            Value::AbsoluteTime(timestamp),
+        );
+        frame.add_field(
+            &packetfin_core::fields::DHCPV6_DUIDLLT_TIME,
+            Range::new(0, 8),
+            Value::AbsoluteTime(timestamp),
+        );
+        let tree = Tree::new(frame);
+
+        // `IsoTimeZ` ends in `Z`; a `Z` separator must not look like the end
+        // of the time value.
+        let z = FieldOutputOptions {
+            escape: false,
+            separator: b'Z',
+            ..FieldOutputOptions::default()
+        };
+        assert_eq!(
+            format(&[&FRAME_NUMBER, &packetfin_core::fields::NTP_XMT], z, &tree),
+            b"1Z2023-11-14T22:13:20.123456789\\Z\n".to_vec()
+        );
+
+        // `IsoTime` carries a `+0000` offset suffix.
+        let plus = FieldOutputOptions {
+            escape: false,
+            separator: b'+',
+            ..FieldOutputOptions::default()
+        };
+        assert_eq!(
+            format(
+                &[&FRAME_NUMBER, &packetfin_core::fields::DHCPV6_DUIDLLT_TIME],
+                plus,
+                &tree
+            ),
+            b"1+2023-11-14T22:13:20.123456789\\+0000\n".to_vec()
+        );
+    }
+
+    #[test]
     fn fixed_value_renderings_only_need_scans_for_listed_separators() {
         use packetfin_core::Timestamp;
         use packetfin_core::fields::Display;
@@ -744,6 +795,8 @@ mod tests {
             Display::Boolean32,
             Display::None,
             Display::BaseNone,
+            Display::IsoTime,
+            Display::IsoTimeZ,
         ];
         for value in &values {
             for display in displays {

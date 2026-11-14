@@ -37167,6 +37167,18 @@ fn build_http_framing_rfc() -> Result<Vec<u8>, String> {
         connection.server_fin(b"")?;
     }
 
+    // A 2xx answer to CONNECT turns the connection into a tunnel (RFC 9112
+    // section 6.3 case 2): the later server and client segments look like a
+    // response and a request, but they are tunnel bytes.
+    {
+        let mut connection = ObjectConnection::new(&mut frames, 40_616);
+        connection.client(b"CONNECT example.com:443 HTTP/1.1\r\nHost: h\r\n\r\n")?;
+        connection.server(b"HTTP/1.1 200 Connection established\r\n\r\n")?;
+        connection.server(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n")?;
+        connection.client(b"GET /inside HTTP/1.1\r\nHost: h\r\n\r\n")?;
+        connection.server_fin(b"")?;
+    }
+
     link_pcap(u32::from(LINKTYPE_ETHERNET), &frames)
 }
 

@@ -84,7 +84,7 @@ const PRIORITY_UPDATE: u8 = 16;
 /// END_STREAM flag (RFC 9113 section 6.1).
 const FLAG_END_STREAM: u8 = 0x01;
 /// END_HEADERS flag (RFC 9113 section 6.2).
-const FLAG_END_HEADERS: u8 = 0x04;
+pub(crate) const FLAG_END_HEADERS: u8 = 0x04;
 /// PADDED flag (RFC 9113 section 6.1).
 const FLAG_PADDED: u8 = 0x08;
 /// PRIORITY flag on a HEADERS frame (RFC 9113 section 6.2).
@@ -218,8 +218,10 @@ pub(crate) fn decode(context: &mut DecodeContext<'_>, parent: &mut Node, data: &
         }
         let remaining = data.get(offset..).unwrap_or_default();
         let Some(frame) = Frame::parse(remaining) else {
-            // A frame header cut short: keep the frames already decoded and
-            // stop, the way a truncated PDU is dropped by the stream layer.
+            // Fewer than nine header octets remain. The frames already
+            // decoded stay, and the fragment gets its own node so the
+            // truncation is reported where it was found.
+            add_truncated_header(context, parent, remaining, base.saturating_add(offset));
             break;
         };
         let frame_base = base.saturating_add(offset);
@@ -625,30 +627,73 @@ impl Suffix {
 
 /// Add the shared frame header fields: length, type, flags and stream id.
 fn add_header_fields(stream: &mut Field, frame: &Frame<'_>, base: usize) {
+    add_length_field(stream, frame.length, base);
+    add_type_field(stream, frame.kind, base);
+    add_flag_fields(stream, frame.kind, frame.flags, base);
+    add_stream_identifier(stream, frame, base);
+}
+
+/// Add the fields of a frame header cut short by the end of the payload.
+///
+/// The fields whose octets were captured stay, followed by one malformed
+/// expert. The stream identifier ends the nine-octet header of RFC 9113
+/// section 4.1, so a cut header never holds it.
+fn add_truncated_header(
+    context: &mut DecodeContext<'_>,
+    parent: &mut Node,
+    fragment: &[u8],
+    base: usize,
+) {
+    let range = Range::new(base, fragment.len());
+    let mut node = Node::new(&fields::HTTP2_PROTOCOL, range);
+    let stream = node.add_container(&fields::HTTP2_STREAM, range, None);
+    if let [high, middle, low, ..] = *fragment {
+        add_length_field(stream, u32::from_be_bytes([0, high, middle, low]), base);
+    }
+    if let Some(&kind) = fragment.get(3) {
+        add_type_field(stream, kind, base);
+        if let Some(&bits) = fragment.get(4) {
+            add_flag_fields(stream, kind, bits, base);
+        }
+    }
+    context.mark_malformed(&mut node, "HTTP/2 frame header is truncated");
+    parent.add_child(node);
+}
+
+/// Add the 24-bit Length field.
+fn add_length_field(stream: &mut Field, length: u32, base: usize) {
     stream.add_field(
         &fields::HTTP2_LENGTH,
         Range::new(base, 3),
-        Value::Uint24(frame.length),
+        Value::Uint24(length),
     );
+}
+
+/// Add the Type field, named from the frame type registry.
+fn add_type_field(stream: &mut Field, kind: u8, base: usize) {
     let type_field = stream.add_field(
         &fields::HTTP2_TYPE,
         Range::new(base.saturating_add(3), 1),
-        Value::Uint8(frame.kind),
+        Value::Uint8(kind),
     );
-    type_field.showname = Some(match frame_type_name(frame.kind) {
-        Some(name) => format!("Type: {name} ({})", frame.kind),
-        None => format!("Type: Unknown ({})", frame.kind),
+    type_field.showname = Some(match frame_type_name(kind) {
+        Some(name) => format!("Type: {name} ({kind})"),
+        None => format!("Type: Unknown ({kind})"),
     });
+}
+
+/// Add the Flags container and the flag bits the frame type defines.
+fn add_flag_fields(stream: &mut Field, kind: u8, bits: u8, base: usize) {
     let flags_range = Range::new(base.saturating_add(4), 1);
-    let flags = stream.add_field(&fields::HTTP2_FLAGS, flags_range, Value::Uint8(frame.flags));
+    let flags = stream.add_field(&fields::HTTP2_FLAGS, flags_range, Value::Uint8(bits));
     flags.container = true;
-    let mut label = format!("Flags: 0x{:02x}", frame.flags);
-    for name in flag_names(frame.kind, frame.flags) {
+    let mut label = format!("Flags: 0x{bits:02x}");
+    for name in flag_names(kind, bits) {
         label.push_str(", ");
         label.push_str(name);
     }
     flags.showname = Some(label);
-    let (unused, booleans): (&'static FieldDef, &[(&'static FieldDef, u8)]) = match frame.kind {
+    let (unused, booleans): (&'static FieldDef, &[(&'static FieldDef, u8)]) = match kind {
         DATA => (
             &fields::HTTP2_FLAGS_UNUSED_DATA,
             &[
@@ -690,24 +735,28 @@ fn add_header_fields(stream: &mut Field, frame: &Frame<'_>, base: usize) {
         _ => (&fields::HTTP2_FLAGS_UNUSED, &[]),
     };
     let mask = unused.bitmask.unwrap_or(0xff);
-    let masked = u64::from(frame.flags) & mask;
+    let masked = u64::from(bits) & mask;
     let unused_value = u8::try_from(masked).unwrap_or(0);
     let unused_field = flags.add_field(unused, flags_range, Value::Uint8(unused_value));
     unused_field.showname = Some(format!(
         "{} = Unused: 0x{unused_value:02x}",
-        bit_pattern(u64::from(frame.flags), mask, 8)
+        bit_pattern(u64::from(bits), mask, 8)
     ));
     for (def, flag) in booleans {
         let flag = *flag;
-        let set = frame.flags & flag != 0;
+        let set = bits & flag != 0;
         let boolean = flags.add_field(def, flags_range, Value::Boolean(set));
         boolean.showname = Some(format!(
             "{} = {}: {}",
-            bit_pattern(u64::from(frame.flags), u64::from(flag), 8),
+            bit_pattern(u64::from(bits), u64::from(flag), 8),
             def.name,
             if set { "True" } else { "False" }
         ));
     }
+}
+
+/// Add the reserved bit and the 31-bit Stream Identifier.
+fn add_stream_identifier(stream: &mut Field, frame: &Frame<'_>, base: usize) {
     let word_range = Range::new(base.saturating_add(5), 4);
     let word = (u32::from(frame.reserved) << 31) | frame.stream_id;
     let reserved = stream.add_field(
@@ -1612,21 +1661,33 @@ fn decode_window_update(
         bit_pattern(u64::from(word), 0x8000_0000, 32),
         word >> 31
     ));
-    let increment = stream.add_field(
+    let increment = word & 0x7fff_ffff;
+    let increment_field = stream.add_field(
         &fields::HTTP2_WINDOW_UPDATE_WINDOW_SIZE_INCREMENT,
         range,
-        Value::Uint32(word & 0x7fff_ffff),
+        Value::Uint32(increment),
     );
-    increment.showname = Some(format!(
+    increment_field.showname = Some(format!(
         "{} = Window Size Increment: {}",
         bit_pattern(u64::from(word), 0x7fff_ffff, 32),
-        word & 0x7fff_ffff
+        increment
     ));
+    if increment == 0 && !context.quoted {
+        // RFC 9113 section 6.9: a zero increment is a PROTOCOL_ERROR, a
+        // stream error on a stream and a connection error on stream 0. The
+        // window does not move, so the calculated pair below still holds. A
+        // quoted copy is data, not a frame this connection received.
+        increment_field.add_expert(ExpertInfo {
+            severity: Severity::Warning,
+            group: Group::Protocol,
+            message: "HTTP/2 WINDOW_UPDATE increment is 0; PROTOCOL_ERROR".to_string(),
+        });
+    }
     if let Some(key) = key {
         let (before, after) = context.state.http2_window_update(
             key,
             frame.stream_id,
-            word & 0x7fff_ffff,
+            increment,
             context.frame.file_number,
         );
         if frame.stream_id == 0 {

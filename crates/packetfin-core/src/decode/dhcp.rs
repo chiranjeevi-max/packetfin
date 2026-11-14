@@ -842,14 +842,9 @@ fn decode_area(
             if composite { 0 } else { base + body_start },
             if composite { 0 } else { base + position },
         );
-        if let Some(message) = malformed {
-            return AreaResult {
-                ok: false,
-                saw_end,
-                trailing_padding: trailing,
-                malformed: Some(message),
-            };
-        }
+        // A composite decode places its fields in the concatenated body.
+        // Rebase them before a malformed body returns, so the fields it kept
+        // still carry packet offsets and raw bytes.
         if composite {
             apply_composite(
                 field,
@@ -857,6 +852,14 @@ fn decode_area(
                 &first.bodies[usize::from(code)],
                 base + position,
             );
+        }
+        if let Some(message) = malformed {
+            return AreaResult {
+                ok: false,
+                saw_end,
+                trailing_padding: trailing,
+                malformed: Some(message),
+            };
         }
         let typed = field
             .children

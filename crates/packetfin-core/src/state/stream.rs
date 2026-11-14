@@ -161,6 +161,9 @@ impl HttpExchange {
 #[derive(Debug, Default)]
 pub(crate) struct HttpConversation {
     tail: Option<HttpExchange>,
+    /// A 2xx answer to CONNECT turned the connection into a tunnel
+    /// (RFC 9112 section 6.3), so it carries no further HTTP message.
+    tunnel: bool,
 }
 
 impl StateValue for HttpConversation {
@@ -460,6 +463,23 @@ fn plaintext_evidence(retained: &[u8], bytes: &[u8]) -> Option<Ulp> {
     None
 }
 
+/// Whether the framer emitted an HTTP/1.x message that opens with a start
+/// line (RFC 9112 section 3).
+///
+/// A start line split across records is whole only in the emitted message:
+/// the current record holds its tail, and the bytes that held its head are
+/// consumed once the message completes.
+fn emits_http_message(actions: &[PduAction]) -> bool {
+    actions.iter().any(|action| {
+        let (ulp, data) = match action {
+            PduAction::Standalone { ulp, data, .. } => (*ulp, data.as_slice()),
+            PduAction::Reassembled { pdu, .. } => (pdu.ulp, pdu.data.as_slice()),
+            _ => return false,
+        };
+        ulp == Ulp::Http && crate::decode::looks_like_http_stream_prefix(data)
+    })
+}
+
 /// The request a response matched, as the decoder needs it.
 #[derive(Clone, Debug, Default)]
 pub(crate) struct HttpRequestInfo {
@@ -647,7 +667,8 @@ impl SessionState {
         let buffered = plaintext.streams.direction(direction).buffered_prefix();
         let prefix = if buffered.is_empty() { bytes } else { buffered };
         let http = plaintext.http.get(direction).copied().unwrap_or(false)
-            || crate::decode::looks_like_http_stream_prefix(prefix);
+            || crate::decode::looks_like_http_stream_prefix(prefix)
+            || emits_http_message(&report.actions);
         if let Some(slot) = plaintext.http.get_mut(direction) {
             *slot = http;
         }
@@ -926,8 +947,27 @@ impl SessionState {
         };
         exchange.response_frame = frame;
         exchange.response_code = code;
+        let answers_connect = matched.is_some()
+            && exchange
+                .method
+                .as_deref()
+                .is_some_and(|method| method.eq_ignore_ascii_case("CONNECT"));
+        conversation.tunnel |= answers_connect && (200..300).contains(&code);
         self.http.put_with(&mut self.budget, key, conversation);
         matched
+    }
+
+    /// Whether a 2xx answer to CONNECT made the conversation a tunnel.
+    pub(crate) fn http_tunnel(&mut self, key: ConversationKey) -> bool {
+        if self.budget.suspended() {
+            return false;
+        }
+        let Some(conversation) = self.http.take_with(&mut self.budget, &key) else {
+            return false;
+        };
+        let tunnel = conversation.tunnel;
+        self.http.put_with(&mut self.budget, key, conversation);
+        tunnel
     }
 }
 
@@ -1316,10 +1356,11 @@ enum FrameLength {
     NeedMore,
     /// The PDU ends at this many bytes from the window start.
     Complete(usize),
-    /// The PDU ends at this many bytes, but its framing leaves the
-    /// connection unusable: emit this message, then stop the direction so no
-    /// later byte is framed as another message.
-    Unusable(usize),
+    /// The PDU ends at this many bytes and is the last message the direction
+    /// carries, because its framing is unusable or a tunnel follows it: emit
+    /// this message, then stop the direction so no later byte is framed as
+    /// another message.
+    Final(usize),
     /// The bytes are a continuation, ending at this many bytes.
     Continuation(usize),
     /// The declared length is invalid for the protocol.
@@ -1408,6 +1449,10 @@ pub(crate) struct StreamBuffer {
     head_pending: bool,
     /// The next response is a 2xx reply to CONNECT.
     connect_pending: bool,
+    /// A 2xx answer to CONNECT turned the connection into a tunnel, so this
+    /// direction never frames another message. [`Self::clear`] keeps it: the
+    /// tunnel lasts as long as the connection.
+    tunnel: bool,
     /// Sequence just past an oversized PDU that must be skipped.
     skip_until: Option<u32>,
     /// The pending PDU's first segment lacked its framing header.
@@ -1916,7 +1961,7 @@ impl StreamBuffer {
                 self.refused = true;
                 return;
             }
-            let (length, continuation, unusable) = match self.frame_length(ulp, state.fin_end) {
+            let (length, continuation, last) = match self.frame_length(ulp, state.fin_end) {
                 FrameLength::NeedMore => {
                     self.add_partial(
                         ulp,
@@ -1978,7 +2023,7 @@ impl StreamBuffer {
                     return;
                 }
                 FrameLength::Complete(length) => (length, false, false),
-                FrameLength::Unusable(length) => (length, false, true),
+                FrameLength::Final(length) => (length, false, true),
                 FrameLength::Continuation(length) => (length, true, false),
             };
             if length == 0 || self.covered_prefix() < length {
@@ -2079,11 +2124,11 @@ impl StreamBuffer {
             if let Some(end) = state.fin_end.as_mut() {
                 *end = end.saturating_sub(length);
             }
-            if unusable {
-                // RFC 9112 section 6.3 case 6: an invalid Content-Length leaves
-                // the message framing unusable, so the connection carries no
-                // further message. The emitted PDU is kept; the bytes after it
-                // are dropped along with the direction.
+            if last {
+                // Unusable framing (RFC 9112 sections 6.3 and 7.1) or a
+                // CONNECT tunnel leaves no further message on this direction.
+                // The emitted PDU is kept; the bytes after it are dropped
+                // along with the direction.
                 self.clear();
                 self.refused = true;
                 return;
@@ -2503,8 +2548,14 @@ impl StreamBuffer {
             return match plan {
                 // A bodyless status, or a response to HEAD, ends at the header
                 // section: a declared length describes a body the message does
-                // not carry. A CONNECT answer keeps its tunnel bytes.
-                BodyPlan::Empty | BodyPlan::Answer => FrameLength::HeaderOversized(header_end),
+                // not carry.
+                BodyPlan::Empty => FrameLength::HeaderOversized(header_end),
+                // A 2xx answer to CONNECT is followed by tunnel bytes, not by
+                // another message, so nothing after the header can be framed.
+                BodyPlan::Answer => {
+                    self.tunnel = true;
+                    FrameLength::FatalOversized("1 MiB header")
+                }
                 BodyPlan::Fixed(length) => {
                     FrameLength::HeaderOversized(header_end.saturating_add(length))
                 }
@@ -2561,10 +2612,12 @@ impl StreamBuffer {
         match plan {
             BodyPlan::Empty => FrameLength::Complete(header_end),
             BodyPlan::Answer => {
-                // A 2xx answer to CONNECT owns everything the segment carries:
-                // the connection is a tunnel from here (RFC 9112 section
-                // 9.3.6), so the bytes cannot reopen as another message.
-                FrameLength::Complete(header_end.saturating_add(available))
+                // RFC 9112 section 6.3 case 2: a 2xx answer to CONNECT makes
+                // the connection a tunnel right after its header section
+                // (RFC 9110 section 9.3.6). The answer keeps the bytes already
+                // buffered, and neither direction frames a message again.
+                self.tunnel = true;
+                FrameLength::Final(header_end.saturating_add(available))
             }
             BodyPlan::Fixed(length) => {
                 let end = header_end.saturating_add(length);
@@ -2600,7 +2653,7 @@ impl StreamBuffer {
                     // later message boundary can be found on this direction
                     // (RFC 9112 section 7.1). Emit the covered prefix and
                     // refuse the direction like an unusable Content-Length.
-                    None => FrameLength::Unusable(covered),
+                    None => FrameLength::Final(covered),
                 },
             },
             BodyPlan::InvalidLength if framing.response => {
@@ -2624,7 +2677,7 @@ impl StreamBuffer {
                 // close-delimited, so the captured remainder is the message;
                 // emit it and then stop the direction instead of framing
                 // later bytes as a new message.
-                FrameLength::Unusable(covered)
+                FrameLength::Final(covered)
             }
             BodyPlan::CloseDelimited => {
                 // A response with no length is delimitable only by the
@@ -3033,6 +3086,13 @@ impl ConversationStreams {
                 Some(HttpStart::Response(_)) | None => {}
             }
         }
+        // The tunnel carries opaque bytes both ways (RFC 9110 section 9.3.6),
+        // so the direction that sent CONNECT stops framing messages as well.
+        if current.tunnel && !peer.tunnel {
+            peer.clear();
+            peer.refused = true;
+            peer.tunnel = true;
+        }
     }
 }
 
@@ -3306,6 +3366,27 @@ mod tests {
         let state = plaintext_state(&mut session, key);
         assert!(state.parts.iter().all(Vec::is_empty));
         assert!(state.undecided.iter().all(Vec::is_empty));
+    }
+
+    #[test]
+    fn tls_plaintext_recognises_a_start_line_split_across_records() {
+        // `GET` alone names no protocol, and the record that completes the
+        // request begins with the tail ` / HTTP/1.1`. The completed message
+        // is the evidence, with or without an ALPN selection.
+        for alpn in [PlaintextAlpn::Unknown, PlaintextAlpn::Other] {
+            let mut session = SessionState::new(DEFAULT_STATE_BUDGET);
+            let (key, _) = ConversationKey::ipv4([192, 0, 2, 1], 40_000, [192, 0, 2, 2], 443);
+            let (_, http) = session.insert_tls_plaintext(key, 0, 1, b"GET", false, alpn);
+            assert!(!http, "{alpn:?}: a method alone is not a start line");
+            let (report, http) =
+                session.insert_tls_plaintext(key, 0, 2, b" / HTTP/1.1\r\n\r\n", false, alpn);
+            assert!(
+                matches!(report.actions.last(), Some(PduAction::Reassembled { .. })),
+                "{alpn:?}: {:?}",
+                report.actions
+            );
+            assert!(http, "{alpn:?}: the completed request is HTTP");
+        }
     }
 
     #[test]
@@ -4181,6 +4262,98 @@ mod tests {
         assert!(streams.payload_bytes() > MAX_PDU_BYTES);
         assert!(streams.direction(0).has_pending());
         assert!(streams.direction(1).has_pending());
+    }
+
+    /// Two HTTP directions that observe each other's messages, as the TCP
+    /// state drives them.
+    struct HttpExchange {
+        streams: ConversationStreams,
+        next_sequence: [u32; 2],
+        frame: u64,
+    }
+
+    impl HttpExchange {
+        fn new() -> Self {
+            let mut streams = ConversationStreams::default();
+            streams.direction_mut(0).set_ulp(Ulp::Http);
+            streams.direction_mut(1).set_ulp(Ulp::Http);
+            Self {
+                streams,
+                next_sequence: [1, 1],
+                frame: 0,
+            }
+        }
+
+        /// Deliver one in-order segment and report what it framed.
+        fn send(&mut self, direction: usize, payload: &[u8]) -> ReassemblyReport {
+            self.frame = self.frame.saturating_add(1);
+            let slot = self
+                .next_sequence
+                .get_mut(direction)
+                .unwrap_or_else(|| unreachable!("a direction is zero or one"));
+            let sequence = *slot;
+            *slot = sequence.wrapping_add(u32::try_from(payload.len()).unwrap_or(u32::MAX));
+            let report = self
+                .streams
+                .direction_mut(direction)
+                .insert(sequence, payload, self.frame, false);
+            self.streams
+                .observe_http_actions(direction, &report.actions);
+            report
+        }
+    }
+
+    const CONNECT: &[u8] = b"CONNECT example.com:443 HTTP/1.1\r\nHost: h\r\n\r\n";
+    const LATER_RESPONSE: &[u8] = b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n";
+    const LATER_REQUEST: &[u8] = b"GET / HTTP/1.1\r\nHost: h\r\n\r\n";
+
+    #[test]
+    fn a_connect_tunnel_frames_no_later_message_in_either_direction() {
+        // RFC 9112 section 6.3 case 2: after a 2xx answer to CONNECT the
+        // connection is a tunnel, so later bytes that look like messages are
+        // tunnel data in both directions.
+        let mut exchange = HttpExchange::new();
+        assert!(emits_http_message(&exchange.send(0, CONNECT).actions));
+        let answer = exchange.send(1, b"HTTP/1.1 200 Connection established\r\n\r\n");
+        assert!(emits_http_message(&answer.actions));
+        let response = exchange.send(1, LATER_RESPONSE);
+        assert!(response.actions.is_empty(), "{:?}", response.actions);
+        let request = exchange.send(0, LATER_REQUEST);
+        assert!(request.actions.is_empty(), "{:?}", request.actions);
+    }
+
+    #[test]
+    fn a_refused_connect_keeps_framing_messages() {
+        // Only a 2xx answer opens a tunnel. After a 407 the client may send
+        // another request on the same connection, and its answer is framed.
+        let mut exchange = HttpExchange::new();
+        exchange.send(0, CONNECT);
+        let refusal = exchange.send(
+            1,
+            b"HTTP/1.1 407 Proxy Authentication Required\r\nContent-Length: 0\r\n\r\n",
+        );
+        assert!(emits_http_message(&refusal.actions));
+        assert!(emits_http_message(&exchange.send(0, LATER_REQUEST).actions));
+        assert!(emits_http_message(
+            &exchange.send(1, LATER_RESPONSE).actions
+        ));
+    }
+
+    #[test]
+    fn an_oversized_connect_answer_still_opens_the_tunnel() {
+        // The answer's header section is over the decoder cap, so it is not
+        // decoded, but the tunnel still begins after it.
+        let mut exchange = HttpExchange::new();
+        exchange.send(0, CONNECT);
+        let mut answer = b"HTTP/1.1 200 Connection established\r\nX-Pad: ".to_vec();
+        answer.resize(answer.len().saturating_add(MAX_HEADER_BYTES), b'a');
+        answer.extend_from_slice(b"\r\n\r\n");
+        let oversized = exchange.send(1, &answer);
+        assert_eq!(oversized.oversized, Some("1 MiB header"));
+        let response = exchange.send(1, LATER_RESPONSE);
+        assert!(response.actions.is_empty(), "{:?}", response.actions);
+        let request = exchange.send(0, LATER_REQUEST);
+        assert!(request.actions.is_empty(), "{:?}", request.actions);
     }
 
     #[test]

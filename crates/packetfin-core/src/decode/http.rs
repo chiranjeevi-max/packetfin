@@ -141,6 +141,12 @@ pub(crate) fn decode(context: &mut DecodeContext<'_>, parent: &mut Node, data: &
         .transport_ports
         .and_then(|(source, destination)| context.conversation_key(source, destination))
         .map(|(key, _)| key);
+    // After a 2xx answer to CONNECT the connection is a tunnel (RFC 9112
+    // section 6.3), so its bytes are not messages even when a segment
+    // reaches the decoder on its own, with desegmentation off.
+    if !context.quoted && conversation.is_some_and(|key| context.state.http_tunnel(key)) {
+        return;
+    }
     let mut offset = 0_usize;
     let mut info = String::new();
     let mut decoded = false;
@@ -393,7 +399,7 @@ fn parse_message(data: &[u8], base: usize, options: &MessageOptions<'_>) -> Opti
         }
         BodyPlan::Answer => {
             // A 2xx answer to CONNECT turns the connection into a tunnel
-            // (RFC 9112 section 9.3.6): the bytes the segment carries still
+            // (RFC 9110 section 9.3.6): the bytes the segment carries still
             // belong to the answer, so they cannot reopen as a message.
             let end = data.len();
             let bytes = data.get(offset..end).unwrap_or(&[]);

@@ -1009,10 +1009,11 @@ fn resolve_operand(operand: &mut Operand, expected: Option<Type>) -> Result<Type
                     "argument cannot be negated".to_string(),
                 ));
             }
-            Ok(if ty == Type::Time {
-                Type::Time
-            } else {
-                Type::Int(64)
+            // A negated time keeps its kind: a relative value still counts
+            // nanoseconds, which mixed time arithmetic scales to seconds.
+            Ok(match ty {
+                Type::Time | Type::Relative => ty,
+                _ => Type::Int(64),
             })
         }
         OperandKind::UnaryPlus(inner) => resolve_operand(inner, expected),
@@ -1621,7 +1622,7 @@ fn evaluate_operand<'a>(operand: &'a Operand, tree: &'a Tree) -> Sequence<'a> {
                 })
                 .collect();
             let ty = match inner.ty {
-                Type::Time => Type::Time,
+                Type::Time | Type::Relative => inner.ty,
                 ty if ty.is_numeric() => Type::Int(64),
                 ty => ty,
             };
@@ -5120,6 +5121,13 @@ mod tests {
         assert!(matches(
             "frame.time_relative - frame.time_epoch + frame.time_relative < 0"
         ));
+
+        // A negated relative operand is still a relative time, so adding it
+        // cancels the same 1.5 s instead of adding -1500000000 seconds.
+        assert!(matches(
+            "frame.time_relative + frame.time_epoch + -frame.time_relative == 1700000000"
+        ));
+        assert!(matches("-frame.time_relative == -1.5"));
 
         // Ordinary Double arithmetic keeps its raw numeric values: a
         // 5/256-unit field plus a fraction and a product stay scalar.

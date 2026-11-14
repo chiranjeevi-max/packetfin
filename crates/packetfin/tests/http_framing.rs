@@ -3,8 +3,8 @@
 //!
 //! The `http-framing-rfc` fixture has no golden case: its messages are exactly
 //! the shapes whose expected output disagrees with the standard, so the
-//! assertions below state the RFC rules (sections 6.1, 6.3, 7.1 and 9.3.6)
-//! instead of storing expected output.
+//! assertions below state the RFC rules (RFC 9112 sections 6.1, 6.3 and 7.1,
+//! RFC 9110 section 9.3.6) instead of storing expected output.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -484,5 +484,43 @@ fn a_propfind_request_reaches_the_follow_output() -> Result<(), String> {
         output.contains("HTTP/1.1 207 Multi-Status"),
         "the response must follow the request: {output}"
     );
+    Ok(())
+}
+
+#[test]
+fn a_connect_tunnel_carries_no_later_message() -> Result<(), String> {
+    // RFC 9112 section 6.3 case 2: after the 2xx answer to CONNECT the
+    // connection is a tunnel. The later segments that look like a response
+    // and a request are tunnel bytes, with or without reassembly.
+    for options in [&[][..], &["-o", "tcp.desegment_tcp_streams:FALSE"]] {
+        let rows = field_rows_where(
+            options,
+            &["frame.number", "http.request.method", "http.response.code"],
+        )?;
+        assert_eq!(column(row(&rows, "48")?, 1)?, "CONNECT", "{options:?}");
+        assert_eq!(column(row(&rows, "49")?, 2)?, "200", "{options:?}");
+        for frame in ["50", "51"] {
+            let tunnel = row(&rows, frame)?;
+            assert_eq!(column(tunnel, 1)?, "", "{options:?} frame {frame}");
+            assert_eq!(column(tunnel, 2)?, "", "{options:?} frame {frame}");
+        }
+    }
+    Ok(())
+}
+
+#[test]
+fn a_connect_tunnel_ends_the_follow() -> Result<(), String> {
+    for desegment in ["TRUE", "FALSE"] {
+        let preference = format!("tcp.desegment_tcp_streams:{desegment}");
+        let output = run(&["-n", "-q", "-o", &preference, "-z", "follow,http,ascii,16"])?;
+        assert!(
+            output.contains("HTTP/1.1 200 Connection established"),
+            "the answer that opens the tunnel is followed: {output}"
+        );
+        assert!(
+            !output.contains("200 OK") && !output.contains("GET /inside"),
+            "tunnel bytes are not HTTP records: {output}"
+        );
+    }
     Ok(())
 }

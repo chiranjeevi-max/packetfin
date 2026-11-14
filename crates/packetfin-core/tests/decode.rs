@@ -1983,6 +1983,44 @@ fn dhcp_rfc3396_blocks_mark_and_decode_the_last_block() {
 }
 
 #[test]
+fn dhcp_rfc3396_malformed_composite_keeps_packet_offsets() {
+    // The two Option 82 blocks join into `09 04 00 00 7e d9`: a vendor
+    // suboption whose enterprise number fills all four of its octets, so the
+    // data-length octet RFC 4243 section 4 requires is missing. The field
+    // decoded before the error must point into the packet, like the fields
+    // of a composite that decodes cleanly.
+    let mut main = dhcp_option_bytes(82, &[9, 4, 0]);
+    main.extend_from_slice(&dhcp_option_bytes(82, &[0, 0x7e, 0xd9]));
+    main.push(255);
+    let payload = bootp_test_payload(&[], &[], &main);
+    let packet = decode_frame(&captured_frame(1, services_udp_frame(68, 67, &payload)));
+    assert!(packet.malformed, "the joined vendor block is truncated");
+    let dhcp = child_node(&packet.tree.frame, "dhcp").unwrap_or_else(|| unreachable!());
+    let last_block = dhcp
+        .fields
+        .iter()
+        .rfind(|field| {
+            field.def.abbrev == "dhcp.option.type" && matches!(field.value, Value::Uint8(82))
+        })
+        .unwrap_or_else(|| unreachable!("the last Option 82 block"));
+    let enterprise = frame_field_in(
+        last_block,
+        "dhcp.option.agent_information_option.vi.enterprise",
+    )
+    .unwrap_or_else(|| unreachable!("the enterprise number decoded before the error"));
+    assert!(matches!(enterprise.value, Value::Uint32(32_473)));
+    // The enterprise number starts two octets into the joined body, after the
+    // suboption code and length.
+    assert_eq!(enterprise.range.offset, last_block.range.offset + 2);
+    let raw = enterprise
+        .raw
+        .as_ref()
+        .unwrap_or_else(|| unreachable!("the joined bytes back the field"));
+    assert_eq!(raw.bytes.as_slice(), [0, 0, 0x7e, 0xd9]);
+    assert_eq!(raw.start, enterprise.range.offset);
+}
+
+#[test]
 fn dhcp_truncated_option_keeps_its_container_and_bounds() {
     let mut main = dhcp_option_bytes(53, &[1]);
     main.extend_from_slice(&[12, 8, b'a']);

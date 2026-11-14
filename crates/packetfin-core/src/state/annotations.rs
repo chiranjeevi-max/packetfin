@@ -13,7 +13,7 @@
 
 use std::mem::size_of;
 
-use crate::decode::Packet;
+use crate::decode::{Packet, http2};
 use crate::fields;
 use crate::tree::{ExpertInfo, Field, Group, Node, Range, Severity, Value};
 
@@ -455,17 +455,64 @@ fn field_in_container(field: &Field, abbrev: &str) -> bool {
             .any(|child| field_in_container(child, abbrev))
 }
 
+/// Whether a stream container carries the fragment of a HEADERS or
+/// PUSH_PROMISE frame, the only frames that open a header block.
+fn opens_header_block(stream: &Field) -> bool {
+    stream.children.iter().any(|field| {
+        matches!(
+            field.def.abbrev,
+            "http2.headers" | "http2.push_promise.header"
+        )
+    })
+}
+
+/// Whether a stream container leaves its header block open for a
+/// CONTINUATION frame.
+fn leaves_block_open(stream: &Field) -> bool {
+    stream
+        .children
+        .iter()
+        .find(|field| field.def.abbrev == "http2.flags")
+        .is_some_and(|field| {
+            matches!(field.value, Value::Uint8(bits) if bits & http2::FLAG_END_HEADERS == 0)
+        })
+}
+
+/// Whether a stream container shows a request whose block it opened and
+/// closed.
+fn shows_own_request(stream: &Field) -> bool {
+    opens_header_block(stream) && field_in_container(stream, "http2.headers.method")
+}
+
+/// Whether any HTTP/2 frame below `node` shows a request it opened and
+/// closed.
+fn packet_shows_own_request(node: &Node) -> bool {
+    let shown_here = node.protocol.filter_name == "http2"
+        && node
+            .fields
+            .iter()
+            .any(|field| field.def.abbrev == "http2.stream" && shows_own_request(field));
+    shown_here || node.children.iter().any(packet_shows_own_request)
+}
+
 /// Add HTTP/2 request/response links and the body reassembly link.
 ///
 /// The links live inside the frame's `http2.stream` container, before the
 /// generated request URI and before the DATA field, which is the position the
 /// reference prints them in. A frame can carry several HTTP/2 frames, so the
 /// links attach only to a node whose header list shows the matching role.
+///
+/// A request is recorded against the HEADERS or PUSH_PROMISE frame that
+/// opened its header block (RFC 9113 section 6.10), never against the
+/// CONTINUATION that ends it, although that frame shows the method. A block
+/// still open when the frame ends is the request only when no block that
+/// opened and closed in this frame shows one.
 fn apply_http2_annotations(
     packet: &mut Packet,
     annotation: &FrameAnnotation,
     renumber: &RenumberMap,
 ) {
+    let closed_request_shown = packet_shows_own_request(&packet.tree.frame);
     for_each_protocol_mut(&mut packet.tree.frame, "http2", &mut |node| {
         let Some(stream) = node
             .fields
@@ -475,7 +522,8 @@ fn apply_http2_annotations(
             return;
         };
         let response = field_in_container(stream, "http2.headers.status");
-        let request = field_in_container(stream, "http2.headers.method");
+        let request = shows_own_request(stream)
+            || (!closed_request_shown && opens_header_block(stream) && leaves_block_open(stream));
         let uri_index = stream
             .children
             .iter()

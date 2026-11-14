@@ -104,9 +104,11 @@ impl<W: Write> Writer<W> {
                 write_enhanced(&mut self.out, record, 0)
             }
             // A simple packet block also has no interface field: it always
-            // describes interface 0 of its section.  Another interface, such
-            // as one appended by a section merge, needs an enhanced block
-            // with no timestamp so its own link type stays attached.
+            // belongs to the first interface of its section
+            // (draft-ietf-opsawg-pcapng section 4.4). Another interface, such
+            // as one appended by a section merge, needs an enhanced block,
+            // whose Interface ID names it (section 4.3), with no timestamp so
+            // its own link type stays attached.
             None if record.interface != 0 => write_enhanced(&mut self.out, record, 0),
             None => write_simple(&mut self.out, record),
         }

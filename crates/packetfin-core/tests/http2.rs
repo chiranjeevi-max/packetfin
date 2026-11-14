@@ -1254,3 +1254,199 @@ fn an_acknowledged_table_reduction_requires_a_size_update() {
         expert.group == Group::Malformed && expert.message.contains("required table size update")
     }));
 }
+
+#[test]
+fn a_frame_header_cut_short_is_reported_after_the_decoded_frames() {
+    // Without desegmentation a forced port hands each segment to the decoder
+    // whole, so a segment can end inside a frame header. The preface and the
+    // complete SETTINGS frame stay; the eight octets left cannot hold the
+    // nine-octet header of RFC 9113 section 4.1.
+    let mut options = DecodeOptions::default();
+    options.preferences.tcp_desegment_tcp_streams = false;
+    parse_decode_as("tcp.port==8080,http2", &mut options.decode_as)
+        .unwrap_or_else(|_| unreachable!("a valid decode-as entry"));
+    let mut session = DecodeSession::new(options);
+    let mut payload = PREFACE.to_vec();
+    payload.extend_from_slice(&h2_frame(4, 0, 0, &[]));
+    payload.extend_from_slice(&[0, 0, 0, 4, 0, 0, 0, 0]);
+    let client = ([192, 0, 2, 1], 40_000);
+    let server = ([192, 0, 2, 2], 8080);
+    let packet = session.decode_at(&frame_between(1, 1, client, server, &payload), 1);
+    assert!(packet.malformed, "the cut header is malformed");
+    let mut nodes = Vec::new();
+    http2_nodes(&packet.tree.frame, &mut nodes);
+    assert_eq!(nodes.len(), 3, "Magic, SETTINGS and the cut fragment");
+    assert!(
+        nodes
+            .get(1)
+            .is_some_and(|node| has_child(node, "http2.streamid")),
+        "the complete SETTINGS frame before the cut stays decoded"
+    );
+    let fragment = nodes
+        .last()
+        .copied()
+        .unwrap_or_else(|| unreachable!("the cut fragment has its own node"));
+    assert_eq!(fragment.range.length, 8);
+    assert!(fragment.experts.iter().any(|expert| {
+        expert.group == Group::Malformed && expert.message == "HTTP/2 frame header is truncated"
+    }));
+    // The captured Length, Type and Flags octets keep their fields; the
+    // stream identifier would need the ninth octet.
+    assert_eq!(
+        child_value_of(fragment, "http2.length").as_deref(),
+        Some("0")
+    );
+    assert_eq!(child_value_of(fragment, "http2.type").as_deref(), Some("4"));
+    assert!(has_child(fragment, "http2.flags"));
+    assert!(!has_child(fragment, "http2.streamid"));
+}
+
+/// A field's rendered value inside a node's stream container.
+fn child_value_of(node: &Node, abbrev: &str) -> Option<String> {
+    stream_container(node).and_then(|stream| child_value(stream, abbrev))
+}
+
+#[test]
+fn a_zero_window_increment_is_a_protocol_error() {
+    // RFC 9113 section 6.9 makes a zero increment a PROTOCOL_ERROR on the
+    // connection (stream 0) and on a stream alike. The window does not move,
+    // so the calculated pair still shows the same value twice.
+    let mut session = DecodeSession::new(DecodeOptions::default());
+    let mut payload = PREFACE.to_vec();
+    payload.extend_from_slice(&h2_frame(4, 0, 0, &[]));
+    payload.extend_from_slice(&h2_frame(8, 0, 0, &[0, 0, 0, 0]));
+    payload.extend_from_slice(&h2_frame(8, 0, 1, &[0, 0, 0, 0]));
+    let packet = session.decode_at(&frame(1, 1, &payload), 1);
+    assert!(
+        !packet.malformed,
+        "a zero increment breaks the protocol, not the framing"
+    );
+    let mut nodes = Vec::new();
+    http2_nodes(&packet.tree.frame, &mut nodes);
+    let increments: Vec<&packetfin_core::tree::Field> = nodes
+        .iter()
+        .filter_map(|node| stream_container(node))
+        .flat_map(|stream| stream.children.iter())
+        .filter(|field| field.def.abbrev == "http2.window_update.window_size_increment")
+        .collect();
+    assert_eq!(increments.len(), 2, "one increment per WINDOW_UPDATE frame");
+    for increment in increments {
+        assert!(increment.experts.iter().any(|expert| {
+            expert.group == Group::Protocol && expert.message.ends_with("PROTOCOL_ERROR")
+        }));
+    }
+    for scope in ["connection", "stream"] {
+        let before = format!("http2.calculated.{scope}.window_size.before");
+        let after = format!("http2.calculated.{scope}.window_size.after");
+        let stream = stream_with(&packet, &before)
+            .unwrap_or_else(|| unreachable!("the {scope} window pair is calculated"));
+        assert_eq!(
+            child_value(stream, &before),
+            child_value(stream, &after),
+            "the {scope} window does not move"
+        );
+    }
+}
+
+#[test]
+fn a_split_request_shows_its_response_link_on_the_opening_headers() {
+    // The request is recorded against the HEADERS frame that opened its
+    // block (RFC 9113 section 6.10), but its method renders on the
+    // CONTINUATION frame that ends the block. The output pass must still
+    // print the forward link on the HEADERS frame.
+    let client = ([192, 0, 2, 1], 40_000);
+    let server = ([192, 0, 2, 2], 80);
+    let mut opening = PREFACE.to_vec();
+    opening.extend_from_slice(&h2_frame(4, 0, 0, &[]));
+    opening.extend_from_slice(&h2_frame(1, 0x01, 1, &[0x82, 0x86]));
+    let continuation = h2_frame(9, 0x04, 1, &[0x84]);
+    let response = h2_frame(1, 0x05, 1, &[0x88]);
+    let continuation_sequence = 1 + u32::try_from(opening.len()).unwrap_or(0);
+    let frames = [
+        frame_between(1, 1, client, server, &opening),
+        frame_between(2, continuation_sequence, client, server, &continuation),
+        frame_between(3, 1, server, client, &response),
+    ];
+    assert_eq!(
+        response_links(&frames),
+        [vec![(1, 3)], vec![], vec![]],
+        "only the opening HEADERS frame links forward to the response"
+    );
+}
+
+#[test]
+fn a_continuation_never_takes_the_link_of_a_block_opened_beside_it() {
+    // The second segment ends stream 1's block, opened in the first segment,
+    // and opens stream 3's block. Stream 3's request is recorded against the
+    // second segment, so its link belongs on the HEADERS frame there, not on
+    // the CONTINUATION that shows stream 1's method.
+    let client = ([192, 0, 2, 1], 40_000);
+    let server = ([192, 0, 2, 2], 80);
+    let mut first = PREFACE.to_vec();
+    first.extend_from_slice(&h2_frame(4, 0, 0, &[]));
+    first.extend_from_slice(&h2_frame(1, 0x01, 1, &[0x82, 0x86]));
+    let mut second = h2_frame(9, 0x04, 1, &[0x84]);
+    second.extend_from_slice(&h2_frame(1, 0x01, 3, &[0x82, 0x86]));
+    let third = h2_frame(9, 0x04, 3, &[0x84]);
+    let first_response = h2_frame(1, 0x05, 1, &[0x88]);
+    let second_response = h2_frame(1, 0x05, 3, &[0x88]);
+    let second_sequence = 1 + u32::try_from(first.len()).unwrap_or(0);
+    let third_sequence = second_sequence + u32::try_from(second.len()).unwrap_or(0);
+    let response_sequence = 1 + u32::try_from(first_response.len()).unwrap_or(0);
+    let frames = [
+        frame_between(1, 1, client, server, &first),
+        frame_between(2, second_sequence, client, server, &second),
+        frame_between(3, third_sequence, client, server, &third),
+        frame_between(4, 1, server, client, &first_response),
+        frame_between(5, response_sequence, server, client, &second_response),
+    ];
+    assert_eq!(
+        response_links(&frames),
+        [vec![(1, 4)], vec![(3, 5)], vec![], vec![], vec![]],
+    );
+}
+
+/// Run both passes over `frames` and list, per frame, the stream identifier
+/// and the `http2.response_in` value of every HTTP/2 frame that links forward.
+fn response_links(frames: &[Frame]) -> Vec<Vec<(u32, u32)>> {
+    let mut recording = DecodeSession::with_pass(
+        DecodeOptions::default(),
+        packetfin_core::DEFAULT_STATE_BUDGET,
+        packetfin_core::PassMode::First,
+    );
+    for (file, frame) in (1..).zip(frames) {
+        let _ = recording.decode_at(frame, file);
+    }
+    let annotations = recording.into_annotations();
+
+    let mut output = DecodeSession::with_pass(
+        DecodeOptions::default(),
+        packetfin_core::DEFAULT_STATE_BUDGET,
+        packetfin_core::PassMode::Second,
+    );
+    let renumber = packetfin_core::RenumberMap::new(1..=u64::try_from(frames.len()).unwrap_or(0));
+    let number = |stream: &packetfin_core::tree::Field, abbrev: &str| {
+        child_value(stream, abbrev).and_then(|value| value.parse::<u32>().ok())
+    };
+    (1..)
+        .zip(frames)
+        .map(|(file, frame)| {
+            let mut packet = output.decode_at(frame, file);
+            if let Some(annotation) = annotations.get(file) {
+                packetfin_core::apply_annotations(&mut packet, annotation, &renumber);
+            }
+            let mut nodes = Vec::new();
+            http2_nodes(&packet.tree.frame, &mut nodes);
+            nodes
+                .iter()
+                .filter_map(|node| stream_container(node))
+                .filter_map(|stream| {
+                    Some((
+                        number(stream, "http2.streamid")?,
+                        number(stream, "http2.response_in")?,
+                    ))
+                })
+                .collect()
+        })
+        .collect()
+}

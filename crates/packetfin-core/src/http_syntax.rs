@@ -112,7 +112,10 @@ pub(crate) fn parse_start_line(line: &[u8]) -> Option<StartLine<'_>> {
     let uri = parts.next()?;
     let version = parts.next()?;
     let _extra = parts.next();
-    if method.len() > 16
+    // RFC 9110 section 9.1 makes the method a token, which section 5.6.2
+    // defines as one or more tchar, so a line that opens with SP has none.
+    if method.is_empty()
+        || method.len() > 16
         || !method
             .iter()
             .all(|byte| byte.is_ascii_alphanumeric() || b"!#$%&'*+-.^_`|~".contains(byte))
@@ -377,7 +380,7 @@ impl Framing {
         self.response && answer.head
     }
 
-    /// Whether this is a 2xx response to CONNECT (RFC 9112 section 9.3.6):
+    /// Whether this is a 2xx response to CONNECT (RFC 9110 section 9.3.6):
     /// after the header section the connection carries the tunnel.
     pub(crate) fn answers_connect(&self, answer: Answer) -> bool {
         self.response && answer.connect && self.code.is_some_and(|code| (200..300).contains(&code))
@@ -441,7 +444,7 @@ pub(crate) enum BodyPlan {
     /// Exactly this many bytes follow it.
     Fixed(usize),
     /// A 2xx answer to CONNECT: the connection becomes a tunnel, so every
-    /// captured trailing byte belongs to the answer (RFC 9112 section 9.3.6).
+    /// captured trailing byte belongs to the answer (RFC 9110 section 9.3.6).
     Answer,
     /// The framing fields are unusable; the captured remainder is body.
     InvalidLength,
@@ -708,8 +711,6 @@ pub(crate) enum ChunkStep<'a> {
     },
     /// A size line is not a usable hexadecimal length.
     Invalid {
-        /// Offset of the unusable size line.
-        at: usize,
         /// Whether the line is not hexadecimal or is too large to represent.
         reason: ChunkInvalid,
     },
@@ -818,20 +819,17 @@ impl ChunkScanner {
                 .unwrap_or_default();
             let Ok(size_text) = std::str::from_utf8(size_text) else {
                 return ChunkStep::Invalid {
-                    at: self.position,
                     reason: ChunkInvalid::Syntax,
                 };
             };
             let size_text = size_text.trim();
             if size_text.is_empty() || !size_text.bytes().all(|byte| byte.is_ascii_hexdigit()) {
                 return ChunkStep::Invalid {
-                    at: self.position,
                     reason: ChunkInvalid::Syntax,
                 };
             }
             let Ok(size) = usize::from_str_radix(size_text, 16) else {
                 return ChunkStep::Invalid {
-                    at: self.position,
                     reason: ChunkInvalid::Overflow,
                 };
             };
@@ -879,6 +877,8 @@ mod tests {
         assert!(parse_start_line(b"HTTP/1.2 200 OK").is_none());
         assert!(parse_start_line(b"GET / HTTP/2.0").is_none());
         assert!(parse_start_line(b"NOT A REQUEST").is_none());
+        // The tail of a split request line has no method token.
+        assert!(parse_start_line(b" / HTTP/1.1").is_none());
     }
 
     #[test]
@@ -1092,7 +1092,7 @@ mod tests {
 
     #[test]
     fn only_a_connect_tunnel_owns_its_captured_bytes() {
-        // RFC 9112 section 9.3.6: a 2xx answer to CONNECT turns the connection
+        // RFC 9110 section 9.3.6: a 2xx answer to CONNECT turns the connection
         // into a tunnel, and every captured trailing byte belongs to it.
         let connect = Answer {
             head: false,
@@ -1321,10 +1321,7 @@ mod tests {
             assert!(
                 matches!(
                     step,
-                    ChunkStep::Invalid {
-                        at: 0,
-                        reason: found
-                    } if found == reason
+                    ChunkStep::Invalid { reason: found } if found == reason
                 ),
                 "{body:?} must be invalid for {reason:?}: {step:?}"
             );

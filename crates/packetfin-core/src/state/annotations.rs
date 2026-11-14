@@ -648,10 +648,11 @@ fn field_contains(field: &Field, abbrev: &str) -> bool {
 ///
 /// A frame keeps its HTTP/TLS summary when the segment already held a
 /// complete message before the split tail; the minimal TLS segment node that
-/// only carries `tls.segment_data` is not such a message.
+/// only carries `tls.segment_data` is not such a message. An `http2` node is
+/// a decoded HTTP/2 message, so it counts beside `http`.
 fn has_genuine_upper(node: &Node) -> bool {
     match node.protocol.filter_name {
-        "http" | "dns" | "mdns" | "llmnr" | "bgp" => return true,
+        "http" | "http2" | "dns" | "mdns" | "llmnr" | "bgp" => return true,
         "tls"
             if node
                 .fields
@@ -999,5 +1000,16 @@ mod tests {
         assert_eq!(map.output(3), 2);
         assert_eq!(map.output(4), 2);
         assert_eq!(map.output(5), 3);
+    }
+
+    #[test]
+    fn a_decoded_http2_node_counts_as_a_completed_upper_layer() {
+        // A frame whose only upper node is HTTP/2 keeps its HTTP/2 summary
+        // instead of being folded back into plain TCP.
+        let mut frame = Node::new(&crate::fields::FRAME_PROTOCOL, Range::new(0, 0));
+        let mut tcp = Node::new(&crate::fields::TCP_PROTOCOL, Range::new(0, 0));
+        tcp.add_child(Node::new(&crate::fields::HTTP2_PROTOCOL, Range::new(0, 0)));
+        frame.add_child(tcp);
+        assert!(has_genuine_upper(&frame));
     }
 }

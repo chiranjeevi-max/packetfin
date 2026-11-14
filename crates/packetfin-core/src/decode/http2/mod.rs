@@ -209,6 +209,10 @@ pub(crate) fn decode(context: &mut DecodeContext<'_>, parent: &mut Node, data: &
             });
             if let Some(key) = key {
                 context.state.http2_mark_table_lost(key);
+                // Skipped DATA frames may have carried body bytes, so no
+                // later END_STREAM may present the visible fragments as a
+                // contiguous body.
+                context.state.http2_abandon_bodies(key);
             }
             break;
         }

@@ -292,6 +292,13 @@ pub(crate) struct Http2Direction {
     /// decoding any of them would fabricate table mutations or clear a lost
     /// table. Mutually exclusive with [`Self::pending`].
     discarding: Option<u32>,
+    /// Frames in this direction were skipped, so body byte order is unknown.
+    ///
+    /// A per-payload frame cap can drop DATA frames without seeing their
+    /// payload; later DATA on the same or a new stream may have a missing
+    /// prefix. Every body in the direction stays failed for the rest of the
+    /// capture rather than presenting a body with silent holes.
+    body_lost: bool,
     windows: Windows,
 }
 
@@ -306,6 +313,7 @@ impl Default for Http2Direction {
             last_settings_discarded: false,
             pending: None,
             discarding: None,
+            body_lost: false,
             windows: Windows::default(),
         }
     }
@@ -815,6 +823,39 @@ impl SessionState {
         self.http2.put_with(&mut self.budget, key, direction);
     }
 
+    /// Fail every body in one direction after frames were skipped.
+    ///
+    /// RFC 9113 section 6.1 makes DATA byte order part of the stream body;
+    /// skipping frames means any later body may be missing a prefix. The
+    /// direction is marked permanently failed and its buffered bodies are
+    /// released, so a later END_STREAM reports an incomplete body instead of
+    /// assembling the visible fragments as if they were contiguous.
+    pub(crate) fn http2_abandon_bodies(&mut self, key: Http2Key) {
+        let mut direction = self
+            .http2
+            .take_with(&mut self.budget, &key)
+            .unwrap_or_default();
+        direction.body_lost = true;
+        self.http2.put_with(&mut self.budget, key, direction);
+        let mut streams = self
+            .http2_streams
+            .take_with(&mut self.budget, &key.conversation)
+            .unwrap_or_default();
+        for stream in &mut streams.streams {
+            let Some(body) = stream.bodies.get_mut(usize::from(key.direction & 1)) else {
+                continue;
+            };
+            body.dropped = true;
+            body.truncated = false;
+            body.total = 0;
+            body.fragment_count = 0;
+            body.bytes.clear();
+            body.fragments.clear();
+        }
+        self.http2_streams
+            .put_with(&mut self.budget, key.conversation, streams);
+    }
+
     /// Apply the values of the acknowledged SETTINGS frame.
     ///
     /// RFC 9113 section 6.5: a recipient acknowledges a SETTINGS frame with
@@ -970,6 +1011,7 @@ impl SessionState {
         direction.windows.add_stream(stream_id, -length);
         let connection_after = connection_before.saturating_sub(length);
         let stream_after = stream_before.saturating_sub(length);
+        let body_lost = direction.body_lost;
         self.http2.put_with(&mut self.budget, key, direction);
 
         let mut streams = self
@@ -995,6 +1037,13 @@ impl SessionState {
         {
             if body.complete {
                 body.reset();
+            }
+            if body_lost {
+                body.dropped = true;
+                body.bytes.clear();
+                body.fragments.clear();
+                body.total = 0;
+                body.fragment_count = 0;
             }
             if !body.dropped {
                 let offset = body.total;
@@ -1651,6 +1700,42 @@ mod tests {
             true,
         );
         assert_eq!(after.block.map(|block| block.stop), Some(Stop::Complete));
+    }
+
+    #[test]
+    fn abandoned_bodies_do_not_resume_after_skipped_frames() {
+        let mut state = SessionState::new(64 * 1024 * 1024);
+        let (client, _) = keys();
+        let start = state.http2_data(
+            client,
+            Http2Data {
+                stream_id: 1,
+                data: b"a",
+                flow_length: 1,
+                end_stream: false,
+                frame: 1,
+                file: 1,
+            },
+        );
+        assert_eq!(start.total, 1);
+        assert!(!start.dropped);
+        // The frame cap skipped bytes 2 and 3 in this direction, so the visible
+        // fragments must not complete as if the body were contiguous.
+        state.http2_abandon_bodies(client);
+        let end = state.http2_data(
+            client,
+            Http2Data {
+                stream_id: 1,
+                data: b"c",
+                flow_length: 1,
+                end_stream: true,
+                frame: 3,
+                file: 3,
+            },
+        );
+        assert!(end.dropped);
+        assert_eq!(end.total, 0);
+        assert!(end.data.is_none());
     }
 
     #[test]

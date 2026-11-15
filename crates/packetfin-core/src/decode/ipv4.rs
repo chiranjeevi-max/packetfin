@@ -383,6 +383,7 @@ pub(crate) fn decode(context: &mut DecodeContext<'_>, parent: &mut Node, data: &
                     frame: context.frame.number,
                     file: context.frame.file_number,
                     more: flags_value & 0x2000 != 0,
+                    timestamp: context.frame.timestamp,
                 },
             );
             match outcome {

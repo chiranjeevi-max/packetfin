@@ -79,7 +79,14 @@ fn frame(number: u64, captured: Vec<u8>) -> Frame {
 }
 
 fuzz_target!(|data: &[u8]| {
-    let specs = ["follow,tcp,ascii,0", "follow,tcp,hex,0", "follow,tcp,raw,0", "follow,udp,ascii,0"]
+    let specs = [
+        "follow,tcp,ascii,0",
+        "follow,tcp,hex,0",
+        "follow,tcp,raw,0",
+        "follow,udp,ascii,0",
+        "follow,http,ascii,0",
+        "follow,http,raw,0",
+    ]
         .into_iter()
         .filter_map(|spec| parse_spec(spec).ok())
         .collect::<Vec<_>>();

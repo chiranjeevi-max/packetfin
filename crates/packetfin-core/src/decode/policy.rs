@@ -63,7 +63,7 @@ impl LayerType {
             return true;
         }
         match self {
-            Self::TcpPort => matches!(protocol, Protocol::Dns),
+            Self::TcpPort => matches!(protocol, Protocol::Dns | Protocol::Http2),
             Self::UdpPort => fields::udp_port_protocols().any(|candidate| candidate == protocol),
             Self::IpProto => fields::ip_protocol_protocols().any(|candidate| candidate == protocol),
             Self::Ethertype => fields::ethertype_protocols().any(|candidate| candidate == protocol),

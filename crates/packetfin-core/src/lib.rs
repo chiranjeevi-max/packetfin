@@ -42,8 +42,9 @@ pub use names::{
 };
 pub use state::{
     AnnotationStore, DEFAULT_ANNOTATION_BUDGET, DEFAULT_STATE_BUDGET, DecodeSession,
-    FrameAnnotation, FrameInfo, PassMode, PutOutcome, RenumberMap, SessionState, StateStore,
-    StateValue, apply_annotations, apply_dns_annotations, expert_label_only, expert_offending,
+    FrameAnnotation, FrameInfo, Http2Links, PassMode, PutOutcome, RenumberMap, SessionState,
+    StateStore, StateValue, apply_annotations, apply_dns_annotations, expert_label_only,
+    expert_offending,
 };
 pub use stats::{
     ConvKind, DEFAULT_STATS_BUDGET, StatsFilter, StatsOptions, StatsSet, StatsSpec,

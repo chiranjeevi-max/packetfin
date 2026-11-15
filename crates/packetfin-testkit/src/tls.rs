@@ -8,7 +8,7 @@
 //! Deterministic TLS handshake and record writer for fixtures.
 //!
 //! The fixtures need standard records that Packetfin can decrypt from a
-//! key-log file. The writer therefore follows RFC 5246/8446 record
+//! key-log file. The writer therefore follows RFC 2246/5246/8446 record
 //! protection literally: fixed client/server randoms and secrets, a selected
 //! cipher suite, and one sequence counter per direction and epoch. It is a
 //! test-vector generator, not a TLS implementation: there is no key exchange,
@@ -27,8 +27,15 @@ use cbc::cipher::{BlockModeEncrypt, KeyIvInit};
 use chacha20poly1305::ChaCha20Poly1305;
 use hkdf::Hkdf;
 use hmac::{Hmac, Mac};
+use md5::Md5;
 use sha1::Sha1;
 use sha2::{Sha256, Sha384};
+
+/// TLS 1.0 record header version.
+pub const TLS10_VERSION: u16 = 0x0301;
+
+/// TLS 1.1 record header version.
+pub const TLS11_VERSION: u16 = 0x0302;
 
 /// TLS 1.2 record header version.
 pub const TLS12_VERSION: u16 = 0x0303;
@@ -51,9 +58,10 @@ pub const CHANGE_CIPHER_SPEC: u8 = 20;
 /// Application data.
 pub const APPLICATION_DATA: u8 = 23;
 
-/// Hash used by a fixture suite.
+/// Hash used by a fixture suite, plus MD5 for the TLS 1.0 PRF half.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Hash {
+    Md5,
     Sha1,
     Sha256,
     Sha384,
@@ -62,6 +70,7 @@ enum Hash {
 impl Hash {
     fn len(self) -> usize {
         match self {
+            Self::Md5 => 16,
             Self::Sha1 => 20,
             Self::Sha256 => 32,
             Self::Sha384 => 48,
@@ -136,6 +145,13 @@ pub fn hex(bytes: &[u8]) -> String {
 
 fn hmac(hash: Hash, key: &[u8], parts: &[&[u8]]) -> Vec<u8> {
     match hash {
+        Hash::Md5 => {
+            let mut mac = Hmac::<Md5>::new_from_slice(key).expect("hmac key");
+            for part in parts {
+                mac.update(part);
+            }
+            mac.finalize().into_bytes().to_vec()
+        }
         Hash::Sha1 => {
             let mut mac = Hmac::<Sha1>::new_from_slice(key).expect("hmac key");
             for part in parts {
@@ -190,6 +206,7 @@ fn hkdf_expand_label(
     info.extend_from_slice(context);
     let mut out = vec![0_u8; len];
     match hash {
+        Hash::Md5 => panic!("TLS 1.3 has no MD5 suite"),
         Hash::Sha1 => panic!("TLS 1.3 has no SHA-1 suite"),
         Hash::Sha256 => Hkdf::<Sha256>::from_prk(secret)
             .expect("prk")
@@ -201,6 +218,19 @@ fn hkdf_expand_label(
             .expect("expand"),
     }
     out
+}
+
+/// TLS 1.0/1.1 PRF: P_MD5(S1) XOR P_SHA-1(S2) (RFC 2246 section 5).
+fn prf_legacy(secret: &[u8], label: &[u8], seed: &[u8], len: usize) -> Vec<u8> {
+    let half = secret.len().div_ceil(2);
+    let first = &secret[..half];
+    let second = &secret[secret.len() - half..];
+    let md5 = prf(Hash::Md5, first, label, seed, len);
+    let sha1 = prf(Hash::Sha1, second, label, seed, len);
+    md5.iter()
+        .zip(sha1)
+        .map(|(left, right)| left ^ right)
+        .collect()
 }
 
 fn xor_sequence(iv: &[u8; 12], sequence: u64) -> [u8; 12] {
@@ -262,14 +292,15 @@ fn extensions(list: &[(u16, Vec<u8>)]) -> Vec<u8> {
     out
 }
 
-/// A ClientHello handshake message.
+/// A ClientHello handshake message for one protocol version.
 pub fn client_hello(
+    version: u16,
     random: [u8; 32],
     session_id: &[u8],
     ciphers: &[u16],
     list: &[(u16, Vec<u8>)],
 ) -> Vec<u8> {
-    let mut body = TLS12_VERSION.to_be_bytes().to_vec();
+    let mut body = version.to_be_bytes().to_vec();
     body.extend_from_slice(&random);
     body.push(u8::try_from(session_id.len()).expect("session id"));
     body.extend_from_slice(session_id);
@@ -286,14 +317,15 @@ pub fn client_hello(
     handshake(1, &body)
 }
 
-/// A ServerHello handshake message.
+/// A ServerHello handshake message for one protocol version.
 pub fn server_hello(
+    version: u16,
     random: [u8; 32],
     session_id: &[u8],
     cipher: u16,
     list: &[(u16, Vec<u8>)],
 ) -> Vec<u8> {
-    let mut body = TLS12_VERSION.to_be_bytes().to_vec();
+    let mut body = version.to_be_bytes().to_vec();
     body.extend_from_slice(&random);
     body.push(u8::try_from(session_id.len()).expect("session id"));
     body.extend_from_slice(session_id);
@@ -303,10 +335,12 @@ pub fn server_hello(
     handshake(2, &body)
 }
 
-/// A TLS 1.2 record protector.
+/// A TLS 1.0, 1.1 or 1.2 record protector.
 pub struct Tls12Writer {
     suite: Suite,
     suite_id: u16,
+    /// Record header version, which is also the MAC input version.
+    version: u16,
     encrypt_then_mac: bool,
     client_random: [u8; 32],
     server_random: [u8; 32],
@@ -317,15 +351,19 @@ pub struct Tls12Writer {
     server_key: Vec<u8>,
     server_mac: Vec<u8>,
     server_iv: [u8; 12],
+    /// Current CBC IV for TLS 1.0 implicit chaining.
+    client_chain_iv: [u8; 16],
+    server_chain_iv: [u8; 16],
     client_sequence: u64,
     server_sequence: u64,
 }
 
 impl Tls12Writer {
-    /// Create a writer with deterministic randoms and master secret.
+    /// Create a TLS 1.2 writer with deterministic randoms and master secret.
     pub fn new(suite_id: u16, encrypt_then_mac: bool) -> Self {
         Self::with_material(
             suite_id,
+            TLS12_VERSION,
             encrypt_then_mac,
             [0x11_u8; 32],
             [0x22_u8; 32],
@@ -333,8 +371,27 @@ impl Tls12Writer {
         )
     }
 
-    /// Create a writer for a resumed session using an existing master secret.
+    /// Create a TLS 1.0 or 1.1 writer with deterministic material.
+    ///
+    /// Only CBC suites exist before TLS 1.2; RFC 7366 section 3 applies to
+    /// TLS 1.0 as well, with an IV-less MAC input.
+    pub fn legacy(suite_id: u16, version: u16, encrypt_then_mac: bool) -> Self {
+        Self::with_material(
+            suite_id,
+            version,
+            encrypt_then_mac,
+            [0x11_u8; 32],
+            [0x22_u8; 32],
+            [0x33_u8; 48],
+        )
+    }
+
+    /// Create a writer for a resumed or independently keyed session.
+    ///
+    /// `version` selects TLS 1.0, 1.1 or 1.2; a resumed session reuses the
+    /// first connection's master secret with new randoms.
     pub fn resumed(
+        version: u16,
         suite_id: u16,
         encrypt_then_mac: bool,
         client_random: [u8; 32],
@@ -343,6 +400,7 @@ impl Tls12Writer {
     ) -> Self {
         Self::with_material(
             suite_id,
+            version,
             encrypt_then_mac,
             client_random,
             server_random,
@@ -352,22 +410,40 @@ impl Tls12Writer {
 
     fn with_material(
         suite_id: u16,
+        version: u16,
         encrypt_then_mac: bool,
         client_random: [u8; 32],
         server_random: [u8; 32],
         master: [u8; 48],
     ) -> Self {
-        let suite = suite(suite_id).expect("supported TLS 1.2 suite");
+        let suite = suite(suite_id).expect("supported pre-TLS 1.3 suite");
         assert!(!matches!(suite_id, 0x1301..=0x1303));
+        assert!(matches!(
+            version,
+            TLS10_VERSION | TLS11_VERSION | TLS12_VERSION
+        ));
+        let legacy = version != TLS12_VERSION;
+        assert!(!legacy || suite.is_cbc(), "TLS 1.0/1.1 fixtures use CBC");
         let mac_len = if suite.is_cbc() { suite.mac.len() } else { 0 };
+        // RFC 2246 section 6.3: a TLS 1.0 CBC key block carries a one-block
+        // write IV per direction; TLS 1.1 records carry their own.
+        let iv_len = if suite.is_cbc() {
+            if version == TLS10_VERSION { 16 } else { 0 }
+        } else {
+            suite.fixed_iv_len()
+        };
         let total = mac_len
             .saturating_mul(2)
             .saturating_add(suite.key_len().saturating_mul(2))
-            .saturating_add(suite.fixed_iv_len().saturating_mul(2));
+            .saturating_add(iv_len.saturating_mul(2));
         let mut seed = Vec::with_capacity(64);
         seed.extend_from_slice(&server_random);
         seed.extend_from_slice(&client_random);
-        let block = prf(suite.prf, &master, b"key expansion", &seed, total);
+        let block = if legacy {
+            prf_legacy(&master, b"key expansion", &seed, total)
+        } else {
+            prf(suite.prf, &master, b"key expansion", &seed, total)
+        };
         let mut offset = 0_usize;
         let mut take = |length: usize| {
             let slice = block[offset..offset + length].to_vec();
@@ -388,13 +464,19 @@ impl Tls12Writer {
         let server_key = take(suite.key_len());
         let mut client_iv = [0_u8; 12];
         let mut server_iv = [0_u8; 12];
-        if suite.fixed_iv_len() > 0 {
+        let mut client_chain_iv = [0_u8; 16];
+        let mut server_chain_iv = [0_u8; 16];
+        if suite.is_cbc() && version == TLS10_VERSION {
+            client_chain_iv.copy_from_slice(&take(16));
+            server_chain_iv.copy_from_slice(&take(16));
+        } else if suite.fixed_iv_len() > 0 {
             client_iv[..suite.fixed_iv_len()].copy_from_slice(&take(suite.fixed_iv_len()));
             server_iv[..suite.fixed_iv_len()].copy_from_slice(&take(suite.fixed_iv_len()));
         }
         Self {
             suite,
             suite_id,
+            version,
             encrypt_then_mac,
             client_random,
             server_random,
@@ -405,6 +487,8 @@ impl Tls12Writer {
             server_key,
             server_mac,
             server_iv,
+            client_chain_iv,
+            server_chain_iv,
             client_sequence: 0,
             server_sequence: 0,
         }
@@ -412,6 +496,16 @@ impl Tls12Writer {
 
     pub fn suite_id(&self) -> u16 {
         self.suite_id
+    }
+
+    /// The record header version this writer protects with.
+    pub fn version(&self) -> u16 {
+        self.version
+    }
+
+    /// Whether the session negotiated Encrypt-then-MAC (RFC 7366).
+    pub fn encrypt_then_mac(&self) -> bool {
+        self.encrypt_then_mac
     }
 
     pub fn client_random(&self) -> [u8; 32] {
@@ -433,17 +527,72 @@ impl Tls12Writer {
 
     /// Protect one record.
     pub fn record(&mut self, from_client: bool, content_type: u8, plaintext: &[u8]) -> Vec<u8> {
+        self.protect(from_client, content_type, plaintext, None, self.version)
+    }
+
+    /// Protect one record whose header and MAC both carry `version`, as a
+    /// peer that ignores the negotiated version would send it. The record
+    /// layout (TLS 1.0 IV chaining or an explicit IV) still follows the
+    /// negotiated version, so only a version check can reject the record.
+    pub fn record_with_version(
+        &mut self,
+        from_client: bool,
+        content_type: u8,
+        plaintext: &[u8],
+        version: u16,
+    ) -> Vec<u8> {
+        self.protect(from_client, content_type, plaintext, None, version)
+    }
+
+    /// Protect one CBC record with caller-supplied padding octets.
+    ///
+    /// The padding follows the MAC inside the plaintext, so the caller writes
+    /// `padding_length + 1` copied values and keeps the record block-aligned.
+    /// A fixture uses it for a legitimate long padding run and for a record
+    /// whose padding cannot validate while its MAC still does.
+    pub fn record_with_padding(
+        &mut self,
+        from_client: bool,
+        content_type: u8,
+        plaintext: &[u8],
+        padding: &[u8],
+    ) -> Vec<u8> {
+        self.protect(
+            from_client,
+            content_type,
+            plaintext,
+            Some(padding),
+            self.version,
+        )
+    }
+
+    fn protect(
+        &mut self,
+        from_client: bool,
+        content_type: u8,
+        plaintext: &[u8],
+        padding: Option<&[u8]>,
+        version: u16,
+    ) -> Vec<u8> {
         let sequence = if from_client {
             self.client_sequence
         } else {
             self.server_sequence
         };
         let mut header = vec![content_type];
-        header.extend_from_slice(&TLS12_VERSION.to_be_bytes());
+        header.extend_from_slice(&version.to_be_bytes());
         let fragment = if self.suite.is_cbc() {
-            self.cbc_record(from_client, sequence, content_type, plaintext)
+            self.cbc_record(
+                from_client,
+                sequence,
+                content_type,
+                plaintext,
+                padding,
+                version,
+            )
         } else {
-            self.aead_record(from_client, sequence, content_type, plaintext)
+            assert!(padding.is_none(), "AEAD records carry no CBC padding");
+            self.aead_record(from_client, sequence, content_type, plaintext, version)
         };
         header.extend_from_slice(&u16::try_from(fragment.len()).expect("record").to_be_bytes());
         header.extend_from_slice(&fragment);
@@ -461,6 +610,7 @@ impl Tls12Writer {
         sequence: u64,
         content_type: u8,
         plaintext: &[u8],
+        version: u16,
     ) -> Vec<u8> {
         let (key, iv) = if from_client {
             (self.client_key.as_slice(), self.client_iv)
@@ -470,7 +620,7 @@ impl Tls12Writer {
         let mut aad = Vec::with_capacity(13);
         aad.extend_from_slice(&sequence.to_be_bytes());
         aad.push(content_type);
-        aad.extend_from_slice(&TLS12_VERSION.to_be_bytes());
+        aad.extend_from_slice(&version.to_be_bytes());
         aad.extend_from_slice(
             &u16::try_from(plaintext.len())
                 .expect("plaintext")
@@ -521,27 +671,43 @@ impl Tls12Writer {
     }
 
     fn cbc_record(
-        &self,
+        &mut self,
         from_client: bool,
         sequence: u64,
         content_type: u8,
         plaintext: &[u8],
+        padding: Option<&[u8]>,
+        version: u16,
     ) -> Vec<u8> {
         let (key, mac) = if from_client {
             (self.client_key.as_slice(), self.client_mac.as_slice())
         } else {
             (self.server_key.as_slice(), self.server_mac.as_slice())
         };
-        let mut iv = [0_u8; 16];
-        for (index, byte) in iv.iter_mut().enumerate() {
-            *byte = u8::try_from((sequence as usize).wrapping_add(index)).expect("iv");
-        }
+        // TLS 1.1 and 1.2 prefix the fragment with a fresh IV; TLS 1.0 uses
+        // the previous record's last ciphertext block (RFC 2246 6.2.3.2).
+        let explicit_iv = self.version != TLS10_VERSION;
+        let mut iv = if explicit_iv {
+            // RFC 4346 section 6.2.3.2 asks for an unpredictable IV per
+            // record; a fixture needs a repeatable one, so byte `n` is the
+            // low byte of `sequence + n`. Masking keeps every sequence value
+            // representable, so a long direction never saturates a byte.
+            let mut iv = [0_u8; 16];
+            for (index, byte) in iv.iter_mut().enumerate() {
+                *byte = (sequence.wrapping_add(index as u64) & 0xff) as u8;
+            }
+            iv
+        } else if from_client {
+            self.client_chain_iv
+        } else {
+            self.server_chain_iv
+        };
         let mut content = plaintext.to_vec();
         if !self.encrypt_then_mac {
             let mut aad = Vec::with_capacity(13);
             aad.extend_from_slice(&sequence.to_be_bytes());
             aad.push(content_type);
-            aad.extend_from_slice(&TLS12_VERSION.to_be_bytes());
+            aad.extend_from_slice(&version.to_be_bytes());
             aad.extend_from_slice(
                 &u16::try_from(plaintext.len())
                     .expect("plaintext")
@@ -550,11 +716,22 @@ impl Tls12Writer {
             let tag = hmac(self.suite.mac, mac, &[&aad, plaintext]);
             content.extend_from_slice(&tag);
         }
-        let padding_length = 15 - (content.len() % 16);
-        content.extend(std::iter::repeat_n(
-            u8::try_from(padding_length).expect("padding"),
-            padding_length + 1,
-        ));
+        match padding {
+            Some(padding) => {
+                content.extend_from_slice(padding);
+                assert!(
+                    content.len().is_multiple_of(16),
+                    "caller-supplied padding must keep the record block-aligned"
+                );
+            }
+            None => {
+                let padding_length = 15 - (content.len() % 16);
+                content.extend(std::iter::repeat_n(
+                    u8::try_from(padding_length).expect("padding"),
+                    padding_length + 1,
+                ));
+            }
+        }
         let mut buffer = content;
         let length = buffer.len();
         let ciphertext = if self.suite.bulk == Bulk::Aes128Cbc {
@@ -570,13 +747,13 @@ impl Tls12Writer {
                 .expect("encrypt")
                 .to_vec()
         };
-        let mut fragment = iv.to_vec();
+        let mut fragment = if explicit_iv { iv.to_vec() } else { Vec::new() };
         fragment.extend_from_slice(&ciphertext);
         if self.encrypt_then_mac {
             let mut aad = Vec::with_capacity(13);
             aad.extend_from_slice(&sequence.to_be_bytes());
             aad.push(content_type);
-            aad.extend_from_slice(&TLS12_VERSION.to_be_bytes());
+            aad.extend_from_slice(&version.to_be_bytes());
             aad.extend_from_slice(
                 &u16::try_from(fragment.len())
                     .expect("fragment")
@@ -584,6 +761,15 @@ impl Tls12Writer {
             );
             let tag = hmac(self.suite.mac, mac, &[&aad, &fragment]);
             fragment.extend_from_slice(&tag);
+        }
+        if !explicit_iv {
+            let tail = ciphertext.len().saturating_sub(16);
+            iv.copy_from_slice(&ciphertext[tail..]);
+            if from_client {
+                self.client_chain_iv = iv;
+            } else {
+                self.server_chain_iv = iv;
+            }
         }
         fragment
     }
@@ -812,5 +998,35 @@ impl Tls13Writer {
             .try_into()
             .expect("iv");
         keys.sequence = 0;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// RFC 4346 section 6.2.3.2 prefixes every CBC record with a fresh
+    /// explicit IV. A fixture direction past 241 records must keep producing
+    /// records, and each one must still carry a distinct IV.
+    #[test]
+    fn tls11_explicit_ivs_cover_a_long_direction() {
+        let mut writer = Tls12Writer::legacy(0x002f, TLS11_VERSION, false);
+        let mut previous_iv: Option<[u8; 16]> = None;
+        for _ in 0..242 {
+            let record = writer.record(true, APPLICATION_DATA, b"payload");
+            assert!(!record.is_empty(), "record {previous_iv:?} missing");
+            let iv: [u8; 16] = record
+                .get(5..21)
+                .and_then(|bytes| bytes.try_into().ok())
+                .expect("explicit IV");
+            if let Some(previous) = previous_iv {
+                assert_ne!(previous, iv, "consecutive records repeat an explicit IV");
+            }
+            previous_iv = Some(iv);
+        }
+        // The 242nd record is sequence 241: its last IV byte folds 256.
+        let last = previous_iv.expect("242nd record IV");
+        assert_eq!(last[0], 241);
+        assert_eq!(last[15], 0);
     }
 }

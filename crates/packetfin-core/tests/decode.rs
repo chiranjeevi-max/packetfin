@@ -142,8 +142,8 @@ fn ospf_ipv6_frame(packet: &[u8]) -> Vec<u8> {
 #[test]
 fn registry_indexes_frame_and_ethernet_fields() {
     let registry = fields::registry();
-    assert_eq!(registry.fields().len(), 1493);
-    assert_eq!(fields::protocols().len(), 45);
+    assert_eq!(registry.fields().len(), 1690);
+    assert_eq!(fields::protocols().len(), 46);
     assert_eq!(
         fields::protocols()
             .iter()
@@ -194,6 +194,7 @@ fn registry_indexes_frame_and_ethernet_fields() {
             "syslog",
             "bgp",
             "http",
+            "http2",
             "tls",
         ]
     );
@@ -1798,6 +1799,7 @@ fn dhcp_agent_suboptions_hide_only_handled_values() {
     agent.extend_from_slice(&[1, 2, 0xaa, 0xbb]);
     agent.extend_from_slice(&[0, 1, 0xcc]);
     agent.extend_from_slice(&[3, 1, 0xdd]);
+    agent.extend_from_slice(&[14, 1, 0xee]);
     let mut main = dhcp_option_bytes(53, &[1]);
     main.extend_from_slice(&dhcp_option_bytes(82, &agent));
     main.push(255);
@@ -1810,7 +1812,7 @@ fn dhcp_agent_suboptions_hide_only_handled_values() {
         .iter()
         .filter(|field| field.def.abbrev == "dhcp.option.agent_information_option.suboption")
         .collect();
-    assert_eq!(suboptions.len(), 3);
+    assert_eq!(suboptions.len(), 4);
     let hidden = |field: &Field| {
         field
             .children
@@ -1818,6 +1820,8 @@ fn dhcp_agent_suboptions_hide_only_handled_values() {
             .find(|child| child.def.abbrev == "dhcp.option.agent_information_option.value")
             .is_some_and(|child| child.hidden)
     };
+    // Codes 1-13 have a typed decode, so their generic value line is hidden;
+    // padding and the unregistered codes keep it visible.
     assert!(hidden(
         suboptions
             .first()
@@ -1827,8 +1831,11 @@ fn dhcp_agent_suboptions_hide_only_handled_values() {
     assert!(!hidden(
         suboptions.get(1).copied().unwrap_or_else(|| unreachable!())
     ));
-    assert!(!hidden(
+    assert!(hidden(
         suboptions.get(2).copied().unwrap_or_else(|| unreachable!())
+    ));
+    assert!(!hidden(
+        suboptions.get(3).copied().unwrap_or_else(|| unreachable!())
     ));
 }
 
@@ -1973,6 +1980,44 @@ fn dhcp_rfc3396_blocks_mark_and_decode_the_last_block() {
     assert!(matches!(&hostname.value, Value::String(text) if text == "abcd"));
     assert_eq!(hostname.range.length, 4);
     assert!(hostname.raw.is_some());
+}
+
+#[test]
+fn dhcp_rfc3396_malformed_composite_keeps_packet_offsets() {
+    // The two Option 82 blocks join into `09 04 00 00 7e d9`: a vendor
+    // suboption whose enterprise number fills all four of its octets, so the
+    // data-length octet RFC 4243 section 4 requires is missing. The field
+    // decoded before the error must point into the packet, like the fields
+    // of a composite that decodes cleanly.
+    let mut main = dhcp_option_bytes(82, &[9, 4, 0]);
+    main.extend_from_slice(&dhcp_option_bytes(82, &[0, 0x7e, 0xd9]));
+    main.push(255);
+    let payload = bootp_test_payload(&[], &[], &main);
+    let packet = decode_frame(&captured_frame(1, services_udp_frame(68, 67, &payload)));
+    assert!(packet.malformed, "the joined vendor block is truncated");
+    let dhcp = child_node(&packet.tree.frame, "dhcp").unwrap_or_else(|| unreachable!());
+    let last_block = dhcp
+        .fields
+        .iter()
+        .rfind(|field| {
+            field.def.abbrev == "dhcp.option.type" && matches!(field.value, Value::Uint8(82))
+        })
+        .unwrap_or_else(|| unreachable!("the last Option 82 block"));
+    let enterprise = frame_field_in(
+        last_block,
+        "dhcp.option.agent_information_option.vi.enterprise",
+    )
+    .unwrap_or_else(|| unreachable!("the enterprise number decoded before the error"));
+    assert!(matches!(enterprise.value, Value::Uint32(32_473)));
+    // The enterprise number starts two octets into the joined body, after the
+    // suboption code and length.
+    assert_eq!(enterprise.range.offset, last_block.range.offset + 2);
+    let raw = enterprise
+        .raw
+        .as_ref()
+        .unwrap_or_else(|| unreachable!("the joined bytes back the field"));
+    assert_eq!(raw.bytes.as_slice(), [0, 0, 0x7e, 0xd9]);
+    assert_eq!(raw.start, enterprise.range.offset);
 }
 
 #[test]
@@ -2234,4 +2279,361 @@ fn dhcp_repeated_untyped_option_adds_concatenated_value() {
         .rposition(|field| field.def.abbrev == "dhcp.option.end")
         .unwrap_or(0);
     assert!(concatenated < last_end);
+}
+
+/// Decode one DHCP message whose only option besides the type and End is the
+/// agent information option with the given payload.
+fn decode_agent_payload(agent: &[u8]) -> packetfin_core::Packet {
+    let mut main = dhcp_option_bytes(53, &[1]);
+    main.extend_from_slice(&dhcp_option_bytes(82, agent));
+    main.push(255);
+    let payload = bootp_test_payload(&[], &[], &main);
+    decode_frame(&captured_frame(1, services_udp_frame(68, 67, &payload)))
+}
+
+fn agent_suboptions(agent: &[u8]) -> Vec<Field> {
+    let packet = decode_agent_payload(agent);
+    let dhcp = child_node(&packet.tree.frame, "dhcp").unwrap_or_else(|| unreachable!());
+    let option = option_container(dhcp, 82).unwrap_or_else(|| unreachable!());
+    option
+        .children
+        .iter()
+        .filter(|field| field.def.abbrev == "dhcp.option.agent_information_option.suboption")
+        .cloned()
+        .collect()
+}
+
+fn suboption_field<'a>(suboption: &'a Field, abbrev: &str) -> Option<&'a Field> {
+    suboption
+        .children
+        .iter()
+        .find(|field| field.def.abbrev == abbrev)
+}
+
+#[test]
+fn dhcp_agent_typed_suboptions_match_the_registry_layout() {
+    let mut agent = Vec::new();
+    agent.extend_from_slice(&[3, 2, 0x01, 0x02]);
+    agent.extend_from_slice(&[7, 1, 0x01]);
+    agent.extend_from_slice(&[8, 1, 0x02]);
+    agent.extend_from_slice(&[10, 1, 0x05]);
+    agent.extend_from_slice(&[11, 4, 198, 51, 100, 10]);
+    agent.extend_from_slice(&[12, 1, 0x03]);
+    agent.extend_from_slice(&[13, 2, 0x0a, 0xa0]);
+    let suboptions = agent_suboptions(&agent);
+    assert_eq!(suboptions.len(), 7);
+
+    let reserved = suboption_field(
+        suboptions.first().unwrap_or_else(|| unreachable!()),
+        "dhcp.option.agent_information_option.reserved",
+    )
+    .unwrap_or_else(|| unreachable!());
+    assert!(matches!(&reserved.value, Value::Bytes(bytes) if bytes == &[0x01, 0x02]));
+
+    let radius = suboption_field(
+        suboptions.get(1).unwrap_or_else(|| unreachable!()),
+        "dhcp.option.agent_information_option.radius_attributes",
+    )
+    .unwrap_or_else(|| unreachable!());
+    assert!(matches!(&radius.value, Value::Bytes(bytes) if bytes == &[0x01]));
+
+    let authentication = suboption_field(
+        suboptions.get(2).unwrap_or_else(|| unreachable!()),
+        "dhcp.option.agent_information_option.authentication",
+    )
+    .unwrap_or_else(|| unreachable!());
+    assert!(matches!(&authentication.value, Value::Bytes(bytes) if bytes == &[0x02]));
+
+    let flags = suboption_field(
+        suboptions.get(3).unwrap_or_else(|| unreachable!()),
+        "dhcp.option.agent_information_option.flags",
+    )
+    .unwrap_or_else(|| unreachable!());
+    assert_eq!(flags.value, Value::Uint8(5));
+
+    // The server identifier override labels the suboption with its address.
+    assert_eq!(
+        suboptions
+            .get(4)
+            .unwrap_or_else(|| unreachable!())
+            .showname_text()
+            .as_deref(),
+        Some("Option 82 Suboption: (11) Server ID Override (198.51.100.10)")
+    );
+    let override_field = suboption_field(
+        suboptions.get(4).unwrap_or_else(|| unreachable!()),
+        "dhcp.option.agent_information_option.server_id_override",
+    )
+    .unwrap_or_else(|| unreachable!());
+    assert_eq!(override_field.value, Value::Ipv4([198, 51, 100, 10]));
+
+    let relay = suboption_field(
+        suboptions.get(5).unwrap_or_else(|| unreachable!()),
+        "dhcp.option.agent_information_option.relay_agent_id",
+    )
+    .unwrap_or_else(|| unreachable!());
+    assert!(matches!(&relay.value, Value::Bytes(bytes) if bytes == &[0x03]));
+
+    let access = suboption_field(
+        suboptions.get(6).unwrap_or_else(|| unreachable!()),
+        "dhcp.option.agent_information_option.ani_att",
+    )
+    .unwrap_or_else(|| unreachable!());
+    assert_eq!(access.value, Value::Uint8(0xa0));
+    assert_eq!(access.range.length, 1);
+
+    // Every typed suboption replaces the generic value line.
+    for suboption in &suboptions {
+        let generic = suboption_field(suboption, "dhcp.option.agent_information_option.value")
+            .unwrap_or_else(|| unreachable!());
+        assert!(generic.hidden);
+    }
+}
+
+#[test]
+fn dhcp_agent_wrong_length_suboptions_report_a_protocol_expert() {
+    let mut agent = Vec::new();
+    agent.extend_from_slice(&[10, 2, 0x05, 0x06]);
+    agent.extend_from_slice(&[11, 3, 0xc6, 0x33, 0x64]);
+    let suboptions = agent_suboptions(&agent);
+    assert_eq!(suboptions.len(), 2);
+    for (suboption, expected) in suboptions.iter().zip(["length isn't 1", "length isn't 4"]) {
+        assert!(suboption.children.iter().all(|field| field.def.abbrev
+            != "dhcp.option.agent_information_option.value"
+            || field.hidden));
+        let marker = suboption
+            .children
+            .iter()
+            .find(|field| field.def.abbrev == "dhcp.bad_length")
+            .unwrap_or_else(|| unreachable!());
+        let expert = marker.experts.first().unwrap_or_else(|| unreachable!());
+        assert_eq!(expert.group, Group::Protocol);
+        assert_eq!(expert.message, expected);
+    }
+    // A wrong length on these suboptions is not a packet-level failure.
+    let packet = decode_agent_payload(&[10, 2, 0x05, 0x06]);
+    assert!(!packet.malformed);
+}
+
+#[test]
+fn dhcp_agent_access_technology_reads_the_att_octet() {
+    // RFC 7839 §4.2: a Reserved octet the receiver ignores, then the ATT.
+    let packet = decode_agent_payload(&[13, 2, 0xff, 0x06]);
+    assert!(!packet.malformed);
+    let suboptions = agent_suboptions(&[13, 2, 0xff, 0x06]);
+    let suboption = suboptions.first().unwrap_or_else(|| unreachable!());
+    let access = suboption_field(suboption, "dhcp.option.agent_information_option.ani_att")
+        .unwrap_or_else(|| unreachable!());
+    assert_eq!(access.value, Value::Uint8(6));
+    assert_eq!(access.range.length, 1);
+}
+
+#[test]
+fn dhcp_agent_access_technology_rejects_other_lengths() {
+    for value in [
+        &[][..],
+        &[0x01][..],
+        &[0x01, 0x02, 0x03][..],
+        &[0x01, 0x02, 0x03, 0x04, 0x05][..],
+    ] {
+        let mut agent = vec![13, u8::try_from(value.len()).unwrap_or(u8::MAX)];
+        agent.extend_from_slice(value);
+        let suboptions = agent_suboptions(&agent);
+        let suboption = suboptions.first().unwrap_or_else(|| unreachable!());
+        assert!(
+            suboption
+                .children
+                .iter()
+                .all(|field| field.def.abbrev != "dhcp.option.agent_information_option.ani_att"),
+            "length {} decoded an ATT: {suboption:?}",
+            value.len()
+        );
+        let marker =
+            suboption_field(suboption, "dhcp.bad_length").unwrap_or_else(|| unreachable!());
+        let expert = marker.experts.first().unwrap_or_else(|| unreachable!());
+        assert_eq!(expert.severity, Severity::Error);
+        assert_eq!(expert.group, Group::Protocol);
+        assert_eq!(expert.message, "length isn't 2");
+        // An absent value stops the decoder; a present but wrong-sized
+        // value leaves the remaining options decodable.
+        assert_eq!(decode_agent_payload(&agent).malformed, value.is_empty());
+    }
+}
+
+#[test]
+fn dhcp_agent_vendor_blocks_nest_the_data_length_under_the_enterprise() {
+    let mut agent = Vec::new();
+    // Two blocks: one with data, one with an empty value.
+    agent.extend_from_slice(&[9, 12]);
+    agent.extend_from_slice(&32473_u32.to_be_bytes());
+    agent.extend_from_slice(&[2, 0xaa, 0xbb]);
+    agent.extend_from_slice(&32473_u32.to_be_bytes());
+    agent.extend_from_slice(&[0]);
+    let suboptions = agent_suboptions(&agent);
+    assert_eq!(suboptions.len(), 1);
+    let suboption = suboptions.first().unwrap_or_else(|| unreachable!());
+    let enterprises: Vec<&Field> = suboption
+        .children
+        .iter()
+        .filter(|field| field.def.abbrev == "dhcp.option.agent_information_option.vi.enterprise")
+        .collect();
+    assert_eq!(enterprises.len(), 2);
+    assert_eq!(
+        enterprises.first().unwrap_or_else(|| unreachable!()).value,
+        Value::Uint32(32473)
+    );
+    let length = enterprises
+        .first()
+        .unwrap_or_else(|| unreachable!())
+        .children
+        .first()
+        .unwrap_or_else(|| unreachable!());
+    assert_eq!(
+        length.def.abbrev,
+        "dhcp.option.agent_information_option.vi.data_length"
+    );
+    assert_eq!(length.value, Value::Uint8(2));
+    assert_eq!(
+        enterprises
+            .get(1)
+            .unwrap_or_else(|| unreachable!())
+            .children
+            .first()
+            .map(|field| field.value.clone()),
+        Some(Value::Uint8(0))
+    );
+    // Each block's data is a visible sibling of its enterprise number.
+    let values: Vec<&Field> = suboption
+        .children
+        .iter()
+        .filter(|field| {
+            field.def.abbrev == "dhcp.option.agent_information_option.value" && !field.hidden
+        })
+        .collect();
+    assert_eq!(values.len(), 2);
+    assert!(
+        matches!(&values.first().unwrap_or_else(|| unreachable!()).value, Value::Bytes(bytes) if bytes == &[0xaa, 0xbb])
+    );
+    assert_eq!(
+        values.get(1).unwrap_or_else(|| unreachable!()).value,
+        Value::Missing
+    );
+    assert_eq!(
+        packetfin_core::decode::enterprise_name(32473),
+        Some("Example Enterprise Number for Documentation Use")
+    );
+}
+
+#[test]
+fn dhcp_zero_length_typed_option_keeps_the_generic_value_line() {
+    let mut main = dhcp_option_bytes(53, &[1]);
+    main.extend_from_slice(&dhcp_option_bytes(12, b""));
+    main.push(255);
+    let payload = bootp_test_payload(&[], &[], &main);
+    let packet = decode_frame(&captured_frame(1, services_udp_frame(68, 67, &payload)));
+    let dhcp = child_node(&packet.tree.frame, "dhcp").unwrap_or_else(|| unreachable!());
+    let host = option_container(dhcp, 12).unwrap_or_else(|| unreachable!());
+    let value = host
+        .children
+        .iter()
+        .find(|field| field.def.abbrev == "dhcp.option.value")
+        .unwrap_or_else(|| unreachable!());
+    assert!(!value.hidden);
+    assert_eq!(value.value, Value::Missing);
+    let hostname = host
+        .children
+        .iter()
+        .find(|field| field.def.abbrev == "dhcp.option.hostname")
+        .unwrap_or_else(|| unreachable!());
+    assert!(matches!(&hostname.value, Value::String(text) if text.is_empty()));
+}
+
+#[test]
+fn dhcpv6_status_message_keeps_the_length_delimited_value() {
+    let mut message = vec![7, 0x01, 0x02, 0x03];
+    message.extend_from_slice(&dhcpv6_option(13, &[0x00, 0x00, b'h', b'i', 0x00, b'x']));
+    let packet = decode_frame(&captured_frame(1, services_udp_frame(547, 546, &message)));
+    let dhcpv6 = child_node(&packet.tree.frame, "dhcpv6").unwrap_or_else(|| unreachable!());
+    let option = dhcpv6
+        .fields
+        .iter()
+        .find(|field| field.def.abbrev == "dhcpv6.option.type_str")
+        .unwrap_or_else(|| unreachable!());
+    let status = suboption_field(option, "dhcpv6.status_msg").unwrap_or_else(|| unreachable!());
+    // RFC 8415 section 21.13 delimits the message by the option length, so a
+    // NUL inside it is part of the value.
+    assert!(matches!(&status.value, Value::String(text) if text == "hi\u{0}x"));
+    assert!(status.experts.is_empty(), "the whole value is the message");
+    assert!(!packet.malformed);
+}
+
+#[test]
+fn dhcpv6_status_message_decodes_utf8() {
+    let mut message = vec![7, 0x01, 0x02, 0x03];
+    message.extend_from_slice(&dhcpv6_option(
+        13,
+        &[0x00, 0x00, b'c', b'a', b'f', 0xc3, 0xa9],
+    ));
+    let packet = decode_frame(&captured_frame(1, services_udp_frame(547, 546, &message)));
+    let dhcpv6 = child_node(&packet.tree.frame, "dhcpv6").unwrap_or_else(|| unreachable!());
+    let option = dhcpv6
+        .fields
+        .iter()
+        .find(|field| field.def.abbrev == "dhcpv6.option.type_str")
+        .unwrap_or_else(|| unreachable!());
+    let status = suboption_field(option, "dhcpv6.status_msg").unwrap_or_else(|| unreachable!());
+    assert!(matches!(&status.value, Value::String(text) if text == "caf\u{e9}"));
+}
+
+#[test]
+fn dhcpv6_status_message_keeps_a_single_nul_value() {
+    let mut message = vec![7, 0x01, 0x02, 0x03];
+    message.extend_from_slice(&dhcpv6_option(13, &[0x00, 0x00, 0x00]));
+    let packet = decode_frame(&captured_frame(1, services_udp_frame(547, 546, &message)));
+    let dhcpv6 = child_node(&packet.tree.frame, "dhcpv6").unwrap_or_else(|| unreachable!());
+    let option = dhcpv6
+        .fields
+        .iter()
+        .find(|field| field.def.abbrev == "dhcpv6.option.type_str")
+        .unwrap_or_else(|| unreachable!());
+    let status = suboption_field(option, "dhcpv6.status_msg").unwrap_or_else(|| unreachable!());
+    assert!(matches!(&status.value, Value::String(text) if text == "\u{0}"));
+    assert!(status.experts.is_empty());
+}
+
+#[test]
+fn dhcpv6_truncated_status_code_stays_malformed() {
+    // RFC 8415 §21.13 defines a 16-bit status code; one octet cannot supply it
+    // and reading the next option would cross the declared option bound.
+    let mut message = vec![7, 0x01, 0x02, 0x03];
+    message.extend_from_slice(&dhcpv6_option(13, &[0x00]));
+    message.extend_from_slice(&dhcpv6_option(9, &[0x00, 0x01]));
+    let packet = decode_frame(&captured_frame(1, services_udp_frame(547, 546, &message)));
+    assert!(packet.malformed);
+    let dhcpv6 = child_node(&packet.tree.frame, "dhcpv6").unwrap_or_else(|| unreachable!());
+    assert!(dhcpv6.protocol_exception);
+    let option = dhcpv6
+        .fields
+        .iter()
+        .find(|field| field.def.abbrev == "dhcpv6.option.type_str")
+        .unwrap_or_else(|| unreachable!());
+    assert!(
+        option
+            .children
+            .iter()
+            .all(|field| field.def.abbrev != "dhcpv6.status_code")
+    );
+}
+
+#[test]
+fn dhcp_relay_suboption_names_follow_the_registry() {
+    // RFC 6607 §3.2 and §3.3 assign 151 to VSS and 152 to VSS-Control.
+    assert_eq!(
+        packetfin_core::decode::dhcp_agent_suboption_name(151),
+        "VSS"
+    );
+    assert_eq!(
+        packetfin_core::decode::dhcp_agent_suboption_name(152),
+        "VSS-Control"
+    );
 }

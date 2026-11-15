@@ -1,0 +1,91 @@
+[
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "dhcp.option.agent_information_option.suboption": [
+          "9",
+          "9"
+        ],
+        "dhcp.option.agent_information_option.value": [
+          "00007ed902aabb",
+          "aabb",
+          "00007ed900",
+          "<MISSING>"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "dhcp.option.agent_information_option.suboption": [
+          "3",
+          "7"
+        ],
+        "dhcp.option.agent_information_option.value": [
+          "aabb"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "dhcp.option.agent_information_option.suboption": [
+          "3"
+        ],
+        "dhcp.option.agent_information_option.value": [
+          "aabb"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "dhcp.option.agent_information_option.suboption": [
+          "4",
+          "5",
+          "10",
+          "11"
+        ],
+        "dhcp.option.agent_information_option.value": [
+          "0102",
+          "c63364",
+          "0506",
+          "c63364"
+        ]
+      }
+    }
+  },
+  {
+    "_index": "packets-2023-11-14",
+    "_score": null,
+    "_source": {
+      "layers": {
+        "dhcp.option.agent_information_option.suboption": [
+          "1",
+          "3",
+          "7",
+          "8",
+          "12"
+        ],
+        "dhcp.option.agent_information_option.value": [
+          "<MISSING>",
+          "<MISSING>",
+          "<MISSING>",
+          "<MISSING>",
+          "<MISSING>"
+        ]
+      }
+    }
+  }
+]

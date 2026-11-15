@@ -20,6 +20,7 @@ const BIN: &str = env!("CARGO_BIN_EXE_packetfin");
 /// protocol summaries exist.
 const FIELD_CASE_IDS: &[&str] = &[
     "frame-fields",
+    "lldp-8023-fields",
     "interface-fields",
     "eth-fields",
     "link-fields",
@@ -64,6 +65,12 @@ const FIELD_CASE_IDS: &[&str] = &[
     "tls-edge-fields",
     "http-edge-fields",
     "bgp-overlong-fields",
+    "http2-fields",
+    "http2-links",
+    "filter-http2",
+    "filter-method",
+    "decode-as",
+    "decode-as-summary",
     "syslog-fields",
     "sflow-fields",
     "cflow-fields",

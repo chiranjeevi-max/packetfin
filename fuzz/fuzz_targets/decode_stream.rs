@@ -153,9 +153,7 @@ fn replay_two_pass(link_type: u32, frames: &[Vec<u8>]) {
             frame.number = u64::try_from(index).unwrap_or(u64::MAX) + 1;
             let file_number = frame.number;
             let mut packet = output.decode(&frame);
-            if let Some(annotation) = annotations.get(file_number) {
-                apply_annotations(&mut packet, annotation, &renumber);
-            }
+            apply_annotations(&mut packet, &annotations, file_number, &renumber);
             for field in packet.tree.fields() {
                 let _ = field.value.formatted(field.def.display).to_string();
             }

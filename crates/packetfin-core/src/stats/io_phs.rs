@@ -60,8 +60,10 @@ impl State {
         // The root pseudo-node sits at index 0 and is never printed.
         let mut path: Vec<usize> = vec![0];
         for fact in &facts.protocols {
-            // The hierarchy skips a datagram quoted inside an ICMP error.
-            if fact.quoted {
+            // The hierarchy skips a datagram quoted inside an ICMP error and
+            // a message decoded inside a field: neither starts a protocol
+            // layer, so the enclosing layer already counted the frame.
+            if fact.quoted || fact.nested_in_field {
                 continue;
             }
             let depth = fact.depth;

@@ -886,6 +886,27 @@ impl Field {
         field
     }
 
+    /// Insert a child field occurrence at a position in the decoder order.
+    ///
+    /// Cross-pass links arrive after decoding but take a fixed position among
+    /// the decoded fields, so a container that carries them needs the same
+    /// positional insert a protocol node has.
+    pub fn insert_field(
+        &mut self,
+        index: usize,
+        def: &'static FieldDef,
+        range: Range,
+        value: Value,
+    ) -> &mut Field {
+        let index = index.min(self.children.len());
+        self.children
+            .insert(index, Self::occurrence(def, range, value));
+        let Some(field) = self.children.get_mut(index) else {
+            unreachable!("a child field was just inserted")
+        };
+        field
+    }
+
     /// Add a nested container and return it for child insertion.
     pub fn add_container(
         &mut self,

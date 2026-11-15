@@ -53,7 +53,7 @@ impl<W: Write> Output<W> {
             Sink::Gzip(encoder) => encoder.write_all(bytes),
             Sink::Lz4(encoder) => encoder.write_all(bytes),
         }
-        .map_err(WriteError::Io)?;
+        .map_err(WriteError::from)?;
         self.logical_bytes = self.logical_bytes.saturating_add(bytes.len() as u64);
         Ok(())
     }
@@ -71,7 +71,7 @@ impl<W: Write> Output<W> {
             Sink::Gzip(encoder) => encoder.flush(),
             Sink::Lz4(encoder) => encoder.flush(),
         }
-        .map_err(WriteError::Io)
+        .map_err(WriteError::from)
     }
 
     /// Finish the compression stream and flush the underlying writer.
@@ -81,20 +81,20 @@ impl<W: Write> Output<W> {
         };
         let inner = match sink {
             Sink::Plain(mut inner) => {
-                inner.flush().map_err(WriteError::Io)?;
+                inner.flush().map_err(WriteError::from)?;
                 inner
             }
             Sink::Gzip(encoder) => {
-                let mut inner = encoder.finish().map_err(WriteError::Io)?;
-                inner.flush().map_err(WriteError::Io)?;
+                let mut inner = encoder.finish().map_err(WriteError::from)?;
+                inner.flush().map_err(WriteError::from)?;
                 inner
             }
             Sink::Lz4(encoder) => {
                 let mut inner = encoder
                     .finish()
                     .map_err(io::Error::from)
-                    .map_err(WriteError::Io)?;
-                inner.flush().map_err(WriteError::Io)?;
+                    .map_err(WriteError::from)?;
+                inner.flush().map_err(WriteError::from)?;
                 inner
             }
         };

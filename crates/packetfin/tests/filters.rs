@@ -317,3 +317,83 @@ fn invalid_literal_classification_exits_four_before_opening() {
         assert_eq!(run.status.code(), Some(4), "{filter}");
     }
 }
+
+#[test]
+fn protocol_slices_exit_four_with_their_position() {
+    let Some(path) = fixtures::all()
+        .iter()
+        .find(|fixture| fixture.name == "ntp-client-server")
+        .map(fixture_path)
+    else {
+        eprintln!("no ntp-client-server fixture");
+        std::process::exit(1);
+    };
+    for filter in ["frame[0:1] == 02", "eth[0:1] == 02"] {
+        let run = run(&[
+            OsString::from("-n"),
+            OsString::from("-r"),
+            path.clone().into_os_string(),
+            OsString::from("-Y"),
+            OsString::from(filter),
+        ]);
+        assert_eq!(run.status.code(), Some(4), "{filter}");
+        assert!(run.stdout.is_empty(), "{filter}");
+        let stderr = String::from_utf8_lossy(&run.stderr);
+        assert!(
+            stderr.contains("protocol cannot be sliced into a sequence of bytes"),
+            "{filter}: {stderr}"
+        );
+        let Some((filter_line, caret_line)) = error_line(&stderr) else {
+            eprintln!("no caret line for {filter}: {stderr}");
+            std::process::exit(1);
+        };
+        let name = filter.split('[').next().unwrap_or_default();
+        assert_eq!(filter_line.trim_end(), format!("    {filter}"));
+        let column = 4 + filter.find(name).unwrap_or(0);
+        assert_eq!(caret_line.find('^'), Some(column), "{filter}");
+        assert_eq!(
+            caret_line.trim_start_matches(' ').trim_end(),
+            "^".repeat(name.len()),
+            "{filter}"
+        );
+    }
+}
+
+#[test]
+fn relative_time_arithmetic_scales_a_scalar_operand_in_seconds() {
+    let Some(path) = fixtures::all()
+        .iter()
+        .find(|fixture| fixture.name == "tcp-analysis")
+        .map(fixture_path)
+    else {
+        eprintln!("no tcp-analysis fixture");
+        std::process::exit(1);
+    };
+    let matches = |filter: &str| -> String {
+        let run = run(&[
+            OsString::from("-n"),
+            OsString::from("-r"),
+            path.clone().into_os_string(),
+            OsString::from("-Y"),
+            OsString::from(filter),
+            OsString::from("-T"),
+            OsString::from("fields"),
+            OsString::from("-e"),
+            OsString::from("frame.number"),
+        ]);
+        assert_eq!(run.status.code(), Some(0), "{filter}");
+        String::from_utf8_lossy(&run.stdout).into_owned()
+    };
+    // Every frame after the first has a 0.0005 s delta, so a scalar is a
+    // count of seconds: dividing by two yields a non-zero offset.
+    assert_eq!(matches("frame.time_delta / 2 == 0"), "", "division by two");
+    assert_eq!(
+        matches("frame.time_delta / 2 == 0.00025").lines().count(),
+        61,
+        "division by two in seconds"
+    );
+    let doubled = matches("frame.time_delta * 2 == 0.001");
+    assert_eq!(doubled.lines().next(), Some("2"), "doubled delta");
+    assert_eq!(doubled.lines().last(), Some("62"), "doubled delta");
+    assert_eq!(doubled.lines().count(), 61, "doubled delta");
+}

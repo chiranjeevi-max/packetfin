@@ -85,10 +85,13 @@ pub struct PacketRecord<'a> {
 /// [`Self::Incompatible`] covers failures discovered before the output is
 /// opened (read-mode exit 9); [`Self::IncompatibleLater`] covers the same
 /// class of failure after writing started (exit 15).
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum WriteError {
     /// The underlying writer failed.
-    Io(io::Error),
+    ///
+    /// Shared so a finish failure the writer latches can be reported by
+    /// every later call, not only by the call that first saw it.
+    Io(std::sync::Arc<io::Error>),
     /// The capture cannot be represented in the chosen format. Nothing has
     /// been written.
     Incompatible(&'static str),
@@ -172,7 +175,7 @@ impl fmt::Display for WriteError {
 impl std::error::Error for WriteError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
-            Self::Io(error) => Some(error),
+            Self::Io(error) => Some(error.as_ref()),
             _ => None,
         }
     }
@@ -180,7 +183,7 @@ impl std::error::Error for WriteError {
 
 impl From<io::Error> for WriteError {
     fn from(error: io::Error) -> Self {
-        Self::Io(error)
+        Self::Io(std::sync::Arc::new(error))
     }
 }
 
@@ -188,6 +191,10 @@ impl From<io::Error> for WriteError {
 pub struct CaptureWriter<W: Write> {
     inner: Inner<W>,
     finished: bool,
+    /// The finish failure to repeat. The sink is consumed before it flushes,
+    /// so a failed finish cannot be retried; every later call reports the
+    /// error that ended the stream instead of reporting success.
+    failure: Option<WriteError>,
 }
 
 enum Inner<W: Write> {
@@ -213,7 +220,19 @@ impl<W: Write> CaptureWriter<W> {
         Self {
             inner,
             finished: false,
+            failure: None,
         }
+    }
+
+    /// Refuse work once the output is closed, repeating a finish failure.
+    fn ensure_open(&self) -> Result<(), WriteError> {
+        if let Some(error) = &self.failure {
+            return Err(error.clone());
+        }
+        if self.finished {
+            return Err(WriteError::Finished);
+        }
+        Ok(())
     }
 
     /// Forward one reader event.
@@ -223,9 +242,7 @@ impl<W: Write> CaptureWriter<W> {
     /// instead call this for metadata and [`Self::write_packet`] for the
     /// selected frames.
     pub fn observe(&mut self, event: &CaptureEvent) -> Result<(), WriteError> {
-        if self.finished {
-            return Err(WriteError::Finished);
-        }
+        self.ensure_open()?;
         match (&mut self.inner, event) {
             (Inner::PcapNg(writer), CaptureEvent::Section(section)) => {
                 writer.observe_section(section)
@@ -262,9 +279,7 @@ impl<W: Write> CaptureWriter<W> {
     /// values must use those indices. A pcap output keeps 262144 as its
     /// snapshot length because live capture has no classic-pcap source.
     pub fn open_live(&mut self, interfaces: &[InterfaceInfo]) -> Result<(), WriteError> {
-        if self.finished {
-            return Err(WriteError::Finished);
-        }
+        self.ensure_open()?;
         match &mut self.inner {
             Inner::PcapNg(writer) => writer.open_live(interfaces),
             Inner::Pcap(writer) => writer.open_live(interfaces),
@@ -273,9 +288,7 @@ impl<W: Write> CaptureWriter<W> {
 
     /// Write one packet.
     pub fn write_packet(&mut self, record: PacketRecord<'_>) -> Result<(), WriteError> {
-        if self.finished {
-            return Err(WriteError::Finished);
-        }
+        self.ensure_open()?;
         match &mut self.inner {
             Inner::PcapNg(writer) => writer.write_packet(&record),
             Inner::Pcap(writer) => writer.write_packet(&record),
@@ -284,9 +297,7 @@ impl<W: Write> CaptureWriter<W> {
 
     /// Flush the current output without finishing the compression stream.
     pub fn flush(&mut self) -> Result<(), WriteError> {
-        if self.finished {
-            return Err(WriteError::Finished);
-        }
+        self.ensure_open()?;
         match &mut self.inner {
             Inner::PcapNg(writer) => writer.flush(),
             Inner::Pcap(writer) => writer.flush(),
@@ -302,7 +313,13 @@ impl<W: Write> CaptureWriter<W> {
     }
 
     /// Finish the output, including any compression stream.
+    ///
+    /// A failure is latched: the sink is consumed before it flushes, so the
+    /// stream cannot be retried, and every later call repeats the error.
     pub fn finish(&mut self) -> Result<(), WriteError> {
+        if let Some(error) = &self.failure {
+            return Err(error.clone());
+        }
         if self.finished {
             return Ok(());
         }
@@ -310,7 +327,10 @@ impl<W: Write> CaptureWriter<W> {
             Inner::PcapNg(writer) => writer.finish(),
             Inner::Pcap(writer) => writer.finish(),
         };
-        self.finished = true;
+        match &result {
+            Ok(()) => self.finished = true,
+            Err(error) => self.failure = Some(error.clone()),
+        }
         result
     }
 

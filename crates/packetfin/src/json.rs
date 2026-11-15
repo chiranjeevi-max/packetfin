@@ -24,6 +24,7 @@ use packetfin_core::{
 };
 
 use crate::detail::{self, Scope, child_scope};
+use crate::pdml;
 use crate::render_context::RenderContext;
 use crate::summary::{capture_limited, civil_time};
 
@@ -612,7 +613,7 @@ impl<'a> JsonWriter<'a> {
         field: &Field,
         context: &FieldContext<'_, '_>,
     ) {
-        if field.is_container() {
+        if field.is_container() || !field.children.is_empty() {
             self.push_container(entries, field, context);
         } else if !field.experts.is_empty() {
             self.push_expert_field(entries, field, context);
@@ -684,6 +685,47 @@ impl<'a> JsonWriter<'a> {
             }
         }
         entries.push((key, Json::object(values, self.merge_keys)));
+    }
+
+    /// Add a flags field and nest its bits under `<abbrev>_tree`.
+    ///
+    /// The decoder stores the bits as the field's siblings; like the other
+    /// tree outputs, JSON writes them inside the flags field's tree, in the
+    /// group's bit order, and a filter that does not name the flags field
+    /// replaces the whole tree.
+    fn push_flag_group(
+        &self,
+        entries: &mut Vec<(String, Json)>,
+        field: &Field,
+        context: &FieldContext<'_, '_>,
+    ) {
+        self.push_value_entries(entries, field, context);
+        let key = format!("{}_tree", field.def.abbrev);
+        let flag = self.flag(context.filter.state, field.def.abbrev);
+        if flag == Flag::Filtered {
+            entries.push((key, Json::filtered(field.def.abbrev)));
+            return;
+        }
+        let bit_context = FieldContext {
+            filter: FieldFilter {
+                state: self.child_state(context.filter.state, flag),
+                kinds: context.filter.kinds,
+            },
+            ..*context
+        };
+        let mut bits: Vec<(String, Json)> = Vec::new();
+        for name in pdml::field_children(field.def.abbrev) {
+            for bit in context.node.fields.iter().filter(|bit| {
+                bit.def.abbrev == *name
+                    && pdml::grouped_under(field, bit)
+                    && !hidden_from_json(bit.def.abbrev)
+                    && !packetfin_core::expert_label_only(bit.def.abbrev)
+            }) {
+                self.push_field(&mut bits, bit, &bit_context);
+            }
+        }
+        self.field_expert_entries(&mut bits, field, &bit_context);
+        entries.push((key, Json::object(bits, self.merge_keys)));
     }
 
     /// Add one leaf's raw and display value, raw first.
@@ -969,16 +1011,24 @@ impl<'a> JsonWriter<'a> {
                     ..*context
                 };
                 let mut node_entries: Vec<(String, Json)> = Vec::with_capacity(node.fields.len());
+                let groups: Vec<&Field> = node.fields.iter().filter(|f| flag_group(f)).collect();
                 for field in node.display_fields() {
                     if field.packet_scoped()
                         || hidden_from_json(field.def.abbrev)
                         || packetfin_core::expert_label_only(field.def.abbrev)
                         || field.def.abbrev == "ipv6.reassembled.in"
                         || calculated_belongs_to_tree(node, field)
+                        || groups
+                            .iter()
+                            .any(|parent| pdml::grouped_under(parent, field))
                     {
                         continue;
                     }
-                    self.push_field(&mut node_entries, field, &child_context);
+                    if flag_group(field) {
+                        self.push_flag_group(&mut node_entries, field, &child_context);
+                    } else {
+                        self.push_field(&mut node_entries, field, &child_context);
+                    }
                 }
                 for nested in &layer.nested {
                     let node_context = FieldContext {
@@ -1404,6 +1454,14 @@ pub(crate) fn checksum_calculated_abbrev(checksum_abbrev: &str) -> Option<&'stat
 /// IPv4 keeps it beside the checksum and status fields.
 pub(crate) fn checksum_calculated_is_nested(checksum_abbrev: &str) -> bool {
     matches!(checksum_abbrev, "tcp.checksum" | "udp.checksum")
+}
+
+/// Whether `field` is a flags field whose bits the decoder stores as its
+/// siblings rather than as children.
+fn flag_group(field: &Field) -> bool {
+    !field.is_container()
+        && field.children.is_empty()
+        && !pdml::field_children(field.def.abbrev).is_empty()
 }
 
 /// Whether `field` is a calculated checksum rendered inside its checksum

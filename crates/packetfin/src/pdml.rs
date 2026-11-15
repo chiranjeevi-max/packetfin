@@ -621,8 +621,8 @@ impl<'a> PdmlWriter<'a> {
         let key = node.protocol.filter_name;
         let malformed_only = node.fields.is_empty() && node.children.is_empty();
         let malformed = malformed_expert(node);
-        if let (true, Some(expert)) = (malformed_only, malformed) {
-            self.write_malformed(node, indent, state, expert);
+        if malformed_only && malformed.is_some() {
+            self.write_malformed(node, indent, state);
             return;
         }
         self.push_indent(indent);
@@ -741,8 +741,8 @@ impl<'a> PdmlWriter<'a> {
         }
         self.push_indent(indent);
         self.text.push_str("</proto>\n");
-        if let Some(expert) = malformed {
-            self.write_malformed(node, indent, state, expert);
+        if malformed.is_some() {
+            self.write_malformed(node, indent, state);
         } else if flag != Flag::Filtered && !node.experts.is_empty() {
             self.write_node_experts(node, indent + 2);
         }
@@ -1883,13 +1883,7 @@ impl<'a> PdmlWriter<'a> {
         }
     }
 
-    fn write_malformed(
-        &mut self,
-        node: &Node,
-        indent: usize,
-        state: ChildState<'_>,
-        expert: &packetfin_core::tree::ExpertInfo,
-    ) {
+    fn write_malformed(&mut self, node: &Node, indent: usize, state: ChildState<'_>) {
         let flag = self.flag(state, "_ws.malformed");
         self.push_indent(indent);
         let _ = writeln!(
@@ -1902,7 +1896,7 @@ impl<'a> PdmlWriter<'a> {
             self.text
                 .push_str("<field name=\"filtered\" value=\"_ws.malformed\" />\n");
         } else {
-            let message = malformed_message(expert);
+            let message = malformed_text();
             let mut escaped = String::new();
             xml::escape_display(&mut escaped, message);
             self.push_indent(indent + 2);
@@ -2345,7 +2339,7 @@ fn is_dns_name(abbrev: &str) -> bool {
     )
 }
 
-fn field_children(abbrev: &str) -> &'static [&'static str] {
+pub(crate) fn field_children(abbrev: &str) -> &'static [&'static str] {
     match abbrev {
         "ip.dsfield" => &["ip.dsfield.dscp", "ip.dsfield.ecn"],
         "ip.flags" => &["ip.flags.rb", "ip.flags.df", "ip.flags.mf"],
@@ -2469,6 +2463,12 @@ fn position_aware_group(abbrev: &str) -> bool {
     )
 }
 
+/// Whether `child` is one of the bits nested under the flags field `parent`.
+pub(crate) fn grouped_under(parent: &Field, child: &Field) -> bool {
+    field_children(parent.def.abbrev).contains(&child.def.abbrev)
+        && (!position_aware_group(parent.def.abbrev) || group_contains(parent, child))
+}
+
 fn group_contains(parent: &Field, child: &Field) -> bool {
     let parent_end = parent.range.offset.saturating_add(parent.range.length);
     let child_end = child.range.offset.saturating_add(child.range.length);
@@ -2508,15 +2508,13 @@ fn malformed_expert(node: &Node) -> Option<&packetfin_core::tree::ExpertInfo> {
         .find(|expert| expert.group == packetfin_core::Group::Malformed)
 }
 
-fn malformed_message(expert: &packetfin_core::tree::ExpertInfo) -> &str {
-    if expert.message.contains("truncated")
-        || expert.message.contains("is empty")
-        || expert.message.contains("shorter than")
-    {
-        "Malformed Packet (Exception occurred)"
-    } else {
-        &expert.message
-    }
+/// Text of a protocol-level malformed marker.
+///
+/// A decoder that cannot continue is reported the same way for every
+/// protocol: the display never exposes the decoder's internal reason, only
+/// that decoding stopped. Fields decoded before the failure stay in the tree.
+fn malformed_text() -> &'static str {
+    "Malformed Packet (Exception occurred)"
 }
 
 /// Offset for a protocol-exception marker: the first protocol

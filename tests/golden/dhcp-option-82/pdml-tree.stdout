@@ -1,0 +1,386 @@
+<?xml version="1.0" encoding="utf-8"?>
+<?xml-stylesheet type="text/xsl" href="pdml2html.xsl"?>
+<!-- normalized -->
+<pdml version="0" creator="creator" time="time" capture_file="tests/fixtures/dhcp-option-82.pcap">
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="304">
+    <field name="num" pos="0" show="2" showname="Number" value="2" size="304"/>
+    <field name="len" pos="0" show="304" showname="Frame Length" value="130" size="304"/>
+    <field name="caplen" pos="0" show="304" showname="Captured Length" value="130" size="304"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:20.123457000 UTC" showname="Captured Time" value="1700000000.123457000" size="304"/>
+  </proto>
+  <proto name="frame" showname="Frame 2: Packet, 304 bytes on wire (2432 bits), 304 bytes captured (2432 bits)" size="304" pos="0">
+    <field name="filtered" value="frame" />
+  </proto>
+  <proto name="eth" showname="Ethernet II, Src: 02:00:00:00:00:01, Dst: 02:00:00:00:00:02" size="14" pos="0">
+    <field name="filtered" value="eth" />
+  </proto>
+  <proto name="ip" showname="Internet Protocol Version 4, Src: 192.0.2.1, Dst: 198.51.100.2" size="20" pos="14">
+    <field name="filtered" value="ip" />
+  </proto>
+  <proto name="udp" showname="User Datagram Protocol, Src Port: 68, Dst Port: 67" size="8" pos="34">
+    <field name="filtered" value="udp" />
+  </proto>
+  <proto name="dhcp" showname="Dynamic Host Configuration Protocol (Discover)" size="262" pos="42">
+    <field name="dhcp.type" showname="Message type: Boot Request (1)" size="1" pos="42" show="1" value="01"/>
+    <field name="dhcp.hw.type" showname="Hardware type: Ethernet (0x01)" size="1" pos="43" show="0x01" value="01"/>
+    <field name="dhcp.hw.len" showname="Hardware address length: 6" size="1" pos="44" show="6" value="06"/>
+    <field name="dhcp.hops" showname="Hops: 0" size="1" pos="45" show="0" value="00"/>
+    <field name="dhcp.id" showname="Transaction ID: 0x12345678" size="4" pos="46" show="0x12345678" value="12345678"/>
+    <field name="dhcp.secs" showname="Seconds elapsed: 0" size="2" pos="50" show="0" value="0000"/>
+    <field name="dhcp.flags" showname="Bootp flags: 0x8000, Broadcast flag (Broadcast)" size="2" pos="52" show="0x8000" value="8000">
+      <field name="dhcp.flags.bc" showname="1... .... .... .... = Broadcast flag: Broadcast" size="2" pos="52" show="True" value="1" unmaskedvalue="8000"/>
+      <field name="dhcp.flags.reserved" showname=".000 0000 0000 0000 = Reserved flags: 0x0000" size="2" pos="52" show="0x0000" value="0" unmaskedvalue="8000"/>
+    </field>
+    <field name="dhcp.ip.client" showname="Client IP address: 0.0.0.0" size="4" pos="54" show="0.0.0.0" value="00000000"/>
+    <field name="dhcp.ip.your" showname="Your (client) IP address: 0.0.0.0" size="4" pos="58" show="0.0.0.0" value="00000000"/>
+    <field name="dhcp.ip.server" showname="Next server IP address: 0.0.0.0" size="4" pos="62" show="0.0.0.0" value="00000000"/>
+    <field name="dhcp.ip.relay" showname="Relay agent IP address: 0.0.0.0" size="4" pos="66" show="0.0.0.0" value="00000000"/>
+    <field name="dhcp.hw.mac_addr" showname="Client MAC address: 02:00:00:00:00:01" size="6" pos="70" show="02:00:00:00:00:01" value="020000000001"/>
+    <field name="dhcp.hw.addr_padding" showname="Client hardware address padding: 00000000000000000000" size="10" pos="76" show="00:00:00:00:00:00:00:00:00:00" value="00000000000000000000"/>
+    <field name="dhcp.server" showname="Server host name not given" size="64" pos="86" show="" value="00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"/>
+    <field name="dhcp.file" showname="Boot file name not given" size="128" pos="150" show="" value="0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"/>
+    <field name="dhcp.cookie" showname="Magic cookie: DHCP" size="4" pos="278" show="99.130.83.99" value="63825363"/>
+    <field name="dhcp.option.type" showname="Option: (53) DHCP Message Type (Discover)" size="3" pos="282" show="53" value="350101">
+      <field name="dhcp.option.length" showname="Length: 1" size="1" pos="283" show="1" value="01"/>
+      <field name="dhcp.option.value" showname="Value: 01" hide="yes" size="1" pos="284" show="01" value="01"/>
+      <field name="dhcp.option.dhcp" showname="DHCP: Discover (1)" size="1" pos="284" show="1" value="01"/>
+    </field>
+    <field name="dhcp.option.type" showname="Option: (82) Agent Information Option" size="18" pos="285" show="82" value="5210090700007ed902aabb090500007ed900">
+      <field name="dhcp.option.length" showname="Length: 16" size="1" pos="286" show="16" value="10"/>
+      <field name="dhcp.option.value" showname="Value: 090700007ed902aabb090500007ed900" hide="yes" size="16" pos="287" show="09:07:00:00:7e:d9:02:aa:bb:09:05:00:00:7e:d9:00" value="090700007ed902aabb090500007ed900"/>
+      <field name="dhcp.option.agent_information_option.suboption" showname="Option 82 Suboption: (9) Vendor-Specific Information" size="9" pos="287" show="9" value="090700007ed902aabb">
+        <field name="dhcp.option.suboption_length" showname="Length: 7" size="1" pos="288" show="7" value="07"/>
+        <field name="dhcp.option.agent_information_option.value" showname="Value: 00007ed902aabb" hide="yes" size="7" pos="289" show="00:00:7e:d9:02:aa:bb" value="00007ed902aabb"/>
+        <field name="dhcp.option.agent_information_option.vi.enterprise" showname="Enterprise: Example Enterprise Number for Documentation Use (32473)" size="4" pos="289" show="32473" value="00007ed9">
+          <field name="dhcp.option.agent_information_option.vi.data_length" showname="Data Length: 2" size="1" pos="293" show="2" value="02"/>
+        </field>
+        <field name="dhcp.option.agent_information_option.value" showname="Value: aabb" size="2" pos="294" show="aa:bb" value="aabb"/>
+      </field>
+      <field name="dhcp.option.agent_information_option.suboption" showname="Option 82 Suboption: (9) Vendor-Specific Information" size="7" pos="296" show="9" value="090500007ed900">
+        <field name="dhcp.option.suboption_length" showname="Length: 5" size="1" pos="297" show="5" value="05"/>
+        <field name="dhcp.option.agent_information_option.value" showname="Value: 00007ed900" hide="yes" size="5" pos="298" show="00:00:7e:d9:00" value="00007ed900"/>
+        <field name="dhcp.option.agent_information_option.vi.enterprise" showname="Enterprise: Example Enterprise Number for Documentation Use (32473)" size="4" pos="298" show="32473" value="00007ed9">
+          <field name="dhcp.option.agent_information_option.vi.data_length" showname="Data Length: 0" size="1" pos="302" show="0" value="00"/>
+        </field>
+        <field name="dhcp.option.agent_information_option.value" showname="Value: &lt;MISSING&gt;" size="0" pos="303" show=""/>
+      </field>
+    </field>
+    <field name="dhcp.option.type" showname="Option: (255) End" size="1" pos="303" show="0" value="ff">
+      <field name="dhcp.option.end" showname="Option End: 255" size="1" pos="303" show="255" value="ff"/>
+    </field>
+  </proto>
+</packet>
+
+
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="296">
+    <field name="num" pos="0" show="3" showname="Number" value="3" size="296"/>
+    <field name="len" pos="0" show="296" showname="Frame Length" value="128" size="296"/>
+    <field name="caplen" pos="0" show="296" showname="Captured Length" value="128" size="296"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:20.123458000 UTC" showname="Captured Time" value="1700000000.123458000" size="296"/>
+  </proto>
+  <proto name="frame" showname="Frame 3: Packet, 296 bytes on wire (2368 bits), 296 bytes captured (2368 bits)" size="296" pos="0">
+    <field name="filtered" value="frame" />
+  </proto>
+  <proto name="eth" showname="Ethernet II, Src: 02:00:00:00:00:01, Dst: 02:00:00:00:00:02" size="14" pos="0">
+    <field name="filtered" value="eth" />
+  </proto>
+  <proto name="ip" showname="Internet Protocol Version 4, Src: 192.0.2.1, Dst: 198.51.100.2" size="20" pos="14">
+    <field name="filtered" value="ip" />
+  </proto>
+  <proto name="udp" showname="User Datagram Protocol, Src Port: 68, Dst Port: 67" size="8" pos="34">
+    <field name="filtered" value="udp" />
+  </proto>
+  <proto name="dhcp" showname="Dynamic Host Configuration Protocol (Discover)" size="254" pos="42">
+    <field name="dhcp.type" showname="Message type: Boot Request (1)" size="1" pos="42" show="1" value="01"/>
+    <field name="dhcp.hw.type" showname="Hardware type: Ethernet (0x01)" size="1" pos="43" show="0x01" value="01"/>
+    <field name="dhcp.hw.len" showname="Hardware address length: 6" size="1" pos="44" show="6" value="06"/>
+    <field name="dhcp.hops" showname="Hops: 0" size="1" pos="45" show="0" value="00"/>
+    <field name="dhcp.id" showname="Transaction ID: 0x12345678" size="4" pos="46" show="0x12345678" value="12345678"/>
+    <field name="dhcp.secs" showname="Seconds elapsed: 0" size="2" pos="50" show="0" value="0000"/>
+    <field name="dhcp.flags" showname="Bootp flags: 0x8000, Broadcast flag (Broadcast)" size="2" pos="52" show="0x8000" value="8000">
+      <field name="dhcp.flags.bc" showname="1... .... .... .... = Broadcast flag: Broadcast" size="2" pos="52" show="True" value="1" unmaskedvalue="8000"/>
+      <field name="dhcp.flags.reserved" showname=".000 0000 0000 0000 = Reserved flags: 0x0000" size="2" pos="52" show="0x0000" value="0" unmaskedvalue="8000"/>
+    </field>
+    <field name="dhcp.ip.client" showname="Client IP address: 0.0.0.0" size="4" pos="54" show="0.0.0.0" value="00000000"/>
+    <field name="dhcp.ip.your" showname="Your (client) IP address: 0.0.0.0" size="4" pos="58" show="0.0.0.0" value="00000000"/>
+    <field name="dhcp.ip.server" showname="Next server IP address: 0.0.0.0" size="4" pos="62" show="0.0.0.0" value="00000000"/>
+    <field name="dhcp.ip.relay" showname="Relay agent IP address: 0.0.0.0" size="4" pos="66" show="0.0.0.0" value="00000000"/>
+    <field name="dhcp.hw.mac_addr" showname="Client MAC address: 02:00:00:00:00:01" size="6" pos="70" show="02:00:00:00:00:01" value="020000000001"/>
+    <field name="dhcp.hw.addr_padding" showname="Client hardware address padding: 00000000000000000000" size="10" pos="76" show="00:00:00:00:00:00:00:00:00:00" value="00000000000000000000"/>
+    <field name="dhcp.server" showname="Server host name not given" size="64" pos="86" show="" value="00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"/>
+    <field name="dhcp.file" showname="Boot file name not given" size="128" pos="150" show="" value="0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"/>
+    <field name="dhcp.cookie" showname="Magic cookie: DHCP" size="4" pos="278" show="99.130.83.99" value="63825363"/>
+    <field name="dhcp.option.type" showname="Option: (53) DHCP Message Type (Discover)" size="3" pos="282" show="53" value="350101">
+      <field name="dhcp.option.length" showname="Length: 1" size="1" pos="283" show="1" value="01"/>
+      <field name="dhcp.option.value" showname="Value: 01" hide="yes" size="1" pos="284" show="01" value="01"/>
+      <field name="dhcp.option.dhcp" showname="DHCP: Discover (1)" size="1" pos="284" show="1" value="01"/>
+    </field>
+    <field name="dhcp.option.type" showname="Option: (82) Agent Information Option" size="10" pos="285" show="82" value="52080302aabb07090102">
+      <field name="dhcp.option.length" showname="Length: 8" size="1" pos="286" show="8" value="08"/>
+      <field name="dhcp.option.value" showname="Value: 0302aabb07090102" hide="yes" size="8" pos="287" show="03:02:aa:bb:07:09:01:02" value="0302aabb07090102"/>
+      <field name="dhcp.option.agent_information_option.suboption" showname="Option 82 Suboption: (3) Reserved" size="4" pos="287" show="3" value="0302aabb">
+        <field name="dhcp.option.suboption_length" showname="Length: 2" size="1" pos="288" show="2" value="02"/>
+        <field name="dhcp.option.agent_information_option.value" showname="Value: aabb" hide="yes" size="2" pos="289" show="aa:bb" value="aabb"/>
+        <field name="dhcp.option.agent_information_option.reserved" showname="Reserved: aabb" size="2" pos="289" show="aa:bb" value="aabb"/>
+      </field>
+      <field name="dhcp.option.agent_information_option.suboption" showname="Option 82 Suboption: (7) RADIUS Attributes" size="11" pos="291" show="7" value="field length invalid!">
+        <field name="dhcp.option.suboption_length" showname="Length: 9" size="1" pos="292" show="9" value="09"/>
+        <field name="_ws.expert" showname="Expert Info (Error/Protocol): Suboption 7: no room left in option for suboption value" size="0" pos="291">
+          <field name="dhcp.missing_subopt_value" showname="Suboption 7: no room left in option for suboption value" size="0" pos="0" show="" value=""/>
+          <field name="_ws.expert.message" showname="Message: Suboption 7: no room left in option for suboption value" hide="yes" size="0" pos="0" show="Suboption 7: no room left in option for suboption value"/>
+          <field name="_ws.expert.severity" showname="Severity level: Error" size="0" pos="0" show="8388608"/>
+          <field name="_ws.expert.group" showname="Group: Protocol" size="0" pos="0" show="150994944"/>
+        </field>
+      </field>
+    </field>
+    <field name="dhcp.option.type" showname="Option: (255) End" size="1" pos="295" show="0" value="ff">
+      <field name="dhcp.option.end" showname="Option End: 255" size="1" pos="295" show="255" value="ff"/>
+    </field>
+  </proto>
+</packet>
+
+
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="293">
+    <field name="num" pos="0" show="4" showname="Number" value="4" size="293"/>
+    <field name="len" pos="0" show="293" showname="Frame Length" value="125" size="293"/>
+    <field name="caplen" pos="0" show="293" showname="Captured Length" value="125" size="293"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:20.123459000 UTC" showname="Captured Time" value="1700000000.123459000" size="293"/>
+  </proto>
+  <proto name="frame" showname="Frame 4: Packet, 293 bytes on wire (2344 bits), 293 bytes captured (2344 bits)" size="293" pos="0">
+    <field name="filtered" value="frame" />
+  </proto>
+  <proto name="eth" showname="Ethernet II, Src: 02:00:00:00:00:01, Dst: 02:00:00:00:00:02" size="14" pos="0">
+    <field name="filtered" value="eth" />
+  </proto>
+  <proto name="ip" showname="Internet Protocol Version 4, Src: 192.0.2.1, Dst: 198.51.100.2" size="20" pos="14">
+    <field name="filtered" value="ip" />
+  </proto>
+  <proto name="udp" showname="User Datagram Protocol, Src Port: 68, Dst Port: 67" size="8" pos="34">
+    <field name="filtered" value="udp" />
+  </proto>
+  <proto name="dhcp" showname="Dynamic Host Configuration Protocol (Discover)" size="251" pos="42">
+    <field name="dhcp.type" showname="Message type: Boot Request (1)" size="1" pos="42" show="1" value="01"/>
+    <field name="dhcp.hw.type" showname="Hardware type: Ethernet (0x01)" size="1" pos="43" show="0x01" value="01"/>
+    <field name="dhcp.hw.len" showname="Hardware address length: 6" size="1" pos="44" show="6" value="06"/>
+    <field name="dhcp.hops" showname="Hops: 0" size="1" pos="45" show="0" value="00"/>
+    <field name="dhcp.id" showname="Transaction ID: 0x12345678" size="4" pos="46" show="0x12345678" value="12345678"/>
+    <field name="dhcp.secs" showname="Seconds elapsed: 0" size="2" pos="50" show="0" value="0000"/>
+    <field name="dhcp.flags" showname="Bootp flags: 0x8000, Broadcast flag (Broadcast)" size="2" pos="52" show="0x8000" value="8000">
+      <field name="dhcp.flags.bc" showname="1... .... .... .... = Broadcast flag: Broadcast" size="2" pos="52" show="True" value="1" unmaskedvalue="8000"/>
+      <field name="dhcp.flags.reserved" showname=".000 0000 0000 0000 = Reserved flags: 0x0000" size="2" pos="52" show="0x0000" value="0" unmaskedvalue="8000"/>
+    </field>
+    <field name="dhcp.ip.client" showname="Client IP address: 0.0.0.0" size="4" pos="54" show="0.0.0.0" value="00000000"/>
+    <field name="dhcp.ip.your" showname="Your (client) IP address: 0.0.0.0" size="4" pos="58" show="0.0.0.0" value="00000000"/>
+    <field name="dhcp.ip.server" showname="Next server IP address: 0.0.0.0" size="4" pos="62" show="0.0.0.0" value="00000000"/>
+    <field name="dhcp.ip.relay" showname="Relay agent IP address: 0.0.0.0" size="4" pos="66" show="0.0.0.0" value="00000000"/>
+    <field name="dhcp.hw.mac_addr" showname="Client MAC address: 02:00:00:00:00:01" size="6" pos="70" show="02:00:00:00:00:01" value="020000000001"/>
+    <field name="dhcp.hw.addr_padding" showname="Client hardware address padding: 00000000000000000000" size="10" pos="76" show="00:00:00:00:00:00:00:00:00:00" value="00000000000000000000"/>
+    <field name="dhcp.server" showname="Server host name not given" size="64" pos="86" show="" value="00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"/>
+    <field name="dhcp.file" showname="Boot file name not given" size="128" pos="150" show="" value="0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"/>
+    <field name="dhcp.cookie" showname="Magic cookie: DHCP" size="4" pos="278" show="99.130.83.99" value="63825363"/>
+    <field name="dhcp.option.type" showname="Option: (53) DHCP Message Type (Discover)" size="3" pos="282" show="53" value="350101">
+      <field name="dhcp.option.length" showname="Length: 1" size="1" pos="283" show="1" value="01"/>
+      <field name="dhcp.option.value" showname="Value: 01" hide="yes" size="1" pos="284" show="01" value="01"/>
+      <field name="dhcp.option.dhcp" showname="DHCP: Discover (1)" size="1" pos="284" show="1" value="01"/>
+    </field>
+    <field name="dhcp.option.type" showname="Option: (82) Agent Information Option" size="7" pos="285" show="82" value="52050302aabb08">
+      <field name="dhcp.option.length" showname="Length: 5" size="1" pos="286" show="5" value="05"/>
+      <field name="dhcp.option.value" showname="Value: 0302aabb08" hide="yes" size="5" pos="287" show="03:02:aa:bb:08" value="0302aabb08"/>
+      <field name="dhcp.option.agent_information_option.suboption" showname="Option 82 Suboption: (3) Reserved" size="4" pos="287" show="3" value="0302aabb">
+        <field name="dhcp.option.suboption_length" showname="Length: 2" size="1" pos="288" show="2" value="02"/>
+        <field name="dhcp.option.agent_information_option.value" showname="Value: aabb" hide="yes" size="2" pos="289" show="aa:bb" value="aabb"/>
+        <field name="dhcp.option.agent_information_option.reserved" showname="Reserved: aabb" size="2" pos="289" show="aa:bb" value="aabb"/>
+      </field>
+      <field name="_ws.expert" showname="Expert Info (Error/Protocol): Suboption 8: no room left in option for suboption length" size="0" pos="285">
+        <field name="dhcp.missing_subopt_length" showname="Suboption 8: no room left in option for suboption length" size="0" pos="0" show="" value=""/>
+        <field name="_ws.expert.message" showname="Message: Suboption 8: no room left in option for suboption length" hide="yes" size="0" pos="0" show="Suboption 8: no room left in option for suboption length"/>
+        <field name="_ws.expert.severity" showname="Severity level: Error" size="0" pos="0" show="8388608"/>
+        <field name="_ws.expert.group" showname="Group: Protocol" size="0" pos="0" show="150994944"/>
+      </field>
+    </field>
+    <field name="dhcp.option.type" showname="Option: (255) End" size="1" pos="292" show="0" value="ff">
+      <field name="dhcp.option.end" showname="Option End: 255" size="1" pos="292" show="255" value="ff"/>
+    </field>
+  </proto>
+</packet>
+
+
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="306">
+    <field name="num" pos="0" show="5" showname="Number" value="5" size="306"/>
+    <field name="len" pos="0" show="306" showname="Frame Length" value="132" size="306"/>
+    <field name="caplen" pos="0" show="306" showname="Captured Length" value="132" size="306"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:20.123460000 UTC" showname="Captured Time" value="1700000000.123460000" size="306"/>
+  </proto>
+  <proto name="frame" showname="Frame 5: Packet, 306 bytes on wire (2448 bits), 306 bytes captured (2448 bits)" size="306" pos="0">
+    <field name="filtered" value="frame" />
+  </proto>
+  <proto name="eth" showname="Ethernet II, Src: 02:00:00:00:00:01, Dst: 02:00:00:00:00:02" size="14" pos="0">
+    <field name="filtered" value="eth" />
+  </proto>
+  <proto name="ip" showname="Internet Protocol Version 4, Src: 192.0.2.1, Dst: 198.51.100.2" size="20" pos="14">
+    <field name="filtered" value="ip" />
+  </proto>
+  <proto name="udp" showname="User Datagram Protocol, Src Port: 68, Dst Port: 67" size="8" pos="34">
+    <field name="filtered" value="udp" />
+  </proto>
+  <proto name="dhcp" showname="Dynamic Host Configuration Protocol (Discover)" size="264" pos="42">
+    <field name="dhcp.type" showname="Message type: Boot Request (1)" size="1" pos="42" show="1" value="01"/>
+    <field name="dhcp.hw.type" showname="Hardware type: Ethernet (0x01)" size="1" pos="43" show="0x01" value="01"/>
+    <field name="dhcp.hw.len" showname="Hardware address length: 6" size="1" pos="44" show="6" value="06"/>
+    <field name="dhcp.hops" showname="Hops: 0" size="1" pos="45" show="0" value="00"/>
+    <field name="dhcp.id" showname="Transaction ID: 0x12345678" size="4" pos="46" show="0x12345678" value="12345678"/>
+    <field name="dhcp.secs" showname="Seconds elapsed: 0" size="2" pos="50" show="0" value="0000"/>
+    <field name="dhcp.flags" showname="Bootp flags: 0x8000, Broadcast flag (Broadcast)" size="2" pos="52" show="0x8000" value="8000">
+      <field name="dhcp.flags.bc" showname="1... .... .... .... = Broadcast flag: Broadcast" size="2" pos="52" show="True" value="1" unmaskedvalue="8000"/>
+      <field name="dhcp.flags.reserved" showname=".000 0000 0000 0000 = Reserved flags: 0x0000" size="2" pos="52" show="0x0000" value="0" unmaskedvalue="8000"/>
+    </field>
+    <field name="dhcp.ip.client" showname="Client IP address: 0.0.0.0" size="4" pos="54" show="0.0.0.0" value="00000000"/>
+    <field name="dhcp.ip.your" showname="Your (client) IP address: 0.0.0.0" size="4" pos="58" show="0.0.0.0" value="00000000"/>
+    <field name="dhcp.ip.server" showname="Next server IP address: 0.0.0.0" size="4" pos="62" show="0.0.0.0" value="00000000"/>
+    <field name="dhcp.ip.relay" showname="Relay agent IP address: 0.0.0.0" size="4" pos="66" show="0.0.0.0" value="00000000"/>
+    <field name="dhcp.hw.mac_addr" showname="Client MAC address: 02:00:00:00:00:01" size="6" pos="70" show="02:00:00:00:00:01" value="020000000001"/>
+    <field name="dhcp.hw.addr_padding" showname="Client hardware address padding: 00000000000000000000" size="10" pos="76" show="00:00:00:00:00:00:00:00:00:00" value="00000000000000000000"/>
+    <field name="dhcp.server" showname="Server host name not given" size="64" pos="86" show="" value="00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"/>
+    <field name="dhcp.file" showname="Boot file name not given" size="128" pos="150" show="" value="0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"/>
+    <field name="dhcp.cookie" showname="Magic cookie: DHCP" size="4" pos="278" show="99.130.83.99" value="63825363"/>
+    <field name="dhcp.option.type" showname="Option: (53) DHCP Message Type (Discover)" size="3" pos="282" show="53" value="350101">
+      <field name="dhcp.option.length" showname="Length: 1" size="1" pos="283" show="1" value="01"/>
+      <field name="dhcp.option.value" showname="Value: 01" hide="yes" size="1" pos="284" show="01" value="01"/>
+      <field name="dhcp.option.dhcp" showname="DHCP: Discover (1)" size="1" pos="284" show="1" value="01"/>
+    </field>
+    <field name="dhcp.option.type" showname="Option: (82) Agent Information Option" size="20" pos="285" show="82" value="5212040201020503c633640a0205060b03c63364">
+      <field name="dhcp.option.length" showname="Length: 18" size="1" pos="286" show="18" value="12"/>
+      <field name="dhcp.option.value" showname="Value: 040201020503c633640a0205060b03c63364" hide="yes" size="18" pos="287" show="04:02:01:02:05:03:c6:33:64:0a:02:05:06:0b:03:c6:33:64" value="040201020503c633640a0205060b03c63364"/>
+      <field name="dhcp.option.agent_information_option.suboption" showname="Option 82 Suboption: (4) DOCSIS Device Class" size="4" pos="287" show="4" value="04020102">
+        <field name="dhcp.option.suboption_length" showname="Length: 2" size="1" pos="288" show="2" value="02"/>
+        <field name="dhcp.option.agent_information_option.value" showname="Value: 0102" hide="yes" size="2" pos="289" show="01:02" value="0102"/>
+        <field name="_ws.expert" showname="Expert Info (Error/Protocol): length isn&#x27;t 4" size="0" pos="287">
+          <field name="dhcp.bad_length" showname="length isn&#x27;t 4" size="0" pos="0" show="" value=""/>
+          <field name="_ws.expert.message" showname="Message: length isn&#x27;t 4" hide="yes" size="0" pos="0" show="length isn&#x27;t 4"/>
+          <field name="_ws.expert.severity" showname="Severity level: Error" size="0" pos="0" show="8388608"/>
+          <field name="_ws.expert.group" showname="Group: Protocol" size="0" pos="0" show="150994944"/>
+        </field>
+      </field>
+      <field name="dhcp.option.agent_information_option.suboption" showname="Option 82 Suboption: (5) Link selection" size="5" pos="291" show="5" value="0503c63364">
+        <field name="dhcp.option.suboption_length" showname="Length: 3" size="1" pos="292" show="3" value="03"/>
+        <field name="dhcp.option.agent_information_option.value" showname="Value: c63364" hide="yes" size="3" pos="293" show="c6:33:64" value="c63364"/>
+        <field name="_ws.expert" showname="Expert Info (Error/Protocol): length isn&#x27;t 4" size="0" pos="291">
+          <field name="dhcp.bad_length" showname="length isn&#x27;t 4" size="0" pos="0" show="" value=""/>
+          <field name="_ws.expert.message" showname="Message: length isn&#x27;t 4" hide="yes" size="0" pos="0" show="length isn&#x27;t 4"/>
+          <field name="_ws.expert.severity" showname="Severity level: Error" size="0" pos="0" show="8388608"/>
+          <field name="_ws.expert.group" showname="Group: Protocol" size="0" pos="0" show="150994944"/>
+        </field>
+      </field>
+      <field name="dhcp.option.agent_information_option.suboption" showname="Option 82 Suboption: (10) Flags" size="4" pos="296" show="10" value="0a020506">
+        <field name="dhcp.option.suboption_length" showname="Length: 2" size="1" pos="297" show="2" value="02"/>
+        <field name="dhcp.option.agent_information_option.value" showname="Value: 0506" hide="yes" size="2" pos="298" show="05:06" value="0506"/>
+        <field name="_ws.expert" showname="Expert Info (Error/Protocol): length isn&#x27;t 1" size="0" pos="296">
+          <field name="dhcp.bad_length" showname="length isn&#x27;t 1" size="0" pos="0" show="" value=""/>
+          <field name="_ws.expert.message" showname="Message: length isn&#x27;t 1" hide="yes" size="0" pos="0" show="length isn&#x27;t 1"/>
+          <field name="_ws.expert.severity" showname="Severity level: Error" size="0" pos="0" show="8388608"/>
+          <field name="_ws.expert.group" showname="Group: Protocol" size="0" pos="0" show="150994944"/>
+        </field>
+      </field>
+      <field name="dhcp.option.agent_information_option.suboption" showname="Option 82 Suboption: (11) Server ID Override" size="5" pos="300" show="11" value="0b03c63364">
+        <field name="dhcp.option.suboption_length" showname="Length: 3" size="1" pos="301" show="3" value="03"/>
+        <field name="dhcp.option.agent_information_option.value" showname="Value: c63364" hide="yes" size="3" pos="302" show="c6:33:64" value="c63364"/>
+        <field name="_ws.expert" showname="Expert Info (Error/Protocol): length isn&#x27;t 4" size="0" pos="300">
+          <field name="dhcp.bad_length" showname="length isn&#x27;t 4" size="0" pos="0" show="" value=""/>
+          <field name="_ws.expert.message" showname="Message: length isn&#x27;t 4" hide="yes" size="0" pos="0" show="length isn&#x27;t 4"/>
+          <field name="_ws.expert.severity" showname="Severity level: Error" size="0" pos="0" show="8388608"/>
+          <field name="_ws.expert.group" showname="Group: Protocol" size="0" pos="0" show="150994944"/>
+        </field>
+      </field>
+    </field>
+    <field name="dhcp.option.type" showname="Option: (255) End" size="1" pos="305" show="0" value="ff">
+      <field name="dhcp.option.end" showname="Option End: 255" size="1" pos="305" show="255" value="ff"/>
+    </field>
+  </proto>
+</packet>
+
+
+<packet>
+  <proto name="geninfo" pos="0" showname="General information" size="298">
+    <field name="num" pos="0" show="8" showname="Number" value="8" size="298"/>
+    <field name="len" pos="0" show="298" showname="Frame Length" value="12a" size="298"/>
+    <field name="caplen" pos="0" show="298" showname="Captured Length" value="12a" size="298"/>
+    <field name="timestamp" pos="0" show="Nov 14, 2023 22:13:20.123463000 UTC" showname="Captured Time" value="1700000000.123463000" size="298"/>
+  </proto>
+  <proto name="frame" showname="Frame 8: Packet, 298 bytes on wire (2384 bits), 298 bytes captured (2384 bits)" size="298" pos="0">
+    <field name="filtered" value="frame" />
+  </proto>
+  <proto name="eth" showname="Ethernet II, Src: 02:00:00:00:00:01, Dst: 02:00:00:00:00:02" size="14" pos="0">
+    <field name="filtered" value="eth" />
+  </proto>
+  <proto name="ip" showname="Internet Protocol Version 4, Src: 192.0.2.1, Dst: 198.51.100.2" size="20" pos="14">
+    <field name="filtered" value="ip" />
+  </proto>
+  <proto name="udp" showname="User Datagram Protocol, Src Port: 68, Dst Port: 67" size="8" pos="34">
+    <field name="filtered" value="udp" />
+  </proto>
+  <proto name="dhcp" showname="Dynamic Host Configuration Protocol (Discover)" size="256" pos="42">
+    <field name="dhcp.type" showname="Message type: Boot Request (1)" size="1" pos="42" show="1" value="01"/>
+    <field name="dhcp.hw.type" showname="Hardware type: Ethernet (0x01)" size="1" pos="43" show="0x01" value="01"/>
+    <field name="dhcp.hw.len" showname="Hardware address length: 6" size="1" pos="44" show="6" value="06"/>
+    <field name="dhcp.hops" showname="Hops: 0" size="1" pos="45" show="0" value="00"/>
+    <field name="dhcp.id" showname="Transaction ID: 0x12345678" size="4" pos="46" show="0x12345678" value="12345678"/>
+    <field name="dhcp.secs" showname="Seconds elapsed: 0" size="2" pos="50" show="0" value="0000"/>
+    <field name="dhcp.flags" showname="Bootp flags: 0x8000, Broadcast flag (Broadcast)" size="2" pos="52" show="0x8000" value="8000">
+      <field name="dhcp.flags.bc" showname="1... .... .... .... = Broadcast flag: Broadcast" size="2" pos="52" show="True" value="1" unmaskedvalue="8000"/>
+      <field name="dhcp.flags.reserved" showname=".000 0000 0000 0000 = Reserved flags: 0x0000" size="2" pos="52" show="0x0000" value="0" unmaskedvalue="8000"/>
+    </field>
+    <field name="dhcp.ip.client" showname="Client IP address: 0.0.0.0" size="4" pos="54" show="0.0.0.0" value="00000000"/>
+    <field name="dhcp.ip.your" showname="Your (client) IP address: 0.0.0.0" size="4" pos="58" show="0.0.0.0" value="00000000"/>
+    <field name="dhcp.ip.server" showname="Next server IP address: 0.0.0.0" size="4" pos="62" show="0.0.0.0" value="00000000"/>
+    <field name="dhcp.ip.relay" showname="Relay agent IP address: 0.0.0.0" size="4" pos="66" show="0.0.0.0" value="00000000"/>
+    <field name="dhcp.hw.mac_addr" showname="Client MAC address: 02:00:00:00:00:01" size="6" pos="70" show="02:00:00:00:00:01" value="020000000001"/>
+    <field name="dhcp.hw.addr_padding" showname="Client hardware address padding: 00000000000000000000" size="10" pos="76" show="00:00:00:00:00:00:00:00:00:00" value="00000000000000000000"/>
+    <field name="dhcp.server" showname="Server host name not given" size="64" pos="86" show="" value="00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"/>
+    <field name="dhcp.file" showname="Boot file name not given" size="128" pos="150" show="" value="0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"/>
+    <field name="dhcp.cookie" showname="Magic cookie: DHCP" size="4" pos="278" show="99.130.83.99" value="63825363"/>
+    <field name="dhcp.option.type" showname="Option: (53) DHCP Message Type (Discover)" size="3" pos="282" show="53" value="350101">
+      <field name="dhcp.option.length" showname="Length: 1" size="1" pos="283" show="1" value="01"/>
+      <field name="dhcp.option.value" showname="Value: 01" hide="yes" size="1" pos="284" show="01" value="01"/>
+      <field name="dhcp.option.dhcp" showname="DHCP: Discover (1)" size="1" pos="284" show="1" value="01"/>
+    </field>
+    <field name="dhcp.option.type" showname="Option: (82) Agent Information Option" size="12" pos="285" show="82" value="520a01000300070008000c00">
+      <field name="dhcp.option.length" showname="Length: 10" size="1" pos="286" show="10" value="0a"/>
+      <field name="dhcp.option.value" showname="Value: 01000300070008000c00" hide="yes" size="10" pos="287" show="01:00:03:00:07:00:08:00:0c:00" value="01000300070008000c00"/>
+      <field name="dhcp.option.agent_information_option.suboption" showname="Option 82 Suboption: (1) Agent Circuit ID" size="2" pos="287" show="1" value="0100">
+        <field name="dhcp.option.suboption_length" showname="Length: 0" size="1" pos="288" show="0" value="00"/>
+        <field name="dhcp.option.agent_information_option.value" showname="Value: &lt;MISSING&gt;" hide="yes" size="0" pos="289" show=""/>
+        <field name="dhcp.option.agent_information_option.agent_circuit_id" showname="Agent Circuit ID: &lt;MISSING&gt;" size="0" pos="289" show=""/>
+      </field>
+      <field name="dhcp.option.agent_information_option.suboption" showname="Option 82 Suboption: (3) Reserved" size="2" pos="289" show="3" value="0300">
+        <field name="dhcp.option.suboption_length" showname="Length: 0" size="1" pos="290" show="0" value="00"/>
+        <field name="dhcp.option.agent_information_option.value" showname="Value: &lt;MISSING&gt;" hide="yes" size="0" pos="291" show=""/>
+        <field name="dhcp.option.agent_information_option.reserved" showname="Reserved: &lt;MISSING&gt;" size="0" pos="291" show=""/>
+      </field>
+      <field name="dhcp.option.agent_information_option.suboption" showname="Option 82 Suboption: (7) RADIUS Attributes" size="2" pos="291" show="7" value="0700">
+        <field name="dhcp.option.suboption_length" showname="Length: 0" size="1" pos="292" show="0" value="00"/>
+        <field name="dhcp.option.agent_information_option.value" showname="Value: &lt;MISSING&gt;" hide="yes" size="0" pos="293" show=""/>
+        <field name="dhcp.option.agent_information_option.radius_attributes" showname="RADIUS Attributes: &lt;MISSING&gt;" size="0" pos="293" show=""/>
+      </field>
+      <field name="dhcp.option.agent_information_option.suboption" showname="Option 82 Suboption: (8) Authentication" size="2" pos="293" show="8" value="0800">
+        <field name="dhcp.option.suboption_length" showname="Length: 0" size="1" pos="294" show="0" value="00"/>
+        <field name="dhcp.option.agent_information_option.value" showname="Value: &lt;MISSING&gt;" hide="yes" size="0" pos="295" show=""/>
+        <field name="dhcp.option.agent_information_option.authentication" showname="Authentication: &lt;MISSING&gt;" size="0" pos="295" show=""/>
+      </field>
+      <field name="dhcp.option.agent_information_option.suboption" showname="Option 82 Suboption: (12) Relay Agent Identifier" size="2" pos="295" show="12" value="0c00">
+        <field name="dhcp.option.suboption_length" showname="Length: 0" size="1" pos="296" show="0" value="00"/>
+        <field name="dhcp.option.agent_information_option.value" showname="Value: &lt;MISSING&gt;" hide="yes" size="0" pos="297" show=""/>
+        <field name="dhcp.option.agent_information_option.relay_agent_id" showname="Relay Agent Identifier: &lt;MISSING&gt;" size="0" pos="297" show=""/>
+      </field>
+    </field>
+    <field name="dhcp.option.type" showname="Option: (255) End" size="1" pos="297" show="0" value="ff">
+      <field name="dhcp.option.end" showname="Option End: 255" size="1" pos="297" show="255" value="ff"/>
+    </field>
+  </proto>
+</packet>
+
+
+</pdml>

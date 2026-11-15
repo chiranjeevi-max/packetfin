@@ -402,7 +402,7 @@ fn masked_raw_spans_use_storage_windows() {
     ]);
     let flags = String::from_utf8_lossy(&flags.stdout);
     assert!(flags.contains(
-        "\"tcp.flags.str_raw\": [\n            \"6002\",\n            46,\n            2,"
+        "\"tcp.flags.str_raw\": [\n              \"6002\",\n              46,\n              2,"
     ));
 }
 
@@ -877,4 +877,36 @@ fn specified_fields_use_arrays_and_skip_absent_fields() {
         !text.contains("\"ip.src\""),
         "absent fields must be omitted"
     );
+}
+
+#[test]
+fn flag_bits_nest_under_the_flags_tree() {
+    let analysis = fixture("tcp-analysis");
+    let full = run(&fixture_json_args(analysis, &["-c", "1"]));
+    assert_eq!(status_code(full.status), Some(0));
+    let text = String::from_utf8_lossy(&full.stdout);
+    for nested in [
+        "          \"tcp.flags\": \"0x0002\",\n          \"tcp.flags_tree\": {\n            \"tcp.flags.res\": \"0\",\n",
+        "            \"tcp.flags.fin\": \"0\",\n            \"tcp.flags.str\": \"··········S·\"\n          },\n          \"tcp.window_size_value\": \"65535\",\n",
+        "          \"ip.flags\": \"0x02\",\n          \"ip.flags_tree\": {\n            \"ip.flags.rb\": \"0\",\n            \"ip.flags.df\": \"1\",\n            \"ip.flags.mf\": \"0\"\n          },\n",
+        "          \"ip.dsfield_tree\": {\n            \"ip.dsfield.dscp\": \"0\",\n            \"ip.dsfield.ecn\": \"0\"\n          },\n",
+    ] {
+        assert!(text.contains(nested), "missing {nested:?} in {text}");
+    }
+
+    // A filter that does not name the flags field hides its bits, even a
+    // bit that the filter names.
+    let filtered = run(&fixture_json_args(
+        analysis,
+        &["-c", "1", "-j", "tcp tcp.flags.syn"],
+    ));
+    assert_eq!(status_code(filtered.status), Some(0));
+    let text = String::from_utf8_lossy(&filtered.stdout);
+    assert!(
+        text.contains(
+            "          \"tcp.flags\": \"0x0002\",\n          \"tcp.flags_tree\": {\n            \"filtered\": \"tcp.flags\"\n          },\n          \"tcp.window_size_value\": \"65535\",\n"
+        ),
+        "{text}"
+    );
+    assert!(!text.contains("\"tcp.flags.syn\""), "{text}");
 }

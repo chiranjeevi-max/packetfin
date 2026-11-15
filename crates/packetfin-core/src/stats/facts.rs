@@ -89,6 +89,13 @@ pub struct ProtocolFact<'a> {
     pub parent: Option<usize>,
     /// Whether this node belongs to a quoted datagram.
     pub quoted: bool,
+    /// Whether a field of the enclosing protocol carries this node.
+    ///
+    /// Field nesting is not a new protocol layer: a relayed or encapsulated
+    /// message decoded inside a field shares its enclosing protocol's layer,
+    /// so the hierarchy statistics count one layer per frame while a
+    /// protocol tap still counts every occurrence.
+    pub nested_in_field: bool,
     /// First interested field index belonging to this protocol node.
     pub(crate) field_start: usize,
     /// One past the last interested field index belonging to this node.
@@ -130,11 +137,18 @@ impl<'a> FrameFacts<'a> {
             experts: Vec::new(),
             fields: Vec::with_capacity(16),
         };
-        facts.walk(&packet.tree.frame, 0, None, interests);
+        facts.walk(&packet.tree.frame, 0, None, false, interests);
         facts
     }
 
-    fn walk(&mut self, node: &'a Node, depth: usize, parent: Option<usize>, interests: &Interests) {
+    fn walk(
+        &mut self,
+        node: &'a Node,
+        depth: usize,
+        parent: Option<usize>,
+        nested_in_field: bool,
+        interests: &Interests,
+    ) {
         let protocol = node.protocol.short_name;
         let quoted = node.quoted;
         if interests.experts && !quoted {
@@ -165,11 +179,34 @@ impl<'a> FrameFacts<'a> {
             depth,
             parent,
             quoted,
+            nested_in_field,
             field_start,
             field_end,
         });
+        // A protocol decoded inside one of this protocol's fields is a
+        // protocol occurrence for the taps and for the expert list, but it
+        // keeps this protocol's layer.
+        for field in &node.fields {
+            self.walk_field_nodes(field, depth, index, interests);
+        }
         for child in &node.children {
-            self.walk(child, depth + 1, Some(index), interests);
+            self.walk(child, depth + 1, Some(index), false, interests);
+        }
+    }
+
+    /// Walk the protocol nodes carried by one field and its child fields.
+    fn walk_field_nodes(
+        &mut self,
+        field: &'a crate::tree::Field,
+        depth: usize,
+        parent: usize,
+        interests: &Interests,
+    ) {
+        for node in &field.nodes {
+            self.walk(node, depth, Some(parent), true, interests);
+        }
+        for child in &field.children {
+            self.walk_field_nodes(child, depth, parent, interests);
         }
     }
 

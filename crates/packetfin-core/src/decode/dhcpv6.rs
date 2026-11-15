@@ -432,10 +432,14 @@ fn decode_option(
             if body.len() > 2
                 && let Some(message) = body.get(2..)
             {
+                // RFC 8415 section 21.13 delimits the message by the option
+                // length and defines it as a UTF-8 string. Control octets stay
+                // in the value for filters and export; the detail line escapes
+                // them when it renders the text.
                 parent.add_field(
                     &fields::DHCPV6_STATUS_MSG,
                     Range::new(offset + 2, message.len()),
-                    Value::String(ascii_lossy(message)),
+                    Value::String(String::from_utf8_lossy(message).into_owned()),
                 );
             }
         }

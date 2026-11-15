@@ -21,7 +21,19 @@
 use std::mem::size_of;
 
 use super::StateValue;
+use crate::capture::Timestamp;
 use crate::tree::{ExpertInfo, Group, Severity};
+
+/// How long an incomplete datagram waits for its remaining fragments.
+///
+/// RFC 1122 section 3.3.2 requires a reassembly timeout and recommends a
+/// fixed value between 60 and 120 seconds; this implementation uses the
+/// recommended lower bound.  A capture can hold two datagrams that reuse a
+/// 16-bit identification minutes apart, so a buffer must not outlive the
+/// timeout and merge the later datagram into the stale one.  Times are
+/// compared in whole nanoseconds, the finest resolution a capture records, so
+/// one nanosecond past the timeout is already stale.
+const REASSEMBLY_TIMEOUT_NANOS: i128 = 60_000_000_000;
 
 /// Most fragments retained for one datagram.
 pub(crate) const MAX_FRAGMENTS: usize = 128;
@@ -78,6 +90,11 @@ pub(crate) struct FragmentPart<'a> {
     pub file: u64,
     /// Whether the More Fragments flag is set.
     pub more: bool,
+    /// Capture time of the frame that carried this fragment.
+    ///
+    /// The first stored fragment's time starts the reassembly timeout; a
+    /// fragment without a timestamp cannot be timed.
+    pub timestamp: Option<Timestamp>,
 }
 
 /// Illegal conditions measured on one fragment.
@@ -183,6 +200,8 @@ impl FragmentOutcome {
 pub(crate) struct FragmentBuffer {
     parts: Vec<FragmentRecord>,
     total_len: Option<usize>,
+    /// The first stored fragment's capture time in nanoseconds since the epoch.
+    first_seen: Option<i128>,
 }
 
 impl FragmentBuffer {
@@ -192,6 +211,7 @@ impl FragmentBuffer {
     /// buffer. `max_len` is the family's maximum assembled size; a fragment
     /// whose declared end passes it is discarded.
     pub fn insert(&mut self, part: FragmentPart<'_>, max_len: usize) -> FragmentOutcome {
+        self.expire(part.timestamp);
         let declared_len = part.declared_len.max(part.data.len());
         // RFC 791 section 3.1 and RFC 8200 section 4.5 constrain the declared
         // fragment payload, not the captured prefix.
@@ -258,6 +278,9 @@ impl FragmentBuffer {
             part.data.len()
         };
 
+        if self.first_seen.is_none() {
+            self.first_seen = part.timestamp.map(timestamp_nanos);
+        }
         self.parts.push(FragmentRecord {
             offset: part.offset,
             data: part.data.get(..record_len).unwrap_or(part.data).to_vec(),
@@ -311,6 +334,23 @@ impl FragmentBuffer {
                 })
             })
         })
+    }
+
+    /// Drop the buffer when the arriving fragment outlives the timeout.
+    ///
+    /// RFC 1122 section 3.3.2: a partially reassembled datagram is discarded
+    /// when its reassembly timeout expires.  Clearing the parts and the
+    /// baseline makes the arriving fragment start a new datagram, so a reused
+    /// identification cannot complete with the stale datagram's bytes.
+    fn expire(&mut self, now: Option<Timestamp>) {
+        let (Some(first), Some(now)) = (self.first_seen, now) else {
+            return;
+        };
+        if timestamp_nanos(now).saturating_sub(first) > REASSEMBLY_TIMEOUT_NANOS {
+            self.parts.clear();
+            self.total_len = None;
+            self.first_seen = None;
+        }
     }
 
     /// Whether no fragment is retained.
@@ -373,6 +413,7 @@ impl FragmentBuffer {
         let mut parts = std::mem::take(&mut self.parts);
         parts.sort_by_key(|part| part.offset);
         self.total_len = None;
+        self.first_seen = None;
         Reassembly {
             data,
             total_len: total,
@@ -381,8 +422,20 @@ impl FragmentBuffer {
     }
 }
 
+/// A capture time in nanoseconds since the epoch. `i128` holds every
+/// `i64` second count exactly, so no capture date saturates.
+fn timestamp_nanos(timestamp: Timestamp) -> i128 {
+    i128::from(timestamp.seconds)
+        .saturating_mul(1_000_000_000)
+        .saturating_add(i128::from(timestamp.nanos))
+}
+
 impl StateValue for FragmentBuffer {
     fn state_bytes(&self) -> usize {
+        // Only out-of-line bytes: the parts vector and the fragment data.
+        // The first-seen timestamp is an inline field of the buffer, so
+        // `StateStore::charge_for`'s `size_of::<Entry<FragmentBuffer>>()`
+        // already charges it.
         self.parts
             .capacity()
             .saturating_mul(size_of::<FragmentRecord>())
@@ -417,6 +470,36 @@ mod tests {
             frame,
             file: frame,
             more,
+            timestamp: None,
+        }
+    }
+
+    fn timed<'a>(
+        offset: usize,
+        data: &'a [u8],
+        declared_len: usize,
+        frame: u64,
+        more: bool,
+        seconds: i64,
+    ) -> FragmentPart<'a> {
+        FragmentPart {
+            timestamp: Some(Timestamp { seconds, nanos: 0 }),
+            ..part(offset, data, declared_len, frame, more)
+        }
+    }
+
+    fn timed_nanos<'a>(
+        offset: usize,
+        data: &'a [u8],
+        declared_len: usize,
+        frame: u64,
+        more: bool,
+        seconds: i64,
+        nanos: u32,
+    ) -> FragmentPart<'a> {
+        FragmentPart {
+            timestamp: Some(Timestamp { seconds, nanos }),
+            ..part(offset, data, declared_len, frame, more)
         }
     }
 
@@ -449,6 +532,93 @@ mod tests {
         assert_eq!(reassembled.parts.len(), 2);
         assert_eq!(reassembled.parts[0].frame, 1);
         assert_eq!(reassembled.parts[1].frame, 2);
+    }
+
+    #[test]
+    fn fragments_inside_the_reassembly_timeout_reassemble() {
+        let first = [5_u8; 80];
+        let last = [6_u8; 20];
+        let mut buffer = FragmentBuffer::default();
+        assert!(matches!(
+            buffer.insert(timed(0, &first, 80, 1, true, 1_000), MAX_IPV4_DATAGRAM),
+            FragmentOutcome::Buffered
+        ));
+        // Exactly the timeout still reassembles; only a later fragment is
+        // stale.
+        let reassembled =
+            complete(buffer.insert(timed(80, &last, 20, 2, false, 1_060), MAX_IPV4_DATAGRAM));
+        assert_eq!(reassembled.total_len, 100);
+        assert_eq!(&reassembled.data[80..], &last);
+    }
+
+    #[test]
+    fn a_fractional_second_past_the_timeout_is_stale() {
+        // 60.9 seconds and 60 seconds plus one nanosecond are both past the
+        // 60-second timeout although the whole-second difference is 60.
+        for late_nanos in [900_000_000, 1] {
+            let first = [12_u8; 80];
+            let last = [13_u8; 20];
+            let mut buffer = FragmentBuffer::default();
+            assert!(matches!(
+                buffer.insert(
+                    timed_nanos(0, &first, 80, 1, true, 1_000, 0),
+                    MAX_IPV4_DATAGRAM
+                ),
+                FragmentOutcome::Buffered
+            ));
+            assert!(matches!(
+                buffer.insert(
+                    timed_nanos(80, &last, 20, 2, false, 1_060, late_nanos),
+                    MAX_IPV4_DATAGRAM
+                ),
+                FragmentOutcome::Buffered
+            ));
+            assert_eq!(buffer.parts.len(), 1, "{late_nanos} ns");
+            assert_eq!(buffer.parts[0].offset, 80);
+        }
+    }
+
+    #[test]
+    fn fragments_past_the_reassembly_timeout_do_not_reassemble() {
+        let first = [7_u8; 80];
+        let last = [8_u8; 20];
+        let mut buffer = FragmentBuffer::default();
+        assert!(matches!(
+            buffer.insert(timed(0, &first, 80, 1, true, 1_000), MAX_IPV4_DATAGRAM),
+            FragmentOutcome::Buffered
+        ));
+        assert!(matches!(
+            buffer.insert(timed(80, &last, 20, 2, false, 1_061), MAX_IPV4_DATAGRAM),
+            FragmentOutcome::Buffered
+        ));
+        assert_eq!(buffer.parts.len(), 1);
+        assert_eq!(buffer.parts[0].offset, 80);
+    }
+
+    #[test]
+    fn a_reused_identification_after_the_timeout_starts_a_new_datagram() {
+        let stale = [9_u8; 80];
+        let fresh = [10_u8; 80];
+        let fresh_tail = [11_u8; 20];
+        let mut buffer = FragmentBuffer::default();
+        assert!(matches!(
+            buffer.insert(timed(0, &stale, 80, 1, true, 1_000), MAX_IPV4_DATAGRAM),
+            FragmentOutcome::Buffered
+        ));
+        // The second datagram reuses the identification; the stale first
+        // fragment must not supply the leading bytes.
+        assert!(matches!(
+            buffer.insert(timed(0, &fresh, 80, 2, true, 1_061), MAX_IPV4_DATAGRAM),
+            FragmentOutcome::Buffered
+        ));
+        let reassembled = complete(buffer.insert(
+            timed(80, &fresh_tail, 20, 3, false, 1_062),
+            MAX_IPV4_DATAGRAM,
+        ));
+        assert_eq!(&reassembled.data[..80], &fresh);
+        assert_eq!(&reassembled.data[80..], &fresh_tail);
+        assert_eq!(reassembled.parts[0].frame, 2);
+        assert_eq!(reassembled.parts.len(), 2);
     }
 
     #[test]
@@ -758,6 +928,7 @@ mod tests {
                     frame: u64::from(identifier) + 1,
                     file: u64::from(identifier) + 1,
                     more: true,
+                    timestamp: None,
                 },
             );
             assert!(state.used() <= 64 * 1024);

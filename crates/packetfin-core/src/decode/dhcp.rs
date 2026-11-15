@@ -842,14 +842,9 @@ fn decode_area(
             if composite { 0 } else { base + body_start },
             if composite { 0 } else { base + position },
         );
-        if let Some(message) = malformed {
-            return AreaResult {
-                ok: false,
-                saw_end,
-                trailing_padding: trailing,
-                malformed: Some(message),
-            };
-        }
+        // A composite decode places its fields in the concatenated body.
+        // Rebase them before a malformed body returns, so the fields it kept
+        // still carry packet offsets and raw bytes.
         if composite {
             apply_composite(
                 field,
@@ -858,13 +853,25 @@ fn decode_area(
                 base + position,
             );
         }
+        if let Some(message) = malformed {
+            return AreaResult {
+                ok: false,
+                saw_end,
+                trailing_padding: trailing,
+                malformed: Some(message),
+            };
+        }
         let typed = field
             .children
             .get(typed_start..)
             .unwrap_or(&[])
             .iter()
             .any(|child| !option_marker(child.def.abbrev));
-        if !typed {
+        // The generic value line is replaced by the typed decode only when
+        // that decode consumed octets. An option with no value at all keeps
+        // the generic line visible beside the typed empty field, which is the
+        // rule the expected output follows for zero-length typed options.
+        if !typed || (!composite && body.is_empty()) {
             if composite {
                 let value = if body.is_empty() {
                     Value::Missing
@@ -1142,7 +1149,9 @@ fn decode_option(
                 Value::String(c_string(body)),
             );
         }
-        OPTION_AGENT_INFORMATION => decode_agent_information(parent, body, offset, option_offset),
+        OPTION_AGENT_INFORMATION => {
+            return decode_agent_information(parent, body, offset, option_offset);
+        }
         _ => {}
     }
     None
@@ -1322,13 +1331,14 @@ fn decode_agent_information(
     body: &[u8],
     offset: usize,
     option_offset: usize,
-) {
+) -> Option<&'static str> {
     let mut position = 0;
     while position < body.len() {
         let Some(&suboption) = body.get(position) else {
             break;
         };
-        let Some(length_byte) = body.get(position + 1).copied() else {
+        let suboption_offset = offset.saturating_add(position);
+        let Some(length_byte) = position.checked_add(1).and_then(|at| body.get(at)).copied() else {
             let marker = node.add_field(
                 &fields::DHCP_MISSING_SUBOPT_LENGTH,
                 Range::new(option_offset, 0),
@@ -1341,29 +1351,28 @@ fn decode_agent_information(
                     "Suboption {suboption}: no room left in option for suboption length"
                 ),
             });
-            return;
+            return None;
         };
         let length = usize::from(length_byte);
-        let value_start = position + 2;
-        let label = format!(
-            "Option 82 Suboption: ({suboption}) {}",
-            suboption_name(suboption)
-        );
+        // The length octet was read, so the value starts inside `usize`.
+        let value_start = position.saturating_add(2);
+        let value_end = value_start.checked_add(length);
+        let value = value_end.and_then(|end| body.get(value_start..end));
         let field = node.add_container(
             &fields::DHCP_OPTION_AGENT_INFORMATION_OPTION_SUBOPTION,
-            Range::new(offset + position, 2 + length),
-            Some(label),
+            Range::new(suboption_offset, length.saturating_add(2)),
+            Some(suboption_label(suboption, value)),
         );
         field.value = Value::Uint8(suboption);
         field.add_field(
             &fields::DHCP_OPTION_SUBOPTION_LENGTH,
-            Range::new(offset + position + 1, 1),
+            Range::new(suboption_offset.saturating_add(1), 1),
             Value::Uint8(length_byte),
         );
-        let Some(value) = body.get(value_start..value_start + length) else {
+        let Some(value) = value else {
             let marker = field.add_field(
                 &fields::DHCP_MISSING_SUBOPT_VALUE,
-                Range::new(offset + position, 0),
+                Range::new(suboption_offset, 0),
                 Value::None,
             );
             marker.add_expert(ExpertInfo {
@@ -1373,9 +1382,9 @@ fn decode_agent_information(
                     "Suboption {suboption}: no room left in option for suboption value"
                 ),
             });
-            return;
+            return None;
         };
-        let value_range = Range::new(offset + value_start, value.len());
+        let value_range = Range::new(offset.saturating_add(value_start), value.len());
         let hidden = if value.is_empty() {
             field.add_field(
                 &fields::DHCP_OPTION_AGENT_INFORMATION_OPTION_VALUE,
@@ -1389,7 +1398,11 @@ fn decode_agent_information(
                 Value::bytes(value.to_vec()),
             )
         };
-        if matches!(suboption, 1 | 2 | 4 | 5 | 6) {
+        // RFC 3046 §2 and the suboption registries define typed layouts for
+        // codes 1–13: their typed field replaces the generic value line, and
+        // the length checks below are the whole decode for a bad length.
+        // Codes 0 and 14 and above keep the generic value visible.
+        if (1..=13).contains(&suboption) {
             hidden.hide();
         }
         match suboption {
@@ -1405,6 +1418,12 @@ fn decode_agent_information(
                     field.add_field(definition, value_range, Value::bytes(value.to_vec()));
                 }
             }
+            3 => add_suboption_bytes(
+                field,
+                &fields::DHCP_OPTION_AGENT_INFORMATION_OPTION_RESERVED,
+                value,
+                value_range,
+            ),
             4 => {
                 if value.len() == 4 {
                     field.add_field(
@@ -1413,7 +1432,7 @@ fn decode_agent_information(
                         Value::Uint32(read_u32_be(value, 0).unwrap_or(0)),
                     );
                 } else {
-                    bad_length(field, offset + position, "length isn't 4");
+                    bad_length(field, suboption_offset, "length isn't 4");
                 }
             }
             5 => {
@@ -1424,7 +1443,7 @@ fn decode_agent_information(
                         Value::Ipv4(read_ipv4(value, 0)),
                     );
                 } else {
-                    bad_length(field, offset + position, "length isn't 4");
+                    bad_length(field, suboption_offset, "length isn't 4");
                 }
             }
             6 => {
@@ -1434,13 +1453,194 @@ fn decode_agent_information(
                     Value::String(c_string(value)),
                 );
             }
+            7 => add_suboption_bytes(
+                field,
+                &fields::DHCP_OPTION_AGENT_INFORMATION_OPTION_RADIUS_ATTRIBUTES,
+                value,
+                value_range,
+            ),
+            8 => add_suboption_bytes(
+                field,
+                &fields::DHCP_OPTION_AGENT_INFORMATION_OPTION_AUTHENTICATION,
+                value,
+                value_range,
+            ),
+            9 => {
+                if let Some(message) = decode_vendor_specific(field, value, value_range.offset) {
+                    return Some(message);
+                }
+            }
+            10 => {
+                if value.len() == 1 {
+                    field.add_field(
+                        &fields::DHCP_OPTION_AGENT_INFORMATION_OPTION_FLAGS,
+                        value_range,
+                        Value::Uint8(value.first().copied().unwrap_or(0)),
+                    );
+                } else {
+                    bad_length(field, suboption_offset, "length isn't 1");
+                }
+            }
+            11 => {
+                if value.len() == 4 {
+                    field.add_field(
+                        &fields::DHCP_OPTION_AGENT_INFORMATION_OPTION_SERVER_ID_OVERRIDE,
+                        value_range,
+                        Value::Ipv4(read_ipv4(value, 0)),
+                    );
+                } else {
+                    bad_length(field, suboption_offset, "length isn't 4");
+                }
+            }
+            12 => add_suboption_bytes(
+                field,
+                &fields::DHCP_OPTION_AGENT_INFORMATION_OPTION_RELAY_AGENT_ID,
+                value,
+                value_range,
+            ),
+            13 => {
+                // RFC 7839 §4.2 fixes the length at two octets: one Reserved
+                // octet the receiver ignores, then the ATT octet. The field
+                // covers the ATT octet only; any other length is malformed
+                // and adds no value. A zero-length value leaves nothing to
+                // read, so that decoder stops; a wider or narrower value is
+                // reported like every other fixed-size suboption and the
+                // remaining options still decode.
+                if value.len() == 2 {
+                    field.add_field(
+                        &fields::DHCP_OPTION_AGENT_INFORMATION_OPTION_ANI_ATT,
+                        Range::new(value_range.offset.saturating_add(1), 1),
+                        Value::Uint8(value.get(1).copied().unwrap_or(0)),
+                    );
+                } else {
+                    bad_length(field, suboption_offset, "length isn't 2");
+                    if value.is_empty() {
+                        return Some("DHCP Option 82 access technology type is empty");
+                    }
+                }
+            }
             _ => {}
         }
-        position = value_start + length;
+        position = value_end.unwrap_or(body.len());
+    }
+    None
+}
+
+/// Label of one RFC 3046 suboption container.
+///
+/// The expected output appends the address text to the label of the two IPv4
+/// suboptions when the value has the four-octet layout: link selection
+/// (suboption 5) and the RFC 5107 server identifier override (suboption 11).
+fn suboption_label(suboption: u8, value: Option<&[u8]>) -> String {
+    let mut label = format!(
+        "Option 82 Suboption: ({suboption}) {}",
+        agent_suboption_name(suboption)
+    );
+    if matches!(suboption, 5 | 11)
+        && let Some(address) = value.filter(|value| value.len() == 4)
+    {
+        label.push_str(&format!(" ({})", ipv4_text(read_ipv4(address, 0))));
+    }
+    label
+}
+
+/// Add a typed byte-string suboption value, or `<MISSING>` when empty.
+fn add_suboption_bytes(
+    field: &mut dyn FieldParent,
+    definition: &'static fields::FieldDef,
+    value: &[u8],
+    range: Range,
+) {
+    if value.is_empty() {
+        field.add_field(definition, range, Value::Missing);
+    } else {
+        field.add_field(definition, range, Value::bytes(value.to_vec()));
     }
 }
 
-fn suboption_name(code: u8) -> &'static str {
+/// Add the generated type-length marker that precedes a mismatched integer.
+///
+/// The expert lives on its own zero-length field so the detail view, PDML and
+/// EK all place it between the suboption length and the value, which is where
+/// the generic type-length helper reports it.
+/// Decode the RFC 4243 vendor-specific information blocks.
+///
+/// A block is a four-octet enterprise number, a one-octet data length and
+/// that many data octets. RFC 4243 §4 defines the option value as one or more
+/// such blocks, so a zero-length value has no framing to read and takes the
+/// same truncated-block path as a block cut short. Enterprise 4491 normally
+/// carries the CableLabs tag/length/value chain; Packetfin keeps that data
+/// opaque, which is a recorded deviation. Every other enterprise shows the
+/// block data through the generic suboption-value field, matching the
+/// expected output.
+fn decode_vendor_specific(
+    field: &mut dyn FieldParent,
+    value: &[u8],
+    base: usize,
+) -> Option<&'static str> {
+    if value.is_empty() {
+        // No enterprise number or length octet exists to start the first
+        // block that RFC 4243 §4 requires.
+        return Some("DHCP Option 82 vendor block is truncated");
+    }
+    let mut position = 0_usize;
+    while position < value.len() {
+        let Some(length_at) = position.checked_add(4) else {
+            return Some("DHCP Option 82 vendor block is truncated");
+        };
+        let Some(enterprise_bytes) = value.get(position..length_at) else {
+            return Some("DHCP Option 82 vendor block is truncated");
+        };
+        let enterprise = read_u32_be(enterprise_bytes, 0).unwrap_or(0);
+        let enterprise_field = field.add_field(
+            &fields::DHCP_OPTION_AGENT_INFORMATION_OPTION_VI_ENTERPRISE,
+            Range::new(base.saturating_add(position), 4),
+            Value::Uint32(enterprise),
+        );
+        let Some(&data_length) = value.get(length_at) else {
+            return Some("DHCP Option 82 vendor block is truncated");
+        };
+        // The block data length nests under the enterprise number, as do the
+        // CableLabs records this build leaves opaque.
+        enterprise_field.add_field(
+            &fields::DHCP_OPTION_AGENT_INFORMATION_OPTION_VI_DATA_LENGTH,
+            Range::new(base.saturating_add(length_at), 1),
+            Value::Uint8(data_length),
+        );
+        // The length octet was read, so the data starts inside `usize`.
+        let data_start = length_at.saturating_add(1);
+        let Some(data_end) = data_start.checked_add(usize::from(data_length)) else {
+            return Some("DHCP Option 82 vendor block is truncated");
+        };
+        let Some(data) = value.get(data_start..data_end) else {
+            return Some("DHCP Option 82 vendor block is truncated");
+        };
+        let data_range = Range::new(base.saturating_add(data_start), data.len());
+        if data.is_empty() {
+            field.add_field(
+                &fields::DHCP_OPTION_AGENT_INFORMATION_OPTION_VALUE,
+                data_range,
+                Value::Missing,
+            );
+        } else {
+            field.add_field(
+                &fields::DHCP_OPTION_AGENT_INFORMATION_OPTION_VALUE,
+                data_range,
+                Value::bytes(data.to_vec()),
+            );
+        }
+        position = data_end;
+    }
+    None
+}
+
+/// Registry name of a DHCP relay agent information suboption.
+///
+/// The names come from the IANA "DHCP Relay Agent Sub-Option Codes" registry;
+/// RFC 6607 §3.2 and §3.3 assign code 151 to the virtual subnet selection
+/// sub-option and code 152 to its control sub-option, which Packetfin does not
+/// decode but names for the detail view. Neither code has a registry alias.
+pub fn agent_suboption_name(code: u8) -> &'static str {
     match code {
         0 => "Padding",
         1 => "Agent Circuit ID",
@@ -1449,7 +1649,41 @@ fn suboption_name(code: u8) -> &'static str {
         4 => "DOCSIS Device Class",
         5 => "Link selection",
         6 => "Subscriber ID",
+        7 => "RADIUS Attributes",
+        8 => "Authentication",
+        9 => "Vendor-Specific Information",
+        10 => "Flags",
+        11 => "Server ID Override",
+        12 => "Relay Agent Identifier",
+        13 => "Access Technology Type",
+        14 => "Access Network Name",
+        15 => "Access Point Name",
+        16 => "Access Point BSSID",
+        17 => "Access Network Operator ID",
+        18 => "Access Network Operator Realm",
+        19 => "Source Port",
+        150 => "Link selection (Cisco proprietary)",
+        151 => "VSS",
+        152 => "VSS-Control",
         _ => "Unknown",
+    }
+}
+
+/// Name of an IANA Private Enterprise Number.
+///
+/// RFC 4243 §4 carries the enterprise number in a DHCP vendor-specific block
+/// and RFC 8415 §11.2 carries one in a DUID-EN; both print the number with the
+/// name from the IANA "Private Enterprise Numbers" registry. The table keeps
+/// only the numbers Packetfin's fixtures exercise, so an unlisted number falls
+/// back to `Unknown (N)` exactly as the expected output does. Adding a name
+/// means adding the registry row that publishes it.
+pub fn enterprise_name(number: u32) -> Option<&'static str> {
+    match number {
+        // The registry reserves zero for this purpose and documents 32473 as
+        // the example number that vendors must not use on the wire.
+        0 => Some("Reserved"),
+        32473 => Some("Example Enterprise Number for Documentation Use"),
+        _ => None,
     }
 }
 
@@ -1706,4 +1940,33 @@ pub fn option_name(code: u8) -> Option<&'static str> {
         224..=231 => "Private",
         _ => return None,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn dhcp_vendor_specific_empty_value_reports_a_truncated_block() {
+        // RFC 4243 §4 defines the option value as one or more enterprise
+        // blocks; a zero-length value has neither an enterprise number nor
+        // a length octet, so no framing can be read.
+        let mut node = Node::new(&fields::DHCP_PROTOCOL, Range::new(0, 0));
+        assert_eq!(
+            decode_vendor_specific(&mut node, &[], 0),
+            Some("DHCP Option 82 vendor block is truncated")
+        );
+        assert!(node.fields.is_empty());
+    }
+
+    #[test]
+    fn dhcp_vendor_specific_keeps_decoding_complete_blocks() {
+        let mut node = Node::new(&fields::DHCP_PROTOCOL, Range::new(0, 0));
+        let mut value = Vec::new();
+        value.extend_from_slice(&32473_u32.to_be_bytes());
+        value.extend_from_slice(&[2, 0xaa, 0xbb]);
+        assert_eq!(decode_vendor_specific(&mut node, &value, 0), None);
+        // The enterprise number and the block data are the two fields.
+        assert_eq!(node.fields.len(), 2);
+    }
 }

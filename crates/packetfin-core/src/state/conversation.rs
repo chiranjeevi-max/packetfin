@@ -356,6 +356,9 @@ impl SessionState {
             budget,
             conversations,
             next_tcp_stream,
+            http,
+            http2,
+            http2_streams,
             ..
         } = self;
         let store_key = ConversationStateKey::Tcp(key);
@@ -379,6 +382,10 @@ impl SessionState {
                 return state;
             }
             conversations.take_for_conversation(budget, &store_key);
+            super::http2::forget_conversation(budget, http2, http2_streams, key);
+            // The old connection's HTTP/1.x requests and CONNECT tunnel end
+            // with it.
+            http.take_for_conversation(budget, &key);
             let mut replacement = TcpConversation::new(next_stream(next_tcp_stream));
             replacement.observe(segment, quoted);
             replacement.analysis.mark_reused_ports();
@@ -492,6 +499,9 @@ impl SessionState {
             budget,
             conversations,
             next_tcp_stream,
+            http,
+            http2,
+            http2_streams,
             ..
         } = self;
         let store_key = ConversationStateKey::Tcp(key);
@@ -508,6 +518,10 @@ impl SessionState {
             // A SYN reused the ports: the old stream ends here and a new one
             // starts, without ever reusing the old number.
             conversations.take_for_conversation(budget, &store_key);
+            super::http2::forget_conversation(budget, http2, http2_streams, key);
+            // The old connection's HTTP/1.x requests and CONNECT tunnel end
+            // with it.
+            http.take_for_conversation(budget, &key);
             let mut replacement = TcpConversation::new(next_stream(next_tcp_stream));
             replacement.observe(segment, quoted);
             replacement.packets = 1;

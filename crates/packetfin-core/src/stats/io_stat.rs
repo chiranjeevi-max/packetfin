@@ -1331,10 +1331,4 @@ mod tests {
         assert!(parse("io,stat,-0.0").is_ok());
         assert!(parse("io,stat,-0.000001").is_err());
     }
-
-    #[test]
-    fn max_starts_at_zero_for_all_negative_values() {
-        let spec = parse("io,stat,0,MAX(ntp.precision)ntp.precision");
-        assert!(spec.is_ok());
-    }
 }

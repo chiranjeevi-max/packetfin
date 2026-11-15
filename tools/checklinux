@@ -4,7 +4,7 @@
 # Usage: tools/checklinux
 #
 # Runs from any cwd. Requires a Docker daemon running Linux containers. The
-# pinned image rust:1.99.0-slim-bookworm (Debian bookworm, rustc 1.99.0,
+# pinned image rust:1.100.0-slim-bookworm (Debian bookworm, rustc 1.100.0,
 # matching rust-toolchain.toml, edition 2024) is pulled on first use and
 # provides the Linux libc and linker that the macOS host lacks. Inside the
 # container the script installs libpcap-dev and pkg-config, the build
@@ -28,7 +28,7 @@
 #     -e PACKETFIN_LIVE=1 \
 #     -v packetfin-linux-target:/target \
 #     -v packetfin-linux-registry:/usr/local/cargo/registry \
-#     rust:1.99.0-slim-bookworm bash -c \
+#     rust:1.100.0-slim-bookworm bash -c \
 #     'apt-get update -qq && apt-get install -y -qq --no-install-recommends \
 #        libpcap-dev pkg-config && cargo test -p packetfin-pcap --test live -- \
 #        --ignored --nocapture --test-threads=1'
@@ -39,7 +39,7 @@
 #     -v "$PWD:/work" -w /work -e CARGO_TARGET_DIR=/target \
 #     -v packetfin-linux-target:/target \
 #     -v packetfin-linux-registry:/usr/local/cargo/registry \
-#     rust:1.99.0-slim-bookworm bash -c \
+#     rust:1.100.0-slim-bookworm bash -c \
 #     'apt-get update -qq && apt-get install -y -qq --no-install-recommends \
 #        libpcap-dev pkg-config python3 && cargo build -p packetfin --locked && \
 #      target/debug/packetfin -i lo -f "udp port 45999" -a duration:1.2 \
@@ -52,7 +52,7 @@ set -euo pipefail
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="$(cd "$script_dir/.." && pwd)"
 
-image="rust:1.99.0-slim-bookworm"
+image="rust:1.100.0-slim-bookworm"
 target_volume="packetfin-linux-target"
 registry_volume="packetfin-linux-registry"
 

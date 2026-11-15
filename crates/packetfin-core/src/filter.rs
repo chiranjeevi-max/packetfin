@@ -1049,6 +1049,7 @@ fn resolve_binary(
 ) -> Result<Type, FilterError> {
     let left_type = resolve_operand(left, None)?;
     let right_type = resolve_operand(right, None)?;
+    check_leading_extremum(left, left_type, right)?;
     let target = match (left_type, right_type) {
         (Type::Untyped, Type::Untyped) => expected.unwrap_or(Type::Untyped),
         (Type::Untyped, Type::Int(_))
@@ -1225,14 +1226,60 @@ fn carries_seconds(operand: &Operand) -> bool {
     }
 }
 
-/// Whether `operand` is a time field, possibly signed.
+/// Whether `operand` resolved to a time: a time field, function or
+/// arithmetic result, possibly signed.
 fn is_time_operand(operand: &Operand) -> bool {
-    match &operand.kind {
-        OperandKind::Field { field, .. } => {
-            matches!(type_of(field.field_type), Type::Time | Type::Relative)
+    let ty = match &operand.kind {
+        OperandKind::Field { field, .. } => type_of(field.field_type),
+        OperandKind::Function { ty, .. } | OperandKind::Binary { ty, .. } => *ty,
+        OperandKind::Negate(inner) | OperandKind::UnaryPlus(inner) => {
+            return is_time_operand(inner);
         }
-        OperandKind::Negate(inner) | OperandKind::UnaryPlus(inner) => is_time_operand(inner),
-        _ => false,
+        _ => return false,
+    };
+    matches!(ty, Type::Time | Type::Relative)
+}
+
+/// Reject a right operand whose leading `max()` or `min()` holds values that
+/// are not compatible with the left operand's type. The left type reaches
+/// that call through signs and the left side of nested arithmetic, and the
+/// seconds value of mixed time arithmetic keeps its relative-time type here.
+fn check_leading_extremum(
+    left: &Operand,
+    left_type: Type,
+    right: &Operand,
+) -> Result<(), FilterError> {
+    if left_type == Type::Untyped {
+        return Ok(());
+    }
+    let expected = if carries_seconds(left) {
+        Type::Relative
+    } else {
+        left_type
+    };
+    let mut operand = right;
+    loop {
+        operand = match &operand.kind {
+            OperandKind::Negate(inner)
+            | OperandKind::UnaryPlus(inner)
+            | OperandKind::Binary { left: inner, .. } => inner,
+            OperandKind::Function {
+                function: Function::Max | Function::Min,
+                arg,
+                ty,
+            } if !compatible(expected, *ty) => {
+                return Err(FilterError::at_span(
+                    arg.start,
+                    arg.end,
+                    format!(
+                        "{} and {} are not of compatible types",
+                        expected.name(),
+                        ty.name()
+                    ),
+                ));
+            }
+            _ => return Ok(()),
+        };
     }
 }
 
@@ -5216,6 +5263,20 @@ mod tests {
         ));
         assert!(matches("-frame.time_relative == -1.5"));
 
+        // A time-valued function or arithmetic result is a time operand just
+        // like a bare field, so these chains cancel in seconds as well.
+        for expression in [
+            "abs(frame.time_relative) + frame.time_epoch - frame.time_relative == 1700000000",
+            "abs(frame.time_relative) + abs(frame.time_epoch) - frame.time_relative == 1700000000",
+            "max(frame.time_relative) + abs(frame.time_epoch) - abs(frame.time_relative) \
+             == 1700000000",
+            "frame.time_relative * 2 + frame.time_epoch * 1 - frame.time_relative == 1700000001.5",
+            "frame.time_relative + frame.time_epoch - max(frame.time_relative) == 1700000000",
+            "abs(frame.time_relative) + frame.time_relative == 3",
+        ] {
+            assert!(matches(expression), "{expression}");
+        }
+
         // Ordinary Double arithmetic keeps its raw numeric values: a
         // 5/256-unit field plus a fraction and a product stay scalar.
         assert!(matches("stp.msg_age + 1.5 == 6.5"));
@@ -5303,6 +5364,39 @@ mod tests {
         assert!(matches(
             "frame.time_relative + frame.time_epoch - frame.time_relative == 1700000000"
         ));
+    }
+
+    #[test]
+    fn a_max_or_min_operand_takes_the_left_operand_type() {
+        // The leading max() or min() of a right operand must hold values of
+        // the left operand's type; the seconds value of mixed time arithmetic
+        // still counts as a relative time here.
+        for expression in [
+            "abs(frame.time_relative) + max(frame.time_epoch) - frame.time_relative == 1700000000",
+            "frame.time_relative + max(frame.time_epoch) - frame.time_relative == 1700000000",
+            "frame.time_relative - min(frame.time_epoch) < 0",
+            "frame.time_relative + -max(frame.time_epoch) > 0",
+            "frame.time_relative + max(frame.time_epoch) * 1 > 0",
+            "frame.time_epoch + max(frame.time_relative) > 0",
+            "frame.time_relative + frame.time_epoch - max(frame.len) > 0",
+            "stp.msg_age + max(frame.len) > 0",
+        ] {
+            let Err(error) = Filter::parse(expression) else {
+                unreachable!("{expression} must be rejected")
+            };
+            assert!(
+                error.message().contains("are not of compatible types"),
+                "{expression}: {}",
+                error.message()
+            );
+        }
+        for expression in [
+            "frame.time_relative + max(frame.time_relative) - frame.time_relative > 0",
+            "frame.len + max(tcp.window_size_scalefactor) > 0",
+            "max(frame.time_epoch) + frame.time_relative > 0",
+        ] {
+            assert!(Filter::parse(expression).is_ok(), "{expression}");
+        }
     }
 
     #[test]

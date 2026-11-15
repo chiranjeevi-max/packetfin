@@ -981,7 +981,8 @@ fn starts_with_http_start_line(bytes: &[u8]) -> bool {
 /// in an earlier segment. The caller recorded that message from the joined
 /// line, so its tail is not read as a start line of its own. A segment that
 /// continues a CONNECT answer's header section goes to
-/// [`finish_connect_answer`] instead.
+/// [`finish_connect_answer`] instead, and one that continues a status line
+/// cut before its LF goes to [`continue_start_line`].
 fn split_http_segments(
     message: &[u8],
     direction: u8,
@@ -994,6 +995,13 @@ fn split_http_segments(
     {
         return finish_connect_answer(message, pending, exchange);
     }
+    if !continued
+        && let Some(partial) = exchange
+            .partial
+            .take_if(|partial| partial.direction == direction)
+    {
+        return continue_start_line(message, partial.line, direction, exchange);
+    }
     let mut records = Vec::new();
     let mut offset = 0_usize;
     while offset < message.len() {
@@ -1002,9 +1010,20 @@ fn split_http_segments(
         let Some(header_length) = header_section_end(rest) else {
             // A complete start line already settles the HEAD and CONNECT
             // rules for the answer, although its header section ends in a
-            // later segment that will not repeat the line.
+            // later segment that will not repeat the line. A status line cut
+            // before its LF waits for the next segment, within the probe's
+            // bound.
             if starts_message {
                 note_http_message(rest, direction, exchange);
+                if next_line(rest, 0).is_none()
+                    && rest.len() <= HTTP_PREFIX_LIMIT
+                    && b"HTTP/1.".iter().zip(rest).all(|(want, got)| want == got)
+                {
+                    exchange.partial = Some(PartialLine {
+                        direction,
+                        line: rest.to_vec(),
+                    });
+                }
             }
             records.push(rest.to_vec());
             break;
@@ -1064,7 +1083,7 @@ fn direction_of_answer(direction: u8) -> usize {
 }
 
 /// What the follow tap knows of the connection's HTTP exchange.
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Debug, Default)]
 struct Exchange {
     /// The peer request each direction last carried, for the HEAD and CONNECT
     /// framing rules (RFC 9112 section 6.3 cases 1 and 2).
@@ -1074,6 +1093,56 @@ struct Exchange {
     tunnel: bool,
     /// A 2xx answer to CONNECT whose header section has not ended yet.
     tunnel_pending: Option<PendingTunnel>,
+    /// A status line cut before its LF, still to be completed.
+    partial: Option<PartialLine>,
+}
+
+/// The opening bytes of a status line whose LF has not arrived yet.
+///
+/// Only a status line is kept: a request method is a token (RFC 9110 section
+/// 9.1), and a body segment without LF can end in token characters, so a
+/// joined request line could rename its method. The line holds at most
+/// [`HTTP_PREFIX_LIMIT`] bytes, the start-line probe's bound, so one follow
+/// keeps at most that much; a status line (RFC 9112 section 4) is a version,
+/// a code and an optional reason phrase. A longer cut line is dropped, so its
+/// message goes unrecorded as before.
+#[derive(Clone, Debug)]
+struct PartialLine {
+    /// The direction that sends the line.
+    direction: u8,
+    /// The line so far, already queued as records.
+    line: Vec<u8>,
+}
+
+/// Queue a segment that continues a status line cut before its LF.
+///
+/// The joined bytes are split as if the segment had carried the whole line,
+/// so the status reaches the CONNECT rule of RFC 9112 section 6.3 case 2, and
+/// a CONNECT answer keeps its trailing bytes as it does when the line arrives
+/// whole. The first record then drops the bytes the earlier segments already
+/// queued. When the joined line is complete but no status line, the earlier
+/// bytes were something else (a body without LF, say), and the segment
+/// stands alone as it did before.
+fn continue_start_line(
+    message: &[u8],
+    mut joined: Vec<u8>,
+    direction: u8,
+    exchange: &mut Exchange,
+) -> Vec<Vec<u8>> {
+    let queued = joined.len();
+    joined.extend_from_slice(message);
+    if let Some((line, _)) = next_line(&joined, 0)
+        && !matches!(parse_start_line(line), Some(StartLine::Response { .. }))
+    {
+        return split_http_segments(message, direction, exchange, false);
+    }
+    let mut records = split_http_segments(&joined, direction, exchange, false);
+    // The first record starts at the cut line, which holds no LF, so it is
+    // longer than the queued bytes.
+    if let Some(first) = records.first_mut() {
+        *first = first.get(queued..).unwrap_or_default().to_vec();
+    }
+    records
 }
 
 /// The rest of a CONNECT answer's header section, still to arrive.
@@ -1587,6 +1656,75 @@ DDDD"
         assert!(output.contains("\t6\n p\r\n\r\n\n"), "{output}");
         assert!(output.contains("/inside"), "{output}");
         assert!(!output.contains("/later"), "tunnel bytes: {output}");
+    }
+
+    #[test]
+    fn a_split_connect_status_line_still_opens_the_tunnel() {
+        // The status line itself is cut, so no single segment carries it.
+        // The joined line still answers CONNECT (RFC 9112 section 6.3 case
+        // 2), and every segment keeps its own record.
+        let tunnel: &[u8] = b"GET /inside HTTP/1.1\r\n\r\n";
+        let cases: [(&[&[u8]], &str); 3] = [
+            (
+                &[b"HTTP/1.1 200 Connec", b"tion established\r\n\r\n", tunnel],
+                "\t20\ntion established\r\n\r\n\n",
+            ),
+            (
+                &[b"HTTP/1.1 200 Connection established", b"\r\n\r\n", tunnel],
+                "\t4\n\r\n\r\n\n",
+            ),
+            (
+                &[
+                    b"HTTP/1.1 2",
+                    b"00 Connec",
+                    b"tion established\r\n\r\n",
+                    tunnel,
+                ],
+                "\t9\n00 Connec\n\t20\n",
+            ),
+        ];
+        for (answer, rest) in cases {
+            let output = follow_connect_answer(answer);
+            assert!(output.contains(rest), "the answer ends here: {output}");
+            assert!(!output.contains("inside"), "tunnel bytes: {output}");
+        }
+
+        // Bytes after the section in the completing segment stay with the
+        // answer as one record, as they do when the line arrives whole.
+        let output = follow_connect_answer(&[
+            b"HTTP/1.1 200 Connec",
+            b"tion established\r\n\r\nGET /a HTTP/1.1\r\n\r\nGET /b HTTP/1.1\r\n\r\n",
+            b"GET /later HTTP/1.1\r\n\r\n",
+        ]);
+        assert!(
+            output.contains("\t38\nGET /a HTTP/1.1\r\n\r\nGET /b HTTP/1.1\r\n\r\n\n"),
+            "{output}"
+        );
+        assert!(!output.contains("/later"), "tunnel bytes: {output}");
+
+        // A cut line longer than the probe bound is not retained.
+        let mut exchange = Exchange::default();
+        let mut long = b"HTTP/1.1 200 ".to_vec();
+        long.resize(HTTP_PREFIX_LIMIT.saturating_add(1), b'a');
+        split_http_segments(&long, 1, &mut exchange, false);
+        assert!(exchange.partial.is_none());
+    }
+
+    #[test]
+    fn a_body_without_lf_does_not_rename_the_next_request() {
+        // `H` is the one-byte body, yet it could open a status line. Joined
+        // with the next segment it would form the request method `HHEAD`, so
+        // that segment's own line names the request and the answer to HEAD
+        // still ends at its header section (RFC 9112 section 6.3 case 1).
+        let output = follow_head_exchange(&[
+            b"POST / HTTP/1.1\r\nContent-Length: 1\r\n\r\n",
+            b"H",
+            b"HEAD / HTTP/1.1\r\nHost: h\r\n\r\n",
+        ]);
+        assert!(
+            output.contains("\t8\njunkMORE\n"),
+            "the answer to HEAD must carry no body: {output}"
+        );
     }
 
     #[test]

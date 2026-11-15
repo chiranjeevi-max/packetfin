@@ -1871,6 +1871,13 @@ fn a_connect_request_is_linked_by_its_authority() {
         tree_field(&asked, "http2.request.full_uri").as_deref(),
         Some("example.com:443")
     );
+    // With no :path the summary names no request target; the response
+    // still names its status.
+    assert_eq!(
+        asked.columns.info.as_deref(),
+        Some("Magic, SETTINGS[0], HEADERS[1]")
+    );
+    assert_eq!(answered.columns.info.as_deref(), Some("HEADERS[1]: 200 OK"));
     assert_eq!(
         tree_field(&answered, "http2.request_in").as_deref(),
         Some("1")
@@ -2111,4 +2118,52 @@ fn malformed_trailers_do_not_complete_the_body() {
         !has_child(trailers, "http2.data.data"),
         "no body is assembled from a malformed END_STREAM"
     );
+}
+
+#[test]
+fn a_padded_frame_without_its_pad_length_octet_is_malformed() {
+    // RFC 9113 sections 6.1, 6.2 and 6.6 make the Pad Length octet mandatory
+    // when PADDED is set, so a zero-length padded frame is too small for its
+    // mandatory data: a FRAME_SIZE_ERROR (section 4.2). Its END_STREAM must
+    // not complete the body the earlier DATA frame began.
+    let cases: [(&str, u8, u8); 3] = [
+        ("DATA", 0, 0x09),
+        ("HEADERS", 1, 0x0d),
+        ("PUSH_PROMISE", 5, 0x0c),
+    ];
+    for (name, kind, flags) in cases {
+        let mut payload = PREFACE.to_vec();
+        payload.extend_from_slice(&h2_frame(4, 0, 0, &[]));
+        payload.extend_from_slice(&h2_frame(1, 0x04, 1, &[0x82, 0x86, 0x84]));
+        payload.extend_from_slice(&h2_frame(0, 0, 1, b"ab"));
+        payload.extend_from_slice(&h2_frame(kind, flags, 1, &[]));
+        let packet = decode_frame(&frame(1, 1, &payload));
+        let mut nodes = Vec::new();
+        http2_nodes(&packet.tree.frame, &mut nodes);
+        let node = nodes
+            .last()
+            .copied()
+            .unwrap_or_else(|| unreachable!("the padded frame has a node"));
+        assert!(
+            !has_child(node, "http2.data.data"),
+            "{name} completes no body"
+        );
+        assert!(packet.malformed, "{name} must be malformed");
+        assert_eq!(experts(node), 1, "{name} reports one expert");
+        assert!(
+            stream_container(node).is_some_and(|stream| stream
+                .experts
+                .iter()
+                .any(|expert| expert.message.contains("FRAME_SIZE_ERROR"))),
+            "{name} names FRAME_SIZE_ERROR"
+        );
+        assert!(
+            !has_child(node, "http2.padding"),
+            "{name} shows no Pad Length octet it does not carry"
+        );
+        assert!(
+            has_child(node, "http2.length") && has_child(node, "http2.flags"),
+            "{name} keeps the frame header fields"
+        );
+    }
 }

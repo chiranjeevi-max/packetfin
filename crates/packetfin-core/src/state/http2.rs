@@ -317,13 +317,20 @@ pub(crate) struct Http2Direction {
     /// decoding any of them would fabricate table mutations or clear a lost
     /// table. Mutually exclusive with [`Self::pending`].
     discarding: Option<u32>,
-    /// Frames in this direction were skipped, so body byte order is unknown.
+    /// Frames in this direction were skipped, or the stream table holding
+    /// its bodies was lost, so body byte order is unknown.
     ///
     /// A per-payload frame cap can drop DATA frames without seeing their
     /// payload; later DATA on the same or a new stream may have a missing
     /// prefix. Every body in the direction stays failed for the rest of the
     /// capture rather than presenting a body with silent holes.
     body_lost: bool,
+    /// This direction stored body octets or a failed body in the
+    /// conversation's [`Http2Streams`].
+    ///
+    /// The flag lives outside that table so it survives when the budget
+    /// drops or evicts the table; see [`SessionState::http2_take_streams`].
+    stored_bodies: bool,
     windows: Windows,
 }
 
@@ -339,6 +346,7 @@ impl Default for Http2Direction {
             pending: None,
             discarding: None,
             body_lost: false,
+            stored_bodies: false,
             windows: Windows::default(),
         }
     }
@@ -470,12 +478,14 @@ impl Http2Stream {
     /// Directions whose body was unfinished when this stream was evicted.
     ///
     /// A body with no octets and no fragments carries nothing a later frame
-    /// could mistake for a whole body, so it needs no marker. A completed
-    /// body already reports its stream as finished.
+    /// could mistake for a whole body, so it needs no marker, unless it was
+    /// already failed: [`Body::mark_lost`] empties a body whose prefix is
+    /// gone, and a recreated stream evicted again must keep that loss. A
+    /// completed body already reports its stream as finished.
     fn unfinished_mask(&self) -> u8 {
         let mut mask = 0_u8;
         for (index, body) in self.bodies.iter().enumerate() {
-            if body.complete || (body.total == 0 && body.fragments.is_empty()) {
+            if body.complete || (!body.dropped && body.total == 0 && body.fragments.is_empty()) {
                 continue;
             }
             let Some(bit) = 1_u8.checked_shl(u32::try_from(index).unwrap_or(u32::MAX)) else {
@@ -755,6 +765,35 @@ pub(super) fn forget_conversation(
 }
 
 impl SessionState {
+    /// Take a conversation's stream table, or start an empty one.
+    ///
+    /// The budget drops a table that alone outgrows it and may evict one to
+    /// make room for other state. Every unfinished body in it then lost its
+    /// prefix (RFC 9113 section 6.1 orders a stream's DATA octets), and the
+    /// lost markers went with it, so each direction that stored bodies there
+    /// fails its later bodies through [`Http2Direction::body_lost`]. That
+    /// also fails streams opened after the loss; a per-direction identifier
+    /// watermark (RFC 9113 section 5.1.1) could spare them if it matters.
+    fn http2_take_streams(&mut self, conversation: ConversationKey) -> Http2Streams {
+        if let Some(streams) = self
+            .http2_streams
+            .take_with(&mut self.budget, &conversation)
+        {
+            return streams;
+        }
+        for direction in 0..=1 {
+            let key = Http2Key {
+                conversation,
+                direction,
+            };
+            if let Some(mut state) = self.http2.take_with(&mut self.budget, &key) {
+                state.body_lost |= state.stored_bodies;
+                self.http2.put_with(&mut self.budget, key, state);
+            }
+        }
+        Http2Streams::default()
+    }
+
     /// Whether either direction of a conversation has HTTP/2 state.
     ///
     /// Only the client sends the connection preface, so the server's first
@@ -1025,10 +1064,7 @@ impl SessionState {
             .unwrap_or_default();
         direction.body_lost = true;
         self.http2.put_with(&mut self.budget, key, direction);
-        let mut streams = self
-            .http2_streams
-            .take_with(&mut self.budget, &key.conversation)
-            .unwrap_or_default();
+        let mut streams = self.http2_take_streams(key.conversation);
         for stream in &mut streams.streams {
             let Some(body) = stream.bodies.get_mut(usize::from(key.direction & 1)) else {
                 continue;
@@ -1044,10 +1080,15 @@ impl SessionState {
     /// The cut octets never reach the body (RFC 9113 section 6.1), so the
     /// rest of that body is a suffix. Other streams' bodies stay intact.
     pub(crate) fn http2_abandon_stream_body(&mut self, key: Http2Key, stream_id: u32) {
-        let mut streams = self
-            .http2_streams
-            .take_with(&mut self.budget, &key.conversation)
+        let mut streams = self.http2_take_streams(key.conversation);
+        // The failed body is stored state too: losing the table must not
+        // let the stream's later DATA complete from a suffix.
+        let mut direction = self
+            .http2
+            .take_with(&mut self.budget, &key)
             .unwrap_or_default();
+        direction.stored_bodies = true;
+        self.http2.put_with(&mut self.budget, key, direction);
         if let (Some(stream), _) = streams.find_or_insert(stream_id)
             && let Some(body) = stream.bodies.get_mut(usize::from(key.direction & 1))
         {
@@ -1206,6 +1247,9 @@ impl SessionState {
             frame,
             file,
         } = input;
+        // Taken first, so a lost table has failed this direction's bodies
+        // before `body_lost` is read below.
+        let mut streams = self.http2_take_streams(key.conversation);
         let mut direction = self
             .http2
             .take_with(&mut self.budget, &key)
@@ -1222,12 +1266,9 @@ impl SessionState {
         let connection_after = connection_before.saturating_sub(length);
         let stream_after = stream_before.saturating_sub(length);
         let body_lost = direction.body_lost;
+        direction.stored_bodies |= !data.is_empty();
         self.http2.put_with(&mut self.budget, key, direction);
 
-        let mut streams = self
-            .http2_streams
-            .take_with(&mut self.budget, &key.conversation)
-            .unwrap_or_default();
         let (stream, evicted) = streams.find_or_insert(stream_id);
         let mut outcome = DataOutcome {
             connection_before,
@@ -1357,10 +1398,7 @@ impl SessionState {
         time: Option<Timestamp>,
         uri: Option<String>,
     ) {
-        let mut streams = self
-            .http2_streams
-            .take_with(&mut self.budget, &conversation)
-            .unwrap_or_default();
+        let mut streams = self.http2_take_streams(conversation);
         let (stream, _) = streams.find_or_insert(stream_id);
         if let Some(stream) = stream {
             stream.request_frame = frame;
@@ -1379,10 +1417,7 @@ impl SessionState {
         stream_id: u32,
         frame: u32,
     ) -> Option<Http2RequestInfo> {
-        let mut streams = self
-            .http2_streams
-            .take_with(&mut self.budget, &conversation)
-            .unwrap_or_default();
+        let mut streams = self.http2_take_streams(conversation);
         let (stream, _) = streams.find_or_insert(stream_id);
         let info = stream.as_ref().and_then(|stream| {
             if stream.request_frame == 0 {
@@ -1435,10 +1470,7 @@ impl SessionState {
         conversation: ConversationKey,
         stream_id: u32,
     ) -> Option<String> {
-        let mut streams = self
-            .http2_streams
-            .take_with(&mut self.budget, &conversation)
-            .unwrap_or_default();
+        let mut streams = self.http2_take_streams(conversation);
         let uri = streams
             .find(stream_id)
             .and_then(|stream| stream.request_uri.clone());
@@ -2213,6 +2245,98 @@ mod tests {
         assert_eq!(suffix.total, 0);
         assert_eq!(suffix.fragment_count, 0);
         assert!(suffix.data.is_none());
+    }
+
+    #[test]
+    fn a_repeatedly_evicted_unfinished_body_stays_lost() {
+        let mut state = SessionState::new(64 * 1024 * 1024);
+        let (client, _) = keys();
+        let data = |stream_id, data: &'static [u8], end_stream, frame| Http2Data {
+            stream_id,
+            data,
+            flow_length: data.len(),
+            end_stream,
+            frame,
+            file: frame,
+        };
+        // Completed filler bodies leave no lost marker when evicted, so only
+        // stream 1 can be marked and the marker queue never overflows.
+        let fill = |state: &mut SessionState, first: u32, frame: u64| {
+            for index in 0..u32::try_from(MAX_STREAMS).unwrap_or(0) {
+                let _ = state.http2_data(
+                    client,
+                    data(
+                        first.saturating_add(index),
+                        b"x",
+                        true,
+                        frame.saturating_add(u64::from(index)),
+                    ),
+                );
+            }
+        };
+        let _ = state.http2_data(client, data(1, b"A", false, 1));
+        fill(&mut state, 2, 2);
+        // Stream 1 returns after its first eviction: the body is failed.
+        let first = state.http2_data(client, data(1, b"B", false, 1000));
+        assert!(first.dropped);
+        // A second eviction of the failed, still unfinished body.
+        fill(&mut state, 2000, 2000);
+        let second = state.http2_data(client, data(1, b"C", true, 5000));
+        assert!(second.dropped, "the second eviction kept the loss");
+        assert!(second.data.is_none());
+    }
+
+    #[test]
+    fn a_dropped_stream_table_cannot_complete_a_body_from_a_suffix() {
+        let mut state = SessionState::new(64 * 1024);
+        let (client, server) = keys();
+        let chunk = vec![0x41_u8; 40 * 1024];
+        let data = |stream_id, data, end_stream, frame| Http2Data {
+            stream_id,
+            data,
+            flow_length: data.len(),
+            end_stream,
+            frame,
+            file: frame,
+        };
+        let _ = state.http2_data(client, data(1, &chunk, false, 1));
+        // The second chunk makes the conversation's stream table larger than
+        // the whole budget, so the table is dropped with stream 1's prefix.
+        let _ = state.http2_data(client, data(1, &chunk, false, 2));
+        assert!(state.take_dropped(), "the budget dropped the stream table");
+        // Another path recreates the table before stream 1 sends again.
+        state.http2_record_request(client.conversation, 3, 3, 3, None, None);
+        let tail = state.http2_data(client, data(1, b"tail", true, 4));
+        assert!(tail.dropped, "the lost prefix fails the body");
+        assert!(tail.data.is_none());
+        // The server stored no body in the lost table, so its bodies are
+        // whole.
+        let answer = state.http2_data(server, data(3, b"ok", true, 5));
+        assert!(!answer.dropped);
+        assert_eq!(answer.data.as_deref(), Some(&b"ok"[..]));
+    }
+
+    #[test]
+    fn a_cut_body_stays_lost_when_its_stream_table_is_dropped() {
+        let mut state = SessionState::new(64 * 1024);
+        let (client, server) = keys();
+        let chunk = vec![0x41_u8; 40 * 1024];
+        let data = |stream_id, data, end_stream, frame| Http2Data {
+            stream_id,
+            data,
+            flow_length: data.len(),
+            end_stream,
+            frame,
+            file: frame,
+        };
+        // The client's only body state is stream 1's cut first DATA frame.
+        state.http2_abandon_stream_body(client, 1);
+        // The server's body then outgrows the budget and takes the table.
+        let _ = state.http2_data(server, data(3, &chunk, false, 2));
+        let _ = state.http2_data(server, data(3, &chunk, false, 3));
+        assert!(state.take_dropped());
+        let tail = state.http2_data(client, data(1, b"tail", true, 4));
+        assert!(tail.dropped, "the cut prefix stays lost");
     }
 
     #[test]

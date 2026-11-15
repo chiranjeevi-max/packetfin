@@ -401,6 +401,18 @@ enum FrameViolation {
 fn frame_violation(frame: &Frame<'_>) -> Option<FrameViolation> {
     let length = usize::try_from(frame.length).unwrap_or(usize::MAX);
     let on_stream_zero = frame.stream_id == 0;
+    // RFC 9113 sections 6.1, 6.2 and 6.6: PADDED makes the Pad Length octet
+    // mandatory, so a frame that declares none is too small for its mandatory
+    // data, a FRAME_SIZE_ERROR (section 4.2). It carries no octets, so its
+    // END_STREAM ends nothing.
+    if matches!(frame.kind, DATA | HEADERS | PUSH_PROMISE)
+        && frame.flags & FLAG_PADDED != 0
+        && length == 0
+    {
+        return Some(FrameViolation::Fatal(
+            "HTTP/2 frame has no room for its Pad Length; FRAME_SIZE_ERROR",
+        ));
+    }
     match frame.kind {
         DATA => on_stream_zero.then_some(FrameViolation::Fatal("HTTP/2 DATA frame is on stream 0")),
         HEADERS => on_stream_zero.then_some(FrameViolation::Protocol(
@@ -1890,15 +1902,16 @@ fn pad_length(
 /// The split point follows the declared length, so a payload the capture
 /// cut short keeps each captured octet on its own side. RFC 9113 sections
 /// 6.1 and 6.2 make padding that does not fit after the fields before it a
-/// PROTOCOL_ERROR, which returns `None`: the payload then has no data or
-/// header block fragment at all.
+/// PROTOCOL_ERROR, and a frame too short for those fields themselves a
+/// FRAME_SIZE_ERROR (section 4.2); both return `None`: the payload then has
+/// no data or header block fragment at all.
 fn split_payload<'a>(
     frame: &Frame<'a>,
     offset: usize,
     pad: usize,
 ) -> Option<(&'a [u8], Option<&'a [u8]>)> {
     let declared = usize::try_from(frame.length).unwrap_or(usize::MAX);
-    let data_length = declared.saturating_sub(offset).checked_sub(pad)?;
+    let data_length = declared.checked_sub(offset)?.checked_sub(pad)?;
     let body = frame.payload.get(offset..).unwrap_or_default();
     let (data, padding) = body.split_at(data_length.min(body.len()));
     Some((data, (!padding.is_empty()).then_some(padding)))
@@ -2496,6 +2509,15 @@ mod tests {
     }
 
     #[test]
+    fn a_frame_too_short_for_its_pad_length_does_not_split() {
+        // RFC 9113 section 6.1: PADDED makes the Pad Length octet mandatory,
+        // so a zero-length frame has no room for it or for any data.
+        let bytes = frame_pdu(DATA, FLAG_PADDED | FLAG_END_STREAM, 1, &[]);
+        let frame = Frame::parse(&bytes).unwrap_or_else(|| unreachable!("complete DATA"));
+        assert!(split_payload(&frame, 1, 0).is_none());
+    }
+
+    #[test]
     fn padding_longer_than_the_payload_stops_the_frame() {
         let mut data = PREFACE.to_vec();
         data.extend_from_slice(&frame_pdu(SETTINGS, 0, 0, &[]));
@@ -2580,6 +2602,8 @@ mod tests {
             1,
             &[0x40, 0x01, b'a', 0x01, b'1'],
         ));
+        // Stream 1's body is still open when the old connection ends.
+        first.extend_from_slice(&frame_pdu(DATA, 0, 1, b"old"));
         let _ = decode_segment(&mut session, 1, true, &first, &mut sequences);
         // A SYN with a new initial sequence number opens a new connection on
         // the same tuple; its HPACK context starts empty (RFC 7541 2.3.2).
@@ -2592,10 +2616,17 @@ mod tests {
         let mut second = PREFACE.to_vec();
         second.extend_from_slice(&frame_pdu(SETTINGS, 0, 0, &[]));
         second.extend_from_slice(&frame_pdu(HEADERS, FLAG_END_HEADERS, 1, &[0xbe]));
+        second.extend_from_slice(&frame_pdu(DATA, FLAG_END_STREAM, 1, b"new"));
         let packet = decode_segment(&mut session, 3, true, &second, &mut sequences);
         assert!(
             packet.tree.field_values("http2.header").is_empty(),
             "index 62 must not resolve the old connection's entry"
+        );
+        // The new stream 1 body is whole on its own, with no prefix from the
+        // old connection's unfinished body.
+        assert_eq!(
+            packet.tree.field_values("http2.data.data"),
+            vec![&Value::bytes(b"new".to_vec())]
         );
     }
 

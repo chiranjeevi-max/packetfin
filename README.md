@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/chiranjeevi-max/packetfin/actions/workflows/ci.yml/badge.svg)](https://github.com/chiranjeevi-max/packetfin/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Rust 1.99](https://img.shields.io/badge/rust-1.99-orange.svg)](rust-toolchain.toml)
+[![Rust 1.100](https://img.shields.io/badge/rust-1.100-orange.svg)](rust-toolchain.toml)
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
 Packetfin is a command-line packet analyzer written in Rust. It reads capture files or live traffic, decodes 46 protocols, filters packets, and prints summaries, full packet details or structured output such as JSON, CSV and XML.
@@ -69,7 +69,7 @@ Cross-packet state, statistics and two-pass annotations each have a byte budget:
 
 ## Tech stack
 
-- **Language:** Rust, 2024 edition. The toolchain is pinned to 1.99.0 in [`rust-toolchain.toml`](rust-toolchain.toml).
+- **Language:** Rust, 2024 edition. The toolchain is pinned to 1.100.0 in [`rust-toolchain.toml`](rust-toolchain.toml).
 - **Live capture:** libpcap on macOS and Linux and Npcap on Windows, through the [`pcap`](https://crates.io/crates/pcap) crate.
 - **TLS:** [RustCrypto](https://github.com/RustCrypto) crates for AES-GCM, AES-CBC, ChaCha20-Poly1305, HKDF, HMAC, SHA-1, SHA-2 and MD5.
 - **Compression:** [`flate2`](https://crates.io/crates/flate2) with its pure-Rust backend, [`ruzstd`](https://crates.io/crates/ruzstd) and [`lz4_flex`](https://crates.io/crates/lz4_flex).

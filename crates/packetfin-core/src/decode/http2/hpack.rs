@@ -1074,4 +1074,94 @@ mod tests {
         }
         assert!(decode_string(&data, 0).is_none());
     }
+
+    #[test]
+    fn exact_capacity_retains_two_entries_and_shrinking_evicts_the_oldest() {
+        let mut table = DynamicTable::new();
+        table.set_capacity(68);
+        table.insert(b"a".to_vec(), b"1".to_vec());
+        table.insert(b"b".to_vec(), b"2".to_vec());
+        assert_eq!(table.len(), 2);
+        assert_eq!(table.get(62), Some((b"b".as_slice(), b"2".as_slice())));
+        assert_eq!(table.get(63), Some((b"a".as_slice(), b"1".as_slice())));
+        table.set_capacity(67);
+        assert_eq!(table.len(), 1);
+        assert_eq!(table.get(62), Some((b"b".as_slice(), b"2".as_slice())));
+        assert_eq!(table.get(63), None);
+        table.set_capacity(68);
+        assert_eq!(table.len(), 1, "growing cannot resurrect evicted entries");
+    }
+
+    #[test]
+    fn non_indexing_literals_leave_existing_dynamic_entries_unchanged() {
+        for prefix in [0x00, 0x10] {
+            let mut table = DynamicTable::new();
+            table.insert(b"saved".to_vec(), b"value".to_vec());
+            let block = decode_block(
+                &[prefix, 0x01, b'x', 0x01, b'y', 0xbe],
+                &mut table,
+                DEFAULT_TABLE_SIZE,
+            );
+            assert_eq!(block.stop, Stop::Complete);
+            let headers: Vec<_> = block
+                .headers()
+                .map(|header| (header.name.as_str(), header.value.as_str()))
+                .collect();
+            assert_eq!(headers, vec![("x", "y"), ("saved", "value")]);
+            assert_eq!(table.len(), 1);
+            assert!(!table.is_lost());
+        }
+    }
+
+    #[test]
+    fn every_incomplete_literal_prefix_fails_without_inserting_an_entry() {
+        let literal = [0x40, 0x03, b'f', b'o', b'o', 0x03, b'b', b'a', b'r'];
+        for end in 1..literal.len() {
+            let mut table = DynamicTable::new();
+            let block = decode_block(
+                literal.get(..end).unwrap_or_default(),
+                &mut table,
+                DEFAULT_TABLE_SIZE,
+            );
+            assert_eq!(block.stop, Stop::Invalid, "prefix length {end}");
+            assert!(block.items.is_empty());
+            assert_eq!(table.len(), 0);
+            assert!(table.is_lost());
+        }
+        let mut table = DynamicTable::new();
+        assert_eq!(
+            decode_block(&literal, &mut table, DEFAULT_TABLE_SIZE).stop,
+            Stop::Complete
+        );
+        assert_eq!(table.get(62), Some((b"foo".as_slice(), b"bar".as_slice())));
+    }
+
+    #[test]
+    fn a_nonzero_size_update_does_not_recover_a_lost_table() {
+        let mut table = DynamicTable::new();
+        table.insert(b"x".to_vec(), b"old".to_vec());
+        table.mark_lost();
+        let block = decode_block(&[0x3f, 0x21, 0x82, 0xbe], &mut table, 64);
+        assert_eq!(block.stop, Stop::Desynchronized);
+        assert_eq!(block.headers().count(), 1, "static indexes remain usable");
+        assert!(table.is_lost());
+        let reset = decode_block(&[0x20, 0x82], &mut table, 64);
+        assert_eq!(reset.stop, Stop::Complete);
+        assert!(!table.is_lost());
+        assert_eq!(table.len(), 0);
+    }
+
+    #[test]
+    fn a_plain_string_at_the_limit_consumes_only_its_declared_bytes() {
+        // RFC 7541 section 5.1: 127 + 1 + 127 * 128 = 16384.
+        let mut data = vec![0x7f, 0x81, 0x7f];
+        data.extend(std::iter::repeat_n(b'x', MAX_STRING_BYTES));
+        data.push(0x82);
+        let decoded = decode_string(&data, 0);
+        assert_eq!(
+            decoded,
+            Some((vec![b'x'; MAX_STRING_BYTES], MAX_STRING_BYTES + 3))
+        );
+        assert_eq!(decode_string(&[0x00, 0x82], 0), Some((Vec::new(), 1)));
+    }
 }

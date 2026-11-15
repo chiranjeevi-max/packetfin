@@ -1388,4 +1388,108 @@ mod tests {
         };
         assert_eq!(restart, body.len());
     }
+
+    #[test]
+    fn bodyless_status_precedence_survives_conflicting_framing_fields() {
+        for status in [100, 101, 199, 204, 304] {
+            let block = format!(
+                "HTTP/1.1 {status} Status\r\nContent-Length: 1, 2\r\nTransfer-Encoding: chunked\r\n\r\n"
+            );
+            assert_eq!(plan(block.as_bytes(), Answer::default()), BodyPlan::Empty);
+        }
+        let block =
+            b"HTTP/1.1 200 OK\r\nContent-Length: invalid\r\nTransfer-Encoding: chunked\r\n\r\n";
+        assert_eq!(
+            plan(
+                block,
+                Answer {
+                    head: true,
+                    connect: false
+                }
+            ),
+            BodyPlan::Empty
+        );
+        assert_eq!(
+            plan(
+                block,
+                Answer {
+                    head: false,
+                    connect: true
+                }
+            ),
+            BodyPlan::Answer
+        );
+        assert_eq!(plan(block, Answer::default()), BodyPlan::Chunked);
+    }
+
+    #[test]
+    fn invalid_content_length_cannot_be_repaired_by_later_valid_fields() {
+        for value in ["-1", "1, 2", "1x", "184467440737095516160"] {
+            for fields in [
+                format!("Content-Length: {value}\r\nContent-Length: 1\r\n"),
+                format!("Content-Length: 1\r\nContent-Length: {value}\r\n"),
+            ] {
+                let block = format!("POST / HTTP/1.1\r\n{fields}\r\n");
+                assert_eq!(
+                    plan(block.as_bytes(), Answer::default()),
+                    BodyPlan::InvalidLength,
+                    "{fields:?}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn equivalent_decimal_lengths_include_zero_and_leading_zeroes() {
+        for (value, expected) in [("0, 00", 0), ("007, 7", 7)] {
+            let block = format!(
+                "POST / HTTP/1.1\r\nContent-Length: {value}\r\nContent-Length: {expected}\r\n\r\n"
+            );
+            assert_eq!(
+                plan(block.as_bytes(), Answer::default()),
+                BodyPlan::Fixed(expected)
+            );
+        }
+    }
+
+    #[test]
+    fn chunk_scanning_is_identical_at_every_two_part_split() {
+        let body = b"3;ext=1\r\nabc\r\n2\r\nde\r\n0\r\nX: y\r\n\r\nNEXT";
+        let entity_end = body.len() - 4;
+        for split in 0..entity_end {
+            let mut scanner = ChunkScanner::new(0);
+            let mut chunks = Vec::new();
+            let mut trailers = 0;
+            let mut last_chunks = 0;
+            let mut completed = None;
+            for end in [split, body.len()] {
+                for _ in 0..10 {
+                    match scanner.step(body, end) {
+                        ChunkStep::Data {
+                            bytes, boundary_ok, ..
+                        } => {
+                            assert!(boundary_ok, "split {split}");
+                            chunks.push(bytes.to_vec());
+                        }
+                        ChunkStep::Last => last_chunks += 1,
+                        ChunkStep::Trailer { .. } => trailers += 1,
+                        ChunkStep::TrailerEnd { end, .. } => {
+                            completed = Some(end);
+                            break;
+                        }
+                        ChunkStep::Incomplete { .. } => break,
+                        ChunkStep::Invalid { .. } => unreachable!("valid chunked body"),
+                    }
+                }
+            }
+            assert_eq!(
+                chunks,
+                vec![b"abc".to_vec(), b"de".to_vec()],
+                "split {split}"
+            );
+            assert_eq!(last_chunks, 1, "split {split}");
+            assert_eq!(trailers, 1, "split {split}");
+            assert_eq!(completed, Some(entity_end), "split {split}");
+        }
+    }
 }

@@ -2104,4 +2104,118 @@ mod tests {
             .is_none()
         );
     }
+
+    #[test]
+    fn legacy_cbc_rejects_truncation_wrong_type_and_replay_without_consuming_state() {
+        for protocol in [Protocol::Tls10, Protocol::Tls11] {
+            for suite_id in [0xc013, 0xc014] {
+                let suite = suite(suite_id).expect("CBC suite");
+                let block = derive_key_block(&[0x44; 48], &[1; 32], &[2; 32], suite, protocol)
+                    .expect("key block");
+                let content = b"authenticated record";
+                let tag = cbc_tag(
+                    HashAlgorithm::Sha1,
+                    block.client_mac.as_ref().expect("MAC key").as_bytes(),
+                    0,
+                    23,
+                    protocol.version(),
+                    content,
+                );
+                let iv = if protocol == Protocol::Tls10 {
+                    block.client_iv
+                } else {
+                    [0x77; 16]
+                };
+                let ciphertext = cbc_encrypt(
+                    block.client_key.as_bytes(),
+                    &iv,
+                    &cbc_plaintext(content, &tag),
+                );
+                let mut fragment = Vec::new();
+                if protocol == Protocol::Tls11 {
+                    fragment.extend_from_slice(&iv);
+                }
+                fragment.extend_from_slice(&ciphertext);
+                let mut keys = RecordKeys::tls(
+                    protocol,
+                    block.client_key,
+                    block.client_iv,
+                    block.client_mac,
+                    suite,
+                    false,
+                )
+                .expect("record keys");
+                for end in 0..fragment.len() {
+                    assert!(
+                        keys.open_pre13(
+                            23,
+                            protocol.version(),
+                            fragment.get(..end).expect("prefix"),
+                        )
+                        .is_none(),
+                        "{protocol:?}, suite {suite_id:x}, prefix {end}"
+                    );
+                    assert_eq!(keys.sequence(), 0);
+                    assert_eq!(keys.chain_iv, block.client_iv);
+                }
+                assert!(keys.open_pre13(22, protocol.version(), &fragment).is_none());
+                assert_eq!(keys.sequence(), 0);
+                let opened = keys
+                    .open_pre13(23, protocol.version(), &fragment)
+                    .expect("valid record");
+                assert_eq!(opened.content, content);
+                assert_eq!(opened.sequence, 0);
+                let accepted_iv = keys.chain_iv;
+                assert!(keys.open_pre13(23, protocol.version(), &fragment).is_none());
+                assert_eq!(
+                    keys.sequence(),
+                    1,
+                    "replay cannot consume a sequence number"
+                );
+                assert_eq!(keys.chain_iv, accepted_iv);
+            }
+        }
+    }
+
+    #[test]
+    fn legacy_cbc_accepts_empty_content_with_maximum_aligned_padding() {
+        // RFC 2246 and RFC 4346 section 6.2.3.2 permit 0..255 padding bytes
+        // plus the padding_length octet, including more than one AES block.
+        for protocol in [Protocol::Tls10, Protocol::Tls11] {
+            let suite = suite(0xc013).expect("CBC suite");
+            let block = derive_key_block(&[0x44; 48], &[1; 32], &[2; 32], suite, protocol)
+                .expect("key block");
+            let tag = cbc_tag(
+                HashAlgorithm::Sha1,
+                block.client_mac.as_ref().expect("MAC key").as_bytes(),
+                0,
+                23,
+                protocol.version(),
+                &[],
+            );
+            // SHA-1's 20 octets need 252 padding octets for block alignment.
+            let mut plaintext = tag;
+            plaintext.extend(std::iter::repeat_n(251, 252));
+            let ciphertext = cbc_encrypt(block.client_key.as_bytes(), &block.client_iv, &plaintext);
+            let mut fragment = Vec::new();
+            if protocol == Protocol::Tls11 {
+                fragment.extend_from_slice(&block.client_iv);
+            }
+            fragment.extend_from_slice(&ciphertext);
+            let mut keys = RecordKeys::tls(
+                protocol,
+                block.client_key,
+                block.client_iv,
+                block.client_mac,
+                suite,
+                false,
+            )
+            .expect("record keys");
+            let opened = keys
+                .open_pre13(23, protocol.version(), &fragment)
+                .expect("empty record");
+            assert!(opened.content.is_empty());
+            assert_eq!(keys.sequence(), 1);
+        }
+    }
 }

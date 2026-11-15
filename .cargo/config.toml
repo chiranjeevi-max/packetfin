@@ -1,7 +1,7 @@
 # Hold back crate versions published in the last three days when Cargo
 # resolves new dependency versions, so a compromised release has time to be
 # reported and yanked first. Builds keep the versions in Cargo.lock, but a
-# plain `cargo update` downgrades any locked version younger than three days
-# (rust-lang/cargo#17642).
+# plain `cargo update` can downgrade a locked version younger than three
+# days (rust-lang/cargo#17642).
 [registry]
 global-min-publish-age = "3 days"

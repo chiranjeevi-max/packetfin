@@ -2193,7 +2193,9 @@ mod tests {
                 protocol.version(),
                 &[],
             );
-            // SHA-1's 20 octets need 252 padding octets for block alignment.
+            // The 20-octet SHA-1 tag plus 252 padding octets (251 copies of
+            // 251, then the length) fill 17 AES blocks: the largest padding
+            // that keeps the record block-aligned.
             let mut plaintext = tag;
             plaintext.extend(std::iter::repeat_n(251, 252));
             let ciphertext = cbc_encrypt(block.client_key.as_bytes(), &block.client_iv, &plaintext);

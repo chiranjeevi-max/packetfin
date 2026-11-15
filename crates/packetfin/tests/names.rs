@@ -490,3 +490,42 @@ fn pdml_ipv6_host_fields_carry_the_address_bytes() {
         "{pdml}"
     );
 }
+
+#[test]
+fn a_disabled_port_protocol_leaves_the_tcp_stream_undecoded() {
+    // A disabled decoder never claims a stream: with or without
+    // desegmentation every segment stays plain TCP.
+    for (protocol, capture) in [
+        ("dns", "dns-tcp.pcap"),
+        ("dns", "dns-tcp-split.pcap"),
+        ("tls", "tls-handshake.pcap"),
+        ("tls", "tls-handshake-split.pcap"),
+        ("bgp", "bgp.pcap"),
+        ("bgp", "bgp-split.pcap"),
+        ("http", "http1.pcap"),
+        ("http", "http1-split.pcap"),
+    ] {
+        let capture = fixture(capture);
+        let streamed = run(&["-n", "--disable-protocol", protocol, "-r", &capture]);
+        let segments = run(&[
+            "-n",
+            "-o",
+            "tcp.desegment_tcp_streams:FALSE",
+            "--disable-protocol",
+            protocol,
+            "-r",
+            &capture,
+        ]);
+        assert_eq!(status(&streamed), 0, "{capture}: {}", stderr(&streamed));
+        assert_eq!(status(&segments), 0, "{capture}: {}", stderr(&segments));
+        let streamed = text(&streamed);
+        assert_eq!(streamed, text(&segments), "{capture}");
+        for line in streamed.lines() {
+            assert_eq!(
+                line.split_whitespace().nth(5),
+                Some("TCP"),
+                "{capture}: {line}"
+            );
+        }
+    }
+}

@@ -17,7 +17,7 @@
 //! by the DNS, TLS, BGP or HTTP decoder.
 
 use crate::decode::bytes::{byte_count_text, read_u16_be, read_u32_be};
-use crate::decode::{DecodeContext, LayerType, NetworkContext};
+use crate::decode::{DecodeContext, LayerType, NetworkContext, ProtocolPolicy};
 use crate::decode::{bgp, checksum, dns, http, looks_like_http_prefix, tls};
 use crate::fields;
 use crate::fields::Protocol;
@@ -191,7 +191,12 @@ pub(crate) fn decode(context: &mut DecodeContext<'_>, parent: &mut Node, data: &
     } else if forced_http2 {
         Some(Ulp::Http2)
     } else {
-        ulp_for_ports(source_port, destination_port, payload)
+        ulp_for_ports(
+            source_port,
+            destination_port,
+            payload,
+            &context.options.policy,
+        )
     };
     // Only the client sends the connection preface; once either direction of
     // the conversation has HTTP/2 state, the other direction's frames belong
@@ -907,8 +912,14 @@ fn option_summary(data: &[u8], header_length: usize) -> OptionSummary {
 /// The port decoders are tried in the registry priority order and a decoder
 /// that rejects the bytes leaves the payload to the HTTP heuristic, which
 /// applies on every port. A split BGP message whose first segment lacks the
-/// sixteen-octet marker is not BGP.
-fn ulp_for_ports(source: u16, destination: u16, payload: &[u8]) -> Option<Ulp> {
+/// sixteen-octet marker is not BGP. A disabled protocol takes no part: its
+/// ports fall through to the next decoder and the HTTP heuristic.
+fn ulp_for_ports(
+    source: u16,
+    destination: u16,
+    payload: &[u8],
+    policy: &ProtocolPolicy,
+) -> Option<Ulp> {
     if payload.is_empty() {
         return None;
     }
@@ -918,12 +929,17 @@ fn ulp_for_ports(source: u16, destination: u16, payload: &[u8]) -> Option<Ulp> {
         53, 179, 443, 465, 636, 993, 995, 5061, 8443, 9443, 5353, 5986,
     ];
     for port in PRIORITY {
-        if !ports.contains(&port) {
+        let protocol = match port {
+            53 | 5353 => Protocol::Dns,
+            179 => Protocol::Bgp,
+            _ => Protocol::Tls,
+        };
+        if !ports.contains(&port) || !policy.enabled(protocol) {
             continue;
         }
-        match port {
-            53 | 5353 => return Some(Ulp::Dns),
-            179 => {
+        match protocol {
+            Protocol::Dns => return Some(Ulp::Dns),
+            Protocol::Bgp => {
                 if payload.len() >= 16 && payload.iter().take(16).all(|byte| *byte == 0xff) {
                     return Some(Ulp::Bgp);
                 }
@@ -938,7 +954,8 @@ fn ulp_for_ports(source: u16, destination: u16, payload: &[u8]) -> Option<Ulp> {
             }
         }
     }
-    if http_port(ports) && http_prefix(payload) {
+    let http = policy.enabled(Protocol::Http);
+    if http && http_port(ports) && http_prefix(payload) {
         return Some(Ulp::Http);
     }
     // The connection preface is the only cleartext HTTP/2 heuristic: a frame
@@ -947,7 +964,7 @@ fn ulp_for_ports(source: u16, destination: u16, payload: &[u8]) -> Option<Ulp> {
     if crate::decode::http2::looks_like_http2_prefix(payload) {
         return Some(Ulp::Http2);
     }
-    looks_like_http_prefix(payload).then_some(Ulp::Http)
+    (http && looks_like_http_prefix(payload)).then_some(Ulp::Http)
 }
 
 /// Whether a payload starts like an HTTP/1.x message before the version token

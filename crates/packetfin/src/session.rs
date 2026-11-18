@@ -551,9 +551,18 @@ fn print_name_bytes(path: &Path) -> Vec<u8> {
     }
 }
 
+/// Ring member timestamp format: `%Y%m%d%H%M%S` local wall clock, the
+/// `YYYYmmddHHMMSS` in the `ring_path` naming scheme.
+const RING_TIMESTAMP_FORMAT: &str = "%Y%m%d%H%M%S";
+
+/// Format one zoned instant as a ring member timestamp.
+fn format_ring_timestamp(zoned: &jiff::Zoned) -> String {
+    zoned.strftime(RING_TIMESTAMP_FORMAT).to_string()
+}
+
 /// Current wall-clock time in the local zone, used in ring member names.
 fn local_timestamp() -> String {
-    chrono::Local::now().format("%Y%m%d%H%M%S").to_string()
+    format_ring_timestamp(&jiff::Zoned::now())
 }
 
 #[cfg(test)]
@@ -679,6 +688,72 @@ mod tests {
         let timestamp = super::local_timestamp();
         assert_eq!(timestamp.len(), 14);
         assert!(timestamp.bytes().all(|byte| byte.is_ascii_digit()));
+    }
+
+    #[test]
+    fn ring_timestamps_are_local_wall_clock() -> Result<(), String> {
+        use jiff::tz::TimeZone;
+
+        // A UTC civil instant, viewed in a named zone.
+        fn in_zone(
+            year: i16,
+            month: i8,
+            day: i8,
+            hour: i8,
+            minute: i8,
+            second: i8,
+            zone: TimeZone,
+        ) -> Result<jiff::Zoned, String> {
+            let utc = jiff::civil::date(year, month, day)
+                .at(hour, minute, second, 0)
+                .in_tz("UTC")
+                .map_err(|error| error.to_string())?;
+            Ok(utc.with_time_zone(zone))
+        }
+
+        // Every field below ten keeps its leading zero.
+        let padded = in_zone(2026, 1, 2, 3, 4, 5, TimeZone::UTC)?;
+        assert_eq!(super::format_ring_timestamp(&padded), "20260102030405");
+
+        // One instant, two wall clocks: the string follows the zone, not UTC.
+        let utc = in_zone(2026, 11, 18, 4, 11, 5, TimeZone::UTC)?;
+        let kolkata = in_zone(
+            2026,
+            11,
+            18,
+            4,
+            11,
+            5,
+            TimeZone::get("Asia/Kolkata").map_err(|error| error.to_string())?,
+        )?;
+        assert_eq!(kolkata.timestamp(), utc.timestamp());
+        assert_eq!(super::format_ring_timestamp(&utc), "20261118041105");
+        assert_eq!(super::format_ring_timestamp(&kolkata), "20261118094105");
+
+        // US spring forward 2026-03-08: 01:59:59 EST jumps to 03:00:00 EDT;
+        // the skipped wall hour never appears in a member name.
+        let new_york = TimeZone::get("America/New_York").map_err(|error| error.to_string())?;
+        let before = in_zone(2026, 3, 8, 6, 59, 59, new_york.clone())?;
+        let after = in_zone(2026, 3, 8, 7, 0, 0, new_york.clone())?;
+        assert_eq!(super::format_ring_timestamp(&before), "20260308015959");
+        assert_eq!(super::format_ring_timestamp(&after), "20260308030000");
+        assert_eq!(
+            after.timestamp().as_second(),
+            before.timestamp().as_second() + 1
+        );
+
+        // US fall back 2026-11-01: the last EDT second 01:59:59 is followed
+        // by the repeated hour's first EST second 01:00:00.
+        let before = in_zone(2026, 11, 1, 5, 59, 59, new_york.clone())?;
+        let after = in_zone(2026, 11, 1, 6, 0, 0, new_york)?;
+        assert_eq!(super::format_ring_timestamp(&before), "20261101015959");
+        assert_eq!(super::format_ring_timestamp(&after), "20261101010000");
+        assert_eq!(
+            after.timestamp().as_second(),
+            before.timestamp().as_second() + 1
+        );
+
+        Ok(())
     }
 
     #[test]

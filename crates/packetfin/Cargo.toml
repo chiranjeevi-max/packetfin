@@ -17,8 +17,9 @@ packetfin-core = { path = "../packetfin-core" }
 packetfin-pcap = { path = "../packetfin-pcap" }
 # Safe local-time formatting for ring-buffer file names; `localtime_r` would
 # need an unsafe block, which the workspace forbids outside the live-capture
-# crate.
-chrono = { version = "0.4", default-features = false, features = ["clock"] }
+# crate. jiff reads the system tz database without unsafe. It replaces
+# chrono, reported unmaintained by RUSTSEC-2026-0543.
+jiff = "0.2.45"
 
 [dev-dependencies]
 flate2 = { version = "1.1.10", default-features = false, features = ["rust_backend"] }

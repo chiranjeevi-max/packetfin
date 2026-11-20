@@ -1472,7 +1472,7 @@ fn decode_data_set(
     };
     let template_frame = flowset.add_field(
         &fields::CFLOW_TEMPLATE_FRAME,
-        Range::new(base.saturating_add(base).saturating_add(offset), 0),
+        Range::new(base.saturating_add(offset), 0),
         Value::Uint32(u32::try_from(template.frame).unwrap_or(u32::MAX)),
     );
     template_frame.showname = Some(format!("Template Frame: {}", template.frame));

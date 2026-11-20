@@ -190,3 +190,32 @@ fn many_exporters_stay_inside_the_global_state_budget() {
         "template metadata exceeded its bound"
     );
 }
+
+/// Generated fields still carry a frame-relative position, because readers that
+/// ignore `generated` (PDML `pos`, the JSON raw arrays) render it. Before this
+/// regression the data-set path added the datagram's frame offset twice.
+#[test]
+fn template_frame_position_is_frame_relative() {
+    fn offset_of(packet: &Packet, abbrev: &str) -> Option<usize> {
+        packet
+            .tree
+            .fields()
+            .find(|field| field.def.abbrev == abbrev)
+            .map(|field| field.range.offset)
+    }
+
+    let mut session = DecodeSession::new(DecodeOptions::default());
+    let template = v9_message(1, 1, 7, &[template_set(256)]);
+    session.decode(&frame(1, [192, 0, 2, 1], 40_000, &template));
+    let data = v9_message(1, 2, 7, &[data_set(256)]);
+    let packet = session.decode(&frame(2, [192, 0, 2, 1], 40_000, &data));
+    // The data set's own header starts at the datagram offset, so the generated
+    // template reference must agree with the ID field beside it.
+    let set_id = offset_of(&packet, "cflow.flowset_id");
+    assert!(set_id.is_some(), "no cflow.flowset_id field");
+    assert_eq!(
+        offset_of(&packet, "cflow.template_frame"),
+        set_id,
+        "cflow.template_frame must sit at the flowset header's frame offset"
+    );
+}

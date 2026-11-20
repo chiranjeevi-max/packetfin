@@ -1745,7 +1745,11 @@ fn add_known_value(
             flow.add_field(&fields::CFLOW_PACKETS, range, integer_value(bytes, 64));
         }
         Element::Protocol => {
-            if width == 0 || width > 4 {
+            // RFC 3954 section 8 defines PROTOCOL as one octet. A template that
+            // declares a wider element would make the value ambiguous (a 32-bit
+            // element holding 258 is not protocol 2), so keep it opaque rather
+            // than narrowing it silently.
+            if width != 1 {
                 unsupported(flow, field, bytes, range);
                 return;
             }
@@ -1754,12 +1758,18 @@ fn add_known_value(
                 Some(name) => format!("Protocol: {name} ({value})"),
                 None => format!("Protocol: {value}"),
             };
-            let added =
-                flow.add_field(&fields::CFLOW_IP_PROTOCOL, range, Value::Uint8(value as u8));
+            let added = flow.add_field(
+                &fields::CFLOW_IP_PROTOCOL,
+                range,
+                Value::Uint8(u8::try_from(value).unwrap_or(u8::MAX)),
+            );
             added.showname = Some(showname);
         }
         Element::SourcePort | Element::DestinationPort => {
-            if width == 0 || width > 4 {
+            // RFC 3954 sections 8 and 9 define both ports as two octets. A wider
+            // element cannot be represented, so keep it opaque instead of
+            // dropping its high half.
+            if !matches!(width, 1 | 2) {
                 unsupported(flow, field, bytes, range);
                 return;
             }
@@ -1774,7 +1784,11 @@ fn add_known_value(
             } else {
                 "DstPort"
             };
-            let added = flow.add_field(def, range, Value::Uint16(value as u16));
+            let added = flow.add_field(
+                def,
+                range,
+                Value::Uint16(u16::try_from(value).unwrap_or(u16::MAX)),
+            );
             added.showname = Some(format!("{label}: {value} ({value})"));
         }
         Element::SourceIpv4 | Element::DestinationIpv4 => {

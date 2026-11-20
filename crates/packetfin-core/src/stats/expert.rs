@@ -41,6 +41,10 @@ pub(crate) fn parse(text: &str) -> Result<(Severity, StatsFilter), String> {
         if args
             .get(..name.len())
             .is_some_and(|prefix| prefix.eq_ignore_ascii_case(name))
+            // The severity name must be a whole argument. Without this a
+            // typo such as `expert,errorish` sets the severity, leaves the
+            // tail unparsed, and silently drops the filter.
+            && matches!(args.as_bytes().get(name.len()), None | Some(b','))
         {
             minimum = severity;
             consumed = name.len();
@@ -208,6 +212,21 @@ mod tests {
         };
         assert_eq!(minimum, Severity::Error);
         assert_eq!(filter.text.as_deref(), Some("tcp"));
+    }
+
+    #[test]
+    fn a_severity_word_must_end_at_a_comma() {
+        // `expert,errorish` used to match the `error` prefix, set the
+        // severity and then drop the `ish` tail, so a typo produced a
+        // severity-filtered table with no filter instead of an error.
+        assert!(parse("expert,errorish").is_err());
+        assert!(parse("expert,notes").is_err());
+        assert!(parse("expert,chatty").is_err());
+        let Ok((minimum, _)) = parse("expert,error") else {
+            eprintln!("expert,error did not parse");
+            return;
+        };
+        assert_eq!(minimum, Severity::Error);
     }
 
     #[test]

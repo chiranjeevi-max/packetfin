@@ -841,6 +841,9 @@ fn second_pass<S: PacketSink>(
     let mut next = 0_usize;
     let mut output_number = 0_u64;
     let mut accepted_count = 0_u64;
+    // `-a packets` counts the frames the output actually keeps, so the second
+    // pass has to track `-Y` matches itself; `drive_frames` does the same.
+    let mut selected_packets = 0_u64;
     loop {
         if next >= accepted.len() {
             break;
@@ -917,7 +920,7 @@ fn second_pass<S: PacketSink>(
         // `frame.number` and a `-Y frame.number==N` expression both see the
         // output position. First-pass annotations use the same map.
         frame.number = output_number;
-        if let Err(error) = output_frame(
+        let outcome = match output_frame(
             &frame,
             &mut session,
             &mut statistics,
@@ -928,19 +931,25 @@ fn second_pass<S: PacketSink>(
             file_number,
             Some(&renumber),
         ) {
-            return match error {
-                FrameError::Writer(status) => {
-                    drop(writer_session.take());
-                    status
-                }
-                FrameError::Output(status) => {
-                    if let Err(write_status) = finish_writer(&mut writer_session) {
-                        write_status
-                    } else {
+            Ok(outcome) => outcome,
+            Err(error) => {
+                return match error {
+                    FrameError::Writer(status) => {
+                        drop(writer_session.take());
                         status
                     }
-                }
-            };
+                    FrameError::Output(status) => {
+                        if let Err(write_status) = finish_writer(&mut writer_session) {
+                            write_status
+                        } else {
+                            status
+                        }
+                    }
+                };
+            }
+        };
+        if outcome.matched {
+            selected_packets = selected_packets.saturating_add(1);
         }
         let keys = session.take_export_keys();
         if let Some(file) = tls_keys.as_mut() {
@@ -952,6 +961,14 @@ fn second_pass<S: PacketSink>(
         if options
             .packet_count
             .is_some_and(|limit| accepted_count >= limit)
+        {
+            break;
+        }
+        if options
+            .write
+            .autostop
+            .packets
+            .is_some_and(|limit| selected_packets >= limit)
         {
             break;
         }

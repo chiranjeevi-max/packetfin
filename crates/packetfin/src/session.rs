@@ -157,9 +157,20 @@ impl WriterSession {
         }
         if let Some(path) = &ring.printname {
             let status = if session.live { 1 } else { 9 };
-            let file = File::create(path).map_err(|error| {
-                WriteFailure::new(status, format!("cannot create {}: {error}", path.display()))
-            })?;
+            let file = match File::create(path) {
+                Ok(file) => file,
+                Err(error) => {
+                    // The capture file already exists and is empty; a failed
+                    // start must not leave it behind (see `failure`).
+                    if let Some(current) = &session.current {
+                        let _ = std::fs::remove_file(current);
+                    }
+                    return Err(WriteFailure::new(
+                        status,
+                        format!("cannot create {}: {error}", path.display()),
+                    ));
+                }
+            };
             session.printname = Some(file);
             if let Some(current) = session.current.clone() {
                 session.record_printname(&current)?;
@@ -688,6 +699,39 @@ mod tests {
         let timestamp = super::local_timestamp();
         assert_eq!(timestamp.len(), 14);
         assert!(timestamp.bytes().all(|byte| byte.is_ascii_digit()));
+    }
+
+    #[test]
+    fn a_failed_printname_log_removes_the_empty_capture() -> Result<(), String> {
+        // `WriterSession::create` opens the capture before the `-b printname`
+        // log, so a failure to create the log used to leave the capture file
+        // behind with zero bytes — against the module's own rule that a failed
+        // start leaves no empty file.
+        let directory = scratch("printname-failure");
+        fs::create_dir_all(&directory).map_err(|error| error.to_string())?;
+        let capture = directory.join("out.pcapng");
+        let write = WriteOptions {
+            file: Some(capture.clone()),
+            ring: RingOptions {
+                printname: Some(directory.join("missing-dir").join("names.log")),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let interfaces = [packetfin_core::capture::InterfaceInfo {
+            global_index: 0,
+            link_type: 1,
+            snap_len: 262_144,
+            options: Vec::new(),
+        }];
+        let result = WriterSession::new_live(&write, &interfaces);
+        assert!(result.is_err(), "the log cannot be created");
+        assert!(
+            !capture.exists(),
+            "the empty capture must be removed when the log fails"
+        );
+        let _ = fs::remove_dir_all(&directory);
+        Ok(())
     }
 
     #[test]

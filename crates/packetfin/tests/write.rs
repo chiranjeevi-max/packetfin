@@ -1198,6 +1198,34 @@ fn two_pass_refuses_to_overwrite_its_input() {
 }
 
 #[test]
+fn single_pass_refuses_to_overwrite_its_input() {
+    // A capture small enough to fit the read buffer was silently replaced:
+    // the whole input was already in memory when the writer truncated the
+    // path, so the run finished with exit 14 and a rewritten file instead of
+    // leaving the input intact.
+    let directory = scratch("same-path-single");
+    must(fs::create_dir_all(&directory), "scratch directory");
+    for fixture in ["rewrite-basic.pcap", "arp-request.pcap"] {
+        let path = directory.join(fixture);
+        let original = must(
+            fs::read(golden::fixtures_dir().join(fixture)),
+            "read fixture",
+        );
+        must(fs::write(&path, &original), "write input");
+        let path_text = must_some(path.to_str(), "utf-8 path");
+        let run = invoke(&["-n", "-r", path_text, "-w", path_text]);
+        assert_eq!(
+            run.status.code(),
+            Some(1),
+            "{}",
+            String::from_utf8_lossy(&run.stderr)
+        );
+        assert_eq!(must(fs::read(&path), "read input"), original, "{fixture}");
+    }
+    let _ = fs::remove_dir_all(&directory);
+}
+
+#[test]
 fn two_pass_filesize_keeps_the_first_read_filter_match() {
     let capture = fixture("rewrite-basic.pcap");
     for limit in ["25", "100", "200"] {

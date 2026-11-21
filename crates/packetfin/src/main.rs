@@ -245,11 +245,14 @@ fn drive<S: PacketSink>(options: &CaptureOptions<'_>, sink: S) -> i32 {
 /// A two-pass run reuses the same loop for its second pass after recording
 /// the read-filter matches.
 fn drive_read<S: PacketSink>(options: &CaptureOptions<'_>, read_file: &Path, sink: S) -> i32 {
+    // The writer truncates its path, so an output naming the input destroys
+    // the capture. The read buffer may already hold the whole file, which
+    // turned this into a silent overwrite instead of the documented failure.
+    if let Err(status) = reject_same_input_output(options, read_file) {
+        return status;
+    }
     if options.write.two_pass {
         if let Err(status) = two_pass_input_status(read_file) {
-            return status;
-        }
-        if let Err(status) = reject_same_input_output(options, read_file) {
             return status;
         }
         return drive_two_pass(options, read_file, sink);
@@ -482,11 +485,11 @@ fn two_pass_input_status(read_file: &Path) -> Result<(), i32> {
     Err(3)
 }
 
-/// Refuse a two-pass run whose output names the input file.
+/// Refuse a run whose output names the input file.
 ///
-/// The writer truncates its path before the first pass, so the only safe
-/// option is to stop before opening it. A single-pass run still exits 14 after
-/// the damaged read.
+/// The writer truncates its path before the first frame is read, and the read
+/// buffer can already hold the whole capture, so an in-place rewrite silently
+/// replaces the input instead of failing.
 fn reject_same_input_output(options: &CaptureOptions<'_>, read_file: &Path) -> Result<(), i32> {
     let Some(output) = options.write.file.as_deref() else {
         return Ok(());
@@ -495,7 +498,7 @@ fn reject_same_input_output(options: &CaptureOptions<'_>, read_file: &Path) -> R
         return Ok(());
     }
     diagnostic(
-        "the input and output name the same file; two-pass mode refuses to overwrite the capture it is reading",
+        "the input and output name the same file; refusing to overwrite the capture it is reading",
     );
     Err(1)
 }

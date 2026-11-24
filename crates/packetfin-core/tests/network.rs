@@ -566,6 +566,50 @@ fn ipv6_short_option_values_are_read_from_option_data_start() {
     }
 }
 
+/// RFC 8200 section 4.2: Pad1 is one octet, so the last octet of an options
+/// header may hold one, including when it is the last captured octet.
+#[test]
+fn ipv6_trailing_pad1_is_kept_and_well_formed() {
+    let cases: &[(u8, &[u8], &[u8])] = &[
+        // Hop-by-Hop, Router Alert, two Pad1, ending the packet.
+        (0, &[17, 0, 0x05, 0x02, 0x00, 0x00, 0x00, 0x00], &[5, 0, 0]),
+        // The same header with a UDP header after it.
+        (
+            0,
+            &[
+                17, 0, 0x05, 0x02, 0x00, 0x00, 0x00, 0x00, 0x04, 0xd2, 0x16, 0x2e, 0x00, 0x08,
+                0x00, 0x00,
+            ],
+            &[5, 0, 0],
+        ),
+        // Destination Options, PadN of three, one Pad1, ending the packet.
+        (60, &[59, 0, 0x01, 0x03, 0x00, 0x00, 0x00, 0x00], &[1, 0]),
+        // An atomic Fragment header, then Hop-by-Hop with PadN and two Pad1.
+        (
+            44,
+            &[
+                0, 0, 0, 0, 0, 0, 0, 2, 59, 0, 0x01, 0x02, 0x00, 0x00, 0x00, 0x00,
+            ],
+            &[1, 0, 0],
+        ),
+    ];
+    for (next, payload, types) in cases {
+        let packet = decode_frame(&frame(1, ethernet(0x86dd, &ipv6(*next, payload))));
+        let expected: Vec<Value> = types.iter().map(|t| Value::Uint8(*t)).collect();
+        assert_eq!(
+            packet.tree.field_values("ipv6.opt.type"),
+            expected.iter().collect::<Vec<_>>(),
+            "payload {payload:02x?}"
+        );
+        assert_eq!(
+            packet.tree.field_values("ipv6.opt.pad1").len(),
+            types.iter().filter(|t| **t == 0).count(),
+            "payload {payload:02x?}"
+        );
+        assert!(!packet.malformed, "payload {payload:02x?}");
+    }
+}
+
 #[test]
 fn ipv4_timestamp_flags_other_than_one_and_three_use_timestamps_only() {
     for flag in [0_u8, 2, 4] {

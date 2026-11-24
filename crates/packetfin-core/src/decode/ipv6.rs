@@ -1024,7 +1024,9 @@ fn parse_options(
     total_length: usize,
 ) -> OptionsOutcome {
     let data_limit = available.len();
-    let option_limit = total_length.min(available.len().saturating_sub(1));
+    // A Pad1 is one octet (RFC 8200 section 4.2), so the last octet of the
+    // area can start an option; a cut two-octet option fails its length read.
+    let option_limit = total_length.min(available.len());
     let mut offset = 2_usize;
     let mut malformed = false;
     let mut chain_ok = true;

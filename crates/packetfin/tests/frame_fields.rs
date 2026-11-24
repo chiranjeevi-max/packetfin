@@ -435,6 +435,38 @@ fn empty_fixture_exits_zero_with_no_frames() {
     assert!(run.stderr.is_empty(), "stderr: {}", stderr_text(&run));
 }
 
+/// sFlow version 5 packs a 20-bit enterprise above a 12-bit format in each
+/// sample and record tag. The expected output leaves this field out, so the
+/// whole column is checked here: enterprise 100 in a flow record and
+/// enterprise 5 in a sample.
+#[test]
+fn sflow_enterprise_is_the_tag_high_bits() {
+    let cases: &[(&str, &[u8])] = &[
+        (
+            "sflow-v5",
+            b"1\t0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0\n2\t0\n3\t0,100,0\n4\t0\n",
+        ),
+        ("sflow-malformed", b"1\t\n2\t0\n3\t\n4\t0,0\n5\t\n6\t5\n"),
+    ];
+    for (name, expected) in cases {
+        let run = run(&fixture_field_args(
+            fixture(name),
+            &["frame.number", "sflow.enterprise"],
+        ));
+        assert_eq!(
+            status_code(run.status),
+            Some(0),
+            "stderr: {}",
+            stderr_text(&run)
+        );
+        assert_eq!(
+            String::from_utf8_lossy(&run.stdout),
+            String::from_utf8_lossy(expected),
+            "{name}"
+        );
+    }
+}
+
 #[test]
 fn snaplen_fixture_prints_original_and_captured_lengths() {
     let run = run(&fixture_field_args(

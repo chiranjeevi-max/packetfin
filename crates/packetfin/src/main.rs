@@ -584,9 +584,12 @@ fn identifies_same(handle: &impl winapi_util::AsHandleRef, output: &Path) -> boo
 /// Whether two Windows identities describe the same file.
 ///
 /// The volume serial number and file index together identify a file within a
-/// volume. The size is compared too, because a filesystem that reuses indices
-/// (ReFS uses 128-bit identifiers that this 64-bit pair truncates) would
-/// otherwise report two distinct files as one.
+/// volume, which is the same pair the Unix side gets from the device and inode.
+/// The size is deliberately not compared: it changes while a file is written,
+/// so a capture that grew between the two queries would look like a different
+/// file and the writer would truncate it. A filesystem that reuses indices
+/// (ReFS uses 128-bit identifiers this 64-bit pair truncates) can therefore
+/// match two distinct files, which refuses a run rather than losing a capture.
 #[cfg(windows)]
 fn same_identity(
     input: &winapi_util::file::Information,
@@ -594,7 +597,6 @@ fn same_identity(
 ) -> bool {
     input.volume_serial_number() == output.volume_serial_number()
         && input.file_index() == output.file_index()
-        && input.file_size() == output.file_size()
 }
 
 #[cfg(unix)]

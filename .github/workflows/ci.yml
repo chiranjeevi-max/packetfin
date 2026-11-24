@@ -61,6 +61,33 @@ jobs:
         run: rustup toolchain install
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
       - run: cargo check --workspace --all-targets --locked
+      - name: Fetch the Npcap SDK
+        shell: pwsh
+        run: |
+          $zip = "$env:RUNNER_TEMP\npcap-sdk.zip"
+          Invoke-WebRequest https://npcap.com/dist/npcap-sdk-1.17.zip -OutFile $zip
+          $hash = (Get-FileHash $zip -Algorithm SHA256).Hash
+          if ($hash -ne 'AB7E1A6CB8D07427E0071EC11BE380BD9D2BB19AE6AB3F5EDE0698C301638258') {
+            throw "Npcap SDK checksum mismatch: $hash"
+          }
+          Expand-Archive $zip -DestinationPath "$env:RUNNER_TEMP\npcap-sdk"
+          "LIBPCAP_LIBDIR=$env:RUNNER_TEMP\npcap-sdk\Lib\x64" >> $env:GITHUB_ENV
+      - run: cargo build -p packetfin --locked
+      - name: Check the executable's DLL imports
+        shell: pwsh
+        run: |
+          rustup component add llvm-tools
+          $sysroot = rustc --print sysroot
+          $readobj = Join-Path $sysroot 'lib\rustlib\x86_64-pc-windows-msvc\bin\llvm-readobj.exe'
+          $imports = & $readobj --coff-imports target\debug\packetfin.exe |
+            Select-String '^\s*Name: (.+)$' | ForEach-Object { $_.Matches[0].Groups[1].Value } |
+            Sort-Object -Unique
+          $imports
+          $patterns = Get-Content tools\windows-imports.allow | Where-Object { $_ -and -not $_.StartsWith('#') }
+          $allowed = '^(' + ($patterns -join '|') + ')$'
+          $unexpected = @($imports | Where-Object { $_ -notmatch $allowed })
+          if ($imports.Count -eq 0) { throw 'no imports read from packetfin.exe' }
+          if ($unexpected.Count -gt 0) { throw "unexpected DLL imports: $($unexpected -join ', ')" }
 
   deny:
     name: Dependency checks

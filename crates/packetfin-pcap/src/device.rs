@@ -69,21 +69,19 @@ pub fn is_loopback_name(name: &str) -> bool {
 
 /// Enumerate capture interfaces in libpcap order.
 pub fn devices() -> Result<Vec<DeviceInfo>, OpenError> {
-    let listed = pcap::Device::list().map_err(|error| DeviceError::List {
-        message: error.to_string(),
-    })?;
+    let listed =
+        crate::handle::find_all_devices().map_err(|message| DeviceError::List { message })?;
     let friendly = crate::macos::friendly_names();
     let mut devices = Vec::with_capacity(listed.len());
     for device in listed {
         #[cfg(target_os = "macos")]
-        let description = friendly.get(&device.name).cloned().or(device.desc);
+        let description = friendly.get(&device.name).cloned().or(device.description);
         #[cfg(not(target_os = "macos"))]
         let description = {
             let _ = &friendly;
-            device.desc
+            device.description
         };
-        let loopback = device.flags.is_loopback();
-        let mut info = DeviceInfo::with_flags(device.name, description, loopback);
+        let mut info = DeviceInfo::with_flags(device.name, description, device.loopback);
         if info.description.is_none() && info.loopback {
             // Name a loopback interface "Loopback" when libpcap and
             // SystemConfiguration both leave the description empty.

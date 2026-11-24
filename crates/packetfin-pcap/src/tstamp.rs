@@ -1,9 +1,10 @@
 //! Timestamp-type discovery and name lookup.
 
-use std::ffi::{CStr, CString, c_char};
+use std::ffi::CString;
 
 use crate::error::OpenError;
 use crate::ffi;
+use crate::handle::string_from_pointer;
 
 /// One libpcap timestamp type, as shown by `--list-time-stamp-types`.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -60,21 +61,6 @@ pub fn timestamp_type_info(value: u32) -> TimestampTypeInfo {
     }
 }
 
-/// Copy a borrowed C string, returning `None` for null or non-UTF-8 text.
-///
-/// # Safety
-///
-/// `pointer` must be null or point to a NUL-terminated string that remains
-/// valid for the duration of the call.
-pub(crate) unsafe fn string_from_pointer(pointer: *const c_char) -> Option<String> {
-    if pointer.is_null() {
-        return None;
-    }
-    // SAFETY: guaranteed by the caller.
-    let text = unsafe { CStr::from_ptr(pointer) };
-    text.to_str().ok().map(str::to_owned)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -117,11 +103,5 @@ mod tests {
         assert_eq!(info.name, "type_9999");
         assert_eq!(info.description, "");
         assert_eq!(info.label(), "type_9999");
-    }
-
-    #[test]
-    fn null_pointer_has_no_string() {
-        // SAFETY: the helper explicitly accepts null.
-        assert_eq!(unsafe { string_from_pointer(std::ptr::null()) }, None);
     }
 }

@@ -2,11 +2,13 @@
 //!
 //! The variants exist so the command-line layer can map failures onto
 //! its exit codes and wording without parsing libpcap strings a second
-//! time. [`OpenError::Permission`] is the only variant derived from a message
-//! match, because the `pcap` crate exposes libpcap's activation text but not
-//! its status code.
+//! time. Activation failures are classified by libpcap's status code first,
+//! and by its message when the code does not settle the variant.
 
+use std::ffi::c_int;
 use std::fmt;
+
+use crate::ffi;
 
 /// Why an interface selector or the device list failed.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -56,6 +58,8 @@ impl std::error::Error for DeviceError {}
 pub enum OpenWarning {
     /// Promiscuous mode was requested but the interface rejected it.
     PromiscuousNotSupported { device: String, message: String },
+    /// libpcap activated the capture with another warning.
+    Activation { device: String, message: String },
 }
 
 impl fmt::Display for OpenWarning {
@@ -65,6 +69,12 @@ impl fmt::Display for OpenWarning {
                 write!(
                     formatter,
                     "promiscuous mode is not supported on '{device}': {message}"
+                )
+            }
+            Self::Activation { device, message } => {
+                write!(
+                    formatter,
+                    "capture on '{device}' opened with a warning: {message}"
                 )
             }
         }
@@ -187,16 +197,29 @@ impl fmt::Display for CaptureError {
 
 impl std::error::Error for CaptureError {}
 
-/// Decide which typed error an activation message represents.
+/// Decide which typed error a failed activation represents.
 ///
-/// libpcap only hands back a string through the `pcap` crate, so this keeps
-/// the string matching in one place instead of scattering it through the
-/// open path.
+/// libpcap's specific status codes decide first. Any other code carries the
+/// detail only in its message, so the message is matched as a fallback, in
+/// one place instead of through the open path.
 pub(crate) fn classify_activation(
     device: &str,
     monitor_requested: bool,
+    status: c_int,
     message: String,
 ) -> OpenError {
+    match status {
+        ffi::PCAP_ERROR_PERM_DENIED | ffi::PCAP_ERROR_PROMISC_PERM_DENIED => {
+            return OpenError::Permission {
+                device: device.to_owned(),
+                message,
+            };
+        }
+        ffi::PCAP_ERROR_RFMON_NOTSUP if monitor_requested => {
+            return OpenError::Monitor { message };
+        }
+        _ => {}
+    }
     let lower = message.to_ascii_lowercase();
     let permission = lower.contains("permission")
         || lower.contains("not permitted")
@@ -222,19 +245,12 @@ pub(crate) fn classify_activation(
     }
 }
 
-/// Whether an activation message is libpcap's promiscuous-mode warning.
-///
-/// The `pcap` crate discards `pcap_activate`'s positive warning status, so
-/// the message text is the only signal available. `BIOCPROMISC` is macOS's
-/// wording; Linux and Npcap use a phrase containing "promiscuous".
-pub(crate) fn is_promisc_warning(message: &str) -> bool {
-    let lower = message.to_ascii_lowercase();
-    lower.contains("biocpromisc") || lower.contains("promisc")
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// libpcap's generic `PCAP_ERROR`, which carries detail only in text.
+    const GENERIC: c_int = -1;
 
     #[test]
     fn device_errors_display() {
@@ -276,6 +292,7 @@ mod tests {
         let error = classify_activation(
             "en0",
             false,
+            GENERIC,
             "You don't have permission to capture on that device (socket: Operation not permitted)"
                 .to_owned(),
         );
@@ -285,21 +302,26 @@ mod tests {
     #[test]
     fn activation_messages_classify_monitor_only_when_requested() {
         let message = "monitor mode not supported on that device".to_owned();
-        let requested = classify_activation("lo0", true, message.clone());
+        let requested = classify_activation("lo0", true, GENERIC, message.clone());
         assert!(matches!(requested, OpenError::Monitor { .. }));
-        let not_requested = classify_activation("lo0", false, message);
+        let not_requested = classify_activation("lo0", false, GENERIC, message);
         assert!(matches!(not_requested, OpenError::Open { .. }));
     }
 
     #[test]
     fn activation_messages_classify_buffer() {
-        let error = classify_activation("en0", false, "could not set buffer size".to_owned());
+        let error = classify_activation(
+            "en0",
+            false,
+            GENERIC,
+            "could not set buffer size".to_owned(),
+        );
         assert!(matches!(error, OpenError::Buffer { .. }));
     }
 
     #[test]
     fn activation_messages_fall_back_to_open() {
-        let error = classify_activation("en0", false, "BIOCSETIF failed".to_owned());
+        let error = classify_activation("en0", false, GENERIC, "BIOCSETIF failed".to_owned());
         match error {
             OpenError::Open { device, message } => {
                 assert_eq!(device, "en0");
@@ -310,12 +332,21 @@ mod tests {
     }
 
     #[test]
-    fn promiscuous_warnings_are_recognized() {
-        assert!(is_promisc_warning(
-            "BIOCPROMISC: Operation not supported on socket"
-        ));
-        assert!(is_promisc_warning("promiscuous mode not supported"));
-        assert!(!is_promisc_warning("BIOCSETIF failed"));
+    fn activation_status_codes_classify_before_messages() {
+        let denied = classify_activation("en0", false, ffi::PCAP_ERROR_PERM_DENIED, String::new());
+        assert!(matches!(denied, OpenError::Permission { .. }));
+        let promisc = classify_activation(
+            "en0",
+            false,
+            ffi::PCAP_ERROR_PROMISC_PERM_DENIED,
+            "no detail".to_owned(),
+        );
+        assert!(matches!(promisc, OpenError::Permission { .. }));
+        let rfmon = classify_activation("en0", true, ffi::PCAP_ERROR_RFMON_NOTSUP, String::new());
+        assert!(matches!(rfmon, OpenError::Monitor { .. }));
+        let rfmon_unrequested =
+            classify_activation("en0", false, ffi::PCAP_ERROR_RFMON_NOTSUP, String::new());
+        assert!(matches!(rfmon_unrequested, OpenError::Open { .. }));
     }
 
     #[test]
@@ -327,6 +358,14 @@ mod tests {
         assert_eq!(
             warning.to_string(),
             "promiscuous mode is not supported on 'awdl0': BIOCPROMISC: Operation not supported on socket"
+        );
+        let other = OpenWarning::Activation {
+            device: "en0".to_owned(),
+            message: "Warning".to_owned(),
+        };
+        assert_eq!(
+            other.to_string(),
+            "capture on 'en0' opened with a warning: Warning"
         );
     }
 }

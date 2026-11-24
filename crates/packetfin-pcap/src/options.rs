@@ -31,10 +31,11 @@ pub struct Linktype(pub u32);
 impl Linktype {
     /// Resolve a link-type name such as `NULL` or `EN10MB`.
     pub fn from_name(name: &str) -> Result<Self, OpenError> {
-        let value = pcap::Linktype::from_name(name).map_err(|error| OpenError::LinkType {
-            message: format!("unknown name '{name}': {error}"),
-        })?;
-        Ok(Self(u32::try_from(value.0).unwrap_or(0)))
+        let value =
+            crate::handle::link_type_from_name(name).map_err(|error| OpenError::LinkType {
+                message: format!("unknown name '{name}': {error}"),
+            })?;
+        Ok(Self(u32::try_from(value).unwrap_or(0)))
     }
 
     /// The libpcap name for this link type.
@@ -42,11 +43,9 @@ impl Linktype {
         let value = i32::try_from(self.0).map_err(|_| OpenError::LinkType {
             message: format!("link type {} is outside libpcap's range", self.0),
         })?;
-        pcap::Linktype(value)
-            .get_name()
-            .map_err(|error| OpenError::LinkType {
-                message: error.to_string(),
-            })
+        crate::handle::link_type_name(value).ok_or_else(|| OpenError::LinkType {
+            message: crate::handle::UNKNOWN_LINK_TYPE.to_owned(),
+        })
     }
 
     /// The libpcap description for this link type.
@@ -54,11 +53,9 @@ impl Linktype {
         let value = i32::try_from(self.0).map_err(|_| OpenError::LinkType {
             message: format!("link type {} is outside libpcap's range", self.0),
         })?;
-        pcap::Linktype(value)
-            .get_description()
-            .map_err(|error| OpenError::LinkType {
-                message: error.to_string(),
-            })
+        crate::handle::link_type_description(value).ok_or_else(|| OpenError::LinkType {
+            message: crate::handle::UNKNOWN_LINK_TYPE.to_owned(),
+        })
     }
 
     /// A display record, falling back to `DLT <value> (not supported)` when

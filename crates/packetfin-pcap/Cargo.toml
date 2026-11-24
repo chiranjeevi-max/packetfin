@@ -24,7 +24,6 @@ dbg_macro = { level = "deny" }
 
 [dependencies]
 packetfin-core = { path = "../packetfin-core" }
-pcap = "2.5"
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"

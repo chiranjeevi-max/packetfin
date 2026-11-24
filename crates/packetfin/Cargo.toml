@@ -25,8 +25,8 @@ jiff = "0.2.45"
 # Standard input is a handle, not a path, so `-r -` plus a `-w` naming the
 # same file cannot be detected by comparing paths. Windows has no stable way to
 # query a handle's identity without `unsafe`, which this crate forbids;
-# winapi-util wraps those calls in the same way `pcap` does, and also reports
-# whether the handle is a pipe so a genuine pipeline is never refused.
+# winapi-util wraps those calls, and also reports whether the handle is a pipe
+# so a genuine pipeline is never refused.
 winapi-util = "0.1.11"
 
 [dev-dependencies]

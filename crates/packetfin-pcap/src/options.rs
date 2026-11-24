@@ -244,12 +244,12 @@ pub fn buffer_bytes_from_mib(mib: u64) -> Result<u32, OpenError> {
 
 /// Widen a `timeval` field to `i64`.
 ///
-/// The two fields do not share a type. `tv_sec` is `time_t` and `tv_usec` is
-/// `suseconds_t`, and either can be 32-bit or 64-bit depending on the target:
-/// `suseconds_t` is 32-bit on the BSDs, and on Windows both are the 32-bit
-/// `c_long`. A cast on a field that is already `i64` is an unnecessary cast,
-/// and `i64::from` on it is a useless conversion, so the conversion is chosen
-/// by the field's width rather than by the platform.
+/// The two fields do not share a type, and neither is uniform across targets:
+/// `suseconds_t` is 32-bit on macOS while `time_t` is 64-bit there, FreeBSD and
+/// DragonFly make both 64-bit, and on Windows both are the 32-bit `c_long`. A
+/// cast on a field already `i64` is an unnecessary cast and `i64::from` on it is
+/// a useless conversion, so the conversion is chosen by the field's own width
+/// rather than by the platform.
 trait TimevalField: Copy {
     fn widened(self) -> i64;
 }

@@ -3,8 +3,9 @@
 use packetfin_core::Timestamp;
 
 use crate::device::DeviceInfo;
-use crate::error::{CaptureError, OpenError, OpenWarning, classify_activation, is_promisc_warning};
+use crate::error::{CaptureError, OpenError, OpenWarning, classify_activation};
 use crate::ffi;
+use crate::handle::{Activation, Handle};
 use crate::options::{
     DEFAULT_SNAPLEN, Linktype, LinktypeInfo, OpenOptions, TimestampPrecision,
     timestamp_from_timeval,
@@ -50,7 +51,7 @@ impl CapturedPacket<'_> {
 
 /// A configured, activated libpcap handle for one interface.
 pub struct LiveCapture {
-    capture: pcap::Capture<pcap::Active>,
+    capture: Handle,
     device: DeviceInfo,
     link_type: u32,
     snaplen: u32,
@@ -100,44 +101,33 @@ impl LiveCapture {
         nonblocking: bool,
     ) -> Result<Self, OpenError> {
         options.validate()?;
-        let mut warnings = Vec::new();
-        let capture = match Self::activate(device, options, options.promisc) {
-            Ok(capture) => capture,
-            Err(error) if options.promisc => {
-                let Some(message) = promisc_warning_message(&error) else {
-                    return Err(error);
-                };
-                // The pcap crate loses pcap_activate's positive warning status
-                // and drops the activated handle. Re-activate without
-                // promiscuous mode and record the warning.
-                let capture = Self::activate(device, options, false)?;
-                warnings.push(OpenWarning::PromiscuousNotSupported {
+        let (mut capture, warning) = Self::activate(device, options)?;
+        if nonblocking {
+            capture
+                .set_nonblocking()
+                .map_err(|message| OpenError::Open {
                     device: device.name.clone(),
                     message,
-                });
-                capture
-            }
-            Err(error) => return Err(error),
-        };
-        let capture = if nonblocking {
-            capture.setnonblock().map_err(|error| OpenError::Open {
+                })?;
+        }
+        let warnings = warning
+            .map(|message| OpenWarning::PromiscuousNotSupported {
                 device: device.name.clone(),
-                message: error.to_string(),
-            })?
-        } else {
-            capture
-        };
-        let link_type = u32::try_from(capture.get_datalink().0).unwrap_or(0);
+                message,
+            })
+            .into_iter()
+            .collect();
+        let link_type = u32::try_from(capture.datalink()).unwrap_or(0);
         // SAFETY: the handle is active and alive; pcap_snapshot has no
         // pointer arguments beyond the handle.
-        let snapshot = unsafe { ffi::pcap_snapshot(capture.as_ptr().cast()) };
+        let snapshot = unsafe { ffi::pcap_snapshot(capture.as_ptr()) };
         let snaplen = u32::try_from(snapshot)
             .ok()
             .filter(|value| *value > 0)
             .or(options.snaplen)
             .unwrap_or(DEFAULT_SNAPLEN);
         // SAFETY: same handle-lifetime argument as pcap_snapshot.
-        let precision_raw = unsafe { ffi::pcap_get_tstamp_precision(capture.as_ptr().cast()) };
+        let precision_raw = unsafe { ffi::pcap_get_tstamp_precision(capture.as_ptr()) };
         let precision = TimestampPrecision::from_raw(precision_raw);
         Ok(Self {
             capture,
@@ -153,41 +143,46 @@ impl LiveCapture {
 
     /// Create, configure and activate a libpcap handle.
     ///
-    /// `promisc` is separate from `options.promisc` so a promiscuous-mode
-    /// warning can be retried with promiscuous mode off.
+    /// Returns the active handle and libpcap's promiscuous-mode warning, if
+    /// the interface could not enter promiscuous mode.
     fn activate(
         device: &DeviceInfo,
         options: &OpenOptions,
-        promisc: bool,
-    ) -> Result<pcap::Capture<pcap::Active>, OpenError> {
-        let inactive =
-            pcap::Capture::from_device(device.name.as_str()).map_err(|error| OpenError::Open {
-                device: device.name.clone(),
-                message: error.to_string(),
-            })?;
-        let inactive = inactive
-            .snaplen(options.snaplen_i32()?.unwrap_or(0))
-            .promisc(promisc)
-            .timeout(options.effective_timeout_ms());
+    ) -> Result<(Handle, Option<String>), OpenError> {
+        let open_error = |message: String| OpenError::Open {
+            device: device.name.clone(),
+            message,
+        };
+        let mut capture = Handle::create(device.name.as_str()).map_err(open_error)?;
+        capture
+            .set_snaplen(options.snaplen_i32()?.unwrap_or(0))
+            .map_err(open_error)?;
+        capture.set_promisc(options.promisc).map_err(open_error)?;
+        capture
+            .set_timeout(options.effective_timeout_ms())
+            .map_err(open_error)?;
         #[cfg(not(windows))]
-        let inactive = inactive.rfmon(options.monitor);
+        capture
+            .set_rfmon(options.monitor)
+            .map_err(|message| OpenError::Monitor { message })?;
         #[cfg(windows)]
         if options.monitor {
             return Err(OpenError::Monitor {
-                message: "monitor mode is not exposed by the Npcap binding".to_owned(),
+                message: "monitor mode is not available through Npcap".to_owned(),
             });
         }
-        let inactive = match options.buffer_i32()? {
-            Some(buffer) => inactive.buffer_size(buffer),
-            None => inactive,
-        };
+        if let Some(buffer) = options.buffer_i32()? {
+            capture
+                .set_buffer_size(buffer)
+                .map_err(|message| OpenError::Buffer { message })?;
+        }
         if let Some(tstamp_type) = options.tstamp_type {
             let raw = i32::try_from(tstamp_type).map_err(|_| OpenError::TimestampType {
                 message: format!("value {tstamp_type} does not fit in a signed 32-bit integer"),
             })?;
             // SAFETY: the handle is inactive and alive; libpcap copies the
             // value and does not retain the pointer.
-            let result = unsafe { ffi::pcap_set_tstamp_type(inactive.as_ptr().cast(), raw) };
+            let result = unsafe { ffi::pcap_set_tstamp_type(capture.as_ptr(), raw) };
             if result != 0 {
                 return Err(OpenError::TimestampType {
                     message: format!(
@@ -197,9 +192,18 @@ impl LiveCapture {
                 });
             }
         }
-        let mut capture = inactive.open().map_err(|error| {
-            classify_activation(&device.name, options.monitor, error.to_string())
-        })?;
+        let warning = match capture.activate() {
+            Activation::Ready => None,
+            Activation::PromiscuousNotSupported(message) => Some(message),
+            Activation::Failed { status, message } => {
+                return Err(classify_activation(
+                    &device.name,
+                    options.monitor,
+                    status,
+                    message,
+                ));
+            }
+        };
         if let Some(link_type) = options.link_type {
             let raw = i32::try_from(link_type.value()).map_err(|_| OpenError::LinkType {
                 message: format!(
@@ -208,12 +212,12 @@ impl LiveCapture {
                 ),
             })?;
             capture
-                .set_datalink(pcap::Linktype(raw))
+                .set_datalink(raw)
                 .map_err(|error| OpenError::LinkType {
                     message: format!("'{}': {error}", device.name),
                 })?;
         }
-        Ok(capture)
+        Ok((capture, warning))
     }
 
     /// The interface this handle captures from.
@@ -271,7 +275,7 @@ impl LiveCapture {
             return Ok(self);
         }
         let Self {
-            capture,
+            mut capture,
             device,
             link_type,
             snaplen,
@@ -280,10 +284,12 @@ impl LiveCapture {
             warnings,
             ..
         } = self;
-        let capture = capture.setnonblock().map_err(|error| OpenError::Open {
-            device: device.name.clone(),
-            message: error.to_string(),
-        })?;
+        capture
+            .set_nonblocking()
+            .map_err(|message| OpenError::Open {
+                device: device.name.clone(),
+                message,
+            })?;
         Ok(Self {
             capture,
             device,
@@ -302,10 +308,10 @@ impl LiveCapture {
     /// bad expression leaves no empty file behind.
     pub fn set_filter(&mut self, expression: &str) -> Result<(), OpenError> {
         self.capture
-            .filter(expression, true)
-            .map_err(|error| OpenError::Filter {
+            .set_filter(expression)
+            .map_err(|message| OpenError::Filter {
                 expression: expression.to_owned(),
-                message: error.to_string(),
+                message,
             })
     }
 
@@ -333,11 +339,11 @@ impl LiveCapture {
             .map(|stats| CaptureStats {
                 received: u64::from(stats.received),
                 dropped: u64::from(stats.dropped),
-                interface_dropped: u64::from(stats.if_dropped),
+                interface_dropped: u64::from(stats.interface_dropped),
             })
-            .map_err(|error| CaptureError::Stats {
+            .map_err(|message| CaptureError::Stats {
                 device: self.device.name.clone(),
-                message: error.to_string(),
+                message,
             })
     }
 
@@ -345,13 +351,13 @@ impl LiveCapture {
     pub fn link_types(&self) -> Result<Vec<LinktypeInfo>, OpenError> {
         let links = self
             .capture
-            .list_datalinks()
+            .datalinks()
             .map_err(|error| OpenError::LinkType {
                 message: format!("'{}': {error}", self.device.name),
             })?;
         Ok(links
             .into_iter()
-            .map(|link| Linktype(u32::try_from(link.0).unwrap_or(0)).info())
+            .map(|link| Linktype(u32::try_from(link).unwrap_or(0)).info())
             .collect())
     }
 
@@ -360,8 +366,7 @@ impl LiveCapture {
         let mut pointer: *mut std::ffi::c_int = std::ptr::null_mut();
         // SAFETY: the handle is active and alive; on success libpcap allocates
         // an array of `count` integers that we copy and then free.
-        let count =
-            unsafe { ffi::pcap_list_tstamp_types(self.capture.as_ptr().cast(), &mut pointer) };
+        let count = unsafe { ffi::pcap_list_tstamp_types(self.capture.as_ptr(), &mut pointer) };
         if count < 0 {
             return Err(OpenError::TimestampType {
                 message: format!(
@@ -403,46 +408,38 @@ impl LiveCapture {
     pub(crate) fn selectable_fd(&self) -> i32 {
         // SAFETY: the handle is active and alive; libpcap returns a borrowed
         // descriptor owned by the handle.
-        unsafe { ffi::pcap_get_selectable_fd(self.capture.as_ptr().cast()) }
+        unsafe { ffi::pcap_get_selectable_fd(self.capture.as_ptr()) }
     }
 }
 
 fn read_packet<'a>(
-    capture: &'a mut pcap::Capture<pcap::Active>,
+    capture: &'a mut Handle,
     device: &'a DeviceInfo,
     link_type: u32,
     precision: TimestampPrecision,
 ) -> Result<Option<CapturedPacket<'a>>, CaptureError> {
-    match capture.next_packet() {
-        Ok(packet) => {
-            let timestamp =
-                timestamp_from_timeval(packet.header.ts, precision).map_err(|message| {
-                    CaptureError::Timestamp {
-                        device: device.name.clone(),
-                        message,
-                    }
-                })?;
-            Ok(Some(CapturedPacket {
-                timestamp,
-                data: packet.data,
-                original_len: packet.header.len,
-                link_type,
-                device,
-            }))
-        }
-        Err(pcap::Error::TimeoutExpired | pcap::Error::NoMorePackets) => Ok(None),
-        Err(error) => Err(CaptureError::Read {
+    let Some(packet) = capture
+        .next_packet()
+        .map_err(|message| CaptureError::Read {
             device: device.name.clone(),
-            message: error.to_string(),
-        }),
-    }
-}
-
-fn promisc_warning_message(error: &OpenError) -> Option<String> {
-    match error {
-        OpenError::Open { message, .. } if is_promisc_warning(message) => Some(message.clone()),
-        _ => None,
-    }
+            message,
+        })?
+    else {
+        return Ok(None);
+    };
+    let timestamp = timestamp_from_timeval(packet.timestamp, precision).map_err(|message| {
+        CaptureError::Timestamp {
+            device: device.name.clone(),
+            message,
+        }
+    })?;
+    Ok(Some(CapturedPacket {
+        timestamp,
+        data: packet.data,
+        original_len: packet.original_len,
+        link_type,
+        device,
+    }))
 }
 
 #[cfg(test)]

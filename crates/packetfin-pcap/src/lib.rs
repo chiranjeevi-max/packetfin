@@ -3,9 +3,8 @@
 //! This is the only Packetfin crate allowed to contain `unsafe` code. It
 //! isolates three boundaries:
 //!
-//! * libpcap/Npcap through the safe `pcap` crate, plus raw calls for the
-//!   snapshot length, timestamp precision and timestamp-type listing that the
-//!   crate does not expose;
+//! * libpcap/Npcap, declared in `ffi` and wrapped by an owning handle in
+//!   `handle`, linked directly as `libpcap` or Npcap's `wpcap`;
 //! * macOS SystemConfiguration, which supplies the friendly interface names
 //!   libpcap omits there;
 //! * the Unix SIGINT/SIGTERM self-pipe used to interrupt an idle poll.
@@ -36,6 +35,7 @@ mod capture;
 mod device;
 mod error;
 mod ffi;
+mod handle;
 mod macos;
 mod options;
 mod set;

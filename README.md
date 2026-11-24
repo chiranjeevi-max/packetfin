@@ -70,7 +70,7 @@ Cross-packet state, statistics and two-pass annotations each have a byte budget:
 ## Tech stack
 
 - **Language:** Rust, 2024 edition. The toolchain is pinned to 1.100.0 in [`rust-toolchain.toml`](rust-toolchain.toml).
-- **Live capture:** libpcap on macOS and Linux and Npcap on Windows, through the [`pcap`](https://crates.io/crates/pcap) crate.
+- **Live capture:** libpcap on macOS and Linux and Npcap on Windows, called directly from `packetfin-pcap`.
 - **TLS:** [RustCrypto](https://github.com/RustCrypto) crates for AES-GCM, AES-CBC, ChaCha20-Poly1305, HKDF, HMAC, SHA-1, SHA-2 and MD5.
 - **Compression:** [`flate2`](https://crates.io/crates/flate2) with its pure-Rust backend, [`ruzstd`](https://crates.io/crates/ruzstd) and [`lz4_flex`](https://crates.io/crates/lz4_flex).
 - **Filters:** [`regex`](https://crates.io/crates/regex) for the `matches` operator.
@@ -88,7 +88,7 @@ Decoding is pure Rust. Only live capture links to a C library.
   - macOS: included with the system.
   - Debian and Ubuntu: `sudo apt install libpcap-dev`
   - Fedora: `sudo dnf install libpcap-devel`
-  - Windows: install [Npcap](https://npcap.com), download the Npcap SDK, and add its `Lib\x64` folder to the `LIB` environment variable.
+  - Windows: install [Npcap](https://npcap.com), download the Npcap SDK, and set `LIBPCAP_LIBDIR` (or add to `LIB`) to its `Lib\x64` folder.
 
 Reading files needs no special permissions. Live capture does: run Packetfin with `sudo`, or on Linux give the binary the capture capabilities once:
 

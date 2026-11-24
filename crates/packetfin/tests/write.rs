@@ -1226,7 +1226,6 @@ fn single_pass_refuses_to_overwrite_its_input() {
 }
 
 #[test]
-#[cfg(unix)]
 fn stdin_redirect_refuses_to_overwrite_its_input() {
     // `-r -` names standard input by a sentinel that does not exist on disk,
     // so the identity check looked up a file called `-` and found nothing.
@@ -1261,7 +1260,44 @@ fn stdin_redirect_refuses_to_overwrite_its_input() {
 }
 
 #[test]
-#[cfg(unix)]
+fn stdin_redirect_to_a_different_file_is_allowed() {
+    // The third case the Windows guard has to keep working: a redirect from a
+    // regular file into a writer aimed at a different file.
+    let directory = scratch("stdin-distinct");
+    must(fs::create_dir_all(&directory), "scratch directory");
+    let input_path = directory.join("in.pcap");
+    let output_path = directory.join("out.pcap");
+    let original = must(
+        fs::read(golden::fixtures_dir().join("rewrite-basic.pcap")),
+        "read fixture",
+    );
+    must(fs::write(&input_path, &original), "write input");
+    let output_text = must_some(output_path.to_str(), "utf-8 path");
+    let input = must(fs::File::open(&input_path), "open input");
+    let output = Command::new(BIN)
+        .args(["-n", "-r", "-", "-w", output_text])
+        .current_dir(golden::repo_root())
+        .stdin(Stdio::from(input))
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .output();
+    let output = must(output, "run");
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(must(fs::read(&input_path), "read input"), original);
+    let written = must(fs::read(&output_path), "read output");
+    assert!(
+        written.len() > original.len(),
+        "the output is a new capture"
+    );
+    let _ = fs::remove_dir_all(&directory);
+}
+
+#[test]
 fn piped_stdin_can_write_a_separate_capture() {
     // The stdin identity check must not refuse a genuine pipe. Only a redirect
     // from the very file the writer would truncate is a conflict.

@@ -532,12 +532,64 @@ fn same_file(input: &Path, output: &Path) -> bool {
     }
 }
 
-#[cfg(not(unix))]
+/// Whether the input and output resolve to the same file.
+///
+/// Standard input is a handle rather than a path, so the comparison goes
+/// through the handle instead of the name `-`. A pipe carries no file identity
+/// and never conflicts with the output. Any other identity failure is treated
+/// as a conflict: refusing a run the user meant to allow costs a command, while
+/// allowing one that names the same file destroys the capture.
+#[cfg(windows)]
 fn same_file(input: &Path, output: &Path) -> bool {
-    match (std::fs::canonicalize(input), std::fs::canonicalize(output)) {
-        (Ok(input), Ok(output)) => input == output,
-        _ => false,
+    use winapi_util::file;
+
+    let stdin = input.as_os_str() == OsStr::new("-");
+    if !stdin {
+        let Ok(input) = std::fs::File::open(input) else {
+            return false;
+        };
+        return identifies_same(&input, output);
     }
+    // A pipe cannot name a file the writer would truncate.
+    let stdin = std::io::stdin();
+    match file::typ(&stdin) {
+        Ok(kind) if kind.is_pipe() => false,
+        Ok(_) => identifies_same(&stdin, output),
+        Err(_) => true,
+    }
+}
+
+/// Whether `handle` and the file named by `output` are the same file.
+///
+/// When the output cannot be inspected, the answer is "same": the alternative
+/// is to let the writer truncate a file that may be the one being read.
+#[cfg(windows)]
+fn identifies_same(handle: &impl winapi_util::AsHandleRef, output: &Path) -> bool {
+    use winapi_util::file;
+
+    let Ok(output) = std::fs::OpenOptions::new().read(true).open(output) else {
+        return true;
+    };
+    match (file::information(handle), file::information(&output)) {
+        (Ok(input), Ok(output)) => same_identity(&input, &output),
+        _ => true,
+    }
+}
+
+/// Whether two Windows identities describe the same file.
+///
+/// The volume serial number and file index together identify a file within a
+/// volume. The size is compared too, because a filesystem that reuses indices
+/// (ReFS uses 128-bit identifiers that this 64-bit pair truncates) would
+/// otherwise report two distinct files as one.
+#[cfg(windows)]
+fn same_identity(
+    input: &winapi_util::file::Information,
+    output: &winapi_util::file::Information,
+) -> bool {
+    input.volume_serial_number() == output.volume_serial_number()
+        && input.file_index() == output.file_index()
+        && input.file_size() == output.file_size()
 }
 
 #[cfg(unix)]

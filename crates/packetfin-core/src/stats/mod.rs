@@ -725,11 +725,14 @@ fn follow_retained(states: &[State]) -> usize {
 ///
 /// `relative_ns` is the current frame's time since the first timestamped
 /// frame (negative for out-of-order captures). `duration_micros` spans the
-/// first and last frame read, independent of any statistic filter.
+/// earliest and latest frame read, independent of both any statistic filter
+/// and the first frame's position, so a capture that starts with a late frame
+/// still reports its full span.
 #[derive(Default)]
 struct Clock {
     first: Option<Timestamp>,
-    last: Option<Timestamp>,
+    earliest: Option<Timestamp>,
+    latest: Option<Timestamp>,
     relative_ns: i64,
 }
 
@@ -741,13 +744,30 @@ impl Clock {
         };
         let first = *self.first.get_or_insert(timestamp);
         self.relative_ns = crate::state::timestamp_delta(first, timestamp);
-        self.last = Some(timestamp);
+        // Duration tracks the earliest and latest timestamps, not the first
+        // and last frames read. A capture whose clocks step back (two
+        // interfaces, an `if_tsoffset` change, an out-of-order section) would
+        // otherwise report a span that is too short or, when the first frame
+        // is the late one, zero. That span sizes the interval table, so a
+        // wrong value drops buckets.
+        let later_than_latest = self
+            .latest
+            .is_none_or(|latest| crate::state::timestamp_delta(latest, timestamp) > 0);
+        if later_than_latest {
+            self.latest = Some(timestamp);
+        }
+        let earlier_than_earliest = self
+            .earliest
+            .is_none_or(|earliest| crate::state::timestamp_delta(earliest, timestamp) < 0);
+        if earlier_than_earliest {
+            self.earliest = Some(timestamp);
+        }
     }
 
     fn duration_micros(&self) -> u64 {
-        match (self.first, self.last) {
-            (Some(first), Some(last)) => {
-                let delta = crate::state::timestamp_delta(first, last).max(0);
+        match (self.earliest, self.latest) {
+            (Some(earliest), Some(latest)) => {
+                let delta = crate::state::timestamp_delta(earliest, latest).max(0);
                 micros_from_nanos(delta)
             }
             _ => 0,
@@ -831,6 +851,39 @@ mod tests {
                 std::process::exit(1);
             }
         }
+    }
+
+    #[test]
+    fn the_clock_spans_the_earliest_and_latest_frame() {
+        // An out-of-order frame must not shorten the reported duration: the
+        // interval table is sized from it, so a shorter span drops the buckets
+        // past the last frame read.
+        // `Timestamp::nanos` stays below one billion, so build the instant
+        // from milliseconds and carry the whole seconds into `seconds`.
+        fn stamped(millis: u32) -> Frame {
+            let nanos = (millis % 1_000) * 1_000_000;
+            assert!(nanos < 1_000_000_000, "nanos must stay below one second");
+            let mut frame = ethernet_udp_frame(1);
+            frame.timestamp = Some(Timestamp {
+                seconds: 1_700_000_000 + i64::from(millis / 1_000),
+                nanos,
+            });
+            frame
+        }
+
+        let mut clock = Clock::default();
+        clock.observe(&stamped(0));
+        clock.observe(&stamped(2_500));
+        clock.observe(&stamped(500));
+        assert_eq!(clock.duration_micros(), 2_500_000);
+
+        // The first frame can itself be the late one. Keeping only the first
+        // timestamp reported a zero span here, which sized the interval table
+        // to nothing and printed no rows at all.
+        let mut late_first = Clock::default();
+        late_first.observe(&stamped(2_500));
+        late_first.observe(&stamped(500));
+        assert_eq!(late_first.duration_micros(), 2_000_000);
     }
 
     fn ethernet_udp_frame(number: u64) -> Frame {

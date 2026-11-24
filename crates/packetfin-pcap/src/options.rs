@@ -242,20 +242,40 @@ pub fn buffer_bytes_from_mib(mib: u64) -> Result<u32, OpenError> {
     })
 }
 
+/// Widen a `timeval` field to `i64`.
+///
+/// The two fields do not share a type, and neither is uniform across targets:
+/// `suseconds_t` is 32-bit on macOS while `time_t` is 64-bit there, FreeBSD and
+/// DragonFly make both 64-bit, and on Windows both are the 32-bit `c_long`. A
+/// cast on a field already `i64` is an unnecessary cast and `i64::from` on it is
+/// a useless conversion, so the conversion is chosen by the field's own width
+/// rather than by the platform.
+trait TimevalField: Copy {
+    fn widened(self) -> i64;
+}
+
+impl TimevalField for i32 {
+    fn widened(self) -> i64 {
+        i64::from(self)
+    }
+}
+
+impl TimevalField for i64 {
+    fn widened(self) -> i64 {
+        self
+    }
+}
+
 /// Convert libpcap's timeval into a nanosecond [`Timestamp`].
 ///
 /// libpcap stores nanoseconds in `tv_usec` when the handle uses nanosecond
 /// precision, so the precision decides the scale.
-#[expect(
-    clippy::unnecessary_cast,
-    reason = "time_t and suseconds_t differ between Unix and Windows; the explicit casts keep one expression portable"
-)]
 pub(crate) fn timestamp_from_timeval(
     time: libc::timeval,
     precision: TimestampPrecision,
 ) -> Result<Timestamp, String> {
-    let seconds = time.tv_sec as i64;
-    let fraction = time.tv_usec as i64;
+    let seconds = time.tv_sec.widened();
+    let fraction = time.tv_usec.widened();
     if fraction < 0 {
         return Err(format!("negative fractional second {fraction}"));
     }

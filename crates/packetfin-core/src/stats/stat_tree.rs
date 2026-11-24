@@ -286,7 +286,10 @@ impl Tree {
         writeln!(output)?;
         writeln!(output, "{}", "-".repeat(separator))?;
         let first = self.first_ns.unwrap_or(0);
-        let duration_ms = (self.last_ns - first) as f64 / 1_000_000.0;
+        // `last_ns` and `first_ns` come from `timestamp_delta`, which clamps
+        // to the `i64` limits, so their difference can overflow an
+        // overflow-checks build on a capture spanning the whole range.
+        let duration_ms = self.last_ns.saturating_sub(first) as f64 / 1_000_000.0;
         let mut children = self.root_children();
         if self.sort_root {
             self.sort_children(&mut children);

@@ -9,6 +9,7 @@ use std::time::Instant;
 
 use packetfin_core::capture::{Frame, Timestamp};
 use packetfin_core::decode::{DecodeOptions, Packet};
+use packetfin_core::tree::Value;
 use packetfin_core::{DEFAULT_STATE_BUDGET, DecodeSession};
 
 // The state ledger charges a measured per-entry bookkeeping overhead on top of
@@ -188,5 +189,106 @@ fn many_exporters_stay_inside_the_global_state_budget() {
     assert!(
         used <= TEMPLATE_BUDGET,
         "template metadata exceeded its bound"
+    );
+}
+
+/// Generated fields still carry a frame-relative position, because readers that
+/// ignore `generated` (PDML `pos`, the JSON raw arrays) render it. Before this
+/// regression the data-set path added the datagram's frame offset twice.
+#[test]
+fn template_frame_position_is_frame_relative() {
+    fn offset_of(packet: &Packet, abbrev: &str) -> Option<usize> {
+        packet
+            .tree
+            .fields()
+            .find(|field| field.def.abbrev == abbrev)
+            .map(|field| field.range.offset)
+    }
+
+    let mut session = DecodeSession::new(DecodeOptions::default());
+    let template = v9_message(1, 1, 7, &[template_set(256)]);
+    session.decode(&frame(1, [192, 0, 2, 1], 40_000, &template));
+    let data = v9_message(1, 2, 7, &[data_set(256)]);
+    let packet = session.decode(&frame(2, [192, 0, 2, 1], 40_000, &data));
+    // The data set's own header starts at the datagram offset, so the generated
+    // template reference must agree with the ID field beside it.
+    let set_id = offset_of(&packet, "cflow.flowset_id");
+    assert!(set_id.is_some(), "no cflow.flowset_id field");
+    assert_eq!(
+        offset_of(&packet, "cflow.template_frame"),
+        set_id,
+        "cflow.template_frame must sit at the flowset header's frame offset"
+    );
+}
+
+/// RFC 3954 section 8 defines PROTOCOL as one octet and sections 8 and 9 define
+/// the ports as two. A template may still declare a wider standard element
+/// (RFC 7011 section 3.2), and narrowing it silently turned a 32-bit protocol
+/// 258 into protocol 2 — a real protocol, so the wrong answer looked valid.
+#[test]
+fn over_wide_standard_elements_stay_opaque() {
+    fn template_set(template_id: u16, fields: &[(u16, u16)]) -> Vec<u8> {
+        let mut body = template_id.to_be_bytes().to_vec();
+        body.extend_from_slice(&u16::try_from(fields.len()).unwrap_or(0).to_be_bytes());
+        for (element, length) in fields {
+            body.extend_from_slice(&element.to_be_bytes());
+            body.extend_from_slice(&length.to_be_bytes());
+        }
+        while !body.len().is_multiple_of(4) {
+            body.push(0);
+        }
+        let mut out = 0_u16.to_be_bytes().to_vec();
+        out.extend_from_slice(
+            &u16::try_from(4 + body.len())
+                .unwrap_or(u16::MAX)
+                .to_be_bytes(),
+        );
+        out.extend_from_slice(&body);
+        out
+    }
+
+    fn data_set(set_id: u16, body: &[u8]) -> Vec<u8> {
+        let mut padded = body.to_vec();
+        while !padded.len().is_multiple_of(4) {
+            padded.push(0);
+        }
+        let mut out = set_id.to_be_bytes().to_vec();
+        out.extend_from_slice(
+            &u16::try_from(4 + padded.len())
+                .unwrap_or(u16::MAX)
+                .to_be_bytes(),
+        );
+        out.extend_from_slice(&padded);
+        out
+    }
+
+    let mut session = DecodeSession::new(DecodeOptions::default());
+    // A four-octet PROTOCOL and a four-octet source port, then a normal
+    // one-octet protocol so the same flowset proves the narrow path still works.
+    let template = v9_message(1, 1, 7, &[template_set(256, &[(4, 4), (7, 4), (4, 1)])]);
+    session.decode(&frame(1, [192, 0, 2, 1], 40_000, &template));
+    let record = [0x00, 0x00, 0x01, 0x02, 0x00, 0x00, 0x00, 0x50, 0x06];
+    let packet = session.decode(&frame(
+        2,
+        [192, 0, 2, 1],
+        40_000,
+        &v9_message(1, 2, 7, &[data_set(256, &record)]),
+    ));
+    assert_eq!(
+        packet.tree.field_values("cflow.protocol"),
+        vec![&Value::Uint8(6)],
+        "the four-octet PROTOCOL and four-octet port must stay opaque, and the \
+         one-octet protocol must still decode"
+    );
+    assert!(
+        !packet
+            .tree
+            .field_values("cflow.unknown_field_type")
+            .is_empty(),
+        "over-wide elements are reported as unknown field types"
+    );
+    assert!(
+        packet.tree.field_values("cflow.srcport").is_empty(),
+        "a four-octet source port must not be narrowed"
     );
 }

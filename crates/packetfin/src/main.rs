@@ -245,11 +245,14 @@ fn drive<S: PacketSink>(options: &CaptureOptions<'_>, sink: S) -> i32 {
 /// A two-pass run reuses the same loop for its second pass after recording
 /// the read-filter matches.
 fn drive_read<S: PacketSink>(options: &CaptureOptions<'_>, read_file: &Path, sink: S) -> i32 {
+    // The writer truncates its path, so an output naming the input destroys
+    // the capture. The read buffer may already hold the whole file, which
+    // turned this into a silent overwrite instead of the documented failure.
+    if let Err(status) = reject_same_input_output(options, read_file) {
+        return status;
+    }
     if options.write.two_pass {
         if let Err(status) = two_pass_input_status(read_file) {
-            return status;
-        }
-        if let Err(status) = reject_same_input_output(options, read_file) {
             return status;
         }
         return drive_two_pass(options, read_file, sink);
@@ -482,11 +485,11 @@ fn two_pass_input_status(read_file: &Path) -> Result<(), i32> {
     Err(3)
 }
 
-/// Refuse a two-pass run whose output names the input file.
+/// Refuse a run whose output names the input file.
 ///
-/// The writer truncates its path before the first pass, so the only safe
-/// option is to stop before opening it. A single-pass run still exits 14 after
-/// the damaged read.
+/// The writer truncates its path before the first frame is read, and the read
+/// buffer can already hold the whole capture, so an in-place rewrite silently
+/// replaces the input instead of failing.
 fn reject_same_input_output(options: &CaptureOptions<'_>, read_file: &Path) -> Result<(), i32> {
     let Some(output) = options.write.file.as_deref() else {
         return Ok(());
@@ -495,27 +498,138 @@ fn reject_same_input_output(options: &CaptureOptions<'_>, read_file: &Path) -> R
         return Ok(());
     }
     diagnostic(
-        "the input and output name the same file; two-pass mode refuses to overwrite the capture it is reading",
+        "the input and output name the same file; refusing to overwrite the capture it is reading",
     );
     Err(1)
 }
 
+/// Whether the input and output resolve to the same file.
+///
+/// `-` reads standard input, and `metadata` would look for a file literally
+/// named `-`. Linux exposes the descriptor's true identity through
+/// `/dev/stdin`, so the full device-and-inode comparison works there. On other
+/// Unix systems that path is a devfs symlink whose device number differs from
+/// the file's while the inode survives, so the inode alone is compared. That
+/// still catches a shell redirect from a regular file, which is the only way
+/// `-` can name a file the writer might truncate, and a false positive only
+/// refuses a run instead of destroying a capture.
 #[cfg(unix)]
 fn same_file(input: &Path, output: &Path) -> bool {
     use std::os::unix::fs::MetadataExt;
 
-    match (std::fs::metadata(input), std::fs::metadata(output)) {
+    let stdin = input.as_os_str() == OsStr::new("-");
+    let input_metadata = std::fs::metadata(if stdin {
+        Path::new("/dev/stdin")
+    } else {
+        input
+    });
+    match (input_metadata, std::fs::metadata(output)) {
+        (Ok(input), Ok(output)) if stdin && !cfg!(target_os = "linux") => {
+            input.ino() == output.ino()
+        }
         (Ok(input), Ok(output)) => input.dev() == output.dev() && input.ino() == output.ino(),
         _ => false,
     }
 }
 
-#[cfg(not(unix))]
+/// Whether the input and output resolve to the same file.
+///
+/// Standard input is a handle rather than a path, so the comparison goes
+/// through the handle instead of the name `-`. A pipe carries no file identity
+/// and never conflicts with the output. Any other identity failure is treated
+/// as a conflict: refusing a run the user meant to allow costs a command, while
+/// allowing one that names the same file destroys the capture.
+#[cfg(windows)]
 fn same_file(input: &Path, output: &Path) -> bool {
-    match (std::fs::canonicalize(input), std::fs::canonicalize(output)) {
-        (Ok(input), Ok(output)) => input == output,
-        _ => false,
+    use winapi_util::file;
+
+    let stdin = input.as_os_str() == OsStr::new("-");
+    if !stdin {
+        let Ok(input) = std::fs::File::open(input) else {
+            return false;
+        };
+        return identifies_same(&input, output);
     }
+    // A pipe cannot name a file the writer would truncate.
+    let stdin = std::io::stdin();
+    match file::typ(&stdin) {
+        Ok(kind) if kind.is_pipe() => false,
+        Ok(_) => identifies_same(&stdin, output),
+        Err(_) => true,
+    }
+}
+
+/// Whether `handle` and the file named by `output` are the same file.
+///
+/// An output that does not exist yet cannot be the file being read, and this
+/// is the normal case: the writer creates it. Any other reason the output
+/// cannot be inspected, such as a permissions error, leaves its identity
+/// unknown, and that is treated as the same file: the only alternative is to
+/// let the writer truncate what may be the input.
+#[cfg(windows)]
+fn identifies_same(handle: &impl winapi_util::AsHandleRef, output: &Path) -> bool {
+    use winapi_util::file;
+
+    match output_state(
+        std::fs::metadata(output)
+            .map(|_| ())
+            .map_err(|error| error.kind()),
+    ) {
+        OutputState::Distinct => return false,
+        OutputState::Unknown => return true,
+        OutputState::Exists => {}
+    }
+    let Ok(output) = std::fs::OpenOptions::new().read(true).open(output) else {
+        return true;
+    };
+    match (file::information(handle), file::information(&output)) {
+        (Ok(input), Ok(output)) => same_identity(&input, &output),
+        _ => true,
+    }
+}
+
+/// What an output path's existence means for the identity check.
+#[cfg(windows)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum OutputState {
+    /// The path does not exist, so it cannot be the input.
+    Distinct,
+    /// The path exists but could not be inspected, so its identity is unknown.
+    Unknown,
+    /// The path exists and can be inspected.
+    Exists,
+}
+
+/// Classify the result of looking up the output path.
+///
+/// Only `NotFound` proves the output is a new file. Any other error, such as a
+/// permissions failure, leaves the identity unknown, and an unknown identity
+/// must not be treated as a different file.
+#[cfg(windows)]
+fn output_state(status: Result<(), std::io::ErrorKind>) -> OutputState {
+    match status {
+        Ok(()) => OutputState::Exists,
+        Err(std::io::ErrorKind::NotFound) => OutputState::Distinct,
+        Err(_) => OutputState::Unknown,
+    }
+}
+
+/// Whether two Windows identities describe the same file.
+///
+/// The volume serial number and file index together identify a file within a
+/// volume, which is the same pair the Unix side gets from the device and inode.
+/// The size is deliberately not compared: it changes while a file is written,
+/// so a capture that grew between the two queries would look like a different
+/// file and the writer would truncate it. A filesystem that reuses indices
+/// (ReFS uses 128-bit identifiers this 64-bit pair truncates) can therefore
+/// match two distinct files, which refuses a run rather than losing a capture.
+#[cfg(windows)]
+fn same_identity(
+    input: &winapi_util::file::Information,
+    output: &winapi_util::file::Information,
+) -> bool {
+    input.volume_serial_number() == output.volume_serial_number()
+        && input.file_index() == output.file_index()
 }
 
 #[cfg(unix)]
@@ -838,6 +952,9 @@ fn second_pass<S: PacketSink>(
     let mut next = 0_usize;
     let mut output_number = 0_u64;
     let mut accepted_count = 0_u64;
+    // `-a packets` counts the frames the output actually keeps, so the second
+    // pass has to track `-Y` matches itself; `drive_frames` does the same.
+    let mut selected_packets = 0_u64;
     loop {
         if next >= accepted.len() {
             break;
@@ -914,7 +1031,7 @@ fn second_pass<S: PacketSink>(
         // `frame.number` and a `-Y frame.number==N` expression both see the
         // output position. First-pass annotations use the same map.
         frame.number = output_number;
-        if let Err(error) = output_frame(
+        let outcome = match output_frame(
             &frame,
             &mut session,
             &mut statistics,
@@ -925,19 +1042,25 @@ fn second_pass<S: PacketSink>(
             file_number,
             Some(&renumber),
         ) {
-            return match error {
-                FrameError::Writer(status) => {
-                    drop(writer_session.take());
-                    status
-                }
-                FrameError::Output(status) => {
-                    if let Err(write_status) = finish_writer(&mut writer_session) {
-                        write_status
-                    } else {
+            Ok(outcome) => outcome,
+            Err(error) => {
+                return match error {
+                    FrameError::Writer(status) => {
+                        drop(writer_session.take());
                         status
                     }
-                }
-            };
+                    FrameError::Output(status) => {
+                        if let Err(write_status) = finish_writer(&mut writer_session) {
+                            write_status
+                        } else {
+                            status
+                        }
+                    }
+                };
+            }
+        };
+        if outcome.matched {
+            selected_packets = selected_packets.saturating_add(1);
         }
         let keys = session.take_export_keys();
         if let Some(file) = tls_keys.as_mut() {
@@ -949,6 +1072,14 @@ fn second_pass<S: PacketSink>(
         if options
             .packet_count
             .is_some_and(|limit| accepted_count >= limit)
+        {
+            break;
+        }
+        if options
+            .write
+            .autostop
+            .packets
+            .is_some_and(|limit| selected_packets >= limit)
         {
             break;
         }
@@ -2136,5 +2267,26 @@ mod tests {
             assert_eq!(reset.advance(read, &mut session, &mut sink), None);
         }
         assert_eq!(sink.resets, 0);
+    }
+
+    /// Only a missing path proves the output is a new file. A path that exists
+    /// but cannot be inspected leaves the identity unknown, and treating that
+    /// as a different file would let the writer truncate the input.
+    #[cfg(windows)]
+    #[test]
+    fn only_a_missing_output_counts_as_distinct() {
+        use super::{OutputState, output_state};
+        use std::io::ErrorKind;
+
+        assert_eq!(output_state(Ok(())), OutputState::Exists);
+        assert_eq!(
+            output_state(Err(ErrorKind::NotFound)),
+            OutputState::Distinct
+        );
+        assert_eq!(
+            output_state(Err(ErrorKind::PermissionDenied)),
+            OutputState::Unknown
+        );
+        assert_eq!(output_state(Err(ErrorKind::Other)), OutputState::Unknown);
     }
 }

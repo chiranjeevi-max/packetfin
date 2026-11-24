@@ -1198,6 +1198,181 @@ fn two_pass_refuses_to_overwrite_its_input() {
 }
 
 #[test]
+fn single_pass_refuses_to_overwrite_its_input() {
+    // A capture small enough to fit the read buffer was silently replaced:
+    // the whole input was already in memory when the writer truncated the
+    // path, so the run finished with exit 14 and a rewritten file instead of
+    // leaving the input intact.
+    let directory = scratch("same-path-single");
+    must(fs::create_dir_all(&directory), "scratch directory");
+    for fixture in ["rewrite-basic.pcap", "arp-request.pcap"] {
+        let path = directory.join(fixture);
+        let original = must(
+            fs::read(golden::fixtures_dir().join(fixture)),
+            "read fixture",
+        );
+        must(fs::write(&path, &original), "write input");
+        let path_text = must_some(path.to_str(), "utf-8 path");
+        let run = invoke(&["-n", "-r", path_text, "-w", path_text]);
+        assert_eq!(
+            run.status.code(),
+            Some(1),
+            "{}",
+            String::from_utf8_lossy(&run.stderr)
+        );
+        assert_eq!(must(fs::read(&path), "read input"), original, "{fixture}");
+    }
+    let _ = fs::remove_dir_all(&directory);
+}
+
+#[test]
+fn stdin_redirect_refuses_to_overwrite_its_input() {
+    // `-r -` names standard input by a sentinel that does not exist on disk,
+    // so the identity check looked up a file called `-` and found nothing.
+    // A shell redirect from a regular file therefore rewrote that file: the
+    // writer truncated it while the reader had already buffered its bytes.
+    let directory = scratch("stdin-same");
+    must(fs::create_dir_all(&directory), "scratch directory");
+    let path = directory.join("in.pcapng");
+    let original = must(
+        fs::read(golden::fixtures_dir().join("rewrite-basic.pcap")),
+        "read fixture",
+    );
+    must(fs::write(&path, &original), "write input");
+    let path_text = must_some(path.to_str(), "utf-8 path");
+    let input = must(fs::File::open(&path), "open input");
+    let output = Command::new(BIN)
+        .args(["-n", "-r", "-", "-w", path_text])
+        .current_dir(golden::repo_root())
+        .stdin(Stdio::from(input))
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .output();
+    let output = must(output, "run");
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(must(fs::read(&path), "read input"), original);
+    let _ = fs::remove_dir_all(&directory);
+}
+
+#[test]
+fn stdin_redirect_to_a_different_file_is_allowed() {
+    // The third case the Windows guard has to keep working: a redirect from a
+    // regular file into a writer aimed at a different file.
+    let directory = scratch("stdin-distinct");
+    must(fs::create_dir_all(&directory), "scratch directory");
+    let input_path = directory.join("in.pcap");
+    let output_path = directory.join("out.pcap");
+    let original = must(
+        fs::read(golden::fixtures_dir().join("rewrite-basic.pcap")),
+        "read fixture",
+    );
+    must(fs::write(&input_path, &original), "write input");
+    let output_text = must_some(output_path.to_str(), "utf-8 path");
+    let input = must(fs::File::open(&input_path), "open input");
+    let output = Command::new(BIN)
+        .args(["-n", "-r", "-", "-w", output_text])
+        .current_dir(golden::repo_root())
+        .stdin(Stdio::from(input))
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .output();
+    let output = must(output, "run");
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(must(fs::read(&input_path), "read input"), original);
+    let written = must(fs::read(&output_path), "read output");
+    assert!(
+        written.len() > original.len(),
+        "the output is a new capture"
+    );
+    let _ = fs::remove_dir_all(&directory);
+}
+
+#[test]
+fn piped_stdin_can_write_a_separate_capture() {
+    // The stdin identity check must not refuse a genuine pipe. Only a redirect
+    // from the very file the writer would truncate is a conflict.
+    let directory = scratch("stdin-pipe");
+    must(fs::create_dir_all(&directory), "scratch directory");
+    let source = must(
+        fs::read(golden::fixtures_dir().join("rewrite-basic.pcap")),
+        "read fixture",
+    );
+    let output_path = directory.join("out.pcap");
+    let output_text = must_some(output_path.to_str(), "utf-8 path");
+    let mut child = match Command::new(BIN)
+        .args(["-n", "-r", "-", "-w", output_text])
+        .current_dir(golden::repo_root())
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+    {
+        Ok(child) => child,
+        Err(error) => {
+            eprintln!("failed to spawn packetfin: {error}");
+            std::process::exit(1);
+        }
+    };
+    let mut stdin = must_some(child.stdin.take(), "stdin");
+    must(stdin.write_all(&source), "write stdin");
+    drop(stdin);
+    let output = must(child.wait_with_output(), "wait");
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let written = must(fs::read(&output_path), "read output");
+    assert!(
+        written.len() > source.len(),
+        "the output keeps every frame plus its new headers"
+    );
+    let _ = fs::remove_dir_all(&directory);
+}
+
+#[test]
+fn two_pass_honours_the_autostop_packet_limit() {
+    // `-a packets` was validated for read mode and enforced by the single-pass
+    // loop, but the second pass never looked at it, so a two-pass run silently
+    // wrote every read-filter match.
+    let capture = fixture("rewrite-basic.pcap");
+    for limit in ["1", "2"] {
+        let run = invoke(&[
+            "-n",
+            "-r",
+            &capture,
+            "-2",
+            "-R",
+            "tcp.flags.syn==0",
+            "-a",
+            &format!("packets:{limit}"),
+            "-T",
+            "fields",
+            "-e",
+            "frame.number",
+        ]);
+        assert_eq!(run.status.code(), Some(0), "packets:{limit}");
+        let lines = String::from_utf8_lossy(&run.stdout).lines().count();
+        assert_eq!(
+            lines,
+            limit.parse::<usize>().unwrap_or(0),
+            "packets:{limit}"
+        );
+    }
+}
+
+#[test]
 fn two_pass_filesize_keeps_the_first_read_filter_match() {
     let capture = fixture("rewrite-basic.pcap");
     for limit in ["25", "100", "200"] {

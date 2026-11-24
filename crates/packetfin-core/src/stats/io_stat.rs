@@ -726,8 +726,12 @@ impl Column {
             }
             self.rows.push(Row::default());
         }
+        // The frame belongs to `bucket`. An out-of-order capture (negative
+        // `relative_ns` is clamped, but a later frame can still land in an
+        // earlier bucket than the newest row) must not be folded into the
+        // newest row, or its bytes land under the wrong interval label.
         if bucket < self.rows.len() {
-            return Some(self.rows.len() - 1);
+            return Some(bucket);
         }
         while self.rows.len() <= bucket {
             if self.rows.len() >= MAX_BUCKETS
@@ -1330,5 +1334,34 @@ mod tests {
         assert!(parse("io,stat,-0").is_ok());
         assert!(parse("io,stat,-0.0").is_ok());
         assert!(parse("io,stat,-0.000001").is_err());
+    }
+
+    #[test]
+    fn rows_are_addressed_by_their_own_bucket() {
+        // A capture whose clocks jump backwards (two interfaces, an
+        // `if_tsoffset` change, or an out-of-order section) can hand the
+        // column a bucket older than its newest row. The frame must land in
+        // that bucket, not be folded into the newest row.
+        let mut column = Column {
+            kind: IoCalc::FramesAndBytes,
+            label: None,
+            argument: None,
+            filter: StatsFilter::none(),
+            available: true,
+            rows: Vec::new(),
+            max_vals: 0,
+            max_frame: 0,
+            load_error_reported: false,
+        };
+        let mut budget = Budget::new(1 << 20);
+        let mut capped = false;
+        assert_eq!(column.ensure_rows(0, &mut budget, &mut capped), Some(0));
+        assert_eq!(column.ensure_rows(2, &mut budget, &mut capped), Some(2));
+        assert_eq!(
+            column.ensure_rows(1, &mut budget, &mut capped),
+            Some(1),
+            "an older bucket must not be folded into the newest row"
+        );
+        assert_eq!(column.rows.len(), 3);
     }
 }

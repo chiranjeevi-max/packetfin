@@ -725,7 +725,7 @@ fn follow_retained(states: &[State]) -> usize {
 ///
 /// `relative_ns` is the current frame's time since the first timestamped
 /// frame (negative for out-of-order captures). `duration_micros` spans the
-/// first and last frame read, independent of any statistic filter.
+/// earliest and latest frame read, independent of any statistic filter.
 #[derive(Default)]
 struct Clock {
     first: Option<Timestamp>,
@@ -741,7 +741,16 @@ impl Clock {
         };
         let first = *self.first.get_or_insert(timestamp);
         self.relative_ns = crate::state::timestamp_delta(first, timestamp);
-        self.last = Some(timestamp);
+        // Keep the latest time, not the last one read. A capture whose clocks
+        // step back (two interfaces, an `if_tsoffset` change, an out-of-order
+        // section) would otherwise shorten the reported duration, which sizes
+        // the interval table and drops the buckets past it.
+        let newer = self
+            .last
+            .is_none_or(|last| crate::state::timestamp_delta(last, timestamp) > 0);
+        if newer {
+            self.last = Some(timestamp);
+        }
     }
 
     fn duration_micros(&self) -> u64 {
@@ -831,6 +840,27 @@ mod tests {
                 std::process::exit(1);
             }
         }
+    }
+
+    #[test]
+    fn the_clock_spans_the_earliest_and_latest_frame() {
+        // An out-of-order frame must not shorten the reported duration: the
+        // interval table is sized from it, so a shorter span drops the buckets
+        // past the last frame read.
+        fn stamped(nanos: i64) -> Frame {
+            let mut frame = ethernet_udp_frame(1);
+            frame.timestamp = Some(Timestamp {
+                seconds: 1_700_000_000,
+                nanos: u32::try_from(nanos).unwrap_or(0),
+            });
+            frame
+        }
+
+        let mut clock = Clock::default();
+        clock.observe(&stamped(0));
+        clock.observe(&stamped(2_500_000_000));
+        clock.observe(&stamped(500_000_000));
+        assert_eq!(clock.duration_micros(), 2_500_000);
     }
 
     fn ethernet_udp_frame(number: u64) -> Frame {

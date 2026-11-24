@@ -562,15 +562,22 @@ fn same_file(input: &Path, output: &Path) -> bool {
 /// Whether `handle` and the file named by `output` are the same file.
 ///
 /// An output that does not exist yet cannot be the file being read, and this
-/// is the normal case: the writer creates it. An output that exists but whose
-/// identity cannot be read is treated as the same file, because the only
-/// alternative is to let the writer truncate what may be the input.
+/// is the normal case: the writer creates it. Any other reason the output
+/// cannot be inspected, such as a permissions error, leaves its identity
+/// unknown, and that is treated as the same file: the only alternative is to
+/// let the writer truncate what may be the input.
 #[cfg(windows)]
 fn identifies_same(handle: &impl winapi_util::AsHandleRef, output: &Path) -> bool {
     use winapi_util::file;
 
-    if std::fs::metadata(output).is_err() {
-        return false;
+    match output_state(
+        std::fs::metadata(output)
+            .map(|_| ())
+            .map_err(|error| error.kind()),
+    ) {
+        OutputState::Distinct => return false,
+        OutputState::Unknown => return true,
+        OutputState::Exists => {}
     }
     let Ok(output) = std::fs::OpenOptions::new().read(true).open(output) else {
         return true;
@@ -578,6 +585,32 @@ fn identifies_same(handle: &impl winapi_util::AsHandleRef, output: &Path) -> boo
     match (file::information(handle), file::information(&output)) {
         (Ok(input), Ok(output)) => same_identity(&input, &output),
         _ => true,
+    }
+}
+
+/// What an output path's existence means for the identity check.
+#[cfg(windows)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum OutputState {
+    /// The path does not exist, so it cannot be the input.
+    Distinct,
+    /// The path exists but could not be inspected, so its identity is unknown.
+    Unknown,
+    /// The path exists and can be inspected.
+    Exists,
+}
+
+/// Classify the result of looking up the output path.
+///
+/// Only `NotFound` proves the output is a new file. Any other error, such as a
+/// permissions failure, leaves the identity unknown, and an unknown identity
+/// must not be treated as a different file.
+#[cfg(windows)]
+fn output_state(status: Result<(), std::io::ErrorKind>) -> OutputState {
+    match status {
+        Ok(()) => OutputState::Exists,
+        Err(std::io::ErrorKind::NotFound) => OutputState::Distinct,
+        Err(_) => OutputState::Unknown,
     }
 }
 
@@ -2234,5 +2267,26 @@ mod tests {
             assert_eq!(reset.advance(read, &mut session, &mut sink), None);
         }
         assert_eq!(sink.resets, 0);
+    }
+
+    /// Only a missing path proves the output is a new file. A path that exists
+    /// but cannot be inspected leaves the identity unknown, and treating that
+    /// as a different file would let the writer truncate the input.
+    #[cfg(windows)]
+    #[test]
+    fn only_a_missing_output_counts_as_distinct() {
+        use super::{OutputState, output_state};
+        use std::io::ErrorKind;
+
+        assert_eq!(output_state(Ok(())), OutputState::Exists);
+        assert_eq!(
+            output_state(Err(ErrorKind::NotFound)),
+            OutputState::Distinct
+        );
+        assert_eq!(
+            output_state(Err(ErrorKind::PermissionDenied)),
+            OutputState::Unknown
+        );
+        assert_eq!(output_state(Err(ErrorKind::Other)), OutputState::Unknown);
     }
 }

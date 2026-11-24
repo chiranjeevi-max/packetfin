@@ -244,7 +244,7 @@ fn parse_sample(node: &mut Node, reader: &mut Xdr<'_>) -> Result<(), &'static st
     node.add_field(
         &fields::SFLOW_ENTERPRISE,
         Range::new(type_offset, 4),
-        Value::Uint32(0),
+        Value::Uint32(enterprise),
     );
     if enterprise != 0 {
         // The format is vendor-defined; keep the body opaque and emit no
@@ -420,7 +420,7 @@ fn parse_flow_record(node: &mut Node, reader: &mut Xdr<'_>) -> Result<(), &'stat
     node.add_field(
         &fields::SFLOW_ENTERPRISE,
         Range::new(format_offset, 4),
-        Value::Uint32(0),
+        Value::Uint32(enterprise),
     );
     if enterprise != 0 {
         node.add_field(
@@ -774,7 +774,7 @@ fn parse_counter_record(node: &mut Node, reader: &mut Xdr<'_>) -> Result<(), &'s
     node.add_field(
         &fields::SFLOW_ENTERPRISE,
         Range::new(format_offset, 4),
-        Value::Uint32(0),
+        Value::Uint32(enterprise),
     );
     if enterprise != 0 {
         node.add_field(

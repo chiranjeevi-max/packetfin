@@ -160,11 +160,10 @@ impl WriterSession {
             let file = match File::create(path) {
                 Ok(file) => file,
                 Err(error) => {
-                    // The capture file already exists and is empty; a failed
-                    // start must not leave it behind (see `failure`).
-                    if let Some(current) = &session.current {
-                        let _ = std::fs::remove_file(current);
-                    }
+                    // Same rule as `failure`: only an output that emitted no
+                    // byte is removed. Live capture writes its section and
+                    // interface descriptions in `open`, so that file stays.
+                    session.discard_if_empty();
                     return Err(WriteFailure::new(
                         status,
                         format!("cannot create {}: {error}", path.display()),
@@ -403,6 +402,30 @@ impl WriterSession {
         WriteFailure::new(if self.live { 1 } else { 15 }, message)
     }
 
+    /// Remove the current output if the writer has not emitted a byte.
+    ///
+    /// A failed start must not leave an empty file behind. Two cases are
+    /// exempt. A live capture writes its section and interface descriptions as
+    /// soon as the output is opened, so that file already describes the
+    /// capture. A device such as `/dev/null` is never unlinked, because
+    /// `remove_file` would delete the node rather than empty a regular file.
+    fn discard_if_empty(&self) {
+        let empty = self
+            .writer
+            .as_ref()
+            .is_none_or(|writer| writer.logical_bytes() == 0);
+        if !empty {
+            return;
+        }
+        // The current path is retained while the writer is open; a rotation
+        // clears it after finishing the previous file.
+        if let Some(path) = &self.current
+            && std::fs::metadata(path).is_ok_and(|metadata| metadata.is_file())
+        {
+            let _ = std::fs::remove_file(path);
+        }
+    }
+
     /// Map a writer error to its exit status.
     ///
     /// Read mode: `Incompatible` is discovered before the writer emits any
@@ -411,16 +434,8 @@ impl WriterSession {
     /// in both modes, so a failed start leaves no empty file.
     fn failure(&self, error: WriteError) -> WriteFailure {
         let before_output = matches!(error, WriteError::Incompatible(_));
-        let empty = self
-            .writer
-            .as_ref()
-            .is_none_or(|writer| writer.logical_bytes() == 0);
-        if (before_output || self.live) && empty {
-            // The current path is retained while the writer is open; a
-            // rotation clears it after finishing the previous file.
-            if let Some(path) = &self.current {
-                let _ = std::fs::remove_file(path);
-            }
+        if before_output || self.live {
+            self.discard_if_empty();
         }
         let status = if self.live {
             1
@@ -702,35 +717,47 @@ mod tests {
     }
 
     #[test]
-    fn a_failed_printname_log_removes_the_empty_capture() -> Result<(), String> {
-        // `WriterSession::create` opens the capture before the `-b printname`
-        // log, so a failure to create the log used to leave the capture file
-        // behind with zero bytes — against the module's own rule that a failed
-        // start leaves no empty file.
-        let directory = scratch("printname-failure");
-        fs::create_dir_all(&directory).map_err(|error| error.to_string())?;
-        let capture = directory.join("out.pcapng");
-        let write = WriteOptions {
-            file: Some(capture.clone()),
-            ring: RingOptions {
-                printname: Some(directory.join("missing-dir").join("names.log")),
-                ..Default::default()
-            },
-            ..Default::default()
-        };
+    fn a_failed_printname_log_follows_the_removal_rule() -> Result<(), String> {
+        // The capture is opened before the `-b printname` log, so the failure
+        // has to apply the same rule `failure` does: remove an output that
+        // emitted no byte, keep one that already describes the capture. Read
+        // mode emits nothing on open; live mode writes its section and
+        // interface blocks.
         let interfaces = [packetfin_core::capture::InterfaceInfo {
             global_index: 0,
             link_type: 1,
             snap_len: 262_144,
             options: Vec::new(),
         }];
-        let result = WriterSession::new_live(&write, &interfaces);
-        assert!(result.is_err(), "the log cannot be created");
-        assert!(
-            !capture.exists(),
-            "the empty capture must be removed when the log fails"
-        );
-        let _ = fs::remove_dir_all(&directory);
+        for live in [false, true] {
+            let directory = scratch("printname-failure");
+            fs::create_dir_all(&directory).map_err(|error| error.to_string())?;
+            let capture = directory.join("out.pcapng");
+            let write = WriteOptions {
+                file: Some(capture.clone()),
+                ring: RingOptions {
+                    printname: Some(directory.join("missing-dir").join("names.log")),
+                    ..Default::default()
+                },
+                ..Default::default()
+            };
+            let result = if live {
+                WriterSession::new_live(&write, &interfaces)
+            } else {
+                WriterSession::new(&write)
+            };
+            assert!(result.is_err(), "the log cannot be created");
+            let size = fs::metadata(&capture).map(|metadata| metadata.len());
+            if live {
+                assert!(
+                    size.is_ok_and(|size| size > 0),
+                    "a live output keeps its section and interface blocks"
+                );
+            } else {
+                assert_eq!(size.ok(), None, "an empty read-mode output is removed");
+            }
+            let _ = fs::remove_dir_all(&directory);
+        }
         Ok(())
     }
 

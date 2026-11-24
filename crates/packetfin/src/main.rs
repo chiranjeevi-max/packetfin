@@ -503,11 +503,30 @@ fn reject_same_input_output(options: &CaptureOptions<'_>, read_file: &Path) -> R
     Err(1)
 }
 
+/// Whether the input and output resolve to the same file.
+///
+/// `-` reads standard input, and `metadata` would look for a file literally
+/// named `-`. Linux exposes the descriptor's true identity through
+/// `/dev/stdin`, so the full device-and-inode comparison works there. On other
+/// Unix systems that path is a devfs symlink whose device number differs from
+/// the file's while the inode survives, so the inode alone is compared. That
+/// still catches a shell redirect from a regular file, which is the only way
+/// `-` can name a file the writer might truncate, and a false positive only
+/// refuses a run instead of destroying a capture.
 #[cfg(unix)]
 fn same_file(input: &Path, output: &Path) -> bool {
     use std::os::unix::fs::MetadataExt;
 
-    match (std::fs::metadata(input), std::fs::metadata(output)) {
+    let stdin = input.as_os_str() == OsStr::new("-");
+    let input_metadata = std::fs::metadata(if stdin {
+        Path::new("/dev/stdin")
+    } else {
+        input
+    });
+    match (input_metadata, std::fs::metadata(output)) {
+        (Ok(input), Ok(output)) if stdin && !cfg!(target_os = "linux") => {
+            input.ino() == output.ino()
+        }
         (Ok(input), Ok(output)) => input.dev() == output.dev() && input.ino() == output.ino(),
         _ => false,
     }

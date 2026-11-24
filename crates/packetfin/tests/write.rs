@@ -1226,6 +1226,86 @@ fn single_pass_refuses_to_overwrite_its_input() {
 }
 
 #[test]
+#[cfg(unix)]
+fn stdin_redirect_refuses_to_overwrite_its_input() {
+    // `-r -` names standard input by a sentinel that does not exist on disk,
+    // so the identity check looked up a file called `-` and found nothing.
+    // A shell redirect from a regular file therefore rewrote that file: the
+    // writer truncated it while the reader had already buffered its bytes.
+    let directory = scratch("stdin-same");
+    must(fs::create_dir_all(&directory), "scratch directory");
+    let path = directory.join("in.pcapng");
+    let original = must(
+        fs::read(golden::fixtures_dir().join("rewrite-basic.pcap")),
+        "read fixture",
+    );
+    must(fs::write(&path, &original), "write input");
+    let path_text = must_some(path.to_str(), "utf-8 path");
+    let input = must(fs::File::open(&path), "open input");
+    let output = Command::new(BIN)
+        .args(["-n", "-r", "-", "-w", path_text])
+        .current_dir(golden::repo_root())
+        .stdin(Stdio::from(input))
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .output();
+    let output = must(output, "run");
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(must(fs::read(&path), "read input"), original);
+    let _ = fs::remove_dir_all(&directory);
+}
+
+#[test]
+#[cfg(unix)]
+fn piped_stdin_can_write_a_separate_capture() {
+    // The stdin identity check must not refuse a genuine pipe. Only a redirect
+    // from the very file the writer would truncate is a conflict.
+    let directory = scratch("stdin-pipe");
+    must(fs::create_dir_all(&directory), "scratch directory");
+    let source = must(
+        fs::read(golden::fixtures_dir().join("rewrite-basic.pcap")),
+        "read fixture",
+    );
+    let output_path = directory.join("out.pcap");
+    let output_text = must_some(output_path.to_str(), "utf-8 path");
+    let mut child = match Command::new(BIN)
+        .args(["-n", "-r", "-", "-w", output_text])
+        .current_dir(golden::repo_root())
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+    {
+        Ok(child) => child,
+        Err(error) => {
+            eprintln!("failed to spawn packetfin: {error}");
+            std::process::exit(1);
+        }
+    };
+    let mut stdin = must_some(child.stdin.take(), "stdin");
+    must(stdin.write_all(&source), "write stdin");
+    drop(stdin);
+    let output = must(child.wait_with_output(), "wait");
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let written = must(fs::read(&output_path), "read output");
+    assert!(
+        written.len() > source.len(),
+        "the output keeps every frame plus its new headers"
+    );
+    let _ = fs::remove_dir_all(&directory);
+}
+
+#[test]
 fn two_pass_honours_the_autostop_packet_limit() {
     // `-a packets` was validated for read mode and enforced by the single-pass
     // loop, but the second pass never looked at it, so a two-pass run silently

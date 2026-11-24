@@ -222,11 +222,13 @@ mod tests {
         assert!(parse("expert,errorish").is_err());
         assert!(parse("expert,notes").is_err());
         assert!(parse("expert,chatty").is_err());
-        let Ok((minimum, _)) = parse("expert,error") else {
-            eprintln!("expert,error did not parse");
-            return;
-        };
-        assert_eq!(minimum, Severity::Error);
+        // Assert on the result rather than returning early: a silent return
+        // would let this regression test pass precisely when the valid form
+        // started failing.
+        assert!(
+            matches!(parse("expert,error"), Ok((Severity::Error, _))),
+            "expert,error must parse to the Error severity"
+        );
     }
 
     #[test]

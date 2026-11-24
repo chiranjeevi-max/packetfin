@@ -200,18 +200,17 @@ mod tests {
 
     #[test]
     fn severity_names_are_case_insensitive_and_ordered() {
-        let Ok((minimum, filter)) = parse("expert,WARN") else {
-            eprintln!("expert,WARN did not parse");
-            return;
-        };
-        assert_eq!(minimum, Severity::Warning);
-        assert!(filter.filter.is_none());
-        let Ok((minimum, filter)) = parse("expert,error,tcp") else {
-            eprintln!("expert,error,tcp did not parse");
-            return;
-        };
-        assert_eq!(minimum, Severity::Error);
-        assert_eq!(filter.text.as_deref(), Some("tcp"));
+        assert!(
+            matches!(parse("expert,WARN"), Ok((Severity::Warning, ref filter)) if filter.filter.is_none()),
+            "expert,WARN must parse to Warning with no filter"
+        );
+        assert!(
+            matches!(
+                parse("expert,error,tcp"),
+                Ok((Severity::Error, ref filter)) if filter.text.as_deref() == Some("tcp")
+            ),
+            "expert,error,tcp must parse to Error with a tcp filter"
+        );
     }
 
     #[test]

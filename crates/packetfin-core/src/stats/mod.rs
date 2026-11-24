@@ -858,27 +858,31 @@ mod tests {
         // An out-of-order frame must not shorten the reported duration: the
         // interval table is sized from it, so a shorter span drops the buckets
         // past the last frame read.
-        fn stamped(nanos: i64) -> Frame {
+        // `Timestamp::nanos` stays below one billion, so build the instant
+        // from milliseconds and carry the whole seconds into `seconds`.
+        fn stamped(millis: u32) -> Frame {
+            let nanos = (millis % 1_000) * 1_000_000;
+            assert!(nanos < 1_000_000_000, "nanos must stay below one second");
             let mut frame = ethernet_udp_frame(1);
             frame.timestamp = Some(Timestamp {
-                seconds: 1_700_000_000,
-                nanos: u32::try_from(nanos).unwrap_or(0),
+                seconds: 1_700_000_000 + i64::from(millis / 1_000),
+                nanos,
             });
             frame
         }
 
         let mut clock = Clock::default();
         clock.observe(&stamped(0));
-        clock.observe(&stamped(2_500_000_000));
-        clock.observe(&stamped(500_000_000));
+        clock.observe(&stamped(2_500));
+        clock.observe(&stamped(500));
         assert_eq!(clock.duration_micros(), 2_500_000);
 
         // The first frame can itself be the late one. Keeping only the first
         // timestamp reported a zero span here, which sized the interval table
         // to nothing and printed no rows at all.
         let mut late_first = Clock::default();
-        late_first.observe(&stamped(2_500_000_000));
-        late_first.observe(&stamped(500_000_000));
+        late_first.observe(&stamped(2_500));
+        late_first.observe(&stamped(500));
         assert_eq!(late_first.duration_micros(), 2_000_000);
     }
 

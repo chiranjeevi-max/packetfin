@@ -101,7 +101,7 @@ impl LiveCapture {
         nonblocking: bool,
     ) -> Result<Self, OpenError> {
         options.validate()?;
-        let (mut capture, warning) = Self::activate(device, options)?;
+        let (mut capture, warnings) = Self::activate(device, options)?;
         if nonblocking {
             capture
                 .set_nonblocking()
@@ -110,13 +110,6 @@ impl LiveCapture {
                     message,
                 })?;
         }
-        let warnings = warning
-            .map(|message| OpenWarning::PromiscuousNotSupported {
-                device: device.name.clone(),
-                message,
-            })
-            .into_iter()
-            .collect();
         let link_type = u32::try_from(capture.datalink()).unwrap_or(0);
         // SAFETY: the handle is active and alive; pcap_snapshot has no
         // pointer arguments beyond the handle.
@@ -143,12 +136,12 @@ impl LiveCapture {
 
     /// Create, configure and activate a libpcap handle.
     ///
-    /// Returns the active handle and libpcap's promiscuous-mode warning, if
-    /// the interface could not enter promiscuous mode.
+    /// Returns the active handle and any warning libpcap reported while
+    /// activating it.
     fn activate(
         device: &DeviceInfo,
         options: &OpenOptions,
-    ) -> Result<(Handle, Option<String>), OpenError> {
+    ) -> Result<(Handle, Vec<OpenWarning>), OpenError> {
         let open_error = |message: String| OpenError::Open {
             device: device.name.clone(),
             message,
@@ -192,9 +185,19 @@ impl LiveCapture {
                 });
             }
         }
-        let warning = match capture.activate() {
-            Activation::Ready => None,
-            Activation::PromiscuousNotSupported(message) => Some(message),
+        let device_name = device.name.clone();
+        let warnings = match capture.activate() {
+            Activation::Ready => Vec::new(),
+            Activation::PromiscuousNotSupported(message) => {
+                vec![OpenWarning::PromiscuousNotSupported {
+                    device: device_name,
+                    message,
+                }]
+            }
+            Activation::Warning(message) => vec![OpenWarning::Activation {
+                device: device_name,
+                message,
+            }],
             Activation::Failed { status, message } => {
                 return Err(classify_activation(
                     &device.name,
@@ -217,7 +220,7 @@ impl LiveCapture {
                     message: format!("'{}': {error}", device.name),
                 })?;
         }
-        Ok((capture, warning))
+        Ok((capture, warnings))
     }
 
     /// The interface this handle captures from.

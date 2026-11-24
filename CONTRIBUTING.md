@@ -26,7 +26,7 @@ Two more scripts help when you change parsers or memory handling:
 
 - `tools/fuzz [minutes]` runs every fuzz target for the given number of minutes. It needs a nightly toolchain and cargo-fuzz, and prints the install commands if they're missing.
 - `tools/checklinux` runs the tests in a Linux container. It needs Docker.
-- `tools/windows-imports NPCAP_SDK_DIR` cross-builds the Windows executable in a container and checks that it imports only the expected DLLs. It needs Docker and an unpacked Npcap SDK.
+- `tools/windows-imports NPCAP_SDK_DIR` cross-builds the Windows executable in a container and checks that it imports only the DLLs in `tools/windows-imports.allow`. It needs Docker and an unpacked Npcap SDK. The first run downloads the Rust toolchain and, through cargo-xwin, the MSVC CRT and Windows SDK libraries, which means accepting Microsoft's license for them; everything is cached in Docker volumes named `packetfin-xwin-*`.
 
 ## Code rules
 

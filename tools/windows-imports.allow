@@ -1,0 +1,10 @@
+# DLLs packetfin.exe may import, one extended regular expression per line,
+# matched against the whole name without regard to case. tools/windows-imports
+# and the Windows CI job both read this file.
+KERNEL32\.dll
+ntdll\.dll
+bcryptprimitives\.dll
+VCRUNTIME140\.dll
+wpcap\.dll
+api-ms-win-core-[a-z0-9-]+\.dll
+api-ms-win-crt-[a-z0-9-]+\.dll

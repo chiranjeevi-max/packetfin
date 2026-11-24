@@ -8,20 +8,20 @@
 #
 # Builds packetfin for x86_64-pc-windows-msvc inside a pinned cargo-xwin
 # image, with the toolchain from rust-toolchain.toml, then lists the
-# executable's DLL imports. Fails if any import is outside the expected set:
-# a stray import library on the link line can bind a system call to a DLL a
-# desktop Windows does not have, and the binary then crashes at run time.
+# executable's DLL imports. Fails if any import is not in
+# tools/windows-imports.allow: a stray import library on the link line can
+# bind a system call to a DLL a desktop Windows does not have, and the binary
+# then crashes at run time.
 #
-# Requires a Docker daemon. The first run downloads the Rust toolchain and
-# the MSVC CRT and Windows SDK libraries (accepting Microsoft's license for
-# them) into Docker volumes named packetfin-xwin-*; later runs reuse them.
+# Requires a Docker daemon. The first run downloads the Rust toolchain, and
+# cargo-xwin downloads the MSVC CRT and Windows SDK libraries; using
+# cargo-xwin means accepting Microsoft's license for those libraries. All of
+# it is cached in Docker volumes named packetfin-xwin-*, which later runs
+# reuse.
 
 set -euo pipefail
 
 image="messense/cargo-xwin@sha256:d22ea1ab9ddeebd9006d53381fb20794a13aa146c2bd6d2eb88299beb1b021aa"
-
-# DLLs packetfin.exe may import. Anything else fails the check.
-allowed='^(KERNEL32\.dll|ntdll\.dll|bcryptprimitives\.dll|VCRUNTIME140\.dll|wpcap\.dll|api-ms-win-core-[a-z0-9-]+\.dll|api-ms-win-crt-[a-z0-9-]+\.dll)$'
 
 fail() {
     printf '!! %s\n' "$*" >&2
@@ -34,6 +34,8 @@ sdk="$(cd "$1" 2>/dev/null && pwd)" || fail "no such directory: $1"
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="$(cd "$script_dir/.." && pwd)"
+allow_file="$script_dir/windows-imports.allow"
+allowed="^($(grep -v '^#' "$allow_file" | paste -sd '|' -))\$"
 
 imports="$(docker run --rm \
     -v "$repo_root":/src:ro -v "$sdk":/sdk:ro \
@@ -50,6 +52,6 @@ imports="$(docker run --rm \
 
 [ -n "$imports" ] || fail "no imports read from packetfin.exe"
 printf '%s\n' "$imports"
-unexpected="$(printf '%s\n' "$imports" | grep -Ev "$allowed" || true)"
+unexpected="$(printf '%s\n' "$imports" | grep -Eiv "$allowed" || true)"
 [ -z "$unexpected" ] || fail "unexpected DLL imports: $(printf '%s ' $unexpected)"
 printf '\n==> tools/windows-imports: imports are as expected\n'

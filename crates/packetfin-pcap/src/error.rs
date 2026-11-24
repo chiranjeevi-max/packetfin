@@ -3,7 +3,7 @@
 //! The variants exist so the command-line layer can map failures onto
 //! its exit codes and wording without parsing libpcap strings a second
 //! time. Activation failures are classified by libpcap's status code first,
-//! and by its message only when the code is a generic one.
+//! and by its message when the code does not settle the variant.
 
 use std::ffi::c_int;
 use std::fmt;
@@ -58,6 +58,8 @@ impl std::error::Error for DeviceError {}
 pub enum OpenWarning {
     /// Promiscuous mode was requested but the interface rejected it.
     PromiscuousNotSupported { device: String, message: String },
+    /// libpcap activated the capture with another warning.
+    Activation { device: String, message: String },
 }
 
 impl fmt::Display for OpenWarning {
@@ -67,6 +69,12 @@ impl fmt::Display for OpenWarning {
                 write!(
                     formatter,
                     "promiscuous mode is not supported on '{device}': {message}"
+                )
+            }
+            Self::Activation { device, message } => {
+                write!(
+                    formatter,
+                    "capture on '{device}' opened with a warning: {message}"
                 )
             }
         }
@@ -191,10 +199,9 @@ impl std::error::Error for CaptureError {}
 
 /// Decide which typed error a failed activation represents.
 ///
-/// libpcap's specific status codes decide first. A generic code (`-1` or an
-/// unexpected warning) carries the detail only in its message, so the
-/// message is matched as a fallback, in one place instead of through the
-/// open path.
+/// libpcap's specific status codes decide first. Any other code carries the
+/// detail only in its message, so the message is matched as a fallback, in
+/// one place instead of through the open path.
 pub(crate) fn classify_activation(
     device: &str,
     monitor_requested: bool,
@@ -351,6 +358,14 @@ mod tests {
         assert_eq!(
             warning.to_string(),
             "promiscuous mode is not supported on 'awdl0': BIOCPROMISC: Operation not supported on socket"
+        );
+        let other = OpenWarning::Activation {
+            device: "en0".to_owned(),
+            message: "Warning".to_owned(),
+        };
+        assert_eq!(
+            other.to_string(),
+            "capture on 'en0' opened with a warning: Warning"
         );
     }
 }

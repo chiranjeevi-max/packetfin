@@ -26,7 +26,9 @@ pub(crate) enum Activation {
     Ready,
     /// Activated, but promiscuous mode is not supported.
     PromiscuousNotSupported(String),
-    /// Not activated: a negative error or any other warning.
+    /// Activated with another warning.
+    Warning(String),
+    /// Not activated.
     Failed { status: c_int, message: String },
 }
 
@@ -120,21 +122,12 @@ impl Handle {
 
     /// Activate the handle.
     ///
-    /// A promiscuous-mode warning leaves the handle active and is reported
-    /// as such. Any other warning fails the open, as a negative status does.
+    /// A positive status is success with a warning; the handle is active.
+    /// A negative status is a failure.
     pub(crate) fn activate(&mut self) -> Activation {
         // SAFETY: the handle is alive and not yet active.
         let status = unsafe { ffi::pcap_activate(self.as_ptr()) };
-        match status {
-            0 => Activation::Ready,
-            ffi::PCAP_WARNING_PROMISC_NOTSUP => {
-                Activation::PromiscuousNotSupported(self.status_message(status))
-            }
-            _ => Activation::Failed {
-                status,
-                message: self.status_message(status),
-            },
-        }
+        activation_from_status(status, || self.status_message(status))
     }
 
     /// Switch an active handle to non-blocking reads.
@@ -301,6 +294,20 @@ impl Handle {
     }
 }
 
+/// Map a `pcap_activate` status to its outcome; `message` is read only when
+/// the status is not plain success.
+fn activation_from_status(status: c_int, message: impl FnOnce() -> String) -> Activation {
+    match status {
+        0 => Activation::Ready,
+        ffi::PCAP_WARNING_PROMISC_NOTSUP => Activation::PromiscuousNotSupported(message()),
+        1.. => Activation::Warning(message()),
+        _ => Activation::Failed {
+            status,
+            message: message(),
+        },
+    }
+}
+
 /// Interfaces in libpcap order.
 pub(crate) fn find_all_devices() -> Result<Vec<RawDevice>, String> {
     let mut list: *mut ffi::PcapIf = ptr::null_mut();
@@ -311,11 +318,38 @@ pub(crate) fn find_all_devices() -> Result<Vec<RawDevice>, String> {
     if status < 0 {
         return Err(errbuf.text());
     }
+    // SAFETY: `list` is null or the list pcap_findalldevs returned, alive
+    // until it is freed below.
+    let devices = unsafe { collect_devices(list) };
+    if !list.is_null() {
+        // SAFETY: allocated by pcap_findalldevs and not used again.
+        unsafe { ffi::pcap_freealldevs(list) };
+    }
+    devices
+}
+
+/// Copy the entries of an interface list without freeing it.
+///
+/// The walk stops with an error after [`MAX_LIST_ENTRIES`] nodes, counted
+/// whether or not a node is kept, so a corrupt or circular list cannot loop
+/// forever or come back silently truncated.
+///
+/// # Safety
+///
+/// `list` must be null or the head of a list of valid nodes whose strings
+/// are null or NUL-terminated, all alive for the duration of the call.
+unsafe fn collect_devices(list: *const ffi::PcapIf) -> Result<Vec<RawDevice>, String> {
     let mut devices = Vec::new();
     let mut entry = list;
-    while !entry.is_null() && devices.len() < MAX_LIST_ENTRIES {
-        // SAFETY: `entry` is a node of the list libpcap returned, alive until
-        // pcap_freealldevs below.
+    let mut visited = 0_usize;
+    while !entry.is_null() {
+        if visited == MAX_LIST_ENTRIES {
+            return Err(format!(
+                "libpcap listed more than {MAX_LIST_ENTRIES} interfaces"
+            ));
+        }
+        visited += 1;
+        // SAFETY: guaranteed by the caller for every node of the list.
         let node = unsafe { &*entry };
         // SAFETY: name and description are null or NUL-terminated strings
         // owned by the node; both are copied at once.
@@ -329,10 +363,6 @@ pub(crate) fn find_all_devices() -> Result<Vec<RawDevice>, String> {
             });
         }
         entry = node.next;
-    }
-    if !list.is_null() {
-        // SAFETY: allocated by pcap_findalldevs and not used again.
-        unsafe { ffi::pcap_freealldevs(list) };
     }
     Ok(devices)
 }
@@ -463,6 +493,95 @@ mod tests {
             return;
         };
         assert!(matches!(handle.activate(), Activation::Failed { .. }));
+    }
+
+    #[test]
+    fn positive_activation_statuses_are_successes() {
+        let text = || "detail".to_owned();
+        assert!(matches!(activation_from_status(0, text), Activation::Ready));
+        assert!(matches!(
+            activation_from_status(ffi::PCAP_WARNING_PROMISC_NOTSUP, text),
+            Activation::PromiscuousNotSupported(message) if message == "detail"
+        ));
+        for warning in [1, 3, 7] {
+            assert!(matches!(
+                activation_from_status(warning, text),
+                Activation::Warning(message) if message == "detail"
+            ));
+        }
+        for error in [-1, ffi::PCAP_ERROR_PERM_DENIED] {
+            assert!(matches!(
+                activation_from_status(error, text),
+                Activation::Failed { status, .. } if status == error
+            ));
+        }
+    }
+
+    /// Link `count` nodes, each named by `name`, ending in null or, with
+    /// `circular`, pointing back at the first node.
+    fn linked_nodes(count: usize, name: *mut c_char, circular: bool) -> Vec<ffi::PcapIf> {
+        let mut nodes: Vec<ffi::PcapIf> = (0..count)
+            .map(|_| ffi::PcapIf {
+                next: ptr::null_mut(),
+                name,
+                description: ptr::null_mut(),
+                addresses: ptr::null_mut(),
+                flags: ffi::PCAP_IF_LOOPBACK,
+            })
+            .collect();
+        let base = nodes.as_mut_ptr();
+        for index in 0..count {
+            let next = if index + 1 < count {
+                base.wrapping_add(index + 1)
+            } else if circular {
+                base
+            } else {
+                ptr::null_mut()
+            };
+            if let Some(node) = nodes.get_mut(index) {
+                node.next = next;
+            }
+        }
+        nodes
+    }
+
+    #[test]
+    fn device_list_is_copied_in_order() {
+        let name = c"lo0";
+        let nodes = linked_nodes(3, name.as_ptr().cast_mut(), false);
+        // SAFETY: the nodes and the name outlive the call.
+        let devices = unsafe { collect_devices(nodes.as_ptr()) };
+        let devices = devices.unwrap_or_default();
+        assert_eq!(devices.len(), 3);
+        assert!(
+            devices
+                .iter()
+                .all(|device| device.name == "lo0" && device.loopback)
+        );
+        // SAFETY: null is an empty list.
+        assert_eq!(
+            unsafe { collect_devices(ptr::null()) }.map(|d| d.len()),
+            Ok(0)
+        );
+    }
+
+    #[test]
+    fn device_list_over_the_limit_is_an_error() {
+        let name = c"en0";
+        let nodes = linked_nodes(MAX_LIST_ENTRIES + 1, name.as_ptr().cast_mut(), false);
+        // SAFETY: the nodes and the name outlive the call.
+        assert!(unsafe { collect_devices(nodes.as_ptr()) }.is_err());
+        let exact = linked_nodes(MAX_LIST_ENTRIES, name.as_ptr().cast_mut(), false);
+        // SAFETY: as above.
+        assert!(unsafe { collect_devices(exact.as_ptr()) }.is_ok());
+    }
+
+    #[test]
+    fn circular_list_of_unnamed_nodes_ends() {
+        let nodes = linked_nodes(2, ptr::null_mut(), true);
+        // SAFETY: the nodes outlive the call; the list is circular on
+        // purpose.
+        assert!(unsafe { collect_devices(nodes.as_ptr()) }.is_err());
     }
 
     #[test]

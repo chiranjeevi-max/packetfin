@@ -8,9 +8,11 @@
 fn main() {
     println!("cargo:rerun-if-env-changed=LIBPCAP_LIBDIR");
     if let Some(directory) = std::env::var_os("LIBPCAP_LIBDIR") {
-        println!(
-            "cargo:rustc-link-search=native={}",
-            std::path::Path::new(&directory).display()
-        );
+        // Cargo reads build-script output as UTF-8, so a path that is not
+        // UTF-8 cannot be passed on unchanged.
+        match directory.to_str() {
+            Some(directory) => println!("cargo::rustc-link-search=native={directory}"),
+            None => println!("cargo::error=LIBPCAP_LIBDIR is not valid UTF-8"),
+        }
     }
 }

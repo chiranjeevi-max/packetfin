@@ -561,12 +561,17 @@ fn same_file(input: &Path, output: &Path) -> bool {
 
 /// Whether `handle` and the file named by `output` are the same file.
 ///
-/// When the output cannot be inspected, the answer is "same": the alternative
-/// is to let the writer truncate a file that may be the one being read.
+/// An output that does not exist yet cannot be the file being read, and this
+/// is the normal case: the writer creates it. An output that exists but whose
+/// identity cannot be read is treated as the same file, because the only
+/// alternative is to let the writer truncate what may be the input.
 #[cfg(windows)]
 fn identifies_same(handle: &impl winapi_util::AsHandleRef, output: &Path) -> bool {
     use winapi_util::file;
 
+    if std::fs::metadata(output).is_err() {
+        return false;
+    }
     let Ok(output) = std::fs::OpenOptions::new().read(true).open(output) else {
         return true;
     };

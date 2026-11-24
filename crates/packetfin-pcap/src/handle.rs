@@ -56,11 +56,6 @@ pub(crate) struct Handle {
     raw: NonNull<ffi::PcapHandle>,
 }
 
-// SAFETY: a pcap_t may move between threads as long as one thread uses it
-// at a time. `Handle` is not `Sync`, so shared use across threads is not
-// possible.
-unsafe impl Send for Handle {}
-
 impl Drop for Handle {
     fn drop(&mut self) {
         // SAFETY: `raw` came from pcap_create, is closed exactly once here,

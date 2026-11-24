@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+# tools/windows-imports — cross-build packetfin.exe and check its DLL imports.
+#
+# Usage: tools/windows-imports NPCAP_SDK_DIR
+#
+#   NPCAP_SDK_DIR  an unpacked Npcap SDK (the directory holding Lib/x64),
+#                  from https://npcap.com/#download
+#
+# Builds packetfin for x86_64-pc-windows-msvc inside a pinned cargo-xwin
+# image, with the toolchain from rust-toolchain.toml, then lists the
+# executable's DLL imports. Fails if any import is outside the expected set:
+# a stray import library on the link line can bind a system call to a DLL a
+# desktop Windows does not have, and the binary then crashes at run time.
+#
+# Requires a Docker daemon. The first run downloads the Rust toolchain and
+# the MSVC CRT and Windows SDK libraries (accepting Microsoft's license for
+# them) into Docker volumes named packetfin-xwin-*; later runs reuse them.
+
+set -euo pipefail
+
+image="messense/cargo-xwin@sha256:d22ea1ab9ddeebd9006d53381fb20794a13aa146c2bd6d2eb88299beb1b021aa"
+
+# DLLs packetfin.exe may import. Anything else fails the check.
+allowed='^(KERNEL32\.dll|ntdll\.dll|bcryptprimitives\.dll|VCRUNTIME140\.dll|wpcap\.dll|api-ms-win-core-[a-z0-9-]+\.dll|api-ms-win-crt-[a-z0-9-]+\.dll)$'
+
+fail() {
+    printf '!! %s\n' "$*" >&2
+    exit 1
+}
+
+[ "$#" -eq 1 ] || fail "usage: tools/windows-imports NPCAP_SDK_DIR"
+sdk="$(cd "$1" 2>/dev/null && pwd)" || fail "no such directory: $1"
+[ -f "$sdk/Lib/x64/wpcap.lib" ] || fail "$sdk/Lib/x64/wpcap.lib not found; pass the unpacked Npcap SDK directory"
+
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+repo_root="$(cd "$script_dir/.." && pwd)"
+
+imports="$(docker run --rm \
+    -v "$repo_root":/src:ro -v "$sdk":/sdk:ro \
+    -v packetfin-xwin-rustup:/usr/local/rustup \
+    -v packetfin-xwin-cargo:/usr/local/cargo/registry \
+    -v packetfin-xwin-cache:/root/.cache/cargo-xwin \
+    -v packetfin-xwin-target:/target \
+    -e CARGO_TARGET_DIR=/target -e LIBPCAP_LIBDIR=/sdk/Lib/x64 \
+    -w /src "$image" sh -ec '
+        rustup target add x86_64-pc-windows-msvc >/dev/null 2>&1
+        cargo xwin build -q -p packetfin --target x86_64-pc-windows-msvc --locked >&2
+        llvm-readobj --coff-imports /target/x86_64-pc-windows-msvc/debug/packetfin.exe' |
+    sed -n 's/^ *Name: //p' | sort -u)"
+
+[ -n "$imports" ] || fail "no imports read from packetfin.exe"
+printf '%s\n' "$imports"
+unexpected="$(printf '%s\n' "$imports" | grep -Ev "$allowed" || true)"
+[ -z "$unexpected" ] || fail "unexpected DLL imports: $(printf '%s ' $unexpected)"
+printf '\n==> tools/windows-imports: imports are as expected\n'
